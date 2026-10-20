@@ -80,16 +80,21 @@ QColor badgeColor(const QString& key) {
   return kPalette[h % (sizeof(kPalette) / sizeof(kPalette[0]))];
 }
 
+QString resourceIconPath(const QString& nameOrPath) {
+  if (nameOrPath.isEmpty()) return {};
+  const QString path = nameOrPath.startsWith(':') || nameOrPath.contains('/') ? nameOrPath
+                                                                              : ":/icons/" + nameOrPath + ".svg";
+  return QFile::exists(path) ? path : QString();
+}
+
 QIcon resourceIcon(const QString& nameOrPath) {
   if (nameOrPath.isEmpty()) return {};
   auto& c = cache();
   const QString key = "res:" + nameOrPath;
   if (auto it = c.find(key); it != c.end()) return *it;
-  QString path;
-  if (nameOrPath.startsWith(':') || nameOrPath.contains('/')) path = nameOrPath;
-  else path = ":/icons/" + nameOrPath + ".svg";
+  const QString path = resourceIconPath(nameOrPath);
   QIcon icon;
-  if (QFile::exists(path)) icon = QIcon(path);
+  if (!path.isEmpty()) icon = QIcon(path);
   c.insert(key, icon);
   return icon;
 }
@@ -106,27 +111,36 @@ QIcon iconOr(const std::string& nameOrPath, const std::string& label) {
   return badge;
 }
 
-QIcon toolIcon(const core::ToolInfo& info) {
-  if (!info.icon.empty()) {
-    QIcon i = resourceIcon(QString::fromStdString(info.icon));
-    if (!i.isNull()) return i;
-  }
+QString toolIconPath(const core::ToolInfo& info) {
+  QString id = QString::fromStdString(info.id);
+  if (QString p = resourceIconPath(QString(id).replace('.', '-')); !p.isEmpty()) return p;
+  if (QString p = resourceIconPath(QString::fromStdString(info.icon)); !p.isEmpty()) return p;
   // tool id suffix as icon name ("part.extrude" -> extrude.svg)
-  const auto dot = info.id.find('.');
-  const std::string suffix = dot == std::string::npos ? info.id : info.id.substr(dot + 1);
-  return iconOr(suffix, info.name);
+  const qsizetype dot = id.indexOf('.');
+  return resourceIconPath(dot < 0 ? id : id.mid(dot + 1));
+}
+
+QIcon toolIcon(const core::ToolInfo& info) {
+  if (const QString p = toolIconPath(info); !p.isEmpty()) return resourceIcon(p);
+  return iconOr("", info.name.empty() ? info.id : info.name);
+}
+
+QString featureIconPath(const std::string& iconName, const std::string& type, const std::string& folder) {
+  if (QString p = resourceIconPath(QString::fromStdString(iconName)); !p.isEmpty()) return p;
+  const QString t = QString::fromStdString(type).toLower();
+  if (QString p = resourceIconPath("feature-" + t); !p.isEmpty()) return p;
+  if (type == "Sketch") return resourceIconPath("sketch");
+  if (folder == "Construction") {
+    if (t.contains("axis")) return resourceIconPath("axis");
+    if (t.contains("point")) return resourceIconPath("point");
+    return resourceIconPath("plane");
+  }
+  if (folder == "Joints") return resourceIconPath("joint");
+  return {};
 }
 
 QIcon featureIcon(const std::string& iconName, const std::string& type, const std::string& folder) {
-  if (QIcon i = resourceIcon(QString::fromStdString(iconName)); !i.isNull()) return i;
-  if (type == "Sketch") return resourceIcon("sketch");
-  if (folder == "Construction") {
-    const QString t = QString::fromStdString(type).toLower();
-    if (t.contains("axis")) return resourceIcon("axis");
-    if (t.contains("point")) return resourceIcon("point");
-    return resourceIcon("plane");
-  }
-  if (folder == "Joints") return resourceIcon("joint");
+  if (const QString p = featureIconPath(iconName, type, folder); !p.isEmpty()) return resourceIcon(p);
   return iconOr("", type);
 }
 

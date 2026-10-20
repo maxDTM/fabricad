@@ -1,19 +1,102 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
   <file>theme-light.qss</file>
+  <file>icons/app-edit-properties.svg</file>
+  <file>icons/app-help.svg</file>
+  <file>icons/app-redo-alt.svg</file>
+  <file>icons/app-show-all.svg</file>
+  <file>icons/app-toggle-visibility.svg</file>
+  <file>icons/assembly-activate.svg</file>
+  <file>icons/assembly-as-built-joint.svg</file>
+  <file>icons/assembly-components-from-bodies.svg</file>
+  <file>icons/assembly-copy.svg</file>
+  <file>icons/assembly-delete-component.svg</file>
+  <file>icons/assembly-drive-joint.svg</file>
+  <file>icons/assembly-export-bom.svg</file>
+  <file>icons/assembly-export-step.svg</file>
+  <file>icons/assembly-ground.svg</file>
+  <file>icons/assembly-insert-design.svg</file>
+  <file>icons/assembly-interference.svg</file>
+  <file>icons/assembly-joint.svg</file>
+  <file>icons/assembly-move.svg</file>
+  <file>icons/assembly-new-component.svg</file>
+  <file>icons/assembly-paste.svg</file>
+  <file>icons/assembly-rigid-group.svg</file>
   <file>icons/axis.svg</file>
   <file>icons/body.svg</file>
   <file>icons/cancel.svg</file>
   <file>icons/command-line.svg</file>
   <file>icons/component.svg</file>
   <file>icons/compute.svg</file>
+  <file>icons/construct-axis.svg</file>
+  <file>icons/construct-midplane.svg</file>
+  <file>icons/construct-offset-plane.svg</file>
+  <file>icons/construct-plane-at-angle.svg</file>
+  <file>icons/construct-plane-three-points.svg</file>
+  <file>icons/construct-point.svg</file>
+  <file>icons/construct-tangent-plane.svg</file>
   <file>icons/delete.svg</file>
   <file>icons/display.svg</file>
   <file>icons/document.svg</file>
+  <file>icons/drawing-auto-center-marks.svg</file>
+  <file>icons/drawing-balloon-all.svg</file>
+  <file>icons/drawing-balloon.svg</file>
+  <file>icons/drawing-base-view.svg</file>
+  <file>icons/drawing-center-mark.svg</file>
+  <file>icons/drawing-centerline.svg</file>
+  <file>icons/drawing-create.svg</file>
+  <file>icons/drawing-delete-sheet.svg</file>
+  <file>icons/drawing-delete.svg</file>
+  <file>icons/drawing-detail-view.svg</file>
+  <file>icons/drawing-dimension.svg</file>
+  <file>icons/drawing-edit-dimension.svg</file>
+  <file>icons/drawing-edit-sheet.svg</file>
+  <file>icons/drawing-edit-title-block.svg</file>
+  <file>icons/drawing-edit-view.svg</file>
+  <file>icons/drawing-export-csv.svg</file>
+  <file>icons/drawing-export-dxf.svg</file>
+  <file>icons/drawing-export-pdf.svg</file>
+  <file>icons/drawing-export-svg.svg</file>
+  <file>icons/drawing-leader.svg</file>
+  <file>icons/drawing-move.svg</file>
+  <file>icons/drawing-new-sheet.svg</file>
+  <file>icons/drawing-parts-list.svg</file>
+  <file>icons/drawing-projected-view.svg</file>
+  <file>icons/drawing-section-view.svg</file>
+  <file>icons/drawing-text.svg</file>
+  <file>icons/drawing-toggle-hidden-lines.svg</file>
+  <file>icons/drawing-toggle-tangent-edges.svg</file>
   <file>icons/error.svg</file>
   <file>icons/eye-off.svg</file>
   <file>icons/eye.svg</file>
   <file>icons/fabricad.svg</file>
+  <file>icons/feature-chamfer.svg</file>
+  <file>icons/feature-circularpattern.svg</file>
+  <file>icons/feature-combine.svg</file>
+  <file>icons/feature-constructionaxis.svg</file>
+  <file>icons/feature-constructionpoint.svg</file>
+  <file>icons/feature-draft.svg</file>
+  <file>icons/feature-extrude.svg</file>
+  <file>icons/feature-fillet.svg</file>
+  <file>icons/feature-hole.svg</file>
+  <file>icons/feature-import.svg</file>
+  <file>icons/feature-insertdesign.svg</file>
+  <file>icons/feature-loft.svg</file>
+  <file>icons/feature-midplane.svg</file>
+  <file>icons/feature-mirror.svg</file>
+  <file>icons/feature-movebody.svg</file>
+  <file>icons/feature-newcomponent.svg</file>
+  <file>icons/feature-offsetface.svg</file>
+  <file>icons/feature-offsetplane.svg</file>
+  <file>icons/feature-planeatangle.svg</file>
+  <file>icons/feature-planethreepoints.svg</file>
+  <file>icons/feature-rectangularpattern.svg</file>
+  <file>icons/feature-revolve.svg</file>
+  <file>icons/feature-rigidgroup.svg</file>
+  <file>icons/feature-shell.svg</file>
+  <file>icons/feature-splitbody.svg</file>
+  <file>icons/feature-sweep.svg</file>
+  <file>icons/feature-tangentplane.svg</file>
   <file>icons/feature.svg</file>
   <file>icons/file-menu.svg</file>
   <file>icons/finish-sketch.svg</file>
@@ -22,6 +105,14 @@
   <file>icons/grid.svg</file>
   <file>icons/help.svg</file>
   <file>icons/home.svg</file>
+  <file>icons/inspect-measure.svg</file>
+  <file>icons/joint-ball.svg</file>
+  <file>icons/joint-cylindrical.svg</file>
+  <file>icons/joint-pin-slot.svg</file>
+  <file>icons/joint-planar.svg</file>
+  <file>icons/joint-revolute.svg</file>
+  <file>icons/joint-rigid.svg</file>
+  <file>icons/joint-slider.svg</file>
   <file>icons/joint.svg</file>
   <file>icons/look-at.svg</file>
   <file>icons/new.svg</file>
@@ -31,6 +122,28 @@
   <file>icons/origin.svg</file>
   <file>icons/pan.svg</file>
   <file>icons/parameters.svg</file>
+  <file>icons/part-chamfer.svg</file>
+  <file>icons/part-circular-pattern.svg</file>
+  <file>icons/part-combine.svg</file>
+  <file>icons/part-draft.svg</file>
+  <file>icons/part-edit-feature.svg</file>
+  <file>icons/part-export-step.svg</file>
+  <file>icons/part-export-stl.svg</file>
+  <file>icons/part-extrude.svg</file>
+  <file>icons/part-fillet.svg</file>
+  <file>icons/part-hole.svg</file>
+  <file>icons/part-import-file.svg</file>
+  <file>icons/part-import.svg</file>
+  <file>icons/part-loft.svg</file>
+  <file>icons/part-mirror.svg</file>
+  <file>icons/part-move.svg</file>
+  <file>icons/part-offset-face.svg</file>
+  <file>icons/part-press-pull.svg</file>
+  <file>icons/part-rectangular-pattern.svg</file>
+  <file>icons/part-revolve.svg</file>
+  <file>icons/part-shell.svg</file>
+  <file>icons/part-split-body.svg</file>
+  <file>icons/part-sweep.svg</file>
   <file>icons/plane.svg</file>
   <file>icons/point.svg</file>
   <file>icons/redo.svg</file>
@@ -44,12 +157,78 @@
   <file>icons/select-vertex.svg</file>
   <file>icons/select.svg</file>
   <file>icons/settings.svg</file>
+  <file>icons/sketch-arc-3point.svg</file>
+  <file>icons/sketch-arc-center.svg</file>
+  <file>icons/sketch-arc-tangent.svg</file>
+  <file>icons/sketch-break.svg</file>
+  <file>icons/sketch-circle-2point.svg</file>
+  <file>icons/sketch-circle-3point.svg</file>
+  <file>icons/sketch-circle.svg</file>
+  <file>icons/sketch-constraint-coincident.svg</file>
+  <file>icons/sketch-constraint-collinear.svg</file>
+  <file>icons/sketch-constraint-concentric.svg</file>
+  <file>icons/sketch-constraint-equal.svg</file>
+  <file>icons/sketch-constraint-fix.svg</file>
+  <file>icons/sketch-constraint-horizontal-vertical.svg</file>
+  <file>icons/sketch-constraint-midpoint.svg</file>
+  <file>icons/sketch-constraint-parallel.svg</file>
+  <file>icons/sketch-constraint-perpendicular.svg</file>
+  <file>icons/sketch-constraint-symmetric.svg</file>
+  <file>icons/sketch-constraint-tangent.svg</file>
+  <file>icons/sketch-construction.svg</file>
+  <file>icons/sketch-create.svg</file>
+  <file>icons/sketch-dimension-edit.svg</file>
+  <file>icons/sketch-dimension.svg</file>
+  <file>icons/sketch-edit.svg</file>
+  <file>icons/sketch-extend.svg</file>
+  <file>icons/sketch-fillet.svg</file>
+  <file>icons/sketch-finish.svg</file>
+  <file>icons/sketch-line.svg</file>
+  <file>icons/sketch-look-at.svg</file>
+  <file>icons/sketch-mirror.svg</file>
+  <file>icons/sketch-offset.svg</file>
+  <file>icons/sketch-point.svg</file>
+  <file>icons/sketch-polygon-inscribed.svg</file>
+  <file>icons/sketch-polygon.svg</file>
+  <file>icons/sketch-project.svg</file>
+  <file>icons/sketch-rectangle-3point.svg</file>
+  <file>icons/sketch-rectangle-center.svg</file>
+  <file>icons/sketch-rectangle.svg</file>
+  <file>icons/sketch-select.svg</file>
+  <file>icons/sketch-slot.svg</file>
+  <file>icons/sketch-toggle-constraints.svg</file>
+  <file>icons/sketch-toggle-dimensions.svg</file>
+  <file>icons/sketch-toggle-grid.svg</file>
+  <file>icons/sketch-toggle-points.svg</file>
+  <file>icons/sketch-toggle-profiles.svg</file>
+  <file>icons/sketch-toggle-snap.svg</file>
+  <file>icons/sketch-trim.svg</file>
   <file>icons/sketch.svg</file>
   <file>icons/timeline-first.svg</file>
   <file>icons/timeline-last.svg</file>
   <file>icons/timeline-next.svg</file>
   <file>icons/timeline-prev.svg</file>
   <file>icons/undo.svg</file>
+  <file>icons/view-back.svg</file>
+  <file>icons/view-bottom.svg</file>
+  <file>icons/view-front.svg</file>
+  <file>icons/view-grid.svg</file>
+  <file>icons/view-hidden-line.svg</file>
+  <file>icons/view-iso.svg</file>
+  <file>icons/view-left.svg</file>
+  <file>icons/view-look-at.svg</file>
+  <file>icons/view-orbit-down.svg</file>
+  <file>icons/view-orbit-left.svg</file>
+  <file>icons/view-orbit-right.svg</file>
+  <file>icons/view-orbit-up.svg</file>
+  <file>icons/view-orthographic.svg</file>
+  <file>icons/view-perspective.svg</file>
+  <file>icons/view-right.svg</file>
+  <file>icons/view-shaded-edges.svg</file>
+  <file>icons/view-shaded.svg</file>
+  <file>icons/view-snap.svg</file>
+  <file>icons/view-top.svg</file>
+  <file>icons/view-wireframe.svg</file>
   <file>icons/views.svg</file>
   <file>icons/visibility.svg</file>
   <file>icons/warning.svg</file>
