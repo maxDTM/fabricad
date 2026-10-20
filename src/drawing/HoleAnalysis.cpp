@@ -135,9 +135,10 @@ std::string metricThreadForHole(double d, double* nominal, double* pitch) {
   const T* best = nullptr;
   double bestErr = 1e300;
   for (const auto& t : sizes) {
-    // tap drill (d - P) or a hole modelled at the nominal major diameter
+    // tap drill (d - P) or a hole modelled at the nominal major diameter; the tap drill wins
+    // ties (a 5 mm hole is an M6 tap drill rather than a plain M5 clearance)
     for (double cand : {t.d - t.p, t.d}) {
-      double err = std::abs(cand - d);
+      double err = std::abs(cand - d) + (cand == t.d ? 1e-3 : 0.0);
       if (err < bestErr) {
         bestErr = err;
         best = &t;
