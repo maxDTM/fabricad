@@ -482,6 +482,8 @@ void registerSketchTools(core::ToolRegistry& reg) {
   registerCreateTools(reg);
   registerModifyTools(reg);
   registerConstraintTools(reg);
+  registerCurveTools(reg);
+  registerTransformTools(reg);
 }
 
 }  // namespace fabricad::sketch

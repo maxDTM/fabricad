@@ -276,7 +276,9 @@ ShapeRef SketchSession::toShapeRef(const GeoRef& r) const {
     if (g && g->type == GeomType::Point) return ShapeRef::sketchPoint(sketchId_, r.geo, core::SketchPointRole::Standalone);
     return ShapeRef::sketchCurve(sketchId_, r.geo);
   }
-  return ShapeRef::sketchPoint(sketchId_, r.geo, toRole(r.pos));
+  ShapeRef ref = ShapeRef::sketchPoint(sketchId_, r.geo, toRole(r.pos));
+  ref.subIndex = toSubIndex(r);
+  return ref;
 }
 
 std::optional<GeoRef> SketchSession::fromShapeRef(const ShapeRef& ref) const {
@@ -286,7 +288,7 @@ std::optional<GeoRef> SketchSession::fromShapeRef(const ShapeRef& ref) const {
     const Sketch* sk = sketch();
     const Geometry* g = sk ? sk->geometry(ref.index) : nullptr;
     if (g && g->type == GeomType::Point) return GeoRef{ref.index, PointPos::Center};
-    return GeoRef{ref.index, fromRole(ref.subIndex)};
+    return fromSubIndex(ref.index, ref.subIndex);
   }
   return std::nullopt;
 }
@@ -390,7 +392,7 @@ void SketchSession::renderGeometry() {
   std::set<std::pair<int, int>> selPoints;
   for (const GeoRef& r : selectedRefs()) {
     if (r.pos == PointPos::None) selCurves.insert(r.geo);
-    else selPoints.insert({r.geo, static_cast<int>(r.pos)});
+    else selPoints.insert({r.geo, toSubIndex(r)});
   }
   std::vector<Vec3> freePts, fixedPts, selPts;
   for (const Geometry& g : sk.geometries()) {
@@ -417,14 +419,22 @@ void SketchSession::renderGeometry() {
       else freePts.push_back(p);
       continue;
     }
-    std::vector<Vec3> pts;
-    for (const Pt2& p : g.tessellate(72)) pts.push_back(toWorld(p));
-    addPolyline(pts, lineStyle(color, selected ? 3.0f : 2.0f, dashed));
+    for (const auto& pl : g.polylines(72)) {
+      std::vector<Vec3> pts;
+      for (const Pt2& p : pl) pts.push_back(toWorld(p));
+      addPolyline(pts, lineStyle(color, selected ? 3.0f : 2.0f, dashed));
+    }
+    if (g.isSpline() && g.type == GeomType::Spline) {
+      // control polygon (thin dashed), Fusion shows it for control-point splines
+      std::vector<Vec3> poly;
+      for (int i = 0; i < g.vertexCount(); ++i) poly.push_back(toWorld(g.vertex(i)));
+      addPolyline(poly, lineStyle(colors::kGlyph, 1.0f, true));
+    }
     if (showPoints_) {
-      for (PointPos pos : g.pointPositions()) {
-        if (pos == PointPos::Mid) continue;
-        Vec3 p = toWorld(g.point(pos));
-        bool pointSelected = selPoints.count({g.id, static_cast<int>(pos)}) > 0;
+      for (const GeoRef& pr : g.pointRefs()) {
+        if (pr.pos == PointPos::Mid) continue;
+        Vec3 p = toWorld(g.point(pr.pos, pr.index));
+        bool pointSelected = selPoints.count({g.id, toSubIndex(pr)}) > 0;
         if (pointSelected) selPts.push_back(p);
         else if (st == GeometryStatus::FullyConstrained || st == GeometryStatus::Fixed || st == GeometryStatus::Projected) fixedPts.push_back(p);
         else freePts.push_back(p);

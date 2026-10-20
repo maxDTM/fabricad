@@ -3,6 +3,7 @@
 #include "sketch/SketchSolver.h"
 
 #include "core/Log.h"
+#include "sketch/SketchCurves.h"
 
 #include "GCS.h"  // PlaneGCS (third_party/planegcs)
 
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <deque>
 #include <map>
+#include <tuple>
 
 namespace fabricad::sketch {
 
@@ -24,6 +26,12 @@ struct GeoSlot {
   GCS::Line line;
   GCS::Circle circle;
   GCS::Arc arc;
+  GCS::Ellipse ellipse;
+  GCS::ArcOfEllipse arcEllipse;
+  GCS::BSpline bspline;
+  std::vector<GCS::Point> verts;  ///< spline control / fit points (user-referencable)
+  bool fitRules = false;          ///< FitSpline: add the interpolation constraints
+  std::vector<double> fitParams;  ///< FitSpline: parameter of each fit point
 };
 
 class Builder {
@@ -35,6 +43,7 @@ class Builder {
     allocate();
     buildGeometry();
     declareUnknowns();
+    addFitRules();
     buildConstraints();
     if (drag) addDrag(*drag);
 
@@ -129,6 +138,11 @@ class Builder {
       case GeomType::Line: return g.length() > 1e-6 && std::hypot(b[2] - b[0], b[3] - b[1]) < eps;
       case GeomType::Circle: return g.radius() > 1e-6 && std::abs(b[2]) < eps;
       case GeomType::Arc: return g.radius() > 1e-6 && std::abs(b[2]) < eps;
+      case GeomType::Ellipse:
+      case GeomType::EllipseArc: return g.minorRadius() > 1e-6 && std::abs(b[4]) < eps;
+      case GeomType::Spline:
+      case GeomType::FitSpline:
+      case GeomType::Text: return false;
     }
     return false;
   }
@@ -179,29 +193,106 @@ class Builder {
           s.arc.start = GCS::Point(b + 5, b + 6);
           s.arc.end = GCS::Point(b + 7, b + 8);
           break;
+        case GeomType::Ellipse:
+          s.ellipse.center = GCS::Point(b, b + 1);
+          s.ellipse.focus1 = GCS::Point(b + 2, b + 3);
+          s.ellipse.radmin = b + 4;
+          break;
+        case GeomType::EllipseArc:
+          s.arcEllipse.center = GCS::Point(b, b + 1);
+          s.arcEllipse.focus1 = GCS::Point(b + 2, b + 3);
+          s.arcEllipse.radmin = b + 4;
+          s.arcEllipse.startAngle = b + 5;
+          s.arcEllipse.endAngle = b + 6;
+          s.arcEllipse.start = GCS::Point(b + 7, b + 8);
+          s.arcEllipse.end = GCS::Point(b + 9, b + 10);
+          break;
+        case GeomType::Spline:
+        case GeomType::FitSpline:
+          for (int k = 0; k < g.vertexCount(); ++k) s.verts.push_back(GCS::Point(b + 2 * k, b + 2 * k + 1));
+          break;
+        case GeomType::Text: s.point = GCS::Point(b, b + 1); break;
       }
       next_ += s.count;
       slots_[g.id] = s;
     }
-    for (auto& [id, s] : slots_)
+    for (auto& [id, s] : slots_) {
       if (s.geo->type == GeomType::Arc) sys_.addConstraintArcRules(s.arc, 0);
+      if (s.geo->type == GeomType::EllipseArc) sys_.addConstraintArcOfEllipseRules(s.arcEllipse, 0);
+      if (s.geo->isSpline()) setupSpline(s);
+    }
+  }
+
+  /// GCS B-spline of a Spline (poles = the geometry's points) or FitSpline (auxiliary poles
+  /// tied to the fit points by interpolation constraints added in addFitRules()).
+  void setupSpline(GeoSlot& s) {
+    const Geometry& g = *s.geo;
+    BSpline2 sp = g.bspline();
+    if (!sp.isValid() || s.verts.size() < 2) return;
+    GCS::BSpline& b = s.bspline;
+    b.degree = sp.degree;
+    b.periodic = false;
+    if (g.type == GeomType::Spline) {
+      b.poles = s.verts;
+    } else {
+      for (const Pt2& q : sp.poles) {
+        double* x = aux(q.x);
+        double* y = aux(q.y);
+        b.poles.push_back(GCS::Point(x, y));
+      }
+      s.fitRules = true;
+      s.fitParams = g.knots.size() == s.verts.size() ? g.knots : chordLengthParams([&] {
+        std::vector<Pt2> v;
+        for (int k = 0; k < g.vertexCount(); ++k) v.push_back(g.vertex(k));
+        return v;
+      }());
+    }
+    for (size_t i = 0; i < b.poles.size(); ++i) b.weights.push_back(value(1.0));
+    std::vector<double> vals;
+    std::vector<int> mults;
+    sp.distinctKnots(vals, mults);
+    for (double v : vals) b.knots.push_back(value(v));
+    b.mult = mults;
+    b.start = s.verts.front();
+    b.end = s.verts.back();
+    b.setupFlattenedKnots();
+  }
+
+  /// Interpolation constraints of fit-point splines (after the unknowns are known).
+  void addFitRules() {
+    for (auto& [id, s] : slots_) {
+      if (!s.fitRules || s.bspline.poles.empty()) continue;
+      bool movable = !unknownsOf_[id].empty();
+      if (movable)
+        for (auto& pole : s.bspline.poles) {
+          unknowns_.push_back(pole.x);
+          unknowns_.push_back(pole.y);
+        }
+      if (!movable) continue;  // fixed spline: the poles keep their interpolated values
+      for (size_t k = 0; k < s.verts.size() && k < s.fitParams.size(); ++k)
+        sys_.addConstraintPointOnBSpline(s.verts[k], s.bspline, value(s.fitParams[k]), 0);
+    }
   }
 
   void declareUnknowns() {
     // Fix constraints: whole geometry or single point
     std::set<int> fixedGeos;
-    std::set<std::pair<int, PointPos>> fixedPoints;
+    std::set<std::tuple<int, PointPos, int>> fixedPoints;
     for (const Constraint& c : sketch_.constraints()) {
       if (c.type != ConstraintType::Fix || !c.a.isValid()) continue;
       if (c.a.pos == PointPos::None) fixedGeos.insert(c.a.geo);
-      else fixedPoints.insert({c.a.geo, c.a.pos});
+      else fixedPoints.insert({c.a.geo, c.a.pos, c.a.pos == PointPos::Vertex ? c.a.index : -1});
     }
     for (auto& [id, s] : slots_) {
       std::vector<double*> list;
       const Geometry& g = *s.geo;
       if (g.isMovable() && !fixedGeos.count(id)) {
         double* b = &buf_[static_cast<size_t>(s.offset)];
-        auto isFixed = [&](PointPos pos) { return fixedPoints.count({id, pos}) > 0; };
+        auto isFixed = [&](PointPos pos) { return fixedPoints.count({id, pos, -1}) > 0; };
+        auto vertexFixed = [&](int k, int n) {
+          return fixedPoints.count({id, PointPos::Vertex, k}) > 0 || (k == 0 && isFixed(PointPos::Start)) ||
+                 (k == n - 1 && isFixed(PointPos::End));
+        };
         switch (g.type) {
           case GeomType::Point:
             if (!isFixed(PointPos::Center)) list = {b, b + 1};
@@ -222,6 +313,28 @@ class Builder {
             if (!isFixed(PointPos::Start)) { list.push_back(b + 5); list.push_back(b + 6); }
             if (!isFixed(PointPos::End)) { list.push_back(b + 7); list.push_back(b + 8); }
             break;
+          case GeomType::Ellipse:
+            if (!isFixed(PointPos::Center)) { list.push_back(b); list.push_back(b + 1); }
+            list.push_back(b + 2);
+            list.push_back(b + 3);
+            list.push_back(b + 4);
+            break;
+          case GeomType::EllipseArc:
+            if (!isFixed(PointPos::Center)) { list.push_back(b); list.push_back(b + 1); }
+            for (int i = 2; i <= 6; ++i) list.push_back(b + i);
+            if (!isFixed(PointPos::Start)) { list.push_back(b + 7); list.push_back(b + 8); }
+            if (!isFixed(PointPos::End)) { list.push_back(b + 9); list.push_back(b + 10); }
+            break;
+          case GeomType::Spline:
+          case GeomType::FitSpline: {
+            int n = g.vertexCount();
+            for (int k = 0; k < n; ++k)
+              if (!vertexFixed(k, n)) { list.push_back(b + 2 * k); list.push_back(b + 2 * k + 1); }
+            break;
+          }
+          case GeomType::Text:
+            if (!isFixed(PointPos::Start)) list = {b, b + 1};
+            break;
         }
       }
       unknownsOf_[id] = list;
@@ -232,6 +345,11 @@ class Builder {
   double* value(double v) {
     values_.push_back(v);
     return &values_.back();
+  }
+  /// Auxiliary unknown storage (stable addresses).
+  double* aux(double v) {
+    aux_.push_back(v);
+    return &aux_.back();
   }
 
   GeoSlot* slot(int geoId) {
@@ -244,7 +362,12 @@ class Builder {
       case GeomType::Line: return &s.line;
       case GeomType::Circle: return &s.circle;
       case GeomType::Arc: return &s.arc;
-      case GeomType::Point: return nullptr;
+      case GeomType::Ellipse: return &s.ellipse;
+      case GeomType::EllipseArc: return &s.arcEllipse;
+      case GeomType::Spline:
+      case GeomType::FitSpline: return s.bspline.poles.empty() ? nullptr : &s.bspline;
+      case GeomType::Point:
+      case GeomType::Text: return nullptr;
     }
     return nullptr;
   }
@@ -269,6 +392,25 @@ class Builder {
         if (r.pos == PointPos::End) return s->arc.end;
         if (r.pos == PointPos::Center) return s->arc.center;
         if (r.pos == PointPos::Mid) return midPoint(*s);
+        return std::nullopt;
+      case GeomType::Ellipse:
+        if (r.pos == PointPos::Center) return s->ellipse.center;
+        return std::nullopt;
+      case GeomType::EllipseArc:
+        if (r.pos == PointPos::Start) return s->arcEllipse.start;
+        if (r.pos == PointPos::End) return s->arcEllipse.end;
+        if (r.pos == PointPos::Center) return s->arcEllipse.center;
+        return std::nullopt;
+      case GeomType::Spline:
+      case GeomType::FitSpline:
+        if (s->verts.empty()) return std::nullopt;
+        if (r.pos == PointPos::Start) return s->verts.front();
+        if (r.pos == PointPos::End) return s->verts.back();
+        if (r.pos == PointPos::Vertex && r.index >= 0 && r.index < static_cast<int>(s->verts.size()))
+          return s->verts[static_cast<size_t>(r.index)];
+        return std::nullopt;
+      case GeomType::Text:
+        if (r.pos == PointPos::Start || r.pos == PointPos::Center) return s->point;
         return std::nullopt;
     }
     return std::nullopt;
@@ -297,12 +439,26 @@ class Builder {
     return p;
   }
 
-  bool pointOnCurve(GCS::Point& p, GeoSlot& s, int tag) {
+  /// Point-on-curve. For splines `param` (if given) receives the curve parameter unknown.
+  bool pointOnCurve(GCS::Point& p, GeoSlot& s, int tag, double** param = nullptr) {
     switch (s.geo->type) {
       case GeomType::Line: sys_.addConstraintPointOnLine(p, s.line, tag); return true;
       case GeomType::Circle: sys_.addConstraintPointOnCircle(p, s.circle, tag); return true;
       case GeomType::Arc: sys_.addConstraintPointOnArc(p, s.arc, tag); return true;
-      case GeomType::Point: return false;
+      case GeomType::Ellipse: sys_.addConstraintPointOnEllipse(p, s.ellipse, tag); return true;
+      case GeomType::EllipseArc: sys_.addConstraintPointOnEllipse(p, s.arcEllipse, tag); return true;
+      case GeomType::Spline:
+      case GeomType::FitSpline: {
+        if (s.bspline.poles.empty()) return false;
+        BSpline2 sp = s.geo->bspline();
+        double* u = aux(sp.closestParam({*p.x, *p.y}));
+        unknowns_.push_back(u);
+        sys_.addConstraintPointOnBSpline(p, s.bspline, u, tag);
+        if (param) *param = u;
+        return true;
+      }
+      case GeomType::Point:
+      case GeomType::Text: return false;
     }
     return false;
   }
@@ -378,13 +534,18 @@ class Builder {
           else if (ga.type == GeomType::Circle && gb.type == GeomType::Arc) sys_.addConstraintEqualRadius(sa->circle, sb->arc, tag);
           else if (ga.type == GeomType::Arc && gb.type == GeomType::Circle) sys_.addConstraintEqualRadius(sb->circle, sa->arc, tag);
           else if (ga.type == GeomType::Arc && gb.type == GeomType::Arc) sys_.addConstraintEqualRadius(sa->arc, sb->arc, tag);
+          else if (ga.isElliptical() && gb.isElliptical())
+            sys_.addConstraintEqualRadii(ellipseOf(*sa), ellipseOf(*sb), tag);
           break;
         }
         case ConstraintType::Concentric: {
-          if (!sb || !sa->geo->isCircular() || !sb->geo->isCircular()) break;
-          GCS::Point ca = sa->geo->type == GeomType::Circle ? sa->circle.center : sa->arc.center;
-          GCS::Point cb = sb->geo->type == GeomType::Circle ? sb->circle.center : sb->arc.center;
-          sys_.addConstraintP2PCoincident(ca, cb, tag);
+          if (!sb) break;
+          auto ca = point(GeoRef{c.a.geo, PointPos::Center});
+          auto cb = point(GeoRef{c.b.geo, PointPos::Center});
+          bool okA = sa->geo->isCircular() || sa->geo->isElliptical();
+          bool okB = sb->geo->isCircular() || sb->geo->isElliptical();
+          if (!okA || !okB || !ca || !cb) break;
+          sys_.addConstraintP2PCoincident(*ca, *cb, tag);
           break;
         }
         case ConstraintType::Collinear:
@@ -491,11 +652,92 @@ class Builder {
     }
   }
 
+  GCS::Ellipse& ellipseOf(GeoSlot& s) { return s.geo->type == GeomType::Ellipse ? s.ellipse : s.arcEllipse; }
+
+  /// GCS normal of a curve at a point of it (param version for splines).
+  GCS::DeriVector2 normalAt(GeoSlot& s, GCS::Point& p, double* param) {
+    GCS::Curve* cv = curve(s);
+    if (!cv) return {};
+    if (s.geo->isSpline() && param) return cv->CalculateNormal(param);
+    return cv->CalculateNormal(p);
+  }
+
+  /// Angle-via-point tangency between two curves meeting at p (0 or pi chosen from the current
+  /// configuration). Spline normals use their curve parameter.
+  void tangentViaPoint(GeoSlot& sa, double* paramA, GeoSlot& sb, double* paramB, GCS::Point& p, int tag) {
+    GCS::Curve* ca = curve(sa);
+    GCS::Curve* cb = curve(sb);
+    if (!ca || !cb) return;
+    bool splA = sa.geo->isSpline() && paramA, splB = sb.geo->isSpline() && paramB;
+    GCS::DeriVector2 n1 = normalAt(sa, p, paramA);
+    GCS::DeriVector2 n2 = normalAt(sb, p, paramB);
+    double ang = std::atan2(n1.x * n2.y - n1.y * n2.x, n1.x * n2.x + n1.y * n2.y);
+    double* snapped = value(std::abs(ang) < kPi / 2 ? 0.0 : kPi);
+    if (splA && splB) sys_.addConstraintAngleViaPointAndTwoParams(*ca, *cb, p, paramA, paramB, snapped, tag);
+    else if (splA) sys_.addConstraintAngleViaPointAndParam(*ca, *cb, p, paramA, snapped, tag);
+    else if (splB) sys_.addConstraintAngleViaPointAndParam(*cb, *ca, p, paramB, snapped, tag);
+    else sys_.addConstraintAngleViaPoint(*ca, *cb, p, snapped, tag);
+  }
+
+  /// Parameter of a spline end point (first / last knot) for endpoint tangency.
+  double* splineEndParam(GeoSlot& s, PointPos pos) {
+    if (!s.geo->isSpline()) return nullptr;
+    BSpline2 sp = s.geo->bspline();
+    if (pos == PointPos::Start) return value(sp.first());
+    if (pos == PointPos::End) return value(sp.last());
+    if (pos == PointPos::Vertex) return nullptr;
+    return nullptr;
+  }
+
   void addTangent(const Constraint& c, GeoSlot& sa, GeoSlot* sb, int tag) {
     if (!sb) return;
     const Geometry& ga = *sa.geo;
     const Geometry& gb = *sb->geo;
-    if (!ga.isCurve() || !gb.isCurve()) return;
+    if (!ga.isCurve() || !gb.isCurve() || ga.type == GeomType::Text || gb.type == GeomType::Text) return;
+    const bool general = !(ga.type == GeomType::Line || ga.isCircular()) || !(gb.type == GeomType::Line || gb.isCircular());
+    if (general && c.a.isPoint() && c.b.isPoint()) {
+      // tangent at a shared end point of an ellipse arc / spline
+      auto pa = point(c.a), pb = point(c.b);
+      if (!pa || !pb) return;
+      sys_.addConstraintP2PCoincident(*pa, *pb, tag);
+      double* ua = splineEndParam(sa, c.a.pos);
+      double* ub = splineEndParam(*sb, c.b.pos);
+      if ((ga.isSpline() && !ua) || (gb.isSpline() && !ub)) return;  // interior vertex: no tangency
+      // the point must lie on both curves: use the end point of a non-spline curve
+      GCS::Point& p = ga.isSpline() ? *pb : *pa;
+      tangentViaPoint(sa, ua, *sb, ub, p, tag);
+      return;
+    }
+    if (general) {
+      if (ga.type == GeomType::Line && gb.isElliptical()) {
+        sys_.addConstraintTangent(sa.line, ellipseOf(*sb), tag);
+        return;
+      }
+      if (gb.type == GeomType::Line && ga.isElliptical()) {
+        sys_.addConstraintTangent(sb->line, ellipseOf(sa), tag);
+        return;
+      }
+      // tangency anywhere along the curves: an auxiliary touching point on both
+      Pt2 best = ga.start();
+      double bd = 1e300;
+      for (const Pt2& q : ga.tessellate(128)) {
+        double d = gb.distanceTo(q);
+        if (d < bd) {
+          bd = d;
+          best = (q + gb.closestPoint(q)) * 0.5;
+        }
+      }
+      double* x = aux(best.x);
+      double* y = aux(best.y);
+      unknowns_.push_back(x);
+      unknowns_.push_back(y);
+      GCS::Point& p = auxPoints_.emplace_back(x, y);
+      double* ua = nullptr;
+      double* ub = nullptr;
+      if (!pointOnCurve(p, sa, tag, &ua) || !pointOnCurve(p, *sb, tag, &ub)) return;
+      tangentViaPoint(sa, ua, *sb, ub, p, tag);
+      return;
+    }
     if (c.a.isPoint() && c.b.isPoint()) {
       // tangent at a shared endpoint: coincident + angle via point (0 or pi)
       auto pa = point(c.a), pb = point(c.b);
@@ -563,6 +805,19 @@ class Builder {
         pull(s->arc.start, s->geo->start() + d.delta);
         pull(s->arc.end, s->geo->end() + d.delta);
         break;
+      case GeomType::Ellipse:
+        pull(s->ellipse.center, Pt2{s->geo->p[0], s->geo->p[1]} + d.delta);
+        pull(s->ellipse.focus1, Pt2{s->geo->p[2], s->geo->p[3]} + d.delta);
+        break;
+      case GeomType::EllipseArc:
+        pull(s->arcEllipse.center, Pt2{s->geo->p[0], s->geo->p[1]} + d.delta);
+        pull(s->arcEllipse.focus1, Pt2{s->geo->p[2], s->geo->p[3]} + d.delta);
+        break;
+      case GeomType::Spline:
+      case GeomType::FitSpline:
+        for (size_t k = 0; k < s->verts.size(); ++k) pull(s->verts[k], s->geo->vertex(static_cast<int>(k)) + d.delta);
+        break;
+      case GeomType::Text: pull(s->point, s->geo->start() + d.delta); break;
     }
   }
 
@@ -572,7 +827,7 @@ class Builder {
       if (it == slots_.end()) continue;
       const GeoSlot& s = it->second;
       for (int i = 0; i < s.count; ++i) g.p[static_cast<size_t>(i)] = buf_[static_cast<size_t>(s.offset + i)];
-      if (g.type == GeomType::Arc) g.normalize();
+      g.normalize();
       if (g.type == GeomType::Circle) g.p[2] = std::abs(g.p[2]);
     }
   }
@@ -581,6 +836,8 @@ class Builder {
   GCS::System sys_;
   std::vector<double> buf_;
   std::deque<double> values_;
+  std::deque<double> aux_;
+  std::deque<GCS::Point> auxPoints_;
   int next_ = 0;
   std::map<int, GeoSlot> slots_;
   std::map<int, GCS::Point> midPoints_;
