@@ -17,6 +17,10 @@
 #include "drawing/DrawingWorkspaceWidget.h"
 #include "viewer/ViewerWidget.h"
 
+#include <Message.hxx>
+#include <Message_Messenger.hxx>
+#include <Message_Printer.hxx>
+
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFile>
@@ -119,6 +123,11 @@ int main(int argc, char** argv) {
       qputenv("QT_QPA_PLATFORM", "xcb");
   }
   fabricad::viewer::setupGlPlatform();
+  // OCCT prints its STEP "Statistics on Transfer" banner and similar info through its default
+  // messenger on stdout (even with --quiet); keep only warnings and errors there.
+  if (Handle(Message_Messenger) messenger = Message::DefaultMessenger(); !messenger.IsNull())
+    for (Message_SequenceOfPrinters::Iterator it(messenger->Printers()); it.More(); it.Next())
+      if (!it.Value().IsNull() && it.Value()->GetTraceLevel() < Message_Warning) it.Value()->SetTraceLevel(Message_Warning);
   QApplication::setApplicationName("FabriCAD");
   QApplication::setOrganizationName("FabriCAD");
   QApplication::setApplicationVersion("0.1.0");

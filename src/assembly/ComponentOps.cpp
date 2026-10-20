@@ -394,48 +394,65 @@ class CreateOccurrenceCommand : public core::UndoCommand {
   ObjectId created_ = kInvalidId;
 };
 
-/// Delete a component sub-tree with the features referencing it; undo re-creates the tree (fresh ids) and
-/// re-inserts the features with their component references remapped.
+/// Delete one component: its bodies and child components move to its parent (the children keep
+/// their world placement), the features referencing it (joints, its timeline marker) are removed
+/// and the features made inside it are re-homed to the parent. Undo re-creates the component
+/// (fresh id) and puts everything back.
 class DeleteComponentCommand : public core::UndoCommand {
  public:
   DeleteComponentCommand(Document& doc, ObjectId comp) : UndoCommand("Delete component"), doc_(doc), comp_(comp) {}
   ObjectId component() const { return comp_; }
+  int movedChildren() const { return static_cast<int>(children_.size()); }
+  int movedBodies() const { return static_cast<int>(node_.bodies.size()); }
 
   void redo() override {
-    nodes_.clear();
     features_.clear();
+    children_.clear();
+    rehomed_.clear();
     activeBefore_ = doc_.activeComponent();
-    std::vector<ObjectId> gone = descendants(doc_, comp_);  // pre-order: parents first
-    gone.insert(gone.begin(), comp_);
-    for (ObjectId id : gone)
-      if (const core::Component* c = doc_.component(id)) nodes_.push_back({*c, doc_.bodiesOf(id)});
+    const core::Component* c = doc_.component(comp_);
+    if (!c) return;
+    node_ = {*c, doc_.bodiesOf(comp_)};
+    const ObjectId parent = c->parent != kInvalidId && doc_.component(c->parent) ? c->parent : kRootComponentId;
+    // children: same world placement under the grandparent
+    for (ObjectId child : std::vector<ObjectId>(c->children))
+      if (const core::Component* cc = doc_.component(child)) {
+        children_.push_back({child, cc->placement});
+        doc_.reparentComponent(child, parent, node_.comp.placement.Multiplied(cc->placement));
+      }
+    const std::vector<ObjectId> gone{comp_};
     std::vector<int> doomed;
-    for (int i = 0; i < doc_.featureCount(); ++i)
-      if (referencesComponents(*doc_.featureAt(i), gone)) doomed.push_back(i);
+    for (int i = 0; i < doc_.featureCount(); ++i) {
+      core::Feature* f = doc_.featureAt(i);
+      if (referencesComponents(*f, gone)) doomed.push_back(i);
+      else if (f->component() == comp_) {
+        rehomed_.push_back(f->id());
+        f->setComponent(parent);
+      }
+    }
     for (auto it = doomed.rbegin(); it != doomed.rend(); ++it)  // highest index first: indices stay valid
       features_.emplace_back(*it, doc_.takeFeature(doc_.featureAt(*it)->id()));
-    doc_.removeComponent(comp_);
+    doc_.removeComponent(comp_);  // bodies move to the parent
     doc_.recompute();
   }
 
   void undo() override {
-    std::map<ObjectId, ObjectId> map;
-    for (const Node& n : nodes_) {
-      ObjectId parent = map.count(n.comp.parent) ? map.at(n.comp.parent) : n.comp.parent;
-      if (!doc_.component(parent)) parent = kRootComponentId;
-      core::Component& c = doc_.addComponent(n.comp.name, parent);
-      map[n.comp.id] = c.id;
-      copyComponentFields(c, n.comp);
-      ObjectId def = map.count(n.comp.definition) ? map.at(n.comp.definition) : n.comp.definition;
-      c.definition = doc_.component(def) ? def : kInvalidId;
-      for (ObjectId b : n.bodies)
-        if (core::Body* body = doc_.body(b)) {
-          body->component = c.id;
-          doc_.notifyBodyChanged(b);
-        }
-      doc_.notifyComponentChanged(c.id);
-    }
-    if (!nodes_.empty()) comp_ = map.at(nodes_.front().comp.id);
+    const core::Component& n = node_.comp;
+    ObjectId parent = doc_.component(n.parent) ? n.parent : kRootComponentId;
+    core::Component& c = doc_.addComponent(n.name, parent);
+    copyComponentFields(c, n);
+    c.definition = doc_.component(n.definition) ? n.definition : kInvalidId;
+    std::map<ObjectId, ObjectId> map{{comp_, c.id}};
+    comp_ = c.id;
+    for (ObjectId b : node_.bodies)
+      if (core::Body* body = doc_.body(b)) {
+        body->component = c.id;
+        doc_.notifyBodyChanged(b);
+      }
+    for (const auto& [child, placement] : children_) doc_.reparentComponent(child, c.id, placement);
+    for (ObjectId fid : rehomed_)
+      if (core::Feature* f = doc_.feature(fid)) f->setComponent(c.id);
+    doc_.notifyComponentChanged(c.id);
     std::sort(features_.begin(), features_.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     for (auto& [index, f] : features_) {
       QJsonObject json = remapComponentIds(f->toJson(), map).toObject();
@@ -455,7 +472,9 @@ class DeleteComponentCommand : public core::UndoCommand {
   };
   Document& doc_;
   ObjectId comp_;
-  std::vector<Node> nodes_;
+  Node node_;
+  std::vector<std::pair<ObjectId, gp_Trsf>> children_;  ///< re-parented children and their old local placements
+  std::vector<ObjectId> rehomed_;                       ///< features whose component() was the deleted one
   std::vector<std::pair<int, std::unique_ptr<core::Feature>>> features_;
   ObjectId activeBefore_ = kInvalidId;
 };
@@ -483,11 +502,28 @@ ObjectId createOccurrence(Document& doc, core::UndoStack* undo, ObjectId definit
   return runCommand(undo, keep, doc, definition, parent, placement)->created();
 }
 
-bool deleteComponent(Document& doc, core::UndoStack* undo, ObjectId comp) {
+bool deleteComponent(Document& doc, core::UndoStack* undo, ObjectId comp, DeleteComponentResult* result) {
   if (comp == kRootComponentId || !doc.component(comp)) return false;
   std::unique_ptr<DeleteComponentCommand> keep;
-  runCommand(undo, keep, doc, comp);
+  DeleteComponentCommand* cmd = runCommand(undo, keep, doc, comp);
+  if (result) {
+    result->movedChildren = cmd->movedChildren();
+    result->movedBodies = cmd->movedBodies();
+  }
   return true;
+}
+
+int recomputeJoints(Document& doc) {
+  // Placements are not inputs of body features (bodies live in component-local coordinates), so a
+  // placement or ground change only needs the joint features re-solved: replay from the first one.
+  for (int i = 0; i < doc.featureCount(); ++i) {
+    const core::Feature* f = doc.featureAt(i);
+    if (!dynamic_cast<const IJointProvider*>(f) || f->isSuppressed() || !doc.isFeatureActive(f->id())) continue;
+    doc.markDirty(f->id());
+    doc.recompute();
+    return i;
+  }
+  return -1;
 }
 
 }  // namespace fabricad::assembly

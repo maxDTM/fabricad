@@ -26,6 +26,7 @@
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <gp_Lin.hxx>
+#include <gp_Quaternion.hxx>
 
 #include <algorithm>
 #include <cctype>
@@ -1373,6 +1374,22 @@ std::string describeRef(const core::Document& doc, const ShapeRef& ref) {
       out += std::format(": {}{}{}, {} bodies, origin at ({}, {}, {})", c->grounded ? "grounded" : "free",
                          c->isOccurrence() ? ", occurrence" : "", c->visible ? "" : ", hidden", doc.displayedBodies(c->id).size(),
                          fmt(tr.X()), fmt(tr.Y()), fmt(tr.Z()));
+      {
+        gp_Trsf local = c->placement;
+        gp_XYZ lt = local.TranslationPart();
+        double ax, ay, az;
+        local.GetRotation().GetEulerAngles(gp_Extrinsic_XYZ, ax, ay, az);
+        const double toDeg = 180.0 / 3.14159265358979323846;
+        out += std::format("\n  placement: translation ({}, {}, {}), rotation XYZ ({}, {}, {}) deg", fmt(lt.X()), fmt(lt.Y()), fmt(lt.Z()),
+                           fmt(ax * toDeg), fmt(ay * toDeg), fmt(az * toDeg));
+      }
+      if (const core::Component* parent = doc.component(c->parent))
+        out += std::format("\n  parent: {} (#{})", parent->isRoot() ? "root" : parent->name, parent->id);
+      if (!c->children.empty()) {
+        out += "\n  children:";
+        for (ObjectId ch : c->children)
+          if (const core::Component* cc = doc.component(ch)) out += std::format(" {} (#{})", cc->name, ch);
+      }
       TopoDS_Shape s = refWorldShape(doc, ref);
       if (!s.IsNull()) out += std::format("\n  volume {} mm3, {}", fmt(core::volume(s)), bboxText(s));
       for (ObjectId id : doc.displayedBodies(c->id))

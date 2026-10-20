@@ -88,6 +88,9 @@ class PartFeature : public core::Feature {
   /// Numeric property a bare typed value goes to ("EXTRUDE 25", dynamic input): "distance",
   /// "radius", "thickness"... Default: a well-known name, else the first visible Length/Angle.
   virtual std::string primaryNumeric() const;
+  /// String property a bare typed value (or the first command-line argument) goes to when the
+  /// feature has no primary numeric: "filePath" for Import. Empty by default.
+  virtual std::string primaryText() const { return {}; }
 
   /// The feature's boolean operation (from an "operation" enum if it has one).
   virtual Operation operation() const;

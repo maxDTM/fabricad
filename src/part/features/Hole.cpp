@@ -3,6 +3,7 @@
 // (LGPL-2.1-or-later, (c) 2011 Juergen Riegel and FreeCAD contributors), see THIRD_PARTY.md.
 #include "part/features/Hole.h"
 
+#include "core/Document.h"
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
 #include "part/PartUtils.h"
@@ -46,7 +47,9 @@ HoleFeature::HoleFeature() : PartFeature(kType) {
   addBool("threadModeled", false).setLabel("Modeled").setTooltip("Cut the real thread (slow); off = cosmetic thread");
   addBool("threadFullDepth", true).setLabel("Full tap depth");
   addLength("threadDepth", 8.0).setLabel("Thread depth");
-  addRefs("targets", core::mask(core::ShapeKind::Body)).setLabel("Bodies to cut").setTooltip("empty = every body the hole touches");
+  addRefs("targets", core::mask(core::ShapeKind::Body))
+      .setLabel("Bodies to cut")
+      .setTooltip("empty = the body the hole is placed on (else every body of the component the hole touches)");
   updatePropertyFlags();
 }
 
@@ -253,7 +256,22 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     for (const auto& f : facesOf(h)) names[std::format("{}/H{}/F{}", base, k, ++fi)] = f;
   }
   TopoDS_Shape tool = holes.size() == 1 ? holes.front() : compoundOf(holes);
-  if (!applyTool(ctx, tool, Operation::Cut, prop("targets").refs(), names, out)) return;
+  // Fusion: with no explicit "Bodies to cut" a hole cuts the body it was placed on (start face /
+  // picked face, vertex or edge), not every body on its axis (a through-all hole would otherwise
+  // drill parts of other components behind the rail).
+  std::vector<core::ShapeRef> defaultTargets;
+  if (prop("targets").refs().empty()) {
+    auto addOwner = [&](const core::ShapeRef& r) {
+      if (!r.isBrep() || !ctx.document().body(r.owner)) return;
+      for (const auto& t : defaultTargets)
+        if (t.owner == r.owner) return;
+      defaultTargets.push_back(core::ShapeRef::body(r.owner));
+    };
+    if (ref("face").isValid()) addOwner(ref("face"));
+    for (const auto& r : prop("points").refs()) addOwner(r);
+  }
+  std::vector<core::ShapeRef>& targets = defaultTargets.empty() ? prop("targets").refs() : defaultTargets;
+  if (!applyTool(ctx, tool, Operation::Cut, targets, names, out)) return;
   if (tap == Tapped) applyThreads(ctx, *iso, centres, axisDir, p.diameter / 2, out);
 }
 

@@ -74,10 +74,17 @@ parts lists; PDF/SVG/DXF export).
   colour; custom name + density), appearance colour and component part number / description /
   material from the browser context menu, all undoable. Parts lists, the BOM CSV and Measure read
   them back (mass = volume x density).
-* STEP / STL import (as a timeline feature) and export.
+* STEP / STL import (as a timeline feature) and export; the STL export dialog sets the linear and
+  angular deflection and the format (binary / ASCII) and remembers them.
+* Booleans are scoped like Fusion: a Join / Cut without an explicit target list only touches bodies
+  of the active component's tree, a Hole cuts the body it is placed on, and the first feature of an
+  empty component defaults to New Body.
 
 **Assembly** (`ASSEMBLE` group)
-* Components and occurrences, ground, activate (in-context editing with ghosting), rigid groups.
+* Components and occurrences, ground / unground, activate (in-context editing with ghosting),
+  rigid groups; deleting a component hands its bodies and child components to its parent (children
+  keep their world placement). Move Component takes typed X/Y/Z distances, X/Y/Z angles and the
+  pivot point the angles turn about.
 * Joints: rigid, revolute, slider, cylindrical, pin-slot, planar, ball; as-built joints; limits;
   offsets; live preview while picking snap points; drive joints (slider, value, animate);
   move component with a triad manipulator (inverse kinematics on jointed components).
@@ -130,7 +137,7 @@ parts lists; PDF/SVG/DXF export).
 * Scripting / batch mode: `fabricad --script file.fcs [--offscreen] [--log out.txt]` runs a
   text file of command-line entries exactly as if typed (`SKETCH XY`, `RECT`, `0,0`, `40,30`,
   `FINISH`, `SELECT profile:@20,15,0`, `EXTRUDE 10`, `OK`, `CHECK body:Body1 volume == 12000`,
-  `EXPORTSTL out.stl`), with geometry selectors by name/point, per-command timing in the log and
+  `EXPORTSTL out.stl`, `SELECT body:"Leg Frame"`), with geometry selectors by name/point, per-command timing in the log and
   a non-zero exit status on error. See `docs/SCRIPTING.md`; `tests/scripts/chair.fcs` builds the
   chair benchmark of `docs/comparison/CHAIR_SPEC.md`.
 * `.fcad` documents (plain JSON, parametric definition only) with per-document UI state.
@@ -271,7 +278,7 @@ resources/                icons, stylesheet (.qrc)
   weld symbols, all-around / between GD&T symbols or datum targets; ordinate labels do not
   stagger; cosmetic threads are not drawn in views (callouts read the data). Section views
   reference edges by index + position (no history names).
-* App: the command line has no quoting (names with spaces cannot be typed); `EXPORTSTEP` is the
-  part exporter (the assembly XCAF export is `assembly.export-step`); `SCREENSHOT` is blank in
+* App: `EXPORTSTEP` is the part exporter (the assembly XCAF export is `assembly.export-step`);
+  `SCREENSHOT` is blank in
   `--offscreen` runs; light theme only (icons and value boxes have no dark palette); no "Select
   Other"; the manipulator rendering was verified by hand only (no GL in the test environment).

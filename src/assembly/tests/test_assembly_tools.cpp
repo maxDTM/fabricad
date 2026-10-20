@@ -526,13 +526,25 @@ class AssemblyToolsTest : public QObject {
   void groundRigidGroupAndComponentsFromBodies() {
     Harness h;
     const TwoBoxes& b = h.boxes;
-    // ground is an instant toggle with undo
+    // ground is an instant, idempotent command with undo; "off" / assembly.unground frees again
     QVERIFY(!h.doc.component(b.compB)->grounded);
     h.select({ShapeRef::component(b.compB)});
     QVERIFY(h.manager.run("assembly.ground"));
     QVERIFY(!h.manager.isActive());
     QVERIFY(h.doc.component(b.compB)->grounded);
-    QVERIFY(h.manager.run("assembly.ground"));
+    const int undoCount = h.doc.undoStack().count();
+    QVERIFY(h.manager.run("assembly.ground"));  // already grounded: nothing changes, no undo step
+    QVERIFY(h.doc.component(b.compB)->grounded);
+    QCOMPARE(h.doc.undoStack().count(), undoCount);
+    QVERIFY(h.manager.run("assembly.ground", {"off"}));
+    QVERIFY(!h.doc.component(b.compB)->grounded);
+    QVERIFY(h.manager.run("assembly.ground", {"toggle"}));
+    QVERIFY(h.doc.component(b.compB)->grounded);
+    QVERIFY(h.manager.run("assembly.unground"));
+    QVERIFY(!h.doc.component(b.compB)->grounded);
+    h.doc.undoStack().undo();
+    QVERIFY(h.doc.component(b.compB)->grounded);
+    h.doc.undoStack().undo();
     QVERIFY(!h.doc.component(b.compB)->grounded);
     h.doc.undoStack().undo();
     QVERIFY(h.doc.component(b.compB)->grounded);
@@ -611,6 +623,39 @@ class AssemblyToolsTest : public QObject {
     QVERIFY(!h.host.messages().empty());
     h.manager.accept();
     QVERIFY(h.viewer.previews().empty());
+  }
+
+  void moveToolPivotAndNamedInputs() {
+    // the spec's "rotate about the axis through P with direction X": pivot= then rx=
+    Harness h;
+    const TwoBoxes& b = h.boxes;  // Top at (40,0,0)
+    h.select({ShapeRef::component(b.compB)});
+    QVERIFY(h.manager.run("assembly.move"));
+    auto* mt = h.tool<MoveComponentTool>("assembly.move");
+    QVERIFY(mt->commandLineInput(h.ctx(), "pivot=40,0,0"));
+    QVERIFY(near(mt->pivot(), gp_Pnt(40, 0, 0)));
+    QVERIFY(near(mt->triad().frame().Location(), gp_Pnt(40, 0, 0)));
+    QVERIFY(mt->commandLineInput(h.ctx(), "rx=90"));
+    QVERIFY(near(worldOrigin(h.doc, b.compB), gp_Pnt(40, 0, 0)));  // on the axis: stays
+    QVERIFY(near(gp_Pnt(0, 10, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(40, 0, 10)));
+    QVERIFY(mt->commandLineInput(h.ctx(), "z=5"));
+    QVERIFY(near(worldOrigin(h.doc, b.compB), gp_Pnt(40, 0, 5)));
+    QVERIFY(near(gp_Pnt(0, 10, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(40, 0, 15)));
+    QVERIFY(mt->commandLineInput(h.ctx(), "rx=-5"));  // replaces the angle, keeps the translation
+    {
+      const double a = -5.0 * M_PI / 180.0;
+      QVERIFY(near(gp_Pnt(0, 10, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(40, 10 * std::cos(a), 10 * std::sin(a) + 5)));
+    }
+    QVERIFY(!mt->commandLineInput(h.ctx(), "bogus=1"));
+    QVERIFY(!mt->commandLineInput(h.ctx(), "pivot=1,2"));
+    QVERIFY(mt->commandLineInput(h.ctx(), "pivot=0,0,0"));  // the rotation now turns about the origin
+    QVERIFY(near(gp_Pnt(0, 0, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(40, 0, 5).Rotated(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), -5.0 * M_PI / 180.0).Translated(gp_Vec(0, 0, 0)), 1e-6) ||
+            near(worldOrigin(h.doc, b.compB).X(), 40.0));
+    int undoBefore = h.doc.undoStack().index();
+    h.manager.accept();
+    QCOMPARE(h.doc.undoStack().index(), undoBefore + 1);
+    h.doc.undoStack().undo();
+    QVERIFY(near(worldOrigin(h.doc, b.compB), gp_Pnt(40, 0, 0)));
   }
 
   void exportToolsWriteFiles() {

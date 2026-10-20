@@ -20,6 +20,7 @@
 #include <QLineEdit>
 #include <QWidget>
 
+#include <cctype>
 #include <format>
 
 namespace fabricad::assembly {
@@ -189,7 +190,7 @@ QWidget* RigidGroupTool::createDialog(ToolContext& ctx, QWidget* parent) {
 // instant tool bodies
 // ---------------------------------------------------------------------------
 
-std::vector<ObjectId> toggleGround(ToolContext& ctx) {
+std::vector<ObjectId> setGround(ToolContext& ctx, GroundMode mode) {
   Document& doc = *ctx.document;
   std::vector<ObjectId> comps = componentsOf(doc, ctx.preselection);
   if (comps.empty() && ctx.selection) comps = componentsOf(doc, ctx.selection->items());
@@ -197,22 +198,44 @@ std::vector<ObjectId> toggleGround(ToolContext& ctx) {
     ctx.showMessage("Select a component to ground", true);
     return {};
   }
-  bool anyUngrounded = false;
+  // GROUND [on|off|toggle]: explicit words win over the mode of the tool
+  for (const std::string& a : ctx.args) {
+    std::string w = a;
+    for (char& ch : w) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (w == "on" || w == "true" || w == "1" || w == "ground") mode = GroundMode::Ground;
+    else if (w == "off" || w == "false" || w == "0" || w == "unground") mode = GroundMode::Unground;
+    else if (w == "toggle") mode = GroundMode::Toggle;
+  }
+  bool ground = true;
+  if (mode == GroundMode::Unground) {
+    ground = false;
+  } else if (mode == GroundMode::Toggle) {
+    ground = false;
+    for (ObjectId c : comps)
+      if (!doc.component(c)->grounded) ground = true;
+  }
+  std::vector<ObjectId> changed;
   for (ObjectId c : comps)
-    if (!doc.component(c)->grounded) anyUngrounded = true;
-  if (ctx.undo && comps.size() > 1) ctx.undo->beginMacro(anyUngrounded ? "Ground" : "Unground");
-  for (ObjectId c : comps) {
-    auto cmd = makeGroundCommand(doc, c, anyUngrounded);
+    if (doc.component(c)->grounded != ground) changed.push_back(c);
+  if (changed.empty()) {
+    ctx.showMessage(ground ? (comps.size() == 1 ? "Already grounded" : "All already grounded")
+                           : (comps.size() == 1 ? "Already ungrounded" : "None grounded"));
+    return {};
+  }
+  if (ctx.undo && changed.size() > 1) ctx.undo->beginMacro(ground ? "Ground" : "Unground");
+  for (ObjectId c : changed) {
+    auto cmd = makeGroundCommand(doc, c, ground);
     if (ctx.undo) ctx.undo->push(std::move(cmd));
     else cmd->redo();
   }
-  if (ctx.undo && comps.size() > 1) ctx.undo->endMacro();
+  if (ctx.undo && changed.size() > 1) ctx.undo->endMacro();
   // placements of jointed components may change now that the ground set changed
-  doc.markAllDirty();
-  doc.recompute();
-  ctx.showMessage(anyUngrounded ? "Grounded" : "Ungrounded");
-  return comps;
+  recomputeJoints(doc);
+  ctx.showMessage(ground ? "Grounded" : "Ungrounded");
+  return changed;
 }
+
+std::vector<ObjectId> toggleGround(ToolContext& ctx) { return setGround(ctx, GroundMode::Toggle); }
 
 ObjectId activateSelectedComponent(ToolContext& ctx) {
   Document& doc = *ctx.document;
@@ -341,11 +364,26 @@ int deleteSelectedComponents(ToolContext& ctx) {
     return 0;
   }
   int n = 0;
+  std::string report;
   if (ctx.undo && comps.size() > 1) ctx.undo->beginMacro("Delete components");
-  for (ObjectId c : comps)
-    if (doc.component(c) && deleteComponent(doc, ctx.undo, c)) ++n;
+  for (ObjectId c : comps) {
+    const core::Component* comp = doc.component(c);
+    if (!comp) continue;
+    const std::string name = comp->name;
+    const core::Component* parent = doc.component(comp->parent);
+    const std::string parentName = parent ? (parent->isRoot() ? "the root" : "'" + parent->name + "'") : "the root";
+    DeleteComponentResult r;
+    if (!deleteComponent(doc, ctx.undo, c, &r)) continue;
+    ++n;
+    std::string what;
+    if (r.movedBodies) what += std::format("{} bod{}", r.movedBodies, r.movedBodies == 1 ? "y" : "ies");
+    if (r.movedChildren) what += std::format("{}{} child component{}", what.empty() ? "" : " and ", r.movedChildren, r.movedChildren == 1 ? "" : "s");
+    report += (report.empty() ? "" : "\n") + std::format("Deleted component '{}'{}", name,
+                                                          what.empty() ? "" : " (" + what + " moved to " + parentName + ")");
+  }
   if (ctx.undo && comps.size() > 1) ctx.undo->endMacro();
   if (ctx.selection) ctx.selection->clear();
+  if (!report.empty()) ctx.showMessage(report);
   return n;
 }
 

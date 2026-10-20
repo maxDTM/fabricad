@@ -357,6 +357,52 @@ class TestScripting : public QObject {
              0);
   }
 
+  void groundAndDeleteComponentFromScripts() {
+    // GROUND is idempotent (on/off/toggle words, UNGROUND), DELETECOMPONENT keeps the children
+    QCOMPARE(run({"NEWCOMPONENT A", "OK", "SKETCH XY", "RECT", "0,0", "10,10", "FINISH", "SELECT profile:@5,5,0", "EXTRUDE 10",
+                  "OK", "NEWCOMPONENT B", "OK", "SELECT none", "ACTIVATE", "CHECK components == 2"}),
+             0);
+    const core::Component* a = nullptr;
+    const core::Component* b = nullptr;
+    for (const core::Component* c : doc().components()) {
+      if (c->name == "A") a = c;
+      if (c->name == "B") b = c;
+    }
+    QVERIFY(a && b);
+    QCOMPARE(b->parent, a->id);  // B was made while A was active
+    QCOMPARE(run({"SELECT component:A", "GROUND"}), 0);
+    QVERIFY(a->grounded);
+    QCOMPARE(run({"GROUND"}), 0);  // selection kept by the shell verb; a second GROUND does not unground
+    QVERIFY(a->grounded);
+    QCOMPARE(run({"UNGROUND"}), 0);
+    QVERIFY(!a->grounded);
+    QCOMPARE(run({"GROUND on", "GROUND toggle"}), 0);
+    QVERIFY(!a->grounded);
+    QCOMPARE(run({"GROUND off", "GROUND"}), 0);
+    QVERIFY(a->grounded);
+    // LIST components shows the hierarchy and INFO the parent
+    app::ScriptRunner* r = nullptr;
+    QCOMPARE(run({"LIST components", "INFO component:B"}, {}, &r), 0);
+    bool sawParent = false, sawTree = false;
+    for (const QString& l : r->logLines()) {
+      sawParent = sawParent || l.contains("parent: A");
+      sawTree = sawTree || (l.contains("component:B") && l.contains("in A"));
+    }
+    r->deleteLater();
+    QVERIFY(sawParent);
+    QVERIFY(sawTree);
+    const core::ObjectId bId = b->id;
+    QCOMPARE(run({"SELECT component:A", "DELETECOMPONENT", "CHECK components == 1", "CHECK component:B exists",
+                  "CHECK bodies == 1", "UNDO", "CHECK components == 2", "REDO", "CHECK components == 1"}),
+             0);
+    QVERIFY(doc().component(bId));
+    QCOMPARE(doc().component(bId)->parent, core::kRootComponentId);
+    // names with spaces are typed in quotes
+    QCOMPARE(run({"RENAME body:Body1 \"My Body\"", "CHECK body:\"My Body\" exists", "SELECT body:'My Body'", "CHECK selection == 1",
+                  "RENAME body:\"My Body\" Body1"}),
+             0);
+  }
+
   void tabsFromTheCommandLine() {
     QCOMPARE(run(kBoxScript), 0);
     core::Document* first = &doc();

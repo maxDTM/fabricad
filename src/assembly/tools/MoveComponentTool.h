@@ -44,6 +44,9 @@ class MoveComponentTool : public QObject, public core::ToolBase {
   void applyDelta(core::ToolContext& ctx, const gp_Trsf& delta);
   /// Translate by (x,y,z) and rotate by (rx,ry,rz) degrees about the pivot (triad origin).
   void setTransform(core::ToolContext& ctx, double x, double y, double z, double rx, double ry, double rz);
+  /// Move the rotation pivot (world point); the accumulated angles then turn about it.
+  bool setPivot(core::ToolContext& ctx, const gp_Pnt& p);
+  const gp_Pnt& pivot() const { return baseFrame_.Location(); }
   const gp_Trsf& delta() const { return delta_; }
   /// The joint that constrains the moved component (nullptr for free move).
   const JointFeature* constrainingJoint() const { return joint_; }
@@ -77,6 +80,7 @@ class MoveComponentTool : public QObject, public core::ToolBase {
   double values_[6] = {0, 0, 0, 0, 0, 0};  ///< dialog x,y,z,rx,ry,rz
   core::ToolContext* ctx_ = nullptr;
   ExpressionEdit* edits_[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+  ExpressionEdit* pivotEdits_[3] = {nullptr, nullptr, nullptr};
   QLabel* targetLabel_ = nullptr;
   bool syncing_ = false;
 };

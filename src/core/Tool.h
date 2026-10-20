@@ -173,6 +173,10 @@ class ToolRegistry {
 };
 
 /// Activation and event routing. One per main window.
+/// Split a command line into words: white space separates, "..." / '...' keep spaces inside a word
+/// (names with spaces, paths) and the quotes are dropped. Used by ToolManager::runCommandLine.
+std::vector<std::string> splitCommandLine(const std::string& line);
+
 class ToolManager : public QObject {
   Q_OBJECT
  public:

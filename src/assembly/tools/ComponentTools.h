@@ -64,7 +64,12 @@ class RigidGroupTool : public core::ToolBase {
 };
 
 // --- instant tool bodies (shared by the lambda registrations and the tests) --------------
-/// Toggle Ground on the selected components (bodies select their component). Returns changed ids.
+enum class GroundMode { Ground, Unground, Toggle };
+/// Ground / unground the selected components (bodies select their component). An argument
+/// `on`, `off` or `toggle` overrides `mode`. Returns the ids whose state changed (a message says
+/// "Already grounded" when nothing did).
+std::vector<core::ObjectId> setGround(core::ToolContext& ctx, GroundMode mode);
+/// setGround(ctx, Toggle).
 std::vector<core::ObjectId> toggleGround(core::ToolContext& ctx);
 /// Activate the selected component (root when nothing selected). Returns the activated id.
 core::ObjectId activateSelectedComponent(core::ToolContext& ctx);

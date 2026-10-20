@@ -6,6 +6,7 @@
 #include "core/Log.h"
 #include "core/ShapeUtils.h"
 
+#include <BRepBuilderAPI_Transform.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Static.hxx>
 #include <Quantity_ColorRGBA.hxx>
@@ -22,6 +23,9 @@
 #include <XCAFDoc_ColorType.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+
+#include <QFileInfo>
+#include <QString>
 
 #include <functional>
 #include <map>
@@ -45,6 +49,7 @@ struct Exporter {
   Handle(XCAFDoc_ColorTool) colors;
   std::map<ObjectId, TDF_Label> definitionLabels;  ///< definition component -> its (part or assembly) label
   StepExportStats stats;
+  std::string rootName;  ///< name for an untitled root (the file's base name)
 
   /// Part label for the bodies a definition owns (null if none).
   TDF_Label partLabel(ObjectId def, const std::string& name) {
@@ -58,9 +63,17 @@ struct Exporter {
       used.push_back(b);
     }
     if (parts.empty()) return TDF_Label();
+    // A body carrying a TopLoc_Location (Move Body shares geometry and sets a location) would be
+    // added by XCAF as an instance of an unnamed prototype, so the STEP PRODUCT lost the part name
+    // ("Open CASCADE STEP translator ..."). Bake the location into the geometry first.
+    for (TopoDS_Shape& p : parts)
+      if (!p.Location().IsIdentity())
+        p = BRepBuilderAPI_Transform(p.Located(TopLoc_Location()), p.Location().Transformation(), Standard_True).Shape();
     TopoDS_Shape shape = parts.size() == 1 ? parts.front() : core::makeCompound(parts);
     TDF_Label label = shapes->AddShape(shape, false, false);
     setName(label, name);
+    TDF_Label proto;
+    if (XCAFDoc_ShapeTool::GetReferredShape(label, proto)) setName(proto, name);
     ++stats.parts;
     stats.bodies += static_cast<int>(parts.size());
     if (opt.colors) {
@@ -90,17 +103,19 @@ struct Exporter {
       if (cc && (!opt.visibleOnly || cc->visible)) children.push_back(ch);
     }
     TDF_Label result;
+    // the root is the design: an unsaved "Untitled" document is named after the STEP file
+    const std::string name = c->isRoot() && (c->name.empty() || c->name == "Untitled") && !rootName.empty() ? rootName : c->name;
     if (children.empty()) {
-      result = partLabel(def, c->name);
+      result = partLabel(def, name);
     } else {
       // assembly node: child instances + (optionally) own bodies as one more component
       TDF_Label asm_ = shapes->NewShape();
-      setName(asm_, c->name);
+      setName(asm_, name);
       bool any = false;
-      TDF_Label own = partLabel(def, c->name + " bodies");
+      TDF_Label own = partLabel(def, name + " bodies");
       if (!own.IsNull()) {
         TDF_Label inst = shapes->AddComponent(asm_, own, TopLoc_Location());
-        setName(inst, c->name + " bodies");
+        setName(inst, name + " bodies");
         any = true;
       }
       for (ObjectId ch : children) {
@@ -127,7 +142,8 @@ bool exportAssemblyStep(const Document& doc, const std::string& path, const Step
     Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
     Handle(TDocStd_Document) xdoc;
     app->NewDocument("BinXCAF", xdoc);
-    Exporter ex{doc, opt, XCAFDoc_DocumentTool::ShapeTool(xdoc->Main()), XCAFDoc_DocumentTool::ColorTool(xdoc->Main()), {}, {}};
+    Exporter ex{doc, opt, XCAFDoc_DocumentTool::ShapeTool(xdoc->Main()), XCAFDoc_DocumentTool::ColorTool(xdoc->Main()), {}, {},
+                QFileInfo(QString::fromStdString(path)).completeBaseName().toStdString()};
     ObjectId root = doc.component(opt.root) ? opt.root : core::kRootComponentId;
     TDF_Label top = ex.labelFor(definitionOf(doc, root));
     if (top.IsNull()) {

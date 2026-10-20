@@ -148,10 +148,15 @@ class ToolTest : public QObject {
     QVERIFY(mgr.runCommandLine("LINE 5 6"));
     QCOMPARE(line->args, (std::vector<std::string>{"5", "6"}));
     mgr.accept();
+    // quotes keep spaces inside one word (names with spaces, paths) and are dropped
+    QVERIFY(mgr.runCommandLine("LINE \"a b\" body:'Leg Frame (2)'/face:top  c"));
+    QCOMPARE(line->args, (std::vector<std::string>{"a b", "body:Leg Frame (2)/face:top", "c"}));
+    QCOMPARE(splitCommandLine("  x  \"\"  y"), (std::vector<std::string>{"x", "", "y"}));
+    mgr.accept();
     QVERIFY(line->accepted);
     QVERIFY(!mgr.isActive());
     QVERIFY(mgr.runCommandLine(""));
-    QCOMPARE(line->activations, 4);
+    QCOMPARE(line->activations, 5);
     mgr.cancel();
     QVERIFY(!mgr.runCommandLine("BOGUS"));
     QVERIFY(!host.messages().empty());

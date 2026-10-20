@@ -249,21 +249,48 @@ bool ToolManager::run(const std::string& id, std::vector<std::string> args) {
   return true;
 }
 
+std::vector<std::string> splitCommandLine(const std::string& line) {
+  // words separated by white space; "..." or '...' keeps spaces inside one word (names with
+  // spaces, file paths), the quotes themselves are dropped; a quote glued to a word
+  // (body:"LegFrame (2)") continues that word
+  std::vector<std::string> words;
+  std::string cur;
+  bool inWord = false;
+  char quote = 0;
+  for (char ch : line) {
+    if (quote) {
+      if (ch == quote) quote = 0;
+      else cur += ch;
+      continue;
+    }
+    if (ch == '"' || ch == '\'') {
+      quote = ch;
+      inWord = true;
+      continue;
+    }
+    if (std::isspace(static_cast<unsigned char>(ch))) {
+      if (inWord) words.push_back(cur);
+      cur.clear();
+      inWord = false;
+      continue;
+    }
+    cur += ch;
+    inWord = true;
+  }
+  if (inWord) words.push_back(cur);
+  return words;
+}
+
 bool ToolManager::runCommandLine(const std::string& line) {
-  std::istringstream in(line);
-  std::string first;
-  in >> first;
+  const std::vector<std::string> words = splitCommandLine(line);
+  std::string first = words.empty() ? std::string() : words.front();
   if (first.empty()) return repeatLast();
   if (active_) {
     // Shell verbs (OK, CANCEL, SELECT, PICK, FIT...): instant tools flagged keepsActiveTool run
     // beside the active tool and are never offered to it as typed input (a tool that consumes
     // any text, e.g. a name prompt, would otherwise swallow them).
-    if (ITool* shell = registry_.byAlias(first); shell && shell->isInstant() && shell->info().keepsActiveTool) {
-      std::vector<std::string> args;
-      std::string a;
-      while (in >> a) args.push_back(a);
-      return run(shell->info().id, std::move(args));
-    }
+    if (ITool* shell = registry_.byAlias(first); shell && shell->isInstant() && shell->info().keepsActiveTool)
+      return run(shell->info().id, std::vector<std::string>(words.begin() + 1, words.end()));
     // A command name (FINISH, EXTRUDE 10, C) starts that command and ends the active one, as in
     // Fusion; everything else (values, coordinates, name=value, keywords) is typed input for the
     // active command. A document parameter that happens to share a name with an alias stays input.
@@ -301,10 +328,7 @@ bool ToolManager::runCommandLine(const std::string& line) {
       return false;
     }
   }
-  std::vector<std::string> args;
-  std::string a;
-  while (in >> a) args.push_back(a);
-  return run(tool->info().id, std::move(args));
+  return run(tool->info().id, std::vector<std::string>(words.begin() + 1, words.end()));
 }
 
 void ToolManager::accept() {

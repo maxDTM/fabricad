@@ -611,6 +611,26 @@ bool Document::removeComponent(ObjectId id) {
   return true;
 }
 
+bool Document::reparentComponent(ObjectId id, ObjectId newParent, const gp_Trsf& placement) {
+  if (id == kRootComponentId || id == newParent) return false;
+  Component* c = component(id);
+  Component* np = component(newParent);
+  if (!c || !np) return false;
+  for (ObjectId p = newParent; p != kInvalidId;) {  // the new parent must not be a descendant
+    if (p == id) return false;
+    const Component* pc = component(p);
+    p = pc ? pc->parent : kInvalidId;
+  }
+  if (Component* old = component(c->parent))
+    old->children.erase(std::remove(old->children.begin(), old->children.end(), id), old->children.end());
+  c->parent = newParent;
+  c->placement = placement;
+  np->children.push_back(id);
+  touchModified();
+  emit componentChanged(id);
+  return true;
+}
+
 void Document::setActiveComponent(ObjectId id) {
   if (!components_.count(id)) id = kRootComponentId;
   if (id == activeComponent_) return;

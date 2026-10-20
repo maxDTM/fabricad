@@ -272,9 +272,28 @@ bool shapesTouch(const TopoDS_Shape& a, const TopoDS_Shape& b, double tol) {
 // applyTool / replaceBody
 // ---------------------------------------------------------------------------
 
+std::vector<core::ObjectId> bodiesInComponentTree(const core::Document& doc, core::ObjectId comp,
+                                                  const std::vector<core::ObjectId>& candidates) {
+  if (comp == core::kInvalidId || comp == core::kRootComponentId || !doc.component(comp)) return candidates;
+  std::vector<core::ObjectId> tree{comp};
+  for (size_t i = 0; i < tree.size(); ++i)
+    if (const core::Component* c = doc.component(tree[i]))
+      for (core::ObjectId child : c->children) tree.push_back(child);
+  std::vector<core::ObjectId> out;
+  for (core::ObjectId id : candidates) {
+    const core::Body* b = doc.body(id);
+    if (b && std::find(tree.begin(), tree.end(), b->component) != tree.end()) out.push_back(id);
+  }
+  return out;
+}
+
+std::vector<core::ObjectId> bodiesInScope(core::RecomputeContext& ctx) {
+  return bodiesInComponentTree(ctx.document(), ctx.self().component(), ctx.bodies());
+}
+
 namespace {
 
-/// Participants: explicit targets, else bodies the tool touches (active component first).
+/// Participants: explicit targets, else the bodies in the feature's component scope that the tool touches.
 std::vector<core::ObjectId> participants(core::RecomputeContext& ctx, const TopoDS_Shape& tool,
                                          std::vector<core::ShapeRef>& targets) {
   std::vector<core::ObjectId> out;
@@ -286,7 +305,7 @@ std::vector<core::ObjectId> participants(core::RecomputeContext& ctx, const Topo
     }
     return out;
   }
-  for (core::ObjectId id : ctx.bodies())
+  for (core::ObjectId id : bodiesInScope(ctx))
     if (shapesTouch(ctx.bodyShape(id), tool)) out.push_back(id);
   return out;
 }

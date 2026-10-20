@@ -83,9 +83,13 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
 
   // --- instant tools -------------------------------------------------------------------
   {
-    ToolInfo i = assembleInfo("assembly.ground", "Ground", "Fix the selected components in space (toggle)", 4);
-    i.aliases = {"GROUND", "UNGROUND"};
-    ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) { toggleGround(c); }, hasComponentSelection));
+    ToolInfo i = assembleInfo("assembly.ground", "Ground", "Fix the selected components in space (GROUND [on|off|toggle])", 4);
+    i.aliases = {"GROUND"};
+    ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) { setGround(c, GroundMode::Ground); }, hasComponentSelection));
+    ToolInfo u = assembleInfo("assembly.unground", "Unground", "Free the selected components (undo Ground)", 5);
+    u.aliases = {"UNGROUND"};
+    u.hidden = true;  // the browser context menu and the command line
+    ctx.tools.registerTool(std::make_unique<LambdaTool>(u, [](ToolContext& c) { setGround(c, GroundMode::Unground); }, hasComponentSelection));
   }
   {
     ToolInfo i = assembleInfo("assembly.activate", "Activate Component",
@@ -105,7 +109,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
   }
   {
     ToolInfo i = assembleInfo("assembly.delete-component", "Delete Component",
-                              "Delete the selected components (bodies move to the parent, joints are removed)", 10);
+                              "Delete the selected components (bodies and child components move to the parent, joints are removed)", 10);
     i.aliases = {"DELETECOMPONENT"};
     i.hidden = true;  // browser context menu / search only
     ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) { deleteSelectedComponents(c); }, hasComponentSelection));

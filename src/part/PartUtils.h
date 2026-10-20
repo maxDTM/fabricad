@@ -83,10 +83,19 @@ TopoDS_Shape unifyWithHistory(const TopoDS_Shape& s, Handle(BRepTools_History)& 
 /// Do two shapes touch/overlap? (bounding boxes first, then BRepExtrema distance <= tol)
 bool shapesTouch(const TopoDS_Shape& a, const TopoDS_Shape& b, double tol = 1e-6);
 
+/// The bodies of `candidates` that belong to component `comp` or one of its descendants. The root
+/// component (or an unknown one) scopes nothing: every candidate is returned.
+std::vector<core::ObjectId> bodiesInComponentTree(const core::Document& doc, core::ObjectId comp,
+                                                  const std::vector<core::ObjectId>& candidates);
+/// Bodies a feature's automatic boolean may take part in (Fusion: the component the feature is
+/// made in and its children; a feature in the root sees every body).
+std::vector<core::ObjectId> bodiesInScope(core::RecomputeContext& ctx);
+
 /// Apply an additive/subtractive tool to the document bodies.
 ///  * NewBody: a new body.
-///  * Join: fused with all participating bodies (explicit `targets`, else every body the tool
-///    touches); with no participant a new body is created (Fusion behaviour).
+///  * Join: fused with all participating bodies (explicit `targets`, else every body of the
+///    feature's component tree that the tool touches, see bodiesInScope()); with no participant
+///    a new body is created (Fusion behaviour).
 ///  * Cut/Intersect: applied to each participant; none -> error.
 /// Fills out.bodies and out.names (carrying upstream names through the booleans), sets
 /// out.tool/out.operation and adds the tool as preview. Returns false after ctx.setError.

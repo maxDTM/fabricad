@@ -9,6 +9,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 
+#include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -217,11 +218,17 @@ bool exportStl(const std::vector<TopoDS_Shape>& shapes, const std::string& path,
       if (error) *error = "nothing to export";
       return false;
     }
-    BRepMesh_IncrementalMesh mesh(all, linearDeflection, Standard_False, angularDeflectionDeg * M_PI / 180.0, Standard_True);
+    // Mesh a fresh copy (geometry shared, no triangulation): BRepMesh keeps an existing mesh when the
+    // linear deflection is not coarser and ignores the angle then, so a body that was already
+    // meshed (viewer display, an earlier export) would be written with the old tessellation.
+    BRepBuilderAPI_Copy copier(all, Standard_True, Standard_False);
+    TopoDS_Shape fresh = copier.IsDone() ? copier.Shape() : all;
+    if (fresh.IsNull()) fresh = all;
+    BRepMesh_IncrementalMesh mesh(fresh, linearDeflection, Standard_False, angularDeflectionDeg * M_PI / 180.0, Standard_True);
     (void)mesh;
     StlAPI_Writer writer;
     writer.ASCIIMode() = binary ? Standard_False : Standard_True;
-    if (!writer.Write(all, path.c_str())) {
+    if (!writer.Write(fresh, path.c_str())) {
       if (error) *error = "could not write " + path;
       return false;
     }

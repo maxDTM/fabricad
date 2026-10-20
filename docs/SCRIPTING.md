@@ -54,8 +54,8 @@ produced (`info:` / `warn:` / `error:`). The same messages appear in the command
 * One command per line. Blank lines are skipped. `#`, `//` and `;` start a comment, also after
   a command when preceded by white space (`EXTRUDE 10  # join`). `#` inside a word is not a
   comment (`body:#18`).
-* Words are separated by spaces; there is no quoting, so file names and object names must not
-  contain spaces (rename with `RENAME` if needed).
+* Words are separated by spaces. `"..."` or `'...'` keeps spaces inside one word and the quotes
+  are dropped (`RENAME body:#44 "Leg Frame"`, `SELECT body:"LegFrame (2)"`, `SAVE "my chair.fcad"`).
 * Command names (aliases) are case-insensitive: `EXTRUDE`, `extrude` and `part.extrude` (the
   tool id) all work. Values are typed as in the UI: `10`, `10 in`, `width/2 + 3 mm`, `x,y`,
   `@dx,dy`, `@len<ang`, `w,h`.
@@ -92,8 +92,8 @@ enabled in the current context. `EXPORTSTEP` is the part exporter (bodies); use 
 | `PICK x,y` / `PICK x,y,z [options]` (`CLICK`) | a left click. In an open sketch `x,y` are sketch coordinates and `x,y,z` world coordinates projected onto the sketch plane. Outside a sketch `x,y,z` is a ray-pick against the model: the sketch profile / vertex / edge / face / body at that point, honouring the active command's selection filter. Options: `nosnap` (Ctrl: exact point, no sketch inference), `+` / `shift` (add), `ctrl` (toggle), `double`, `tol=<mm>` (default 0.5), `dir dx,dy,dz` (ray direction; default: the view direction, i.e. the nearest entity). |
 | `INPUT <property> [selectors]` (`INTO`) | make a selection input of the active feature command the target (`INPUT splitTool plane:YZ`, `INPUT axis body:Seat/edge:@0,200,430`, `INPUT targets body:LegRight`); `OPTIONS` lists the inputs. Without selectors it only switches the input. |
 | `OPTIONS` (`?`) | describe the active command: prompt, active input, validity, every property as `name=value` with its enum options. These names are what `name=value` input accepts. |
-| `INFO [selectors]` (`DESCRIBE`) | describe entities (default: the selection; with nothing selected, the document and the active command/tab). Bodies: component, volume, area, counts, tight bounding box, centroid, mass. Faces/edges: type, size, centre, normal/direction, radius. Sketches: plane origin, normal and axis directions, profiles with seed points (sketch and world), geometry and dimensions. Components: placement, bodies, bounding box. |
-| `LIST [bodies\|features\|components\|sketches\|joints\|params\|selection\|tabs\|tools [filter]\|all]` (`LS`) | list document objects with their names and ids (what selectors accept); `LIST tools` prints every alias with its tool id; `LIST features` is the timeline with status and marker. |
+| `INFO [selectors]` (`DESCRIBE`) | describe entities (default: the selection; with nothing selected, the document and the active command/tab). Bodies: component, volume, area, counts, tight bounding box, centroid, mass. Faces/edges: type, size, centre, normal/direction, radius. Sketches: plane origin, normal and axis directions, profiles with seed points (sketch and world), geometry and dimensions. Components: placement (translation + XYZ angles), parent, children, bodies, bounding box. |
+| `LIST [bodies\|features\|components\|sketches\|joints\|params\|selection\|tabs\|tools [filter]\|all]` (`LS`) | list document objects with their names and ids (what selectors accept); `LIST tools` prints every alias with its tool id; `LIST features` is the timeline with status and marker; `LIST components` is the component tree (indented children). |
 | `CHECK ...` (`ASSERT`, `EXPECT`) | assert a fact; a failed check fails the line (see below) |
 | `RENAME <selector> <name>` (`REN`) | rename a body, component or feature (undoable) |
 | `ECHO text` (`REM`) | write text to the log / history |
@@ -150,7 +150,8 @@ CHECK feature:Extrude1 status ok             CHECK body:Seat/edges:z=0 count == 
 
 Metrics on a selector: `volume`, `area`, `length`, `mass` (g, needs a material), `faces`,
 `edges`, `vertices`, `xmin xmax ymin ymax zmin zmax`, `dx dy dz` (size), `cx cy cz` (centroid),
-`radius`, `profiles`, `geometry` (sketch), `bodies` (component), `count` (matched entities).
+`radius`, `profiles`, `geometry` (sketch), `bodies`, `x y z` (component: body count, world origin),
+`count` (matched entities).
 Bounding boxes are tight (no tolerance padding), so `0.01` works.
 
 ## Commands by task
@@ -197,8 +198,13 @@ SELECT profile:@20,15,0 profile:@70,35,0      then
 EXTRUDE 30                    value = distance; then name=value lines and OK:
   operation=Join|Cut|Intersect|New Body   direction=One Side|Two Sides|Symmetric
   extentType=Distance|To Object|All       symmetricMeasure=Whole Length   flip=true
-  distance2=... taperAngle=...            INPUT targets body:X (bodies to cut/join; default: touched)
-REVOLVE / REV, SWEEP, LOFT, HOLE (diameter=10 extentType=All; INPUT targets body:X), SHELL
+  distance2=... taperAngle=...            INPUT targets body:X (bodies to cut/join)
+  The operation defaults to Join when the active component (or a child of it) has a body, else to
+  New Body; without `targets` only bodies of the active component's tree take part in a boolean
+  (Fusion behaviour), so an extrude in a new component never merges into another part it touches.
+REVOLVE / REV, SWEEP, LOFT, SHELL
+HOLE             PICK/INPUT face body:X/face:@x,y,z then PICK x,y,z nosnap, diameter=10, extentType=All;
+                 cuts the body the hole is placed on (INPUT targets body:Y ... to cut others too)
 FILLET 6         with edges/faces selected (tangentChain=true by default)
 CHAMFER 3        chamferType=Equal Distance|Two Distances|Distance and Angle, distance2=, angle=
 SPLIT            SELECT body:X first, then INPUT splitTool plane:YZ, OK
@@ -223,12 +229,17 @@ NEWCOMPONENT Seat    then OK (activates it: new bodies go into it)
 SELECT none / ACTIVATE          activate the root again (ACTIVATE with a component selected activates it)
 RENAME component:Seat/bodies Seat    name the body of a component
 SELECT body:LegLeft body:LegRight / CFB    one component per selected body (named after the bodies)
-SELECT component:Seat / GROUND  (toggle)
-SELECT component:A component:B / ASBUILTJOINT / OK     rigid as-built joint (type: REVOLUTE etc. as typed input)
+SELECT component:Seat / GROUND  (idempotent; GROUND off | UNGROUND frees, GROUND toggle toggles)
+SELECT component:A component:B / ASBUILTJOINT / OK     rigid as-built joint (type: REVOLUTE etc. as typed input);
+                 faces/edges may be selected instead of the components (they name the mating geometry)
 JOINT REVOLUTE   then SELECT/PICK a snap on each component (face, edge, vertex), FLIP, OK
-SELECT component:LegLeft / MOVECOMPONENT / -15,0,0 / OK     typed x,y,z translates, @30 rotates about Z
+SELECT component:LegLeft / MOVECOMPONENT / -15,0,0 / OK     typed x,y,z translates, @30 rotates about Z;
+                 x= y= z= rx= ry= rz= set one dialog field; pivot=0,200,430 is the world point the
+                 angles turn about (rx=-5 then rotates -5 deg about +X through it; the dialog has Pivot fields)
 DRIVEJOINT Joint1 45, RIGIDGROUP, INTERFERENCE, INSERTDESIGN file.fcad, COPYCOMPONENT / PASTE
 SELECT feature:Joint1 / DELETE
+SELECT component:LegFrame / DELETECOMPONENT    bodies and child components move to its parent (children keep
+                 their world placement), joints on it are removed; LIST components shows the tree
 ```
 
 ### Drawings and export
@@ -240,7 +251,12 @@ PROJECTEDVIEW / OK, SECTIONVIEW, DETAILVIEW, DIMENSION, TEXT, LEADER, PARTSLIST,
 EXPORTPDF a.pdf, EXPORTSVG a.svg, EXPORTDXF a.dxf, EXPORTCSV a.csv
 EXPORTSTEP a.step                    selected bodies (or all) in their component placement
 assembly.export-step a.step          XCAF assembly: components, occurrences, names, colours
-EXPORTSTL a.stl [deflection=0.05] [angle=20|0.2rad] [ascii]      selected bodies or all (world placement)
+EXPORTSTL a.stl [deflection=0.05] [angle=20|0.2rad] [ascii]      selected bodies or all (world placement);
+                 typed exports always start from the built-in 0.05 mm / 20 deg / binary; every export
+                 meshes afresh, so earlier exports or the display mesh never leak into the file.
+                 In the GUI, EXPORTSTL without arguments opens the dialog (file, deflections, format)
+IMPORT part.step / OK  (or IMPORT, filePath=part.step, OK): insert a STEP/STL as bodies (string
+                 properties are typed as name=value like the others); IMPORTFILE part.step inserts at once
 SAVE a.fcad / SAVEAS a.fcad, OPEN a.fcad (new tab), NEW (new tab), CLOSE
 ```
 
@@ -265,6 +281,8 @@ leaving a Fusion document.
 * `OK` is only accepted when the command is valid; `OPTIONS` says what is missing.
 * `tests/scripts/chair.fcs` (the chair benchmark of `docs/comparison/CHAIR_SPEC.md`: sketches
   on offset planes and faces, join/cut/new-body extrudes, fillet chains, split body, components,
-  as-built joint, chamfer, hole, move body/component, STL/STEP export) and
+  as-built joint, chamfer, hole, move body/component, STL/STEP export), `tests/chair/chair.fcs`
+  (the same model as a test user typed it, with CHECKs of every reference value, a .fcad round
+  trip and a STEP read-back; `ctest -R fabricad_chair_spec`) and
   `tests/scripts/bracket.fcs` (lines, arc, circle, dimension, parameters, drawing views, PDF/SVG)
   are complete examples; `ctest -R fabricad_script` runs them.

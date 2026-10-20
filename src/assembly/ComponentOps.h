@@ -89,6 +89,17 @@ core::ObjectId createOccurrence(core::Document& doc, core::UndoStack* undo, core
                                 core::ObjectId parent, const gp_Trsf& placement);
 /// Remove a component sub-tree and every feature referencing it (joints, rigid groups, markers, inserts).
 /// Undo re-creates the tree (fresh ids) and re-inserts the features with remapped component references.
-bool deleteComponent(core::Document& doc, core::UndoStack* undo, core::ObjectId comp);
+struct DeleteComponentResult {
+  int movedChildren = 0;  ///< child components re-parented to the deleted component's parent
+  int movedBodies = 0;    ///< bodies moved to the parent
+};
+/// Delete a component (undoable): its bodies and child components move to its parent (children keep
+/// their world placement), joints and other features referencing it are removed.
+bool deleteComponent(core::Document& doc, core::UndoStack* undo, core::ObjectId comp,
+                     DeleteComponentResult* result = nullptr);
+/// Re-solve the joints after a placement or ground change: recompute from the first active joint
+/// feature only (body features do not depend on placements). Returns that timeline index, -1 when
+/// there is no joint (nothing to recompute).
+int recomputeJoints(core::Document& doc);
 
 }  // namespace fabricad::assembly

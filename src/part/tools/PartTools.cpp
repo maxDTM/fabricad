@@ -17,6 +17,7 @@
 #include "part/features/Revolve.h"
 #include "part/features/Shell.h"
 #include "part/features/SweepLoft.h"
+#include "part/tools/ExportStlTool.h"
 #include "part/tools/FeatureTool.h"
 #include "part/tools/MeasureTool.h"
 
@@ -69,7 +70,9 @@ std::string chooseFile(core::ToolContext& ctx, bool save, const std::string& fil
 
 }  // namespace
 
-bool exportBodies(core::ToolContext& ctx, const std::string& format) {
+bool collectExportShapes(core::ToolContext& ctx, std::vector<TopoDS_Shape>& shapes, std::vector<std::string>& names) {
+  shapes.clear();
+  names.clear();
   if (!ctx.document) return false;
   core::Document& doc = *ctx.document;
   std::vector<core::ObjectId> bodies;
@@ -80,8 +83,6 @@ bool exportBodies(core::ToolContext& ctx, const std::string& format) {
     ctx.showMessage("nothing to export: the document has no bodies", true);
     return false;
   }
-  std::vector<TopoDS_Shape> shapes;
-  std::vector<std::string> names;
   for (core::ObjectId id : bodies) {
     const TopoDS_Shape& s = doc.bodyShape(id);
     if (s.IsNull()) continue;
@@ -91,31 +92,26 @@ bool exportBodies(core::ToolContext& ctx, const std::string& format) {
     shapes.push_back(world.Form() == gp_Identity ? s : s.Moved(TopLoc_Location(world)));
     names.push_back(b ? b->name : "Body");
   }
+  return !shapes.empty();
+}
+
+bool exportBodies(core::ToolContext& ctx, const std::string& format) {
+  std::vector<TopoDS_Shape> shapes;
+  std::vector<std::string> names;
+  if (!collectExportShapes(ctx, shapes, names)) return false;
   bool stl = format == "stl";
   // command line: EXPORTSTL out.stl [deflection=0.05] [angle=20|0.2rad] [ascii]
-  double linear = 0.05, angularDeg = 20.0;
-  bool binary = true;
-  for (size_t i = 1; i < ctx.args.size(); ++i) {
-    const std::string& a = ctx.args[i];
-    if (a.rfind("deflection=", 0) == 0 || a.rfind("linear=", 0) == 0) {
-      linear = std::atof(a.substr(a.find('=') + 1).c_str());
-    } else if (a.rfind("angle=", 0) == 0 || a.rfind("angular=", 0) == 0) {
-      std::string v = a.substr(a.find('=') + 1);
-      const bool rad = v.size() > 3 && v.compare(v.size() - 3, 3, "rad") == 0;
-      if (rad) v.resize(v.size() - 3);
-      else if (v.size() > 3 && v.compare(v.size() - 3, 3, "deg") == 0) v.resize(v.size() - 3);
-      angularDeg = std::atof(v.c_str()) * (rad ? 180.0 / M_PI : 1.0);
-    } else if (a == "ascii") {
-      binary = false;
-    }
-  }
-  std::string path = chooseFile(ctx, true, stl ? "STL files (*.stl)" : "STEP files (*.step *.stp)", stl ? ".stl" : ".step");
+  StlExportSettings st;  // built-in defaults unless options are typed
+  std::string path;
+  for (const std::string& a : ctx.args)
+    if (!(stl && ExportStlTool::applyOption(a, st)) && path.empty()) path = a;
+  if (path.empty()) path = chooseFile(ctx, true, stl ? "STL files (*.stl)" : "STEP files (*.step *.stp)", stl ? ".stl" : ".step");
   if (path.empty()) return false;
   std::string err;
-  bool ok = stl ? exportStl(shapes, path, binary, linear, angularDeg, &err) : exportStep(shapes, names, path, &err);
+  bool ok = stl ? exportStl(shapes, path, st.binary, st.linearDeflection, st.angularDeflectionDeg, &err) : exportStep(shapes, names, path, &err);
   if (ok && stl)
-    ctx.showMessage(std::format("STL mesh: linear deflection {} mm, angular deflection {} deg ({} rad), {}", linear, angularDeg,
-                                angularDeg * M_PI / 180.0, binary ? "binary" : "ascii"));
+    ctx.showMessage(std::format("STL mesh: linear deflection {} mm, angular deflection {} deg ({} rad), {}", st.linearDeflection,
+                                st.angularDeflectionDeg, st.angularDeflectionDeg * M_PI / 180.0, st.binary ? "binary" : "ascii"));
   if (!ok) {
     ctx.showMessage("export failed: " + err, true);
     return false;
@@ -188,9 +184,10 @@ void registerPartTools(core::ModuleContext& ctx) {
     core::ToolInfo i = info("part.export-step", "Export STEP", "Export selected bodies (or all) to STEP", "TOOLS", "EXPORT", 10, true, "", {"EXPORTSTEP", "STEP"});
     i.repeatable = false;
     t.registerTool(std::make_unique<core::LambdaTool>(i, [](core::ToolContext& c) { exportBodies(c, "step"); }));
-    core::ToolInfo j = info("part.export-stl", "Export STL", "Export selected bodies (or all) to STL", "TOOLS", "EXPORT", 20, true, "", {"EXPORTSTL", "STL"});
+    core::ToolInfo j = info("part.export-stl", "Export STL", "Export selected bodies (or all) to STL with tessellation settings",
+                            "TOOLS", "EXPORT", 20, true, "", {"EXPORTSTL", "STL"});
     j.repeatable = false;
-    t.registerTool(std::make_unique<core::LambdaTool>(j, [](core::ToolContext& c) { exportBodies(c, "stl"); }));
+    t.registerTool(std::make_unique<ExportStlTool>(j));
   }
   {
     core::ToolInfo i = info("part.edit-feature", "Edit Feature", "Edit the selected feature", SOLID, MODIFY, 1000, false, "", {"EDITFEATURE"});

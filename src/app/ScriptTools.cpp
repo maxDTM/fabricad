@@ -29,6 +29,7 @@
 #include <cctype>
 #include <cmath>
 #include <format>
+#include <functional>
 #include <optional>
 
 namespace fabricad::app {
@@ -293,13 +294,20 @@ std::string listText(const core::Document& doc, const std::string& categoryIn) {
     }
   }
   if (cat == "components" || cat == "all") {
-    line(std::format("Components ({}):", doc.components().size()));
-    for (const core::Component* c : doc.components()) {
+    line(std::format("Components ({}, tree order; indented = child of the line above it):", doc.components().size()));
+    // depth first from the root so the hierarchy is visible (CFB nests the new components under the
+    // component that owned the body)
+    std::function<void(const core::Component*, int)> walk = [&](const core::Component* c, int depth) {
       gp_XYZ t = doc.worldPlacement(c->id).TranslationPart();
-      line(std::format("  component:{}  #{}  {}{}{}  {} bodies  at ({}, {}, {}){}", c->name, c->id, c->isRoot() ? "root" : "",
-                       c->grounded ? " grounded" : "", c->isOccurrence() ? " occurrence" : "", doc.displayedBodies(c->id).size(),
+      const core::Component* parent = doc.component(c->parent);
+      line(std::format("{}component:{}  #{}  {}{}{}{}  {} bodies, {} children  at ({}, {}, {}){}", std::string(2 + 2 * depth, ' '),
+                       c->name, c->id, c->isRoot() ? "root" : "", c->grounded ? " grounded" : "", c->isOccurrence() ? " occurrence" : "",
+                       parent && !parent->isRoot() ? "  in " + parent->name : "", doc.displayedBodies(c->id).size(), c->children.size(),
                        fmt(t.X()), fmt(t.Y()), fmt(t.Z()), c->id == doc.activeComponent() ? "  (active)" : ""));
-    }
+      for (ObjectId child : c->children)
+        if (const core::Component* cc = doc.component(child)) walk(cc, depth + 1);
+    };
+    walk(&doc.rootComponent(), 0);
   }
   if (cat == "sketches") {
     for (const auto& f : doc.features())

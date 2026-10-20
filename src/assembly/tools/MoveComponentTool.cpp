@@ -17,12 +17,14 @@
 #include "core/UndoStack.h"
 
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QWidget>
 #include <gp_Ax1.hxx>
 #include <gp_Quaternion.hxx>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <format>
 #include <numbers>
@@ -89,6 +91,7 @@ void MoveComponentTool::deactivate(ToolContext& ctx) {
   triadId_ = core::kInvalidManipulator;
   ctx_ = nullptr;
   for (auto& e : edits_) e = nullptr;
+  for (auto& e : pivotEdits_) e = nullptr;
   targetLabel_ = nullptr;
 }
 
@@ -312,9 +315,60 @@ void MoveComponentTool::setTransform(ToolContext& ctx, double x, double y, doubl
   moveTriadToCurrent(ctx);
 }
 
+bool MoveComponentTool::setPivot(ToolContext& ctx, const gp_Pnt& p) {
+  if (components_.empty()) return false;
+  baseFrame_.SetLocation(p);
+  // the accumulated rotation now turns about the new pivot
+  setTransform(ctx, values_[0], values_[1], values_[2], values_[3], values_[4], values_[5]);
+  return true;
+}
+
 bool MoveComponentTool::commandLineInput(ToolContext& ctx, const std::string& text) {
-  // "10,0,5" -> translate; "@30" -> rotate about Z (free) or drive (jointed)
+  // "10,0,5" -> translate; "@30" -> rotate about Z (free) or drive (jointed);
+  // "x=10", "rx=-5" (one of x y z rx ry rz) -> that dialog field; "pivot=0,200,430" -> rotation pivot
   if (text.empty() || components_.empty()) return false;
+  if (auto eq = text.find('='); eq != std::string::npos && text[0] != '@') {
+    std::string key = text.substr(0, eq), value = text.substr(eq + 1);
+    while (!key.empty() && std::isspace(static_cast<unsigned char>(key.back()))) key.pop_back();
+    for (char& ch : key) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    static const char* kNames[6] = {"x", "y", "z", "rx", "ry", "rz"};
+    static const char* kAliases[6] = {"dx", "dy", "dz", "anglex", "angley", "anglez"};
+    if (key == "pivot" || key == "about") {
+      double p[3] = {0, 0, 0};
+      size_t start = 0;
+      int n = 0;
+      while (n < 3 && start <= value.size()) {
+        size_t comma = value.find(',', start);
+        std::string part = value.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+        if (!parseNumber(part, p[n])) return false;
+        ++n;
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+      }
+      if (n != 3) return false;
+      if (joint_ && jointDofCount(joint_->jointType()) > 0) return false;  // a joint has its own axis
+      setPivot(ctx, gp_Pnt(p[0], p[1], p[2]));
+      ctx.showMessage(std::format("pivot ({}, {}, {})", p[0], p[1], p[2]));
+      return true;
+    }
+    for (int i = 0; i < 6; ++i) {
+      if (key != kNames[i] && key != kAliases[i]) continue;
+      double v;
+      if (!parseNumber(value, v)) {
+        // expressions / units through the document evaluator
+        core::EvalResult r = ctx.document->evaluate(value, i < 3 ? core::Dimension::Length() : core::Dimension::Angle());
+        if (!r.ok) return false;
+        v = r.value.value;
+      }
+      double vals[6];
+      for (int k = 0; k < 6; ++k) vals[k] = values_[k];
+      vals[i] = v;
+      if (joint_ && jointDofCount(joint_->jointType()) > 0) return false;
+      setTransform(ctx, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]);
+      return true;
+    }
+    return false;
+  }
   if (text[0] == '@') {
     double a;
     if (!parseNumber(text.substr(1), a)) return false;
@@ -371,9 +425,8 @@ void MoveComponentTool::accept(ToolContext& ctx) {
       changed = true;
   if (changed) {
     ctx.undo->push(makePlacementsCommand(doc, placementsBefore_, after, "Move component"));
-    // joints referencing moved free components are re-solved
-    doc.markAllDirty();
-    doc.recompute();
+    // joints referencing moved free components are re-solved (body features do not depend on placements)
+    recomputeJoints(doc);
   }
   ctx.finish();
 }
@@ -409,6 +462,24 @@ QWidget* MoveComponentTool::createDialog(ToolContext& ctx, QWidget* parent) {
     });
     form->addRow(names[i], edits_[i]);
   }
+  // rotation pivot (world point the angles turn about; the triad origin)
+  auto* pivotRow = new QWidget(w);
+  auto* ph = new QHBoxLayout(pivotRow);
+  ph->setContentsMargins(0, 0, 0, 0);
+  const gp_Pnt p0 = baseFrame_.Location();
+  const double pv[3] = {p0.X(), p0.Y(), p0.Z()};
+  for (int i = 0; i < 3; ++i) {
+    pivotEdits_[i] = new ExpressionEdit(ctx.document, core::Dimension::Length(), pivotRow);
+    pivotEdits_[i]->setValue(pv[i]);
+    pivotEdits_[i]->setToolTip("World point the rotation angles turn about");
+    QObject::connect(pivotEdits_[i], &ExpressionEdit::valueChanged, this, [this](double) {
+      if (!ctx_ || syncing_ || components_.empty() || dragging_) return;
+      if (!pivotEdits_[0] || !pivotEdits_[1] || !pivotEdits_[2]) return;
+      setPivot(*ctx_, gp_Pnt(pivotEdits_[0]->value(), pivotEdits_[1]->value(), pivotEdits_[2]->value()));
+    });
+    ph->addWidget(pivotEdits_[i]);
+  }
+  form->addRow("Pivot X / Y / Z", pivotRow);
   syncDialog();
   return w;
 }
@@ -422,6 +493,10 @@ void MoveComponentTool::syncDialog() {
   targetLabel_->setText(core::qs(names.empty() ? std::string("none") : names));
   for (int i = 0; i < 6; ++i)
     if (edits_[i] && std::abs(edits_[i]->value() - values_[i]) > 1e-9) edits_[i]->setValue(values_[i]);
+  const gp_Pnt p0 = baseFrame_.Location();
+  const double pv[3] = {p0.X(), p0.Y(), p0.Z()};
+  for (int i = 0; i < 3; ++i)
+    if (pivotEdits_[i] && std::abs(pivotEdits_[i]->value() - pv[i]) > 1e-9) pivotEdits_[i]->setValue(pv[i]);
   syncing_ = false;
 }
 

@@ -18,6 +18,7 @@ class ImportFeature : public PartFeature {
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   std::string browserFolder() const override { return {}; }
   void applyDefaultsForNewFeature(const core::Document&) override {}
+  std::string primaryText() const override { return "filePath"; }
 
   /// Read a STEP (.step/.stp) or STL (.stl) file into one shape per body. Errors in `error`.
   struct Imported {

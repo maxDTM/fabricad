@@ -13,17 +13,23 @@
 #include "part/Naming.h"
 #include "part/PartModule.h"
 #include "part/features/Extrude.h"
+#include "part/features/Fillet.h"
+#include "part/features/Hole.h"
 #include "part/features/Import.h"
+#include "part/tools/ExportStlTool.h"
 #include "part/tools/FeatureTool.h"
 #include "part/tools/MeasureTool.h"
 #include "part/tools/PropertyPanel.h"
 #include "support/TestSketch.h"
 
 #include <QComboBox>
+#include <QFileInfo>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
+
+#include <cmath>
 
 using namespace fabricad;
 using namespace fabricad::part;
@@ -424,6 +430,180 @@ class ToolsTest : public QObject {
     QVERIFY(rig3.manager.run("part.import-file", {step}));
     QCOMPARE(rig3.doc.featureCount(), 1);
     QCOMPARE(rig3.doc.featureAt(0)->status(), core::FeatureStatus::Ok);
+  }
+
+  /// A planar face of a body with outward normal `n`, with a pick point (world = local here).
+  static core::ShapeRef faceRef(const core::Document& doc, core::ObjectId body, const gp_Dir& n, const gp_Pnt& pick) {
+    const TopoDS_Shape& shape = doc.bodyShape(body);
+    for (const TopoDS_Shape& f : core::subShapes(shape, TopAbs_FACE)) {
+      auto pl = core::facePlane(f);
+      if (!pl || !pl->Direction().IsEqual(n, 1e-6)) continue;
+      core::ShapeRef r = core::ShapeRef::subShape(body, shape, f);
+      r.point = core::Vec3::from(pick);
+      r.hasPoint = true;
+      return r;
+    }
+    return {};
+  }
+
+  void booleansStayInsideTheActiveComponent() {
+    // F1: the first Extrude in an empty component must not join into another component's body,
+    // even when the profiles touch it; F3: a through-all Hole cuts the body it is placed on only.
+    Rig rig;
+    core::ObjectId compA = rig.doc.addComponent("A").id;
+    rig.doc.setActiveComponent(compA);
+    TestSketch* skA = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(skA->rectProfile(0));
+    ex->prop("distance").setDouble(10);
+    ex->prop("operation").setEnum("New Body");
+    core::Feature* exA = rig.doc.addFeature(std::move(ex));
+    rig.doc.recompute();
+    core::ObjectId bodyA = exA->createdBodies().front();
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyA)), 1000));
+
+    // an empty component B becomes active; its first extrude shares the face x = 10 with A's box
+    core::ObjectId compB = rig.doc.addComponent("B").id;
+    rig.doc.setActiveComponent(compB);
+    TestSketch* skB = addRectSketch(rig.doc, "XY", 10, 0, 20, 10);
+    rig.doc.selection().set(skB->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool);
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("New Body"));  // B has no body yet
+    QVERIFY(rig.manager.runCommandLine("10"));
+    rig.manager.accept();
+    QCOMPARE(rig.doc.bodiesOf(compB).size(), size_t(1));
+    QCOMPARE(rig.doc.bodiesOf(compA).size(), size_t(1));
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyA)), 1000));  // untouched
+    core::ObjectId bodyB = rig.doc.bodiesOf(compB).front();
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyB)), 1000));
+
+    // an explicit Join in B still does not reach A: a second block touching both boxes
+    TestSketch* skB2 = addRectSketch(rig.doc, "XY", 5, 10, 15, 20);
+    rig.doc.selection().set(skB2->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("Join"));  // B has a body now
+    QVERIFY(rig.manager.runCommandLine("10"));
+    rig.manager.accept();
+    QCOMPARE(rig.doc.bodiesOf(compB).size(), size_t(1));
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyB)), 2000));
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyA)), 1000));
+
+    // F3: hole placed on B's face x = 20, through all along -X, with the root active (as after
+    // "Create Components from Bodies"): only B is drilled although the axis passes through A
+    rig.doc.setActiveComponent(core::kRootComponentId);
+    auto ho = std::make_unique<HoleFeature>();
+    ho->prop("points").addRef(faceRef(rig.doc, bodyB, gp_Dir(1, 0, 0), gp_Pnt(20, 5, 5)));
+    ho->prop("diameter").setDouble(2);
+    ho->prop("extentType").setEnum("All");
+    core::Feature* hf = rig.doc.addFeature(std::move(ho));
+    rig.doc.recompute();
+    QVERIFY2(hf->status() == core::FeatureStatus::Ok, hf->statusMessage().c_str());
+    QVERIFY2(near(core::volume(rig.doc.bodyShape(bodyB)), 2000 - M_PI * 1 * 1 * 10, 1e-3),
+             qPrintable(QString::number(core::volume(rig.doc.bodyShape(bodyB)))));
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyA)), 1000));
+    // an explicit target list still wins
+    auto ho2 = std::make_unique<HoleFeature>();
+    ho2->prop("points").addRef(faceRef(rig.doc, bodyB, gp_Dir(1, 0, 0), gp_Pnt(20, 5, 2)));
+    ho2->prop("diameter").setDouble(2);
+    ho2->prop("extentType").setEnum("All");
+    ho2->prop("targets").addRef(core::ShapeRef::body(bodyA));
+    ho2->prop("targets").addRef(core::ShapeRef::body(bodyB));
+    core::Feature* hf2 = rig.doc.addFeature(std::move(ho2));
+    rig.doc.recompute();
+    QVERIFY2(hf2->status() == core::FeatureStatus::Ok, hf2->statusMessage().c_str());
+    QVERIFY(near(core::volume(rig.doc.bodyShape(bodyA)), 1000 - M_PI * 10, 1e-3));
+  }
+
+  void stlExportMeshesAfresh() {
+    // F2: the mesh written depends only on the requested deflections, not on a triangulation the
+    // shape already carries from an earlier export (or the viewer)
+    Rig rig;
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(sk->rectProfile(0));
+    ex->prop("distance").setDouble(10);
+    ex->prop("operation").setEnum("New Body");
+    core::Feature* exF = rig.doc.addFeature(std::move(ex));
+    rig.doc.recompute();
+    core::ObjectId body = exF->createdBodies().front();
+    auto fi = std::make_unique<FilletFeature>();
+    const TopoDS_Shape& shape = rig.doc.bodyShape(body);
+    for (const TopoDS_Shape& e : core::subShapes(shape, TopAbs_EDGE)) {
+      core::Vec3 mn, mx;
+      if (core::bbox(e, mn, mx) && mn.x > 9.9 && mn.z > 9.9) fi->prop("edges").addRef(core::ShapeRef::subShape(body, shape, e));
+    }
+    fi->prop("radius").setDouble(4);
+    core::Feature* ff = rig.doc.addFeature(std::move(fi));
+    rig.doc.recompute();
+    QVERIFY2(ff->status() == core::FeatureStatus::Ok, ff->statusMessage().c_str());
+    QTemporaryDir dir;
+    auto size = [&](const char* name) { return QFileInfo(dir.path() + "/" + name).size(); };
+    QVERIFY(rig.manager.run("part.export-stl", {(dir.path() + "/coarse.stl").toStdString()}));
+    QVERIFY(rig.manager.run("part.export-stl", {(dir.path() + "/fine.stl").toStdString(), "angle=0.05rad"}));
+    QVERIFY(rig.manager.run("part.export-stl", {(dir.path() + "/coarse2.stl").toStdString()}));
+    QVERIFY(rig.manager.run("part.export-stl", {(dir.path() + "/fine2.stl").toStdString(), "deflection=0.05", "angle=0.05rad"}));
+    QVERIFY2(size("fine.stl") > size("coarse.stl"), qPrintable(QString("%1 vs %2").arg(size("fine.stl")).arg(size("coarse.stl"))));
+    QCOMPARE(size("coarse2.stl"), size("coarse.stl"));  // the default export after a fine one is still the default mesh
+    QCOMPARE(size("fine2.stl"), size("fine.stl"));
+    // the typed options are parsed for the dialog tool as well
+    StlExportSettings st;
+    QVERIFY(ExportStlTool::applyOption("angle=0.2rad", st));
+    QVERIFY(near(st.angularDeflectionDeg, 0.2 * 180.0 / M_PI));
+    QVERIFY(ExportStlTool::applyOption("deflection=0.1", st));
+    QVERIFY(near(st.linearDeflection, 0.1));
+    QVERIFY(ExportStlTool::applyOption("ascii", st));
+    QVERIFY(!st.binary);
+    QVERIFY(!ExportStlTool::applyOption("out/a.stl", st));
+    // without a path and without a window the command cannot run headless: it ends with a message
+    rig.manager.run("part.export-stl");
+    QVERIFY(!rig.manager.isActive());
+    QVERIFY(!rig.host.messages().empty());
+  }
+
+  void importToolTakesPathArguments() {
+    // F5: "IMPORT file.step" fills the file path, "filePath=..." types it, OK inserts
+    Rig rig;
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 20);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(sk->rectProfile(0));
+    ex->prop("distance").setDouble(5);
+    ex->prop("operation").setEnum("New Body");
+    rig.doc.addFeature(std::move(ex));
+    rig.doc.recompute();
+    QTemporaryDir dir;
+    std::string step = (dir.path() + "/part.step").toStdString();
+    QVERIFY(rig.manager.run("part.export-step", {step}));
+
+    Rig rig2;
+    QVERIFY(rig2.manager.run("part.import", {step}));
+    auto* tool = dynamic_cast<FeatureTool*>(rig2.manager.activeTool());
+    QVERIFY(tool);
+    QCOMPARE(tool->feature()->prop("filePath").toString(), step);
+    QVERIFY(tool->isValid());
+    rig2.manager.accept();
+    QCOMPARE(rig2.doc.featureCount(), 1);
+    QCOMPARE(rig2.doc.featureAt(0)->status(), core::FeatureStatus::Ok);
+    QCOMPARE(rig2.doc.liveBodies().size(), size_t(1));
+
+    QVERIFY(rig2.manager.run("part.import"));
+    tool = dynamic_cast<FeatureTool*>(rig2.manager.activeTool());
+    QVERIFY(!tool->isValid());  // no file yet
+    QVERIFY(rig2.manager.runCommandLine("filePath=/nonexistent/x.step"));
+    QVERIFY(!tool->isValid());
+    QVERIFY(rig2.manager.runCommandLine("filePath=" + step));
+    QVERIFY(tool->isValid());
+    QVERIFY(rig2.manager.runCommandLine("format=STEP"));
+    rig2.manager.accept();
+    QCOMPARE(rig2.doc.liveBodies().size(), size_t(2));
+    // a bare path typed while the command is active goes to the file as well
+    QVERIFY(rig2.manager.run("part.import"));
+    tool = dynamic_cast<FeatureTool*>(rig2.manager.activeTool());
+    QVERIFY(rig2.manager.runCommandLine(step));
+    QCOMPARE(tool->feature()->prop("filePath").toString(), step);
+    rig2.manager.cancel();
   }
 };
 

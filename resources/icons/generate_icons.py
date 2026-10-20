@@ -419,6 +419,8 @@ I["assembly-copy"] = component(9, 9.5, 0.75) + component(15, 14.5, 0.75)
 I["assembly-paste"] = (R(4, 4, 16, 18, 1.5, f=WH) + R(8.5, 2.5, 7, 3.5, 1, f=WH) + component(12, 14, 0.6))
 I["assembly-delete-component"] = component(10, 11, 0.9) + cross(18.5, 18.5, RED, 3)
 I["assembly-ground"] = component(12, 9, 0.8) + P("M4 18.5 H20 M7 21.5 H17", s=AS) + P("M12 15 V18.5", s=AS)
+I["assembly-unground"] = (component(12, 8, 0.8) + P("M4 20 H20", s=AS, da="2 1.5") + P("M12 14 V18.5", s=AS) +
+                          arrow_head(12, 14, "up", AS, 2))
 JOINT = R(2, 8.5, 6, 7, 1, f=BODY) + R(16, 8.5, 6, 7, 1, f=BODY) + P("M8 12 H16", s=GREY) + joint_ring(12, 12, 4)
 I["assembly-joint"] = JOINT
 I["joint"] = C(12, 12, 7.5, s=AS) + joint_ring(12, 12, 3) + P("M12 2 V4.5 M12 19.5 V22 M2 12 H4.5 M19.5 12 H22", s=AS)

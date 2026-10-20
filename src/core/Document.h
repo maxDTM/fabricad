@@ -148,6 +148,9 @@ class Document : public QObject {
   std::vector<ObjectId> displayedBodies(ObjectId componentId) const;
   /// Also removes descendants; bodies move to the parent. Root cannot be removed.
   bool removeComponent(ObjectId id);
+  /// Move a component (with its sub-tree) under another parent. `placement` becomes its new
+  /// local placement. False for the root, an unknown parent or a parent inside its own sub-tree.
+  bool reparentComponent(ObjectId id, ObjectId newParent, const gp_Trsf& placement);
   ObjectId activeComponent() const { return activeComponent_; }
   void setActiveComponent(ObjectId id);
   /// Placement of a component in world coordinates (parents composed).

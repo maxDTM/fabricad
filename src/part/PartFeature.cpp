@@ -2,6 +2,7 @@
 #include "part/PartFeature.h"
 
 #include "core/Document.h"
+#include "part/PartUtils.h"
 
 #include <Standard_Failure.hxx>
 
@@ -83,7 +84,10 @@ Operation PartFeature::operation() const {
 void PartFeature::applyDefaultsForNewFeature(const core::Document& doc) {
   core::Property* p = property("operation");
   if (!p || p->type() != core::PropertyType::Enum || p->options().size() != 4) return;
-  bool hasBody = !doc.liveBodies().empty();
+  // Fusion: Join when the active component (or one of its children) already has a body, else New
+  // Body. Bodies of other components never take part in an automatic boolean (bodiesInScope()).
+  const core::ObjectId scope = component() != core::kInvalidId && doc.component(component()) ? component() : doc.activeComponent();
+  bool hasBody = !bodiesInComponentTree(doc, scope, doc.liveBodies()).empty();
   p->setEnum(static_cast<int>(hasBody ? Operation::Join : Operation::NewBody));
 }
 

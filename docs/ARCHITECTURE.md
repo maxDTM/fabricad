@@ -201,9 +201,12 @@ position, `RecomputeContext::bodyShape(id)` for the state before a feature.
 
 `Component` is a tree node with `placement` (gp_Trsf relative to parent), `grounded`,
 `visible`, optional `definition` (occurrence of another component), `externalPath`, BOM
-fields. Bodies belong to exactly one component. Core stores the tree; the assembly module
+fields. Bodies belong to exactly one component. Core stores the tree (`addComponent`,
+`removeComponent`, `reparentComponent(id, newParent, placement)`); the assembly module
 owns joints (features) and placement solving (it writes `placement` via
-`makeComponentEditCommand` / `notifyComponentChanged`).
+`makeComponentEditCommand` / `notifyComponentChanged`). Deleting a component
+(`assembly::deleteComponent`) hands its bodies and child components to its parent (children
+keep their world placement) and removes the features that reference it.
 
 ### 4.7 ShapeRef (`ShapeRef.h`) and GeometryRefs (`GeometryRefs.h`)
 
@@ -489,9 +492,12 @@ Only the parametric definition is stored; geometry is recomputed on load.
   (RefList of Body), `edges` (RefList of Edge), `faces` (RefList of Face), `plane`/`axis`
   refs. Use `ctx.profileFace(ref)` to get faces from sketches (`IProfileSource`), and
   `ctx.resolve(ref)` for B-rep refs (writes back the index).
-* Target body choice (Join/Cut/Intersect/New Body): find bodies in `ctx.bodies()`; for Join
-  with no target, create a body with `ctx.createBody`. After booleans:
-  `unifySameDomain` + `isValidShape`.
+* Target body choice (Join/Cut/Intersect/New Body): explicit `targets`, else the bodies of the
+  feature's component tree (`part::bodiesInScope(ctx)`, from `Feature::component()`; the root
+  sees everything) that the tool touches, as in Fusion. A Join that touches nothing creates a
+  body; a Hole without targets cuts the body it is placed on. The dialog default is Join only
+  when the active component tree already has a body. After booleans: `unifySameDomain` +
+  `isValidShape`.
 * Fill `namedShapes()` from maker history (`FirstShape/LastShape/Generated/Modified`) so
   downstream refs can carry names; set `ShapeRef::name` when building refs from your own
   output.

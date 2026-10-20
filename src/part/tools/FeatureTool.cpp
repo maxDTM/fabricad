@@ -147,14 +147,18 @@ void FeatureTool::activate(core::ToolContext& ctx) {
 void FeatureTool::startWith(core::ToolContext& ctx, std::unique_ptr<PartFeature> f) {
   working_ = std::move(f);
   working_->setName(ctx.document->uniqueFeatureName(working_->type()));
+  // the component the feature will belong to (Document::addFeature sets the same): previews and
+  // automatic booleans are scoped to it exactly as the committed feature will be
+  working_->setComponent(ctx.document->activeComponent());
   working_->applyDefaultsForNewFeature(*ctx.document);
   working_->updatePropertyFlags();
   activeInput_ = working_->primaryInput();
   applyPreselection(ctx, ctx.preselection);
-  // numeric command-line argument ("EXTRUDE 10")
+  // command-line argument: the primary numeric ("EXTRUDE 10") or the primary text ("IMPORT part.step")
   if (!ctx.args.empty() && ctx.args[0] != "edit") {
     std::string num = primaryNumeric();
     if (!num.empty()) setNumeric(ctx, num, ctx.args[0]);
+    else if (std::string text = working_->primaryText(); !text.empty()) working_->prop(text).setString(ctx.args[0]);
   }
   if (ctx.selection) ctx.selection->clear();
   applyFilter(ctx);
@@ -391,7 +395,7 @@ void FeatureTool::autoOperation(core::ToolContext& ctx) {
   const double total = core::volume(outcome_.tool);
   if (!(total > 1e-9)) return;
   double inside = 0.0;
-  for (core::ObjectId id : ctx.document->liveBodies(true)) {
+  for (core::ObjectId id : bodiesInComponentTree(*ctx.document, f->component(), ctx.document->liveBodies(true))) {
     const TopoDS_Shape& body = ctx.document->bodyShape(id);
     if (body.IsNull() || !shapesTouch(outcome_.tool, body)) continue;
     try {
@@ -507,6 +511,10 @@ void FeatureTool::selectionChanged(core::ToolContext& ctx) {
 void FeatureTool::documentChanged(core::ToolContext& ctx) { (void)ctx; }
 
 bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& text) {
+  auto f_primaryText = [this] {
+    PartFeature* f = feature();
+    return f ? f->primaryText() : std::string();
+  };
   std::string t = text;
   while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) t.pop_back();
   while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front()))) t.erase(t.begin());
@@ -531,11 +539,23 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
       updatePreview(ctx);
       return true;
     }
+    if (p->type() == core::PropertyType::String) {
+      p->setString(value);
+      updatePreview(ctx);
+      if (panel_) panel_->rebuild();
+      return true;
+    }
     return false;
   }
   std::string num = primaryNumeric();
-  if (num.empty()) return false;
-  return setNumeric(ctx, num, t);
+  if (!num.empty()) return setNumeric(ctx, num, t);
+  // no numeric input: a bare value is the primary text (IMPORT: the file path)
+  std::string textProp = f_primaryText();
+  if (textProp.empty()) return false;
+  feature()->prop(textProp).setString(t);
+  updatePreview(ctx);
+  if (panel_) panel_->rebuild();
+  return true;
 }
 
 QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {

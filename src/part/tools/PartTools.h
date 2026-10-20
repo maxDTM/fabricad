@@ -5,6 +5,8 @@
 
 #include "core/Registry.h"
 
+#include <TopoDS_Shape.hxx>
+
 #include <string>
 #include <vector>
 
@@ -18,8 +20,13 @@ namespace fabricad::part {
 /// Registers every part/construction tool with `ctx.tools` (feature types must already be registered).
 void registerPartTools(core::ModuleContext& ctx);
 
-/// Export the selected bodies (or all live bodies) of the document. Path from args[0] when
-/// given, otherwise a save dialog (needs a main window). Returns false on failure/cancel.
+/// The shapes an export writes: the selected bodies (or every visible body) moved into their
+/// component's world placement, with the body names. False (with a message) when there is nothing.
+bool collectExportShapes(core::ToolContext& ctx, std::vector<TopoDS_Shape>& shapes, std::vector<std::string>& names);
+
+/// Export the selected bodies (or all live bodies) of the document. Path from the first
+/// non-option argument when given, otherwise a save dialog (needs a main window). STL options
+/// (`deflection=`, `angle=`, `ascii`) as in ExportStlTool. Returns false on failure/cancel.
 bool exportBodies(core::ToolContext& ctx, const std::string& format);
 
 }  // namespace fabricad::part

@@ -15,8 +15,11 @@
 #include "core/Tool.h"
 #include "core/UndoStack.h"
 #include "core/tests/support/TestFeatures.h"
+#include "part/features/Import.h"
+#include "part/features/Shell.h"
 #include "support/AssemblyTestHelpers.h"
 
+#include <QFile>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 #include <STEPCAFControl_Reader.hxx>
@@ -527,6 +530,89 @@ class AssemblyFeaturesTest : public QObject {
     doc.undoStack().redo();
     QVERIFY(!doc.component(restored->id));
     QCOMPARE(doc.body(t.bodyA)->component, core::kRootComponentId);
+  }
+
+  void deleteComponentKeepsChildrenAndPlacements() {
+    // F4: deleting a parent re-parents its children (same world placement) instead of deleting them
+    Document doc;
+    TwoBoxes t = makeTwoBoxes(doc);  // Top at (40,0,0)
+    core::Component& child = doc.addComponent("Child", t.compB);
+    gp_Trsf local;
+    local.SetTranslation(gp_Vec(1, 2, 3));
+    child.placement = local;
+    const ObjectId childId = child.id;
+    core::Component& grandchild = doc.addComponent("Grandchild", childId);
+    const ObjectId grandId = grandchild.id;
+    QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
+    QVERIFY(near(worldOrigin(doc, grandId), gp_Pnt(41, 2, 3)));
+    // a rigid group referencing Top goes away with it (features inside Top are re-homed, not deleted)
+    auto rg = std::make_unique<RigidGroupFeature>();
+    rg->setMembers(doc, {t.compA, t.compB});
+    doc.addFeature(std::move(rg));
+    doc.recompute();
+    QVERIFY(near(worldOrigin(doc, t.compB), gp_Pnt(40, 0, 0)));  // as built: nothing moved
+    QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
+    const int features = doc.featureCount();
+    DeleteComponentResult r;
+    QVERIFY(deleteComponent(doc, &doc.undoStack(), t.compB, &r));
+    QCOMPARE(r.movedChildren, 1);
+    QCOMPARE(r.movedBodies, 1);
+    QVERIFY(!doc.component(t.compB));
+    QVERIFY(doc.component(childId));
+    QVERIFY(doc.component(grandId));
+    QCOMPARE(doc.component(childId)->parent, core::kRootComponentId);
+    QCOMPARE(doc.component(grandId)->parent, childId);
+    QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));  // world placement kept
+    QCOMPARE(doc.body(t.bodyB)->component, core::kRootComponentId);
+    QCOMPARE(doc.featureCount(), features - 1);  // the rigid group
+    QCOMPARE(doc.components().size(), size_t(4));  // root, Base, Child, Grandchild
+    doc.undoStack().undo();
+    const core::Component* top = nullptr;
+    for (const core::Component* c : doc.components())
+      if (c->name == "Top") top = c;
+    QVERIFY(top);
+    QCOMPARE(doc.component(childId)->parent, top->id);
+    QVERIFY(near(doc.component(childId)->placement.TranslationPart(), gp_XYZ(1, 2, 3)));
+    QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
+    QCOMPARE(doc.body(t.bodyB)->component, top->id);
+    QCOMPARE(doc.featureCount(), features);
+    doc.undoStack().redo();
+    QVERIFY(!doc.component(top->id));
+    QCOMPARE(doc.component(childId)->parent, core::kRootComponentId);
+    QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
+  }
+
+  void stepExportKeepsNamesOfMovedBodiesAndNamesTheRoot() {
+    // F6: a body carrying a TopLoc_Location (Move Body) was written as an unnamed prototype
+    Document doc;  // "Untitled": the root product takes the file name
+    TwoBoxes t = makeTwoBoxes(doc);
+    auto mv = std::make_unique<part::MoveBodyFeature>();
+    mv->prop("bodies").addRef(core::ShapeRef::body(t.bodyB));
+    mv->prop("moveType").setEnum("Translate");
+    mv->prop("dz").setDouble(5);
+    core::Feature* mf = doc.addFeature(std::move(mv));
+    doc.recompute();
+    QCOMPARE(mf->status(), core::FeatureStatus::Ok);
+    QVERIFY(!doc.bodyShape(t.bodyB).Location().IsIdentity());
+    QTemporaryDir dir;
+    std::string path = (dir.path() + "/myasm.step").toStdString();
+    std::string err;
+    QVERIFY2(exportAssemblyStep(doc, path, {}, &err), err.c_str());
+    QFile f(QString::fromStdString(path));
+    QVERIFY(f.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString text = QString::fromLatin1(f.readAll());
+    QVERIFY(text.contains("PRODUCT('Top','Top'"));
+    QVERIFY(text.contains("PRODUCT('Base','Base'"));
+    QVERIFY(text.contains("PRODUCT('myasm','myasm'"));
+    QVERIFY(!text.contains("Open CASCADE STEP translator"));
+    QVERIFY(!text.contains("PRODUCT('Untitled'"));
+    // and the moved body is where the user sees it
+    part::ImportFeature::Imported imp;
+    QVERIFY2(part::ImportFeature::readFile(path, imp, &err), err.c_str());
+    core::Vec3 mn, mx;
+    QVERIFY(core::bbox(core::makeCompound(imp.shapes), mn, mx));
+    QVERIFY(near(mx.z, 15.0, 1e-6));
+    QVERIFY(near(mx.x, 50.0, 1e-6));
   }
 };
 
