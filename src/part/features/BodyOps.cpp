@@ -17,9 +17,11 @@
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepTools_History.hxx>
 #include <BRep_Builder.hxx>
 #include <Standard_Failure.hxx>
 #include <TopExp_Explorer.hxx>
+#include <TopTools_ListOfShape.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Shell.hxx>
 #include <TopoDS_Solid.hxx>
@@ -390,29 +392,50 @@ void SplitFaceFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
       return;
     }
     try {
-      BRepFeat_SplitShape sp(g.bodyShape);
+      // One face at a time: a single BRepFeat_SplitShape with section edges on adjacent
+      // faces (meeting at their common edge) splits only one of them.
+      TopoDS_Shape current = g.bodyShape;
+      Handle(BRepTools_History) hist = new BRepTools_History();
       int added = 0;
       for (const auto& f : g.shapes) {
-        BRepAlgoAPI_Section sec(f, tool, Standard_False);
-        sec.ComputePCurveOn1(Standard_True);
-        sec.Approximation(Standard_True);
-        sec.Build();
-        if (!sec.IsDone()) continue;
-        for (TopExp_Explorer x(sec.Shape(), TopAbs_EDGE); x.More(); x.Next()) {
-          sp.Add(TopoDS::Edge(x.Current()), TopoDS::Face(f));
-          ++added;
+        // images of the picked face in the current shape
+        std::vector<TopoDS_Face> images;
+        if (hist->IsRemoved(f)) continue;
+        const TopTools_ListOfShape& mod = hist->Modified(f);
+        if (mod.IsEmpty()) images.push_back(TopoDS::Face(f));
+        else
+          for (const auto& m : mod)
+            if (m.ShapeType() == TopAbs_FACE) images.push_back(TopoDS::Face(m));
+        BRepFeat_SplitShape sp(current);
+        int here = 0;
+        for (const TopoDS_Face& face : images) {
+          BRepAlgoAPI_Section sec(face, tool, Standard_False);
+          sec.ComputePCurveOn1(Standard_True);
+          sec.Approximation(Standard_True);
+          sec.Build();
+          if (!sec.IsDone()) continue;
+          for (TopExp_Explorer x(sec.Shape(), TopAbs_EDGE); x.More(); x.Next()) {
+            sp.Add(TopoDS::Edge(x.Current()), face);
+            ++here;
+          }
         }
+        if (here == 0) continue;
+        sp.Build();
+        if (!sp.IsDone()) {
+          ctx.setError("split face failed");
+          return;
+        }
+        TopTools_ListOfShape args;
+        args.Append(current);
+        hist->Merge(new BRepTools_History(args, sp));
+        current = sp.Shape();
+        added += here;
       }
       if (added == 0) {
         ctx.setError("the splitting tool does not cross the selected faces");
         return;
       }
-      sp.Build();
-      if (!sp.IsDone()) {
-        ctx.setError("split face failed");
-        return;
-      }
-      if (!replaceBody(ctx, g.body, sp.Shape(), History::of(sp), {}, out)) return;
+      if (!replaceBody(ctx, g.body, current, History::of(hist), {}, out)) return;
     } catch (const Standard_Failure& e) {
       ctx.setError("split face failed: " + occtMessage(e));
       return;
