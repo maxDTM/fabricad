@@ -360,6 +360,30 @@ bool EditDimensionTool::applySetting(core::ToolContext& ctx, const std::string& 
   else if (key == "suffix") { d->suffix = value; ok = true; }
   else if (key == "precision") { try { d->precision = std::stoi(value); ok = true; } catch (...) {} }
   else if (key == "type" && parseDimType(value, t)) { d->type = t; ok = true; }
+  else if (key == "tolerance" || key == "tol") { d->tolerance.mode = toleranceModeFromName(value); ok = true; }
+  else if (key == "upper" || key == "lower" || key == "pm") {
+    // deviations in display units (lengths) / degrees (angles)
+    try {
+      double v = std::stod(value);
+      if (d->type != DimensionType::Angle) v = core::fromDisplayValue(v, core::Dimension::Length(), m->document().units()).value;
+      if (key == "upper") d->tolerance.upper = v;
+      else if (key == "lower") d->tolerance.lower = v;
+      else {
+        d->tolerance.mode = ToleranceMode::Symmetric;
+        d->tolerance.upper = std::abs(v);
+        d->tolerance.lower = -std::abs(v);
+      }
+      if (d->tolerance.mode == ToleranceMode::None) d->tolerance.mode = ToleranceMode::Deviation;
+      ok = true;
+    } catch (...) {}
+  }
+  else if (key == "fit") {
+    d->tolerance.fit = value;
+    if (!value.empty()) d->tolerance.mode = ToleranceMode::Fit;
+    ok = true;
+  }
+  else if (key == "fitdisplay") { d->tolerance.fitDisplay = fitDisplayFromName(value); ok = true; }
+  else if (key == "tolprecision") { try { d->tolerance.precision = std::stoi(value); ok = true; } catch (...) {} }
   if (ok) {
     if (const DrawingView* v = s->view(d->viewId)) updateDimension(*d, *v);
     m->notifyChanged(s->id);
@@ -405,7 +429,31 @@ QWidget* EditDimensionTool::createDialog(core::ToolContext& ctx, QWidget* parent
   precisionSpin_->setSpecialValueText(tr("Document"));
   precisionSpin_->setValue(d->precision);
   form->addRow(tr("Precision"), precisionSpin_);
+  // tolerance (Fusion "Tolerance" section): mode, deviations / ISO 286 fit
+  tolCombo_ = new QComboBox(w);
+  for (ToleranceMode tm : {ToleranceMode::None, ToleranceMode::Symmetric, ToleranceMode::Deviation, ToleranceMode::Limits,
+                           ToleranceMode::Fit, ToleranceMode::Basic, ToleranceMode::Reference}) {
+    tolCombo_->addItem(QString::fromStdString(toleranceModeName(tm)), static_cast<int>(tm));
+    if (tm == d->tolerance.mode) tolCombo_->setCurrentIndex(tolCombo_->count() - 1);
+  }
+  form->addRow(tr("Tolerance"), tolCombo_);
+  const bool isAngle = d->type == DimensionType::Angle;
+  auto devText = [&](double v) {
+    double shown = isAngle ? v : core::toDisplayValue(core::Quantity::mm(v), m->document().units());
+    return QString::number(shown, 'g', 6);
+  };
+  upperEdit_ = new QLineEdit(devText(d->tolerance.upper), w);
+  form->addRow(tr("Upper / ±"), upperEdit_);
+  lowerEdit_ = new QLineEdit(devText(d->tolerance.lower), w);
+  form->addRow(tr("Lower"), lowerEdit_);
+  fitEdit_ = new QLineEdit(QString::fromStdString(d->tolerance.fit), w);
+  fitEdit_->setPlaceholderText(tr("H7, g6 or H7/g6"));
+  form->addRow(tr("Fit (ISO 286)"), fitEdit_);
   auto apply = [this]() { applyDialog(); };
+  connect(tolCombo_, &QComboBox::currentIndexChanged, this, [apply](int) { apply(); });
+  connect(upperEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
+  connect(lowerEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
+  connect(fitEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
   connect(typeCombo_, &QComboBox::currentIndexChanged, this, [apply](int) { apply(); });
   connect(textEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
   connect(prefixEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
@@ -421,6 +469,11 @@ void EditDimensionTool::applyDialog() {
   if (prefixEdit_) applySetting(*ctx_, "prefix", prefixEdit_->text().toStdString());
   if (suffixEdit_) applySetting(*ctx_, "suffix", suffixEdit_->text().toStdString());
   if (precisionSpin_) applySetting(*ctx_, "precision", std::to_string(precisionSpin_->value()));
+  if (upperEdit_ && !upperEdit_->text().isEmpty()) applySetting(*ctx_, "upper", upperEdit_->text().toStdString());
+  if (lowerEdit_ && !lowerEdit_->text().isEmpty()) applySetting(*ctx_, "lower", lowerEdit_->text().toStdString());
+  if (fitEdit_) applySetting(*ctx_, "fit", fitEdit_->text().toStdString());
+  if (tolCombo_)
+    applySetting(*ctx_, "tolerance", toleranceModeName(static_cast<ToleranceMode>(tolCombo_->currentData().toInt())));
 }
 
 void EditDimensionTool::accept(core::ToolContext& ctx) {

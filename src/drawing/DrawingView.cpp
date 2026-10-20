@@ -30,6 +30,12 @@ QJsonObject SectionLine::toJson() const {
   o["p2"] = pt(p2);
   o["arrow"] = pt(arrow);
   o["label"] = qs(label);
+  if (points.size() >= 3) {
+    QJsonArray a;
+    for (const auto& p : points) a.push_back(pt(p));
+    o["points"] = a;
+    if (aligned) o["aligned"] = true;
+  }
   return o;
 }
 
@@ -39,6 +45,9 @@ SectionLine SectionLine::fromJson(const QJsonObject& o) {
   s.p2 = ptFrom(o["p2"]);
   s.arrow = ptFrom(o["arrow"], {0, 1});
   s.label = ss(o["label"].toString());
+  for (const auto& p : o["points"].toArray()) s.points.push_back(ptFrom(p));
+  if (s.points.size() < 3) s.points.clear();
+  s.aligned = o["aligned"].toBool(false);
   return s;
 }
 
@@ -162,6 +171,13 @@ QJsonObject DrawingView::toJson() const {
   o["position"] = pt(position);
   o["showLabel"] = showLabel;
   o["frame"] = frameToJson(customFrame);
+  if (!breaks.empty()) {
+    QJsonArray b;
+    for (const auto& br : breaks) b.push_back(br.toJson());
+    o["breaks"] = b;
+    o["breakGap"] = breakGap;
+    o["breakStyle"] = breakStyleName(breakStyle);
+  }
   return o;
 }
 
@@ -186,7 +202,22 @@ DrawingView DrawingView::fromJson(const QJsonObject& o) {
   v.exact = o["exact"].toBool(true);
   if (o.contains("section")) v.section = SectionLine::fromJson(o["section"].toObject());
   if (o.contains("detail")) v.detail = DetailSpec::fromJson(o["detail"].toObject());
+  for (const auto& b : o["breaks"].toArray()) v.breaks.push_back(ViewBreak::fromJson(b.toObject()));
+  v.breakGap = o["breakGap"].toDouble(6.0);
+  v.breakStyle = breakStyleFromName(ss(o["breakStyle"].toString()));
   return v;
+}
+
+Point2 DrawingView::toSheetBroken(const Point2& p) const {
+  const double g = breakGap / std::max(1e-9, scale);
+  Point2 q{breakMap(breaks, BreakOrientation::Horizontal, p.x, g), breakMap(breaks, BreakOrientation::Vertical, p.y, g)};
+  return {position.x + q.x * scale, position.y - q.y * scale};
+}
+
+Point2 DrawingView::fromSheetBroken(const Point2& s) const {
+  const double g = breakGap / std::max(1e-9, scale);
+  Point2 q{(s.x - position.x) / scale, -(s.y - position.y) / scale};
+  return {breakUnmap(breaks, BreakOrientation::Horizontal, q.x, g), breakUnmap(breaks, BreakOrientation::Vertical, q.y, g)};
 }
 
 }  // namespace fabricad::drawing

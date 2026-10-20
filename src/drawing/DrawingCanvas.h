@@ -35,7 +35,7 @@ struct Sheet;
 struct DrawingView;
 
 /// Kind of object under the cursor.
-enum class HitKind { None, View, Dimension, Note, CenterMark, CenterLine, Balloon, PartsList, TitleBlock };
+enum class HitKind { None, View, Dimension, Note, CenterMark, CenterLine, Balloon, PartsList, TitleBlock, Callout };
 const char* hitKindName(HitKind k);
 
 /// Result of a hit test, in sheet coordinates.

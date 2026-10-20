@@ -24,6 +24,8 @@ class DxfWriter {
   std::string finish() const;
   /// Layer name of a class.
   static const char* layerName(LineClass cls);
+  /// Text with Ø / ° / ± replaced by the AutoCAD %%c / %%d / %%p control codes.
+  static std::string dxfEncodeText(const std::string& text);
   /// AutoCAD colour index for a class.
   static int layerColor(LineClass cls);
 

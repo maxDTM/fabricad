@@ -5,6 +5,7 @@
 
 #include "core/ShapeRef.h"
 #include "core/Types.h"
+#include "drawing/BreakView.h"
 #include "drawing/DrawingTypes.h"
 #include "drawing/Geometry2D.h"
 
@@ -16,11 +17,19 @@
 
 namespace fabricad::drawing {
 
-/// Cut line of a section view, in the parent view's local coordinates.
+/// Cut line of a section view, in the parent view's local coordinates. A straight cut uses
+/// p1 -> p2. Stepped (offset) and aligned cuts store the whole polyline in `points` (>= 3
+/// points); p1 -> p2 is then its first segment, which defines the section plane and frame.
 struct SectionLine {
   Point2 p1, p2;
   Point2 arrow{0, 1};       ///< viewing direction of the section (unit, perpendicular to p1->p2)
   std::string label;        ///< "A" -> view label "A-A"; empty = auto-assign
+  std::vector<Point2> points;  ///< stepped / aligned path (empty = straight p1 -> p2)
+  bool aligned = false;        ///< aligned section: the segments after the first are revolved
+                               ///< into the plane of the first one about the first bend
+  /// The polyline of the cut ({p1, p2} for straight cuts).
+  std::vector<Point2> path() const { return points.size() >= 3 ? points : std::vector<Point2>{p1, p2}; }
+  bool isComplex() const { return points.size() >= 3; }
   QJsonObject toJson() const;
   static SectionLine fromJson(const QJsonObject& o);
 };
@@ -54,6 +63,9 @@ struct DrawingView {
   bool exact = true;                  ///< exact HLR (false: poly preview)
   SectionLine section;                ///< for Section views
   DetailSpec detail;                  ///< for Detail views
+  std::vector<ViewBreak> breaks;      ///< break view bands (drawing/BreakView.h)
+  double breakGap = 6.0;              ///< sheet mm left between the broken pieces
+  BreakStyle breakStyle = BreakStyle::Structural;
 
   // --- automatic placement (not persisted) -------------------------------------------
   /// When set, the model moves the view once its geometry is known: at least `gap` away from
@@ -76,8 +88,17 @@ struct DrawingView {
   gp_Ax2 definitionFrame() const;
   bool usesStandardOrientation() const { return type == ViewType::Base && orientation != ViewOrientation::Custom; }
 
-  Point2 toSheet(const Point2& viewLocal) const { return {position.x + viewLocal.x * scale, position.y - viewLocal.y * scale}; }
-  Point2 fromSheet(const Point2& sheet) const { return {(sheet.x - position.x) / scale, -(sheet.y - position.y) / scale}; }
+  /// View-local -> sheet (position + scale + Y flip, and the break-view compression).
+  Point2 toSheet(const Point2& viewLocal) const {
+    if (!breaks.empty()) return toSheetBroken(viewLocal);
+    return {position.x + viewLocal.x * scale, position.y - viewLocal.y * scale};
+  }
+  Point2 fromSheet(const Point2& sheet) const {
+    if (!breaks.empty()) return fromSheetBroken(sheet);
+    return {(sheet.x - position.x) / scale, -(sheet.y - position.y) / scale};
+  }
+  Point2 toSheetBroken(const Point2& viewLocal) const;
+  Point2 fromSheetBroken(const Point2& sheet) const;
   /// Sheet-space bounding box of the geometry (a small default box when empty).
   BBox2 sheetBBox() const;
   /// Label position (below the view).

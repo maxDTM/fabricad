@@ -11,6 +11,7 @@
 #include "core/Units.h"
 #include "drawing/DrawingTypes.h"
 #include "drawing/Geometry2D.h"
+#include "drawing/Tolerance.h"
 
 #include <QJsonObject>
 
@@ -64,6 +65,7 @@ struct Dimension {
   std::string overrideText;      ///< non-empty replaces the measured text
   std::string prefix, suffix;    ///< e.g. "2x ", " TYP"
   int precision = -1;            ///< -1 = document precision
+  DimTolerance tolerance;        ///< tolerance / ISO fit display (drawing/Tolerance.h)
   // measured (not persisted)
   double value = 0;              ///< model mm or degrees
   bool valid = false;

@@ -233,6 +233,7 @@ QJsonObject Dimension::toJson() const {
   if (!prefix.empty()) o["prefix"] = qs(prefix);
   if (!suffix.empty()) o["suffix"] = qs(suffix);
   if (precision >= 0) o["precision"] = precision;
+  if (tolerance.isSet()) o["tolerance"] = tolerance.toJson();
   return o;
 }
 
@@ -248,6 +249,7 @@ Dimension Dimension::fromJson(const QJsonObject& o) {
   d.prefix = ss(o["prefix"].toString());
   d.suffix = ss(o["suffix"].toString());
   d.precision = o["precision"].toInt(-1);
+  d.tolerance = DimTolerance::fromJson(o["tolerance"].toObject());
   return d;
 }
 

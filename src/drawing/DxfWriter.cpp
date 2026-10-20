@@ -110,6 +110,31 @@ void DxfWriter::addCurve(const Curve2D& c) {
   }
 }
 
+std::string DxfWriter::dxfEncodeText(const std::string& text) {
+  // AutoCAD control codes for the drafting characters (R12 TEXT has no Unicode): %%c Ø,
+  // %%d degree, %%p plus/minus; a literal '%%' is escaped as %%%.
+  std::string out;
+  for (size_t i = 0; i < text.size(); ++i) {
+    unsigned char c = static_cast<unsigned char>(text[i]);
+    if (c == 0xC3 && i + 1 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0x98) {
+      out += "%%c";
+      ++i;
+    } else if (c == 0xC2 && i + 1 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0xB0) {
+      out += "%%d";
+      ++i;
+    } else if (c == 0xC2 && i + 1 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0xB1) {
+      out += "%%p";
+      ++i;
+    } else if (c == '%' && i + 1 < text.size() && text[i + 1] == '%') {
+      out += "%%%";
+      ++i;
+    } else {
+      out += text[i];
+    }
+  }
+  return out;
+}
+
 void DxfWriter::addText(const DisplayText& t) {
   if (t.text.empty()) return;
   // DXF TEXT with alignment: group 72 (horizontal: 0 left, 1 centre, 2 right), 73 (vertical:
@@ -121,7 +146,7 @@ void DxfWriter::addText(const DisplayText& t) {
   group(20, fy(t.pos.y));
   group(30, 0.0);
   group(40, t.height);
-  group(1, t.text);
+  group(1, dxfEncodeText(t.text));
   group(50, t.angle);
   group(72, h);
   group(11, t.pos.x);

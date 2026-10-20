@@ -5,6 +5,7 @@
 
 #include "core/Types.h"
 #include "drawing/Annotations.h"
+#include "drawing/Callouts.h"
 #include "drawing/Dimension.h"
 #include "drawing/DrawingTypes.h"
 #include "drawing/DrawingView.h"
@@ -68,6 +69,7 @@ struct Sheet {
   std::vector<CenterLine> centerLines;
   std::vector<Balloon> balloons;
   std::vector<PartsList> partsLists;
+  CalloutSet callouts;  ///< hole callouts, GD&T, surface texture, ordinates, revision tables
 
   /// Drawable area inside the frame (sheet coordinates).
   BBox2 frameRect() const;
