@@ -4,8 +4,16 @@
 // construction). The OCCT GL view is created from the event loop right after show(), and a
 // file given on the command line is opened after that. FABRICAD_STARTUP_TIMING=1 prints the
 // phases to stderr.
+//
+// Usage: fabricad [options] [file.fcad|part.step ...]
+//   --script <file.fcs>   run the script (docs/SCRIPTING.md) after start-up and exit with its
+//                         status (0 ok, 1 a line failed, 2 unreadable); --keep-going continues
+//                         after failures, --stay leaves the window open afterwards
+//   --offscreen           headless (QT_QPA_PLATFORM=offscreen, no 3D view)
+//   --log <file>          write the script log there (default: stdout); --quiet: no stdout copy
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MainWindow.h"
+#include "app/ScriptRunner.h"
 #include "drawing/DrawingWorkspaceWidget.h"
 #include "viewer/ViewerWidget.h"
 
@@ -16,6 +24,68 @@
 #include <QTimer>
 
 #include <cstdio>
+#include <cstring>
+
+namespace {
+
+struct CommandLineOptions {
+  QString script;
+  QString log;
+  QStringList files;
+  bool offscreen = false;
+  bool stay = false;
+  bool keepGoing = false;
+  bool quiet = false;
+  bool help = false;
+  QString error;
+};
+
+CommandLineOptions parseOptions(int argc, char** argv) {
+  CommandLineOptions o;
+  for (int i = 1; i < argc; ++i) {
+    const char* a = argv[i];
+    auto value = [&](const char* name) -> const char* {
+      if (i + 1 >= argc) {
+        o.error = QString("%1 needs a value").arg(name);
+        return nullptr;
+      }
+      return argv[++i];
+    };
+    if (std::strcmp(a, "--script") == 0 || std::strcmp(a, "-s") == 0) {
+      if (const char* v = value(a)) o.script = QString::fromLocal8Bit(v);
+    } else if (std::strcmp(a, "--log") == 0) {
+      if (const char* v = value(a)) o.log = QString::fromLocal8Bit(v);
+    } else if (std::strcmp(a, "--offscreen") == 0 || std::strcmp(a, "--headless") == 0) {
+      o.offscreen = true;
+    } else if (std::strcmp(a, "--stay") == 0) {
+      o.stay = true;
+    } else if (std::strcmp(a, "--keep-going") == 0 || std::strcmp(a, "-k") == 0) {
+      o.keepGoing = true;
+    } else if (std::strcmp(a, "--quiet") == 0 || std::strcmp(a, "-q") == 0) {
+      o.quiet = true;
+    } else if (std::strcmp(a, "--help") == 0 || std::strcmp(a, "-h") == 0) {
+      o.help = true;
+    } else if (a[0] == '-' && a[1] == '-') {
+      // Qt's own options (--platform ...) pass through
+      if (std::strncmp(a, "--platform", 10) == 0 || std::strncmp(a, "--style", 7) == 0) ++i;
+    } else if (a[0] != '-') {
+      o.files << QString::fromLocal8Bit(a);
+    }
+  }
+  return o;
+}
+
+void printUsage() {
+  std::fputs("usage: fabricad [--script file.fcs [--offscreen] [--log out.txt] [--keep-going] [--stay] [--quiet]] [files...]\n"
+             "  --script    run a FabriCAD command script (docs/SCRIPTING.md) and exit with its status\n"
+             "  --offscreen headless run (no window, no 3D view)\n"
+             "  --log       write the per-command log to a file instead of stdout\n"
+             "  --keep-going continue after a failed line (default: stop at the first error)\n"
+             "  --stay      keep the window open after the script (interactive inspection)\n",
+             stdout);
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
   QElapsedTimer clock;
@@ -24,6 +94,17 @@ int main(int argc, char** argv) {
   auto mark = [&](const char* what) {
     if (timing) std::fprintf(stderr, "[startup] %-28s %6lld ms\n", what, static_cast<long long>(clock.elapsed()));
   };
+  const CommandLineOptions opts = parseOptions(argc, argv);
+  if (opts.help) {
+    printUsage();
+    return 0;
+  }
+  if (!opts.error.isEmpty()) {
+    std::fprintf(stderr, "fabricad: %s\n", opts.error.toUtf8().constData());
+    printUsage();
+    return 2;
+  }
+  if (opts.offscreen) qputenv("QT_QPA_PLATFORM", "offscreen");
 
   // The system OCCT is an X11/GLX build: force Qt onto xcb (XWayland) unless the user
   // chose a platform explicitly (offscreen for tests, etc.). Also shares GL contexts and
@@ -57,26 +138,44 @@ int main(int argc, char** argv) {
       });
   fabricad::app::MainWindow window;
   mark("MainWindow constructed");
+  const bool scripted = !opts.script.isEmpty();
+  if (scripted) window.setInteractive(false);  // no modal prompts while a script drives the app
   window.show();
   mark("shown");
 
-  const QStringList args = app.arguments();
   // a few ms so the window chrome is painted before the (blocking) GL/driver initialisation
   QTimer::singleShot(30, &window, [&] {
     window.initializeViewer();
     mark("3D view created");
     bool openedFile = false;
-    for (int i = 1; i < args.size(); ++i) {
-      if (args[i].startsWith('-')) continue;
+    for (const QString& file : opts.files) {
       QString err;
       openedFile = true;
-      if (!window.openFile(args[i], &err))
-        window.showMessage("Cannot open " + args[i].toStdString() + ": " + err.toStdString(),
-                           fabricad::core::MessageLevel::Error);
-      break;
+      if (!window.openFile(file, &err))
+        window.showMessage("Cannot open " + file.toStdString() + ": " + err.toStdString(), fabricad::core::MessageLevel::Error);
     }
     // nothing opened: a previous session may have left an autosave behind
-    if (!openedFile) window.offerRecovery();
+    if (!openedFile && !scripted) window.offerRecovery();
+    if (scripted) {
+      auto* runner = new fabricad::app::ScriptRunner(window, &window);
+      fabricad::app::ScriptRunner::Options ro;
+      ro.logPath = opts.log;
+      ro.keepGoing = opts.keepGoing;
+      ro.quiet = opts.quiet;
+      runner->setOptions(ro);
+      QString err;
+      int code = 2;
+      if (!runner->loadFile(opts.script, &err)) std::fprintf(stderr, "fabricad: %s\n", err.toUtf8().constData());
+      else code = runner->run();
+      mark("script finished");
+      if (opts.stay) {
+        window.setInteractive(true);
+        window.showMessage(code == 0 ? "Script finished" : "Script failed: see the command history (F2 in the command line)",
+                           code == 0 ? fabricad::core::MessageLevel::Info : fabricad::core::MessageLevel::Error);
+      } else {
+        app.exit(code);
+      }
+    }
   });
   // Developer aid: FABRICAD_SCREENSHOT=out.png grabs the window after
   // FABRICAD_SCREENSHOT_DELAY ms (default 3000) and quits.

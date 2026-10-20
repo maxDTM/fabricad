@@ -24,7 +24,7 @@ namespace {
 constexpr int kMaxHistory = 500;
 }
 
-CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(manager) {
+CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(&manager) {
   auto* h = new QHBoxLayout(this);
   h->setContentsMargins(0, 0, 0, 0);
   h->setSpacing(2);
@@ -68,7 +68,7 @@ CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(
 
 void CommandLine::refreshCompletions() {
   std::set<QString> words;
-  for (core::ITool* t : manager_.registry().tools()) {
+  for (core::ITool* t : manager_->registry().tools()) {
     const core::ToolInfo& i = t->info();
     if (i.hidden && i.aliases.empty()) continue;
     for (const std::string& a : i.aliases) words.insert(core::qs(a).toUpper());
@@ -99,7 +99,7 @@ bool CommandLine::submit(const QString& text) {
     typed_.append(t);
     appendHistory("cmd> " + t);
   }
-  return manager_.runCommandLine(t.toStdString());
+  return manager_->runCommandLine(t.toStdString());
 }
 
 void CommandLine::toggleHistoryPane() {
@@ -119,7 +119,7 @@ bool CommandLine::eventFilter(QObject* o, QEvent* e) {
     auto* k = static_cast<QKeyEvent*>(e);
     if (k->key() == Qt::Key_Escape) {
       edit_->clear();
-      if (manager_.isActive()) manager_.cancel();
+      if (manager_->isActive()) manager_->cancel();
       edit_->clearFocus();
       return true;
     }

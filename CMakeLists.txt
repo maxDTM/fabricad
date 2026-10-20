@@ -114,6 +114,7 @@ add_subdirectory(src/viewer)     # owner: ui agent
 add_subdirectory(src/app)        # owner: ui agent
 if(FABRICAD_BUILD_TESTS)
   add_subdirectory(tests/e2e)    # owner: integrator (headless end-to-end test)
+  add_subdirectory(tests/scripts) # owner: ui agent (command scripts run by the real executable)
 endif()
 
 message(STATUS "FabriCAD ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, Qt ${Qt6_VERSION}, OCCT ${OpenCASCADE_VERSION}, Eigen ${Eigen3_VERSION}")

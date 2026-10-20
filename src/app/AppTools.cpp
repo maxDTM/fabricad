@@ -5,6 +5,7 @@
 #include "app/MainWindow.h"
 #include "app/PropertyEditor.h"
 #include "core/AppHost.h"
+#include "core/Commands.h"
 #include "core/Document.h"
 #include "core/GeometryRefs.h"
 #include "core/Selection.h"
@@ -12,6 +13,7 @@
 #include "viewer/ViewerWidget.h"
 
 #include <cctype>
+#include <format>
 #include <functional>
 #include <memory>
 #include <string>
@@ -136,6 +138,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     i.tab = "SOLID";
     i.group = "MODIFY";
     i.order = 900;
+    i.keepsActiveTool = true;  // "SET width=40 mm" during a command does not cancel it
     add(i, [win](ToolContext& c) {
       // "SET width=40 mm" sets a parameter from the command line
       if (!c.args.empty() && c.document) {
@@ -145,8 +148,20 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
           std::string name = line.substr(0, eq), expr = line.substr(eq + 1);
           while (!name.empty() && name.back() == ' ') name.pop_back();
           while (!expr.empty() && expr.front() == ' ') expr.erase(expr.begin());
-          if (!c.document->setParameter(name, expr)) c.showMessage("invalid parameter name: " + name, true);
-          else c.document->recompute();
+          // undoable (SetParameterCommand recomputes); an invalid name is reported by the document
+          if (c.undo) {
+            auto cmd = std::make_unique<core::SetParameterCommand>(*c.document, name, expr);
+            c.undo->push(std::move(cmd));
+          } else if (!c.document->setParameter(name, expr)) {
+            c.showMessage("invalid parameter name: " + name, true);
+            return;
+          } else {
+            c.document->recompute();
+          }
+          if (const core::Document::Parameter* p = c.document->parameter(name); p && !p->ok)
+            c.showMessage("parameter " + name + ": " + p->error, true);
+          else if (!p && !expr.empty()) c.showMessage("invalid parameter name: " + name, true);
+          else if (p) c.showMessage(std::format("{} = {} ({})", name, expr, p->value.value));
           return;
         }
       }

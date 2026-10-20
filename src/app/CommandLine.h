@@ -25,6 +25,9 @@ class CommandLine : public QWidget {
   Q_OBJECT
  public:
   CommandLine(core::ToolManager& manager, QWidget* parent = nullptr);
+  /// Rebind to another tab's tool manager (multi-document tabs).
+  void setToolManager(core::ToolManager* m) { manager_ = m; }
+  core::ToolManager& manager() const { return *manager_; }
 
   QLineEdit* edit() const { return edit_; }
   /// Rebuild the completion list from the registry.
@@ -42,7 +45,7 @@ class CommandLine : public QWidget {
  private:
   void toggleHistoryPane();
 
-  core::ToolManager& manager_;
+  core::ToolManager* manager_;
   QLabel* label_ = nullptr;
   QLineEdit* edit_ = nullptr;
   QToolButton* historyButton_ = nullptr;

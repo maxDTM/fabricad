@@ -39,7 +39,7 @@ std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const s
 }
 
 CommandSearch::CommandSearch(core::ToolManager& manager, QWidget* parent)
-    : QFrame(parent, Qt::Popup), manager_(manager) {
+    : QFrame(parent, Qt::Popup), manager_(&manager) {
   setObjectName("SearchPopup");
   setAttribute(Qt::WA_StyledBackground);
   setFixedWidth(380);
@@ -101,9 +101,9 @@ std::vector<std::string> CommandSearch::results() const {
 
 void CommandSearch::updateResults() {
   list_->clear();
-  const core::ToolContext ctx = manager_.makeContext();
-  for (const std::string& id : searchCommandIds(manager_.registry(), edit_->text().toStdString(), pinned_, recent_)) {
-    core::ITool* t = manager_.registry().tool(id);
+  const core::ToolContext ctx = manager_->makeContext();
+  for (const std::string& id : searchCommandIds(manager_->registry(), edit_->text().toStdString(), pinned_, recent_)) {
+    core::ITool* t = manager_->registry().tool(id);
     const core::ToolInfo& info = t->info();
     auto* it = new QTreeWidgetItem(list_);
     it->setIcon(0, toolIcon(info));

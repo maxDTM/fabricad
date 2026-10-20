@@ -91,6 +91,16 @@ parts lists; PDF/SVG/DXF export).
   suppress, edit by double-click), command dialogs with live preview, status bar, marking menu,
   command search (S), command line (Ctrl+9), change-parameters dialog, Fusion / SolidWorks /
   AutoCAD / Inventor navigation presets, ViewCube, nav bar.
+* Document tabs like Fusion: every design and every drawing is a tab in the application bar
+  with its own document, undo stack, selection, active command, camera, browser and timeline;
+  New/Open make a tab, a drawing opens as a tab linked to its design, closing prompts for
+  unsaved changes.
+* Scripting / batch mode: `fabricad --script file.fcs [--offscreen] [--log out.txt]` runs a
+  text file of command-line entries exactly as if typed (`SKETCH XY`, `RECT`, `0,0`, `40,30`,
+  `FINISH`, `SELECT profile:@20,15,0`, `EXTRUDE 10`, `OK`, `CHECK body:Body1 volume == 12000`,
+  `EXPORTSTL out.stl`), with geometry selectors by name/point, per-command timing in the log and
+  a non-zero exit status on error. See `docs/SCRIPTING.md`; `tests/scripts/chair.fcs` builds the
+  chair benchmark of `docs/comparison/CHAIR_SPEC.md`.
 * `.fcad` documents (plain JSON, parametric definition only) with per-document UI state.
 * Autosave: a recovery copy is written to `QStandardPaths::AppDataLocation/recovery` two
   minutes after the last change and five seconds after each undoable edit; at the next start
@@ -105,7 +115,8 @@ Requirements (all system packages, nothing is downloaded): `cmake >= 3.25`, `g++
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG"
 cmake --build build -j2                      # ALWAYS -j2 on this machine (7 GB RAM)
-ctest --test-dir build --output-on-failure   # 33 tests, headless (QT_QPA_PLATFORM=offscreen)
+ctest --test-dir build --output-on-failure   # 36 tests, headless (QT_QPA_PLATFORM=offscreen)
+./build/bin/fabricad --script tests/scripts/chair.fcs --offscreen   # scripted run, docs/SCRIPTING.md
 ./build/bin/fabricad [file.fcad|part.step]   # run
 ```
 
