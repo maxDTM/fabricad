@@ -1206,6 +1206,9 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   Pt2 t1 = footOn(*g1), t2 = footOn(*g2);
   PointPos moved1 = trimToPoint(*g1, t1, near1);
   PointPos moved2 = trimToPoint(*g2, t2, near2);
+  // typed sizes created driving dimensions on the lines: measure to the virtual sharp (Fusion)
+  retargetTrimmedDimensions(id1, moved1, id2);
+  retargetTrimmedDimensions(id2, moved2, id1);
   // the fillet arc: minor arc from t1 to t2 around the centre
   double a1 = (t1 - center).angle(), a2 = (t2 - center).angle();
   Geometry arc;
@@ -1233,6 +1236,83 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   tangentTo(startIsT1 ? arcStart : arcEnd, c1);
   tangentTo(startIsT1 ? arcEnd : arcStart, c2);
   return arcId;
+}
+
+std::vector<std::string> Sketch::retargetTrimmedDimensions(int lineId, PointPos movedEnd, int otherId) {
+  std::vector<std::string> demoted;
+  const Geometry* g = geometry(lineId);
+  if (!g || g->type != GeomType::Line || movedEnd == PointPos::None) return demoted;
+  const Geometry* other = geometry(otherId);
+  const bool otherLine = other && other->type == GeomType::Line;
+  const PointPos farEnd = movedEnd == PointPos::Start ? PointPos::End : PointPos::Start;
+  auto dirOf = [](const Geometry& l) { return l.direction().normalized(); };
+  auto perpendicular = [&](const Geometry& a, const Geometry& b) { return std::abs(dirOf(a).dot(dirOf(b))) < 1e-6; };
+  auto parallel = [&](const Geometry& a, const Geometry& b) {
+    Pt2 da = dirOf(a), db = dirOf(b);
+    return std::abs(da.x * db.y - da.y * db.x) < 1e-6;
+  };
+  for (Constraint& c : constraints_) {
+    if (!c.isDimensional() || c.driven || !c.references(lineId)) continue;
+    const bool aWholeLine = c.a.geo == lineId && c.a.pos == PointPos::None;
+    const bool aMoved = c.a.geo == lineId && c.a.pos == movedEnd;
+    const bool bMoved = c.b.geo == lineId && c.b.pos == movedEnd;
+    bool handled = false;
+    switch (c.type) {
+      case ConstraintType::Distance:
+        if (aWholeLine && !c.b.isValid()) {
+          // line length -> far end to the adjacent line: equal to the length at a square corner
+          if (otherLine && perpendicular(*g, *other)) {
+            c.a = {lineId, farEnd};
+            c.b = {otherId, PointPos::None};
+            handled = true;
+          }
+        } else if (aMoved || bMoved) {
+          // point-line distance anchored at the trimmed end -> distance between the two lines
+          GeoRef& pt = aMoved ? c.a : c.b;
+          const GeoRef& ref = aMoved ? c.b : c.a;
+          const Geometry* refLine = (ref.isValid() && ref.pos == PointPos::None) ? geometry(ref.geo) : nullptr;
+          if (refLine && refLine->type == GeomType::Line && otherLine && parallel(*refLine, *other)) {
+            pt = {otherId, PointPos::None};
+            handled = true;
+          }
+        } else {
+          handled = true;  // references the far end only: unaffected
+        }
+        break;
+      case ConstraintType::DistanceX:
+      case ConstraintType::DistanceY: {
+        const bool x = c.type == ConstraintType::DistanceX;
+        if (aWholeLine && !c.b.isValid()) {
+          // extent of the line along X equals the distance of its far end to a vertical adjacent line
+          const bool otherAxisAligned = otherLine && (x ? std::abs(dirOf(*other).x) : std::abs(dirOf(*other).y)) < 1e-6;
+          if (otherAxisAligned && c.value >= 0) {
+            c.type = ConstraintType::Distance;
+            c.a = {lineId, farEnd};
+            c.b = {otherId, PointPos::None};
+            handled = true;
+          }
+        } else if (!(aMoved || bMoved)) {
+          handled = true;
+        }
+        break;
+      }
+      default:
+        handled = true;  // Angle / Radius / Diameter do not depend on the trimmed end
+        break;
+    }
+    if (!handled) {
+      c.driven = true;
+      demoted.push_back(c.name);
+      demoted_.push_back(c.name);
+    }
+  }
+  return demoted;
+}
+
+std::vector<std::string> Sketch::takeDemotedDimensions() {
+  std::vector<std::string> out;
+  out.swap(demoted_);
+  return out;
 }
 
 std::optional<int> Sketch::split(int curveId, Pt2 at) {

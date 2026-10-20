@@ -136,6 +136,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
 MainWindow::~MainWindow() {
   qApp->removeEventFilter(this);
+  // End every command while the host (dialog, status bar) is still alive: tools call back into
+  // IAppHost (refreshToolDialog, showMessage) from cancel(), e.g. a dimension still being typed.
+  for (auto& tab : tabs_) {
+    if (sketch::SketchSession* s = sketch::SketchSession::current(); s && s->manager() == &tab->manager())
+      sketch::SketchSession::end();
+    if (tab->manager().isActive()) tab->manager().cancel();
+  }
   // tabs own documents, managers and widgets; drop the shortcuts to them first
   active_ = nullptr;
   syncActivePointers();
@@ -829,7 +836,7 @@ void MainWindow::initializeViewer() {
 // =========================================================================================
 
 bool MainWindow::isIdleTool() const {
-  const core::ITool* t = manager_->activeTool();
+  const core::ITool* t = manager_ ? manager_->activeTool() : nullptr;
   // the sketch module keeps "sketch.select" running between commands
   return t && t->info().hidden && t->info().id.ends_with(".select");
 }
@@ -854,6 +861,7 @@ void MainWindow::onToolActivated(const std::string& id) {
 }
 
 void MainWindow::presentDialog() {
+  if (!manager_ || !dialog_) return;
   core::ITool* tool = manager_->activeTool();
   core::ToolContext* ctx = manager_->activeContext();
   if (!tool || !ctx) return;
@@ -888,13 +896,13 @@ void MainWindow::onToolFinished(const std::string& id, bool accepted) {
 }
 
 void MainWindow::refreshToolDialog() {
-  if (!manager_->isActive()) return;
+  if (!manager_ || !manager_->isActive()) return;  // null while a tab is being torn down
   presentDialog();
 }
 
 void MainWindow::setToolAcceptEnabled(bool enabled) {
   acceptEnabled_ = enabled;
-  dialog_->setAcceptEnabled(enabled);
+  if (dialog_) dialog_->setAcceptEnabled(enabled);
 }
 
 bool MainWindow::acceptActiveTool() {

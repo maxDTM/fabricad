@@ -167,6 +167,8 @@ class FilletTool : public SketchTool {
       ctx.showMessage("Cannot fillet these curves with that radius", true);
     } else {
       session()->commitEdit("Fillet");
+      for (const std::string& n : sk->takeDemotedDimensions())
+        ctx.showMessage(n + " is now a driven dimension (its corner was filleted)");
     }
     picks_.clear();
     clearTemp();
@@ -1096,7 +1098,7 @@ class DimensionEditTool : public SketchTool {
   DimensionEditTool()
       : SketchTool(ToolInfo{.id = "sketch.dimension-edit",
                             .name = "Edit Dimension",
-                            .tooltip = "Change the value or expression of a dimension (arguments: id [value])",
+                            .tooltip = "Change the value or expression of a dimension (arguments: id|name [value])",
                             .icon = "sketch-dimension",
                             .aliases = {"DIMEDIT"},
                             .tab = "SKETCH",
@@ -1114,10 +1116,15 @@ class DimensionEditTool : public SketchTool {
       return;
     }
     if (!ctx.args.empty()) {
-      try {
-        id_ = std::stoi(ctx.args[0]);
-      } catch (...) {
-        id_ = -1;
+      // constraint id, or a dimension name ("d1")
+      if (const Constraint* byName = sk->dimensionByName(ctx.args[0])) {
+        id_ = byName->id;
+      } else {
+        try {
+          id_ = std::stoi(ctx.args[0]);
+        } catch (...) {
+          id_ = -1;
+        }
       }
     }
     if (id_ < 0 && session()->selectedConstraints().size() == 1) id_ = *session()->selectedConstraints().begin();

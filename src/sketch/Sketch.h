@@ -136,6 +136,15 @@ class Sketch {
   std::vector<int> mirror(const std::vector<int>& ids, Pt2 a, Pt2 d);
   /// Fillet between two lines (or line/arc) near the pick points: trims both and inserts a tangent arc.
   std::optional<int> fillet(int id1, Pt2 near1, int id2, Pt2 near2, double radius);
+  /// After the `movedEnd` of line `lineId` was trimmed back from its corner with `otherId` (fillet /
+  /// chamfer): keep driving dimensions meaningful the way Fusion measures to the "virtual sharp".
+  /// A length dimension on the line becomes the distance from its far end to the (perpendicular)
+  /// adjacent line; a point-line dimension anchored at the trimmed end becomes a line-line distance
+  /// when the adjacent line is parallel to the reference line. Dimensions that cannot be re-expressed
+  /// are demoted to driven; their names are returned (and collected for takeDemotedDimensions()).
+  std::vector<std::string> retargetTrimmedDimensions(int lineId, PointPos movedEnd, int otherId);
+  /// Names of the dimensions demoted to driven by fillet()/chamfer since the last call (for messages).
+  std::vector<std::string> takeDemotedDimensions();
   /// Split a curve at a point into two (returns the new second piece id).
   std::optional<int> split(int curveId, Pt2 at);
 
@@ -156,6 +165,7 @@ class Sketch {
   std::vector<Geometry> geometries_;
   std::vector<Constraint> constraints_;
   SolveResult last_;
+  std::vector<std::string> demoted_;  ///< dimensions demoted by retargetTrimmedDimensions()
 
   // drag state
   bool dragging_ = false;

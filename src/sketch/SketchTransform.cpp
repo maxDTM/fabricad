@@ -186,6 +186,8 @@ std::optional<int> chamfer(Sketch& sk, int id1, Pt2 near1, int id2, Pt2 near2, d
   else g1->setEnd(*p1);
   if (m2 == PointPos::Start) g2->setStart(*p2);
   else g2->setEnd(*p2);
+  sk.retargetTrimmedDimensions(id1, m1, id2);
+  sk.retargetTrimmedDimensions(id2, m2, id1);
   Geometry line = Geometry::makeLine(*p1, *p2);
   line.construction = g1->construction && g2->construction;
   int cid = sk.addGeometry(line);

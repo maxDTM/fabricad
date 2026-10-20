@@ -25,11 +25,9 @@ PICK 70,40 nosnap
 CIRCLE
 40,15
 10
-# dimension the bottom line and drive it with the parameter (a dimension reads expressions)
-DIMENSION
-PICK 20,0 nosnap
-PICK 20,-12 nosnap
-width
+# the typed @80,0 already created the driving dimension d1 on the bottom line (Fusion dynamic
+# input); drive it with the parameter instead of adding a second (driven) dimension
+DIMEDIT d1 width
 INFO sketch:Sketch1
 FINISH
 CHECK sketches == 1

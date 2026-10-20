@@ -651,6 +651,8 @@ class ChamferTool : public SketchTool {
       ctx.showMessage("Cannot chamfer these lines with that distance", true);
     } else {
       session()->commitEdit("Chamfer");
+      for (const std::string& n : sk->takeDemotedDimensions())
+        ctx.showMessage(n + " is now a driven dimension (its corner was chamfered)");
     }
     picks_.clear();
     clearTemp();
