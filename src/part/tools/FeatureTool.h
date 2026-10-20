@@ -26,6 +26,7 @@
 namespace fabricad::part {
 
 class PropertyPanel;
+class FeatureValueBox;
 
 class FeatureTool : public core::ToolBase {
  public:
@@ -42,6 +43,8 @@ class FeatureTool : public core::ToolBase {
   void selectionChanged(core::ToolContext& ctx) override;
   void documentChanged(core::ToolContext& ctx) override;
   bool commandLineInput(core::ToolContext& ctx, const std::string& text) override;
+  /// Keys typed in the viewport go to the on-screen value box of the primary numeric input.
+  bool keyPress(core::ToolContext& ctx, const core::ViewerKeyEvent& e) override;
   QWidget* createDialog(core::ToolContext& ctx, QWidget* parent) override;
 
   // --- state inspection (dialog, tests) ------------------------------------------
@@ -54,6 +57,8 @@ class FeatureTool : public core::ToolBase {
   bool isValid() const { return valid_; }
   const std::string& message() const { return message_; }
   const Outcome& lastOutcome() const { return outcome_; }
+  /// On-screen value box (Fusion dynamic input) for the primary numeric; nullptr before the first preview.
+  const FeatureValueBox* valueBox() const { return valueBox_.get(); }
   /// Re-run the preview after a programmatic property change.
   void updatePreview(core::ToolContext& ctx);
   /// Set a numeric property from text (expression allowed). False if invalid.
@@ -84,6 +89,7 @@ class FeatureTool : public core::ToolBase {
   std::string activeInput_;
   std::vector<core::PreviewHandle> previews_;
   QPointer<PropertyPanel> panel_;
+  std::unique_ptr<FeatureValueBox> valueBox_;
   Outcome outcome_;
   bool valid_ = false;
   std::string message_;

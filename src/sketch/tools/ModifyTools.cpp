@@ -383,6 +383,7 @@ class OffsetTool : public SketchTool {
       ids_ = session()->selectedCurves();
       if (ctx.selection) ctx.selection->clear();
     }
+    defineValues({ValueField{.id = "distance", .label = "Distance", .kind = ValueKind::Length, .visible = !ids_.empty()}});
     ctx.setPrompt(prompt());
   }
 
@@ -401,12 +402,33 @@ class OffsetTool : public SketchTool {
     }
     if (ids_.empty()) return true;
     cursor_ = *c;
-    double d = distanceTo(*c);
-    if (d < 1e-9) return true;
+    previewOffset(*c);
+    return true;
+  }
+
+  /// Rubber-band offset at the cursor side; a locked distance box overrides the cursor distance.
+  void previewOffset(Pt2 c) {
+    Sketch* sk = sketch();
+    if (!sk || ids_.empty()) return;
+    double d = lockedValue("distance").value_or(distanceTo(c));
+    if (d < 1e-9) return;
     Sketch copy = *sk;
-    for (int id : copy.offset(ids_, d, *c))
+    for (int id : copy.offset(ids_, d, c))
       if (const Geometry* g = copy.geometry(id)) previewGeometry(*g, rubberStyle());
-    showDynamicText(*c, formatLength(d));
+    setValue("distance", d, c);
+    showValueBoxes(c);
+  }
+
+  void valuesChanged(ToolContext&) override {
+    if (!cursor_) return;
+    clearTemp();
+    previewOffset(*cursor_);
+  }
+
+  bool commitValues(ToolContext& ctx) override {
+    auto d = lockedValue("distance");
+    if (!d || ids_.empty()) return false;
+    apply(ctx, *d, cursor_);
     return true;
   }
 
@@ -422,26 +444,23 @@ class OffsetTool : public SketchTool {
         if (it == ids_.end()) ids_.push_back(id);
         else ids_.erase(it);
       }
+      setValueVisible("distance", !ids_.empty());
       ctx.setPrompt(prompt());
       return true;
     }
-    if (!ids_.empty()) apply(ctx, distanceTo(*c), *c);
+    if (ids_.empty()) return true;
+    if (values().isTyping()) values().lockActive();
+    cursor_ = *c;
+    apply(ctx, lockedValue("distance").value_or(distanceTo(*c)), *c);
     return true;
   }
 
   bool commandLineInput(ToolContext& ctx, const std::string& text) override {
-    std::string err;
-    auto v = evaluateTyped(ctx, text, false, &err);
-    if (!v) {
-      ctx.showMessage(err, true);
-      return true;
-    }
     if (ids_.empty()) {
       ctx.showMessage("Select curves to offset first", true);
       return true;
     }
-    apply(ctx, *v, cursor_);
-    return true;
+    return typedValuesToBoxes(ctx, text);
   }
 
   void accept(ToolContext& ctx) override {
@@ -471,7 +490,28 @@ class OffsetTool : public SketchTool {
       ctx.showMessage("Offset produced no geometry", true);
       return;
     }
+    // a typed distance becomes a driving dimension between the first source line and its copy
+    if (const ValueField* f = values().field("distance"); f && f->locked) {
+      bool added = false;
+      for (int src : ids_) {
+        const Geometry* gs = sk->geometry(src);
+        if (!gs || gs->type != GeomType::Line) continue;
+        for (int o : out) {
+          const Geometry* go = sk->geometry(o);
+          if (!go || go->type != GeomType::Line) continue;
+          if (std::abs(gs->direction().cross(go->direction())) > 1e-6) continue;
+          double dist = std::abs(signedDistanceToLine(gs->start(), gs->direction(), go->start()));
+          if (std::abs(dist - std::abs(d)) > 1e-6) continue;
+          addLockedDimension(ctx, *f, Constraint{.type = ConstraintType::Distance, .a = {src}, .b = {o}});
+          added = true;
+          break;
+        }
+        if (added) break;
+      }
+      if (!added) ctx.showMessage("Offset of curved geometry: no offset dimension added");
+    }
     session()->commitEdit("Offset");
+    values().resetInput();
     if (ctx.selection && session()) {
       std::vector<ShapeRef> refs;
       for (int id : out) refs.push_back(session()->toShapeRef({id, PointPos::None}));
