@@ -266,7 +266,10 @@ void CalloutRenderer::addRevisionTable(DisplayList& out, const RevisionTable& t)
   x = o.x;
   for (size_t c = 0; c < t.columns.size() && c < t.columnWidths.size(); ++c) {
     double cw = t.columnWidths[c];
-    out.texts.push_back({{x + cw * 0.5, o.y + t.rowHeight * 0.5}, t.columns[c], t.textHeight, 0, HAlign::Center, VAlign::Middle,
+    double th = t.textHeight;
+    double est = measureText(t.columns[c], th, style_.fontFamily) * 1.1;  // bold is wider
+    if (est > cw - 2.0 && est > 0) th = std::max(1.5, th * (cw - 2.0) / est);
+    out.texts.push_back({{x + cw * 0.5, o.y + t.rowHeight * 0.5}, t.columns[c], th, 0, HAlign::Center, VAlign::Middle,
                          LineClass::Annotation, true});
     x += cw;
   }
