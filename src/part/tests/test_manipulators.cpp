@@ -18,6 +18,7 @@
 #include "part/PartModule.h"
 #include "part/tools/FeatureManipulators.h"
 #include "part/tools/FeatureTool.h"
+#include "part/tools/FeatureValueBox.h"
 #include "support/TestSketch.h"
 
 #include <QtTest/QtTest>
@@ -442,6 +443,66 @@ class ManipulatorsTest : public QObject {
     QVERIFY(!tool->isManipulatorDragging());
     QVERIFY(near(tool->feature()->length("distance"), d0));  // restored
     QVERIFY(near(rig.gizmo("distance")->value(), d0));
+    rig.manager.cancel();
+  }
+
+  /// Round-2 features: Box height arrow, Cylinder diameter, Thicken thickness; the feature value
+  /// box (dynamic input) sits at the tip of the gizmo that drives the same property.
+  void primitivesAndThickenArrows() {
+    Rig rig;
+    rig.doc.selection().set(core::ShapeRef::originPlane("XY"));
+    QVERIFY(rig.manager.run("part.box"));
+    FeatureTool* tool = rig.tool();
+    QCOMPARE(tool->feature()->type(), std::string("Box"));
+    const ManipulatorModel* h = rig.gizmo("height");
+    QVERIFY(h);
+    QVERIFY(near(h->spec().frame.Location(), gp_Pnt(0, 0, 0)));
+    QVERIFY(sameDir(h->spec().frame.Direction(), gp_Dir(0, 0, 1)));
+    const double h0 = tool->feature()->length("height");
+    QVERIFY(near(h->value(), h0));
+    QVERIFY(tool->valueBox() && tool->valueBox()->isActive());
+    QCOMPARE(tool->valueBox()->propertyName(), std::string("height"));
+    const core::Vec3 anchor = tool->valueBox()->model().field(0).anchor;
+    QVERIFY(near(gp_Pnt(anchor.x, anchor.y, anchor.z), gp_Pnt(0, 0, h0)));  // at the arrow tip
+    QVERIFY(rig.drag(gp_Pnt(0, 0, h0), gp_Pnt(0, 0, h0 + 5)));
+    QVERIFY(near(tool->feature()->length("height"), h0 + 5));
+    QVERIFY(tool->isValid());
+    const core::Vec3 moved = tool->valueBox()->model().field(0).anchor;
+    QVERIFY(near(gp_Pnt(moved.x, moved.y, moved.z), gp_Pnt(0, 0, h0 + 5)));
+    QVERIFY(rig.manager.runCommandLine("x=30"));
+    QVERIFY(near(rig.gizmo("height")->spec().frame.Location(), gp_Pnt(30, 0, 0)));
+    QVERIFY(rig.manager.runCommandLine("direction=Symmetric"));
+    QVERIFY(near(rig.gizmo("height")->value(), (h0 + 5) / 2));  // half the height, like Extrude
+    rig.manager.accept();
+    QVERIFY(near(core::volume(rig.doc.bodyShape(rig.lastFeature()->createdBodies().front())), 20.0 * 20.0 * (h0 + 5), 1e-6));
+
+    // Cylinder: diameter arrow is radial, its handle on the surface
+    rig.doc.selection().set(core::ShapeRef::originPlane("XY"));
+    QVERIFY(rig.manager.run("part.cylinder"));
+    tool = rig.tool();
+    const ManipulatorModel* d = rig.gizmo("diameter");
+    QVERIFY(d);
+    QVERIFY(sameDir(d->spec().frame.Direction(), gp_Dir(1, 0, 0)));
+    const double d0 = tool->feature()->length("diameter");
+    QVERIFY(near(d->value(), d0 / 2));
+    QVERIFY(rig.drag(gp_Pnt(d0 / 2, 0, 0), gp_Pnt(d0 / 2 + 4, 0, 0)));
+    QVERIFY(near(tool->feature()->length("diameter"), d0 + 8));
+    rig.manager.cancel();
+
+    // Thicken the top face of a box: arrow along the face normal at the face centre
+    const core::ObjectId body = rig.makeBox();
+    rig.doc.selection().set(rig.topFace(body));
+    QVERIFY(rig.manager.run("part.thicken"));
+    tool = rig.tool();
+    QCOMPARE(tool->feature()->type(), std::string("Thicken"));
+    const ManipulatorModel* th = rig.gizmo("thickness");
+    QVERIFY(th);
+    QVERIFY(near(th->spec().frame.Location(), gp_Pnt(5, 5, 10)));
+    QVERIFY(sameDir(th->spec().frame.Direction(), gp_Dir(0, 0, 1)));
+    const double t0 = tool->feature()->length("thickness");
+    QVERIFY(rig.drag(gp_Pnt(5, 5, 10 + t0), gp_Pnt(5, 5, 10 + t0 + 3)));
+    QVERIFY(near(tool->feature()->length("thickness"), t0 + 3));
+    QVERIFY(tool->isValid());
     rig.manager.cancel();
   }
 };
