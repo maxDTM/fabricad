@@ -253,6 +253,15 @@ bool ToolManager::runCommandLine(const std::string& line) {
   in >> first;
   if (first.empty()) return repeatLast();
   if (active_) {
+    // Shell verbs (OK, CANCEL, SELECT, PICK, FIT...): instant tools flagged keepsActiveTool run
+    // beside the active tool and are never offered to it as typed input (a tool that consumes
+    // any text, e.g. a name prompt, would otherwise swallow them).
+    if (ITool* shell = registry_.byAlias(first); shell && shell->isInstant() && shell->info().keepsActiveTool) {
+      std::vector<std::string> args;
+      std::string a;
+      while (in >> a) args.push_back(a);
+      return run(shell->info().id, std::move(args));
+    }
     if (active_->commandLineInput(context_, line)) return true;
   }
   ITool* tool = registry_.byAlias(first);

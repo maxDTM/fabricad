@@ -31,6 +31,9 @@ class Ribbon : public QWidget {
   Q_OBJECT
  public:
   explicit Ribbon(core::ToolManager& manager, QWidget* parent = nullptr);
+  /// Rebind to another tab's tool manager (multi-document tabs).
+  void setToolManager(core::ToolManager* m) { manager_ = m; }
+  core::ToolManager& manager() const { return *manager_; }
 
   /// Rebuild tabs for a workspace (after registration or a workspace switch).
   void rebuild(core::Workspace ws);
@@ -55,7 +58,7 @@ class Ribbon : public QWidget {
   QToolButton* bigButton(core::ITool* tool, QWidget* parent);
   void updateTabStyle();
 
-  core::ToolManager& manager_;
+  core::ToolManager* manager_;
   core::Workspace ws_ = core::Workspace::Design;
   QToolButton* switcher_ = nullptr;
   QTabBar* tabs_ = nullptr;

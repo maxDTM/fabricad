@@ -28,7 +28,7 @@ QString menuText(const core::ToolInfo& i) {
 }
 }  // namespace
 
-Ribbon::Ribbon(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(manager) {
+Ribbon::Ribbon(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(&manager) {
   setObjectName("RibbonRow");
   setAttribute(Qt::WA_StyledBackground);
   auto* row = new QHBoxLayout(this);
@@ -127,7 +127,7 @@ QWidget* Ribbon::buildPage(const ToolbarTab& tab) {
   }
   if (tab.name == "SKETCH") {
     // Finish Sketch: big green button at the right end of the contextual tab
-    if (core::ITool* fin = manager_.registry().tool("sketch.finish")) {
+    if (core::ITool* fin = manager_->registry().tool("sketch.finish")) {
       row->addSpacing(12);
       auto* b = new QToolButton(page);
       b->setObjectName("FinishSketchButton");
@@ -161,7 +161,7 @@ void Ribbon::rebuild(core::Workspace ws) {
   }
   tabNames_.clear();
   contextual_.clear();
-  for (const ToolbarTab& t : buildToolbarModel(manager_.registry(), ws)) {
+  for (const ToolbarTab& t : buildToolbarModel(manager_->registry(), ws)) {
     tabNames_.push_back(t.name);
     if (t.contextual) contextual_.insert(t.name);
     tabs_->addTab(core::qs(t.name));
@@ -236,15 +236,15 @@ void Ribbon::updateTabStyle() {
 }
 
 void Ribbon::refreshStates() {
-  const core::ToolContext ctx = manager_.makeContext();
+  const core::ToolContext ctx = manager_->makeContext();
   std::map<std::string, bool> cache;
   for (auto& [id, obj] : actions_) {
     auto it = cache.find(id);
     if (it == cache.end()) {
-      core::ITool* t = manager_.registry().tool(id);
+      core::ITool* t = manager_->registry().tool(id);
       it = cache.emplace(id, t && t->isEnabled(ctx)).first;
     }
-    const bool active = manager_.activeToolId() == id;
+    const bool active = manager_->activeToolId() == id;
     if (auto* b = qobject_cast<QToolButton*>(obj)) {
       b->setEnabled(it->second);
       b->setCheckable(true);

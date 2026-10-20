@@ -28,6 +28,9 @@ class CommandSearch : public QFrame {
   Q_OBJECT
  public:
   CommandSearch(core::ToolManager& manager, QWidget* parent = nullptr);
+  /// Rebind to another tab's tool manager (multi-document tabs).
+  void setToolManager(core::ToolManager* m) { manager_ = m; }
+  core::ToolManager& manager() const { return *manager_; }
 
   void popup(const QPoint& globalPos);
   void setRecent(const QStringList& recent) { recent_ = recent; }
@@ -47,7 +50,7 @@ class CommandSearch : public QFrame {
   void runItem(QTreeWidgetItem* item);
   void togglePin(const std::string& id);
 
-  core::ToolManager& manager_;
+  core::ToolManager* manager_;
   QLineEdit* edit_ = nullptr;
   QTreeWidget* list_ = nullptr;
   QStringList pinned_;
