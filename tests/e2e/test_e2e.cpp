@@ -258,39 +258,31 @@ class E2ETest : public QObject {
     const ObjectId sketch1Id = sk1->id();
     QCOMPARE(sk1->component(), baseComp);
 
-    // rectangle 80 x 60 from the origin (2-point rectangle, typed size)
+    // rectangle 80 x 60 from the origin (2-point rectangle, typed size). The typed width and
+    // height become driving dimensions d1 = 80 and d2 = 60 (Fusion dynamic input).
     QVERIFY(mgr.run("sketch.rectangle"));
     r.click(0, 0);
     QVERIFY(mgr.runCommandLine("80,60"));
     QCOMPARE(sk1->sketch().geometryCount(), 4);
-    // circle d12 at the centre (typed diameter); Ctrl suppresses the midpoint-alignment inference
-    // so the centre is positioned by explicit dimensions below (Fusion behaviour)
+    QVERIFY(sk1->sketch().dimensionByName("d1") && !sk1->sketch().dimensionByName("d1")->driven);
+    QVERIFY(sk1->sketch().dimensionByName("d2") && !sk1->sketch().dimensionByName("d2")->driven);
+    QVERIFY(near(sk1->sketch().dimensionByName("d1")->value, 80.0, 1e-9));
+    QVERIFY(near(sk1->sketch().dimensionByName("d2")->value, 60.0, 1e-9));
+    // circle d12 at the centre (typed diameter -> dimension d3); Ctrl suppresses the
+    // midpoint-alignment inference so the centre is positioned by explicit dimensions below
     QVERIFY(mgr.run("sketch.circle"));
     r.click(40, 30, core::ModCtrl);
     QVERIFY(mgr.runCommandLine("12"));
     QCOMPARE(sk1->sketch().geometryCount(), 5);
-    // fix the lower-left corner
+    QVERIFY(sk1->sketch().dimensionByName("d3") && !sk1->sketch().dimensionByName("d3")->driven);
+    QVERIFY(near(sk1->sketch().dimensionByName("d3")->value, 12.0, 1e-9));
+    // fix the lower-left corner: only the circle centre (2 DOF) is left free
     QVERIFY(mgr.run("sketch.constraint.fix"));
     r.click(0, 0);
     r.key(Qt::Key_Escape);
-    QVERIFY2(sk1->sketch().dofs() == 2 + 3, qPrintable(QString("dofs after fix: %1").arg(sk1->sketch().dofs())));
-    // dimensions: width, height, diameter, circle centre position (horizontal + vertical)
+    QVERIFY2(sk1->sketch().dofs() == 2, qPrintable(QString("dofs after fix: %1").arg(sk1->sketch().dofs())));
+    // dimensions: circle centre position (horizontal + vertical)
     QVERIFY(mgr.run("sketch.dimension"));
-    r.click(40, 0);     // bottom line
-    r.click(40, -10);   // place below
-    QVERIFY(sk1->sketch().dimensionByName("d1"));
-    QVERIFY(!sk1->sketch().dimensionByName("d1")->driven);
-    QVERIFY(mgr.runCommandLine("80"));
-    r.click(80, 30);    // right line
-    r.click(92, 30);
-    QVERIFY(sk1->sketch().dimensionByName("d2"));
-    QVERIFY(!sk1->sketch().dimensionByName("d2")->driven);
-    QVERIFY(mgr.runCommandLine("60"));
-    r.click(46, 30);    // circle
-    r.click(55, 45);
-    QVERIFY(sk1->sketch().dimensionByName("d3"));
-    QVERIFY(!sk1->sketch().dimensionByName("d3")->driven);
-    QVERIFY(mgr.runCommandLine("12"));
     r.click(40, 30);    // circle centre ...
     r.click(60, 0);     // ... to the bottom line: point-line distance (vertical position)
     r.click(60, 15);    // label

@@ -30,7 +30,11 @@ parts lists; PDF/SVG/DXF export).
   midpoint, concentric, collinear, symmetric. Conflicts are rejected, redundancy reported.
   Colours: blue free, black fully constrained, orange construction, green fixed, purple
   projected, red conflict. The status bar shows "Sketch1: 3 DOF".
-* Typed input everywhere: `12.5`, `10 in`, `x,y`, `@dx,dy`, `@len<ang`, `w,h`.
+* Fusion-style on-screen value boxes while drawing (line length + angle, rectangle width + height,
+  circle diameter, arc radius + sweep, polygon sides + size, slot length + width, offset distance;
+  extrude distance and other feature values): type a value or expression (`width/2 + 3 mm`), Tab
+  locks it and moves to the next box, Enter commits; locked values drive the rubber band and become
+  driving dimensions. Command-line input too: `12.5`, `10 in`, `x,y`, `@dx,dy`, `@len<ang`, `w,h`.
 
 **Part** (`SOLID` tab)
 * Extrude (one side / two sides / symmetric; distance / to object / through all; taper; join /
@@ -223,8 +227,8 @@ resources/                icons, stylesheet (.qrc)
 ## Known limitations
 
 * Sketch: no ellipse / spline / conic / text, no sketch patterns, move/copy, scale or chamfer;
-  non-circular projected edges become chords; typed values while drawing place points but do
-  not create driving dimensions (dimension with D afterwards); no on-screen value boxes.
+  non-circular projected edges become chords; absolute `x,y` coordinates typed while drawing
+  place points without constraints; value boxes have no drag handles.
 * Part: constant-radius fillets only; no Thread feature or thread spec on Hole (hole placement
   only on sketch points, vertices or circular edges); no Box/Cylinder/Sphere/Torus/Coil
   primitives, Rib, Thicken, Replace Face or Scale; feature values have no on-canvas drag arrows

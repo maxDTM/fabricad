@@ -113,5 +113,5 @@ adopts "index + same geometry type = exact", the sketch can go back to `ctx.reso
 * Constraint glyphs are text previews and cannot be clicked (dimension labels can); constraints
   are deleted by deleting the geometry or through the dimension/constraint selection API
   (`SketchSession::selectConstraint`).
-* Dynamic input boxes are preview text next to the cursor; Tab-locking of fields is not
-  implemented (typed values go through the command line / `commandLineInput`).
+* Dynamic input boxes with Tab-locking: done in round 2, see `round2-sketch-input.md`
+  (`ValueInput.h`, `ValueInputOverlay.h`, `SketchTool::defineValues`).

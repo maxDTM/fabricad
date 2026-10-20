@@ -645,6 +645,9 @@ class Builder {
             sys_.addConstraintL2LAngle(sa->line, sb->line, ang, tag);
           } else if (sa->geo->type == GeomType::Line) {
             sys_.addConstraintP2PAngle(sa->line.p1, sa->line.p2, ang, 0.0, tag);
+          } else if (sa->geo->type == GeomType::Arc) {
+            // sweep angle of an arc (end - start), created by the arc tools' angle box
+            sys_.addConstraintDifference(sa->arc.startAngle, sa->arc.endAngle, ang, tag);
           }
           break;
         }

@@ -12,6 +12,7 @@
 #include "part/features/Extrude.h"
 #include "part/features/Fillet.h"
 #include "part/features/Shell.h"
+#include "part/tools/FeatureValueBox.h"
 #include "part/tools/PropertyPanel.h"
 
 #include <Standard_Failure.hxx>
@@ -91,6 +92,7 @@ void FeatureTool::activate(core::ToolContext& ctx) {
   before_ = {};
   activeInput_.clear();
   previews_.clear();
+  valueBox_.reset();
   outcome_ = {};
   valid_ = false;
   message_.clear();
@@ -314,7 +316,13 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
     panel_->refresh();
     panel_->setMessage(message_, !valid_);
   }
+  if (!valueBox_) valueBox_ = std::make_unique<FeatureValueBox>(ctx, *this);
+  else valueBox_->update(ctx);
   if (ctx.viewer) ctx.viewer->requestRedraw();
+}
+
+bool FeatureTool::keyPress(core::ToolContext& ctx, const core::ViewerKeyEvent& e) {
+  return valueBox_ && valueBox_->keyPress(ctx, e);
 }
 
 bool FeatureTool::setNumeric(core::ToolContext& ctx, const std::string& propName, const std::string& text) {
@@ -486,6 +494,7 @@ void FeatureTool::cancel(core::ToolContext& ctx) {
 }
 
 void FeatureTool::deactivate(core::ToolContext& ctx) {
+  valueBox_.reset();
   clearPreviews(ctx);
   if (editing_ && ctx.document) {
     // deactivated without accept (another tool started): behave like cancel

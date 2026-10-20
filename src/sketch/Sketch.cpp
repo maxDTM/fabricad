@@ -252,6 +252,7 @@ std::optional<double> Sketch::measure(const Constraint& c) const {
     case ConstraintType::Radius: return ga->isCircular() ? std::optional<double>(ga->radius()) : std::nullopt;
     case ConstraintType::Diameter: return ga->isCircular() ? std::optional<double>(2 * ga->radius()) : std::nullopt;
     case ConstraintType::Angle: {
+      if (ga->type == GeomType::Arc && !gb) return ga->sweep() * 180.0 / kPi;  // arc sweep
       if (ga->type != GeomType::Line) return std::nullopt;
       if (gb && gb->type == GeomType::Line) {
         double a = angleDelta(ga->direction().angle(), gb->direction().angle());
@@ -272,6 +273,7 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
     case ConstraintType::Diameter: return ga->center() + Pt2::polar(ga->radius() * 1.3 + off, kPi / 4);
     case ConstraintType::Angle: {
       const Geometry* gb = c.b.isValid() ? geometry(c.b.geo) : nullptr;
+      if (ga->type == GeomType::Arc) return ga->center() + Pt2::polar(ga->radius() * 0.6, ga->startAngle() + ga->sweep() / 2);
       if (gb && gb->type == GeomType::Line) {
         auto x = intersectLines(ga->start(), ga->direction(), gb->start(), gb->direction());
         Pt2 bis = (ga->direction() + gb->direction()).normalized();

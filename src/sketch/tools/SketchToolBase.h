@@ -7,13 +7,17 @@
 #include "core/ViewerContext.h"
 #include "sketch/SketchInference.h"
 #include "sketch/SketchSession.h"
+#include "sketch/ValueInput.h"
 
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
 #include <vector>
 
 namespace fabricad::sketch {
+
+class ValueInputOverlay;
 
 /// Parsed dynamic-input text.
 struct TypedInput {
@@ -39,15 +43,52 @@ std::optional<Geometry> tangentArc(Pt2 p, Pt2 t, Pt2 q, bool* startIsP);
 /// Common behaviour of every tool that runs inside sketch mode.
 class SketchTool : public core::ToolBase {
  public:
-  using ToolBase::ToolBase;
+  explicit SketchTool(core::ToolInfo info);
+  ~SketchTool() override;
   /// Enabled only while a sketch session is active.
   bool isEnabled(const core::ToolContext& ctx) const override;
   void activate(core::ToolContext& ctx) override;
   void deactivate(core::ToolContext& ctx) override;
-  /// Esc cancels, Return/Enter accepts (tools may override and call the base).
+  /// Keys go to the value boxes first (typing, Tab, Backspace, Esc clears, Enter commits via
+  /// commitValues()); otherwise Esc cancels and Return/Enter accepts. Tools may override and
+  /// call the base.
   bool keyPress(core::ToolContext& ctx, const core::ViewerKeyEvent& e) override;
 
+  /// The on-screen value boxes of this tool (tests inspect them).
+  const ValueInputModel& values() const { return values_; }
+  ValueInputModel& values() { return values_; }
+
  protected:
+  // --- on-screen value boxes (Fusion dynamic input) -----------------------------------------
+  /// Declare the boxes this tool shows (call from activate(); replaces the previous set).
+  void defineValues(std::vector<ValueField> fields);
+  /// Feed the measured value for a box and anchor it at a sketch point (both from mouseMove).
+  void setValue(const std::string& id, double value, Pt2 anchor);
+  void setValueVisible(const std::string& id, bool visible);
+  /// Locked (typed) value of a box, nullopt while it follows the cursor.
+  std::optional<double> lockedValue(const std::string& id) const { return values_.lockedValue(id); }
+  bool isLocked(const std::string& id) const { return values_.isLocked(id); }
+  /// Draw the boxes: widgets when the viewer has one, else a preview text label next to `near`.
+  void showValueBoxes(Pt2 near);
+  /// Hook: a box was typed into / locked / unlocked -> redraw the rubber band from the last cursor.
+  virtual void valuesChanged(core::ToolContext& ctx) { (void)ctx; }
+  /// Hook: Enter with typed values -> create the geometry from the locked values. Return false
+  /// when the tool cannot (e.g. no first point yet); the base then treats Enter as accept().
+  virtual bool commitValues(core::ToolContext& ctx) { (void)ctx; return false; }
+  /// The value-box part of keyPress(): true when the key was consumed (typing, Tab, Esc clearing
+  /// a box, or Enter that commitValues() handled). Tools overriding keyPress() call this first.
+  bool handleValueKey(core::ToolContext& ctx, const core::ViewerKeyEvent& e);
+  /// Route command-line text into the boxes: "30" -> active box; "30,20" / "50<30" -> consecutive
+  /// visible boxes. Locks them and calls commitValues(). False when the text is not a value list.
+  bool typedValuesToBoxes(core::ToolContext& ctx, const std::string& text);
+  /// Add a driving dimension for a locked box on freshly created geometry (value + expression
+  /// from the typed text). If the sketch rejects it (conflict / redundant) the dimension becomes
+  /// driven and a message is shown. Returns the constraint id (-1 when not added).
+  int addLockedDimension(core::ToolContext& ctx, const ValueField& f, Constraint c);
+  /// H/V/parallel/perpendicular constraint for an angle that is a multiple of 90 degrees (so no
+  /// redundant Angle dimension is created). `referenceLine` < 0 means the angle is to +X.
+  /// Returns true when such a constraint was added instead of an Angle dimension.
+  bool addRightAngleInstead(core::ToolContext& ctx, int lineId, double angleDeg, int referenceLine);
   SketchSession* session() const { return SketchSession::current(); }
   Sketch* sketch() const;
   SketchFeature* feature() const;
@@ -98,6 +139,15 @@ class SketchTool : public core::ToolBase {
 
   core::IViewerContext* viewer_ = nullptr;
   std::set<core::PreviewHandle> temp_;
+  ValueInputModel values_;
+  std::unique_ptr<ValueInputOverlay> overlay_;
+  core::PreviewHandle valueText_ = core::kInvalidPreview;
+  core::ToolManager* manager_ = nullptr;
 };
+
+/// Evaluator / formatter for ValueInputModel using the document units, expressions and the
+/// active sketch's dimension names (shared with the part module's feature value boxes).
+ValueInputModel::Evaluator makeSketchEvaluator(core::Document* doc);
+ValueInputModel::Formatter makeUnitFormatter(core::Document* doc);
 
 }  // namespace fabricad::sketch

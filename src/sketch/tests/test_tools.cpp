@@ -21,6 +21,7 @@
 #include <QCoreApplication>
 #include <QtTest/QtTest>
 
+#include <cctype>
 #include <format>
 
 using namespace fabricad;
@@ -302,7 +303,9 @@ class ToolsTest : public QObject {
     QCOMPARE(r.sk().geometryCount(), 4);
     QCOMPARE(r.countType(ConstraintType::Horizontal), 2);
     QCOMPARE(r.countType(ConstraintType::Vertical), 2);
-    QCOMPARE(r.sk().dofs(), 4);
+    // the typed size became driving width / height dimensions: only the position is free
+    QCOMPARE(r.countType(ConstraintType::Distance), 2);
+    QCOMPARE(r.sk().dofs(), 2);
     QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
     QVERIFY(near(r.sketchFeature()->profiles()[0].area, 600.0, 1e-6));
 
@@ -331,6 +334,7 @@ class ToolsTest : public QObject {
     const Geometry* c = r.sk().geometry(14);
     QVERIFY(c && c->type == GeomType::Circle);
     QVERIFY(near(c->radius(), 5.0));
+    QCOMPARE(r.countType(ConstraintType::Diameter), 1);  // typed diameter -> driving dimension
     QCOMPARE(r.sketchFeature()->profiles().size(), size_t(4));  // rect ring + circle + centre rect + 3pt rect
 
     r.mgr.run("sketch.circle-2point");
@@ -383,12 +387,265 @@ class ToolsTest : public QObject {
     res = r.sk().solve();
     QVERIFY2(res.ok(), res.message.c_str());
     QCOMPARE(r.countType(ConstraintType::Tangent), 5);
+    QCOMPARE(r.countType(ConstraintType::Diameter), 2);  // circle d10 + slot width 10
     size_t before = r.sketchFeature()->profiles().size();
     QVERIFY(before >= 6);
 
     r.mgr.run("sketch.point");
     r.click(700, 0);
     QCOMPARE(r.sk().geometry(32)->type, GeomType::Point);
+  }
+
+  /// Keys as the shell forwards them while drawing: printable text, Tab, Enter.
+  static void typeKeys(Rig& r, const std::string& s) {
+    for (char c : s) {
+      core::ViewerKeyEvent e;
+      e.key = std::toupper(static_cast<unsigned char>(c));
+      e.text = std::string(1, c);
+      r.mgr.keyPress(e);
+    }
+  }
+
+  // Test shape "L50-30": from (0,0) a line of exactly 50 mm at 30 deg typed into the value boxes,
+  // then a 20 mm segment at 90 deg to it (relative angle), then a closing chain is not drawn.
+  void lineValueBoxesCreateDimensions() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.mgr.run("sketch.line");
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    QCOMPARE(tool->values().fieldCount(), 2);
+    QCOMPARE(tool->values().visibleCount(), 0);  // no boxes before the first point
+    r.click(0, 0);
+    QCOMPARE(tool->values().visibleCount(), 2);
+    r.move(40, 5);
+    QVERIFY(near(tool->values().value("length"), std::sqrt(40.0 * 40.0 + 25.0), 1e-9));
+    QVERIFY(!r.viewer.previews().empty());
+    // type the length, Tab, the angle, Enter
+    typeKeys(r, "50");
+    QVERIFY(tool->values().isTyping());
+    QCOMPARE(tool->values().displayText(0), std::string("50"));
+    r.key(Qt::Key_Tab);
+    QVERIFY(tool->values().isLocked("length"));
+    QCOMPARE(tool->values().activeIndex(), 1);
+    // the rubber band is locked to 50 mm along the cursor direction
+    r.move(10, 1);
+    QVERIFY(near(tool->values().value("length"), 50.0, 1e-9));
+    typeKeys(r, "30");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 1);
+    const Geometry* l1 = r.sk().geometry(1);
+    QVERIFY(near(l1->end(), {50 * std::cos(kPi / 6), 50 * std::sin(kPi / 6)}, 1e-6));
+    const Constraint* d1 = r.sk().dimensionByName("d1");
+    const Constraint* d2 = r.sk().dimensionByName("d2");
+    QVERIFY(d1 && d2);
+    QCOMPARE(d1->type, ConstraintType::Distance);
+    QVERIFY(near(d1->value, 50.0));
+    QVERIFY(!d1->driven);
+    QCOMPARE(d2->type, ConstraintType::Angle);
+    QVERIFY(near(d2->value, 30.0));
+    QVERIFY(!d2->driven);
+    QCOMPARE(r.sk().dofs(), 2);  // only the start point is free
+    // boxes are reset for the next segment; the angle is now relative to the previous line
+    QVERIFY(!tool->values().hasUserInput());
+    r.move(60, 40);
+    typeKeys(r, "20");
+    r.key(Qt::Key_Tab);
+    typeKeys(r, "90");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 2);
+    QCOMPARE(r.countType(ConstraintType::Perpendicular), 1);  // 90 deg -> perpendicular, no angle dimension
+    QCOMPARE(r.countType(ConstraintType::Angle), 1);
+    QVERIFY(near(r.sk().geometry(2)->length(), 20.0, 1e-6));
+    QVERIFY(near(r.sk().dimensionByName("d3")->value, 20.0));
+    QCOMPARE(r.sk().dofs(), 2);
+    SolveResult res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    // Esc with typed text clears the box instead of ending the chain
+    typeKeys(r, "7");
+    r.key(Qt::Key_Escape);
+    QVERIFY(!tool->values().isTyping());
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.line"));
+    r.key(Qt::Key_Escape);  // ends the chain
+    r.key(Qt::Key_Escape);  // ends the tool
+    Rig::pump();
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.select"));
+    // expression with a unit through the command line: driving dimension keeps the expression
+    r.doc.setParameter("len", "2 in");
+    r.mgr.run("sketch.line");
+    r.click(0, 50);
+    r.move(10, 50);
+    QVERIFY(r.mgr.runCommandLine("len/2"));
+    const Geometry* l3 = r.sk().geometry(3);
+    QVERIFY(near(l3->length(), 25.4, 1e-6));
+    QCOMPARE(r.sk().dimensionByName("d4")->expression, std::string("len/2"));
+    QCOMPARE(r.countType(ConstraintType::Horizontal), 1);  // inference still applies with a locked length
+    // relative coordinates create DistanceX / DistanceY
+    QVERIFY(r.mgr.runCommandLine("@10,5"));
+    QCOMPARE(r.countType(ConstraintType::DistanceX), 1);
+    QCOMPARE(r.countType(ConstraintType::DistanceY), 1);
+    QVERIFY(near(r.sk().geometry(4)->end(), {35.4, 55}, 1e-6));
+    // undo removes one segment with its dimensions
+    r.doc.undoStack().undo();
+    QCOMPARE(r.sk().geometryCount(), 3);
+    QCOMPARE(r.countType(ConstraintType::DistanceX), 0);
+  }
+
+  // Test shapes: rectangle 30 x 20 at (0,0) via boxes; centre rectangle 40 x 10 at (100,0) typed
+  // "40,10"; circle d12 at (0,50); centre arc R10 sweep 90 at (60,60); hexagon R8 at (0,100);
+  // slot 40 long 10 wide at (100,100). Every typed value is a driving dimension afterwards.
+  void shapeValueBoxesCreateDimensions() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    // 2-point rectangle: width Tab height Enter
+    r.mgr.run("sketch.rectangle");
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    r.click(0, 0);
+    r.move(5, 5);
+    typeKeys(r, "30");
+    r.key(Qt::Key_Tab);
+    typeKeys(r, "20");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 4);
+    QVERIFY(near(r.sk().geometry(1)->length(), 30.0, 1e-9));
+    QVERIFY(near(r.sk().geometry(2)->length(), 20.0, 1e-9));
+    QCOMPARE(r.countType(ConstraintType::Distance), 2);
+    QCOMPARE(r.sk().dofs(), 2);
+    QVERIFY(near(r.sketchFeature()->profiles()[0].area, 600.0, 1e-6));
+    // typed width only: the height follows the cursor
+    r.mgr.run("sketch.rectangle-center");
+    r.click(100, 0);
+    r.move(130, 5);
+    QVERIFY(r.mgr.runCommandLine("40,10"));
+    QCOMPARE(r.sk().geometryCount(), 9);
+    QCOMPARE(r.countType(ConstraintType::Distance), 4);
+    Pt2 mn, mx;
+    Sketch tmp;
+    for (int id = 5; id <= 8; ++id) tmp.addGeometry(*r.sk().geometry(id));
+    QVERIFY(tmp.bbox(mn, mx));
+    QVERIFY2(near(mn, {80, -5}) && near(mx, {120, 5}), std::format("bbox ({},{})-({},{})", mn.x, mn.y, mx.x, mx.y).c_str());
+    // circle: diameter box
+    r.mgr.run("sketch.circle");
+    r.click(0, 50);
+    r.move(3, 50);
+    typeKeys(r, "12");
+    r.key(Qt::Key_Return);
+    const Geometry* c = r.sk().geometry(10);
+    QVERIFY(c && c->type == GeomType::Circle && near(c->radius(), 6.0, 1e-9));
+    QCOMPARE(r.sk().dimensionByName("d5")->type, ConstraintType::Diameter);
+    QVERIFY(near(r.sk().dimensionByName("d5")->value, 12.0));
+    // centre arc: radius at the start point, sweep angle at the end point
+    r.mgr.run("sketch.arc-center");
+    r.click(60, 60);
+    r.move(65, 60);
+    typeKeys(r, "10");
+    r.key(Qt::Key_Return);  // start point at (70,60)
+    r.move(60, 70);         // counter-clockwise side
+    typeKeys(r, "90");
+    r.key(Qt::Key_Return);
+    const Geometry* a = r.sk().geometry(11);
+    QVERIFY(a && a->type == GeomType::Arc);
+    QVERIFY(near(a->radius(), 10.0, 1e-9));
+    QVERIFY(near(a->start(), {70, 60}, 1e-6));
+    QVERIFY(near(a->end(), {60, 70}, 1e-6));
+    QVERIFY(near(a->sweep() * 180.0 / kPi, 90.0, 1e-6));
+    QCOMPARE(r.sk().dimensionByName("d6")->type, ConstraintType::Radius);
+    QCOMPARE(r.sk().dimensionByName("d7")->type, ConstraintType::Angle);
+    QVERIFY(near(*r.sk().measure(*r.sk().dimensionByName("d7")), 90.0, 1e-6));
+    // the sweep dimension drives the solver: change it to 180 and the arc becomes a half circle
+    // (the centre and start angle are free, so only the sweep itself and the chord are checked)
+    r.sk().constraint(r.sk().dimensionByName("d7")->id)->value = 180.0;
+    SolveResult res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    {
+      const Geometry* a2 = r.sk().geometry(11);
+      QVERIFY2(near(a2->sweep() * 180.0 / kPi, 180.0, 1e-6), std::format("sweep {}", a2->sweep() * 180.0 / kPi).c_str());
+      QVERIFY2(near(a2->start().distance(a2->end()), 20.0, 1e-6),
+               std::format("chord {} start ({},{}) end ({},{})", a2->start().distance(a2->end()), a2->start().x, a2->start().y, a2->end().x, a2->end().y).c_str());
+      QVERIFY(near(a2->radius(), 10.0, 1e-6));
+    }
+    r.sk().constraint(r.sk().dimensionByName("d7")->id)->value = 90.0;
+    r.sk().solve();
+    // polygon: sides box before the centre, radius box after
+    r.mgr.run("sketch.polygon-inscribed");
+    typeKeys(r, "8");
+    r.key(Qt::Key_Return);
+    QVERIFY(r.host.prompt().find("8 sides") != std::string::npos);
+    r.click(0, 100);
+    r.move(5, 100);
+    typeKeys(r, "8");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 11 + 9);  // 8 lines + construction circle
+    const Geometry* circ = r.sk().geometry(20);
+    QVERIFY(circ && circ->type == GeomType::Circle && circ->construction);
+    QVERIFY2(near(circ->radius(), 8.0, 1e-6), std::format("polygon circle radius {}", circ->radius()).c_str());
+    QCOMPARE(r.sk().dimensionByName("d8")->type, ConstraintType::Radius);
+    // slot: centre distance, then width
+    r.mgr.run("sketch.slot");
+    r.click(100, 100);
+    r.move(110, 100);
+    typeKeys(r, "40");
+    r.key(Qt::Key_Return);
+    r.move(120, 108);
+    typeKeys(r, "10");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 25);
+    QVERIFY(near(r.sk().geometry(25)->length(), 40.0, 1e-6));  // construction axis
+    QVERIFY(near(r.sk().geometry(23)->radius(), 5.0, 1e-6));   // arc radius = width / 2
+    QCOMPARE(r.sk().dimensionByName("d9")->type, ConstraintType::Distance);
+    QCOMPARE(r.sk().dimensionByName("d10")->type, ConstraintType::Diameter);
+    res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    QVERIFY(!r.sk().hasConflicts());
+    // a typed value that cannot be satisfied is kept as a driven dimension, never a conflict
+    r.mgr.run("sketch.circle");
+    int c2 = r.sk().addGeometry(Geometry::makeCircle({200, 0}, 5));
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Radius, .a = {c2}, .value = 5});
+    r.session()->refresh();
+    r.mgr.run("sketch.offset");
+    r.click(205, 0);  // the circle
+    r.move(212, 0);
+    QVERIFY(r.mgr.runCommandLine("3"));
+    QVERIFY(!r.mgr.isActive() || r.mgr.activeToolId() != "sketch.offset");
+    QVERIFY(!r.sk().hasConflicts());
+  }
+
+  void offsetValueBoxCreatesDimension() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    auto ids = addRectangle(r.sk(), {0, 0}, {30, 20});
+    r.session()->refresh();
+    r.mgr.run("sketch.offset");
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    QCOMPARE(tool->values().visibleCount(), 0);  // nothing selected yet
+    r.click(15, 0);  // bottom line -> whole chain
+    QCOMPARE(tool->values().visibleCount(), 1);
+    r.move(15, -3);  // outside
+    QVERIFY(near(tool->values().value("distance"), 3.0, 1e-9));
+    typeKeys(r, "5");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 8);
+    const Constraint* d1 = r.sk().dimensionByName("d1");
+    QVERIFY(d1);
+    QCOMPARE(d1->type, ConstraintType::Distance);
+    QVERIFY(near(d1->value, 5.0));
+    QVERIFY(!d1->driven);
+    // the dimension links a source line to its offset copy at exactly 5 mm
+    const Geometry* src = r.sk().geometry(d1->a.geo);
+    const Geometry* off = r.sk().geometry(d1->b.geo);
+    QVERIFY(src && off && src->type == GeomType::Line && off->type == GeomType::Line);
+    QVERIFY(near(std::abs(signedDistanceToLine(src->start(), src->direction(), off->start())), 5.0, 1e-6));
+    QVERIFY(!r.mgr.isActive() || r.mgr.activeToolId() != "sketch.offset");
+    Rig::pump();
+    // undo removes the offset and its dimension together
+    r.doc.undoStack().undo();
+    QCOMPARE(r.sk().geometryCount(), 4);
+    QVERIFY(!r.sk().dimensionByName("d1"));
   }
 
   void constraintToolsAndStatus() {
