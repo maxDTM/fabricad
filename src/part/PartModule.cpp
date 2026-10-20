@@ -3,6 +3,7 @@
 
 #include "core/Log.h"
 #include "core/Registry.h"
+#include "part/ExtraRegistration.h"
 #include "part/features/Construction.h"
 #include "part/features/Extrude.h"
 #include "part/features/Fillet.h"
@@ -50,11 +51,13 @@ void registerFeatureTypes(core::FeatureFactory& f) {
   reg<PlaneThreePointsFeature>(f);
   reg<AxisFeature>(f);
   reg<PointFeature>(f);
+  registerExtraFeatureTypes(f);
 }
 
 void registerModule(fabricad::core::ModuleContext& ctx) {
   registerFeatureTypes(ctx.features);
   registerPartTools(ctx);
+  registerExtraPartTools(ctx.tools);
   FC_DEBUG("part module: feature types and tools registered");
 }
 

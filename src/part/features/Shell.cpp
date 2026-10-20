@@ -4,6 +4,7 @@
 #include "core/Document.h"
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
+#include "part/ExtraUtils.h"
 #include "part/PartUtils.h"
 
 #include <BRepAlgoAPI_Splitter.hxx>
@@ -289,12 +290,31 @@ void CombineFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
 // MoveBody
 // ---------------------------------------------------------------------------
 
+gp_Trsf MoveBodyFeature::freeMoveTransform(const gp_Pnt& pivot, double rxDeg, double ryDeg, double rzDeg,
+                                           const gp_Vec& translation) {
+  gp_Trsf rx, ry, rz, tr;
+  rx.SetRotation(gp_Ax1(pivot, gp::DX()), rxDeg * M_PI / 180.0);
+  ry.SetRotation(gp_Ax1(pivot, gp::DY()), ryDeg * M_PI / 180.0);
+  rz.SetRotation(gp_Ax1(pivot, gp::DZ()), rzDeg * M_PI / 180.0);
+  tr.SetTranslation(translation);
+  return tr * rz * ry * rx;  // X first, then Y, then Z, then translate
+}
+
 MoveBodyFeature::MoveBodyFeature() : PartFeature(kType) {
   addRefs("bodies", core::mask(core::ShapeKind::Body)).setLabel("Bodies");
-  addEnum("moveType", {"Translate", "Rotate", "Point to Point"}, Translate).setLabel("Move type");
+  addEnum("moveType", {"Translate", "Rotate", "Point to Point", "Free Move"}, Translate).setLabel("Move type");
   addLength("dx", 0.0).setLabel("X distance");
   addLength("dy", 0.0).setLabel("Y distance");
   addLength("dz", 0.0).setLabel("Z distance");
+  addAngle("rx", 0.0).setLabel("X angle").setTooltip("Free Move: rotation about the pivot's X axis (applied first)");
+  addAngle("ry", 0.0).setLabel("Y angle").setTooltip("Free Move: rotation about the pivot's Y axis (second)");
+  addAngle("rz", 0.0).setLabel("Z angle").setTooltip("Free Move: rotation about the pivot's Z axis (third), then the translation");
+  addEnum("pivotType", {"Selection Centre", "Origin", "Coordinates"}, 0)
+      .setLabel("Pivot")
+      .setTooltip("Free Move rotation centre: bounding-box centre of the selected bodies, the origin, or typed coordinates");
+  addLength("px", 0.0).setLabel("Pivot X");
+  addLength("py", 0.0).setLabel("Pivot Y");
+  addLength("pz", 0.0).setLabel("Pivot Z");
   addRef("axis", core::kAxisKinds).setLabel("Axis");
   addAngle("angle", 0.0).setLabel("Angle");
   addRef("fromPoint", core::kPointKinds).setLabel("Origin point");
@@ -305,7 +325,9 @@ MoveBodyFeature::MoveBodyFeature() : PartFeature(kType) {
 
 void MoveBodyFeature::updatePropertyFlags() {
   int t = enumIndex("moveType");
-  for (const char* n : {"dx", "dy", "dz"}) prop(n).flags().hidden = t != Translate;
+  for (const char* n : {"dx", "dy", "dz"}) prop(n).flags().hidden = t != Translate && t != Free;
+  for (const char* n : {"rx", "ry", "rz", "pivotType"}) prop(n).flags().hidden = t != Free;
+  for (const char* n : {"px", "py", "pz"}) prop(n).flags().hidden = t != Free || enumIndex("pivotType") != 2;
   prop("axis").flags().hidden = t != Rotate;
   prop("angle").flags().hidden = t != Rotate;
   prop("fromPoint").flags().hidden = t != PointToPoint;
@@ -338,6 +360,23 @@ void MoveBodyFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
       trsf.SetTranslation(gp_Vec(*a, *b));
       break;
     }
+    case Free: {
+      gp_Pnt pivot(0, 0, 0);
+      int pt = enumIndex("pivotType");
+      if (pt == 2) {
+        pivot = gp_Pnt(ctx.length("px"), ctx.length("py"), ctx.length("pz"));
+      } else if (pt == 0) {
+        std::vector<TopoDS_Shape> sel;
+        for (auto& r : prop("bodies").refs())
+          if (r.kind == core::ShapeKind::Body && !ctx.bodyShape(r.owner).IsNull()) sel.push_back(ctx.bodyShape(r.owner));
+        core::Vec3 mn, mx;
+        if (!sel.empty() && core::bbox(compoundOf(sel), mn, mx))
+          pivot = gp_Pnt((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, (mn.z + mx.z) / 2);
+      }
+      trsf = freeMoveTransform(pivot, ctx.angle("rx"), ctx.angle("ry"), ctx.angle("rz"),
+                               gp_Vec(ctx.length("dx"), ctx.length("dy"), ctx.length("dz")));
+      break;
+    }
   }
   bool copy = flag("createCopy");
   int n = 0;
@@ -368,36 +407,36 @@ void MoveBodyFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
 // SplitBody
 // ---------------------------------------------------------------------------
 
+static void sortSplitPieces(std::vector<TopoDS_Shape>& pieces, const std::optional<gp_Ax3>& plane) {
+  if (!plane) {
+    std::sort(pieces.begin(), pieces.end(), shapeLess);
+    return;
+  }
+  // Planar tool: order by the signed distance of the centroid along the plane normal, so the
+  // piece behind the plane keeps the original body (for the YZ plane: x < 0 first).
+  const gp_Pnt o = plane->Location();
+  const gp_Vec n(plane->Direction());
+  auto key = [&](const TopoDS_Shape& s) { return gp_Vec(o, core::centroid(s).toPnt()).Dot(n); };
+  std::stable_sort(pieces.begin(), pieces.end(), [&](const TopoDS_Shape& a, const TopoDS_Shape& b) {
+    double ka = key(a), kb = key(b);
+    if (std::abs(ka - kb) > 1e-6) return ka < kb;
+    return shapeLess(a, b);
+  });
+}
+
 SplitBodyFeature::SplitBodyFeature() : PartFeature(kType) {
   addRefs("bodies", core::mask(core::ShapeKind::Body)).setLabel("Bodies to split");
   addRef("splitTool", kPlaneKinds | core::ShapeKind::Body).setLabel("Splitting tool");
+  addBool("extendTool", true).setLabel("Extend splitting tool").setTooltip("Extend a face tool to its full surface");
 }
 
 void SplitBodyFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   const core::ShapeRef& toolRef = ref("splitTool");
-  if (!toolRef.isValid()) {
-    ctx.setError("select a splitting plane, face or body");
-    return;
-  }
-  TopoDS_Shape tool;
-  if (toolRef.kind == core::ShapeKind::Body) {
-    tool = resolveRefProperty(ctx, prop("splitTool"));
-  } else if (toolRef.kind == core::ShapeKind::Face) {
-    TopoDS_Shape f = resolveRefProperty(ctx, prop("splitTool"));
-    if (auto pl = core::facePlane(f)) tool = planeDisplayFace(*pl, throughAllLength(ctx));
-    else tool = f;
-  } else {
-    auto pl = ctx.plane(toolRef);
-    if (!pl) {
-      ctx.setError("splitting tool is not a plane");
-      return;
-    }
-    tool = planeDisplayFace(*pl, throughAllLength(ctx));
-  }
-  if (tool.IsNull()) {
-    ctx.setError("splitting tool not found");
-    return;
-  }
+  // Older documents have no "extendTool": faces were always extended (planes) / used as is.
+  const core::Property* ext = property("extendTool");
+  std::optional<gp_Ax3> splitPlane;
+  TopoDS_Shape tool = resolveSplitTool(ctx, prop("splitTool"), ext ? ext->toBool() : true, &splitPlane);
+  if (tool.IsNull()) return;
   int n = 0;
   for (auto& r : prop("bodies").refs()) {
     if (r.kind != core::ShapeKind::Body || r.owner == toolRef.owner) continue;
@@ -423,7 +462,7 @@ void SplitBodyFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         out.addModified(r.owner, s);
         continue;
       }
-      std::sort(pieces.begin(), pieces.end(), shapeLess);
+      sortSplitPieces(pieces, splitPlane);
       NameMap names = upstreamNames(ctx, r.owner);
       const core::Body* b = ctx.document().body(r.owner);
       for (size_t i = 0; i < pieces.size(); ++i) {

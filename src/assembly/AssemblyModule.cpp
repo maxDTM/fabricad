@@ -5,6 +5,7 @@
 #include "assembly/Bom.h"
 #include "assembly/ComponentOps.h"
 #include "assembly/JointFeature.h"
+#include "assembly/PasteNew.h"
 #include "assembly/tools/ComponentTools.h"
 #include "assembly/tools/DriveJointTool.h"
 #include "assembly/tools/InterferenceTool.h"
@@ -124,6 +125,21 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
     i.hidden = true;
     ctx.tools.registerTool(std::make_unique<LambdaTool>(
         i, [](ToolContext& c) { pasteComponents(c, true); },
+        [](const ToolContext& c) {
+          if (!c.document) return false;
+          for (core::ObjectId id : componentClipboard())
+            if (c.document->component(id)) return true;
+          return false;
+        }));
+  }
+  {
+    ToolInfo i = assembleInfo("assembly.paste-new", "Paste New",
+                              "Insert an independent copy of each copied component (own bodies and feature history)", 16);
+    i.aliases = {"PASTENEW"};
+    i.shortcut = "Ctrl+Shift+V";
+    i.hidden = true;
+    ctx.tools.registerTool(std::make_unique<LambdaTool>(
+        i, [](ToolContext& c) { pasteNewComponents(c, true); },
         [](const ToolContext& c) {
           if (!c.document) return false;
           for (core::ObjectId id : componentClipboard())

@@ -14,6 +14,7 @@
 #include <Standard_Failure.hxx>
 #include <TopoDS.hxx>
 #include <gp_Ax3.hxx>
+#include <gp_Lin.hxx>
 
 #include <cmath>
 #include <format>
@@ -21,9 +22,10 @@
 namespace fabricad::part {
 
 HoleFeature::HoleFeature() : PartFeature(kType) {
-  addRefs("points", core::ShapeKind::SketchPoint | core::ShapeKind::Vertex | core::ShapeKind::ConstructionPoint | core::ShapeKind::Edge)
+  addRefs("points", core::ShapeKind::SketchPoint | core::ShapeKind::Vertex | core::ShapeKind::ConstructionPoint |
+                        core::ShapeKind::Edge | core::ShapeKind::Face)
       .setLabel("Placement points")
-      .setTooltip("Sketch points, vertices or circular edges (centre) where holes start");
+      .setTooltip("Sketch points, vertices, circular edges (centre) or clicks on a planar face where holes start");
   addRef("face", core::mask(core::ShapeKind::Face)).setLabel("Start face").setTooltip("Optional: face defining the hole direction");
   addEnum("holeType", {"Simple", "Counterbore", "Countersink"}, Simple).setLabel("Hole type");
   addLength("diameter", 6.6).setLabel("Diameter");
@@ -36,6 +38,14 @@ HoleFeature::HoleFeature() : PartFeature(kType) {
   addLength("csinkDiameter", 12.0).setLabel("Countersink diameter");
   addAngle("csinkAngle", 90.0).setLabel("Countersink angle");
   addBool("flip", false).setLabel("Flip direction");
+  addEnum("tapType", {"Simple", "Clearance", "Tapped"}, Simple)
+      .setLabel("Hole tap type")
+      .setTooltip("Clearance / Tapped take the diameter from the ISO metric size");
+  addEnum("threadSize", isoMetricDesignations(), 0).setLabel("Size").setEnum("M6x1");
+  addEnum("clearanceFit", {"Close", "Normal", "Loose"}, 1).setLabel("Fit").setTooltip("ISO 273 clearance hole series");
+  addBool("threadModeled", false).setLabel("Modeled").setTooltip("Cut the real thread (slow); off = cosmetic thread");
+  addBool("threadFullDepth", true).setLabel("Full tap depth");
+  addLength("threadDepth", 8.0).setLabel("Thread depth");
   addRefs("targets", core::mask(core::ShapeKind::Body)).setLabel("Bodies to cut").setTooltip("empty = every body the hole touches");
   updatePropertyFlags();
 }
@@ -50,6 +60,31 @@ void HoleFeature::updatePropertyFlags() {
   prop("cboreDepth").flags().hidden = t != Counterbore;
   prop("csinkDiameter").flags().hidden = t != Countersink;
   prop("csinkAngle").flags().hidden = t != Countersink;
+  const int tap = enumIndex("tapType");
+  prop("diameter").flags().hidden = tap != SimpleTap;
+  prop("threadSize").flags().hidden = tap == SimpleTap;
+  prop("clearanceFit").flags().hidden = tap != Clearance;
+  prop("threadModeled").flags().hidden = tap != Tapped;
+  prop("threadFullDepth").flags().hidden = tap != Tapped;
+  prop("threadDepth").flags().hidden = tap != Tapped || flag("threadFullDepth");
+}
+
+double HoleFeature::clearanceDiameter(const IsoThread& t, int fit) {
+  // ISO 273 fine / medium / coarse series for the common sizes, else 1.07 / 1.1 / 1.2 x d
+  struct Row {
+    double d, fine, medium, coarse;
+  };
+  static const Row kRows[] = {
+      {1.6, 1.7, 1.8, 2.0},  {2, 2.2, 2.4, 2.6},   {2.5, 2.7, 2.9, 3.1},  {3, 3.2, 3.4, 3.6},    {3.5, 3.7, 3.9, 4.2},
+      {4, 4.3, 4.5, 4.8},    {5, 5.3, 5.5, 5.8},   {6, 6.4, 6.6, 7},      {8, 8.4, 9, 10},       {10, 10.5, 11, 12},
+      {12, 13, 13.5, 14.5},  {14, 15, 15.5, 16.5}, {16, 17, 17.5, 18.5},  {18, 19, 20, 21},      {20, 21, 22, 24},
+      {22, 23, 24, 26},      {24, 25, 26, 28},     {27, 28, 30, 32},      {30, 31, 33, 35},      {33, 34, 36, 38},
+      {36, 37, 39, 42},      {39, 40, 42, 45},     {42, 43, 45, 48},      {45, 46, 48, 52},      {48, 50, 52, 56},
+      {52, 54, 56, 62},      {56, 58, 62, 66},     {60, 62, 66, 70},      {64, 66, 70, 74},
+  };
+  for (const Row& r : kRows)
+    if (std::abs(r.d - t.nominal) < 1e-9) return fit == 0 ? r.fine : fit == 2 ? r.coarse : r.medium;
+  return t.nominal * (fit == 0 ? 1.07 : fit == 2 ? 1.2 : 1.1);
 }
 
 TopoDS_Shape HoleFeature::makeProtoHole(const Params& p, std::string* error) {
@@ -115,9 +150,20 @@ TopoDS_Shape HoleFeature::makeProtoHole(const Params& p, std::string* error) {
 }
 
 void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
+  holeThreads_.clear();
   Params p;
   p.type = enumIndex("holeType");
   p.diameter = ctx.length("diameter");
+  const int tap = enumIndex("tapType");
+  const IsoThread* iso = nullptr;
+  if (tap != SimpleTap) {
+    iso = findIsoThread(enumName("threadSize"));
+    if (!iso) {
+      ctx.setError("unknown thread size");
+      return;
+    }
+    p.diameter = tap == Tapped ? iso->tapDrill() : clearanceDiameter(*iso, enumIndex("clearanceFit"));
+  }
   p.depth = ctx.length("depth");
   p.drillPoint = enumIndex("drillPoint");
   p.drillAngle = ctx.angle("drillAngle");
@@ -147,6 +193,22 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   }
   std::vector<gp_Pnt> centres;
   for (auto& r : prop("points").refs()) {
+    if (r.kind == core::ShapeKind::Face) {
+      // click on a planar face: the hole starts at the pick point projected onto the face
+      TopoDS_Shape f = resolveRef(ctx, r);
+      if (f.IsNull()) continue;
+      auto pl = core::facePlane(f);
+      if (!pl || !r.hasPoint) {
+        ctx.setWarning("hole placement on a face needs a planar face and a pick point");
+        continue;
+      }
+      if (!normal) normal = faceNormal(f);
+      gp_Pnt pick = r.point.toPnt();
+      gp_Vec n(pl->Direction());
+      double d = gp_Vec(pl->Location(), pick).Dot(n);
+      centres.push_back(pick.Translated(-n * d));
+      continue;
+    }
     if (!normal && r.kind == core::ShapeKind::SketchPoint) {
       if (const core::IProfileSource* ps = ctx.profileSource(r)) normal = ps->sketchPlane().Direction();
     }
@@ -191,7 +253,51 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     for (const auto& f : facesOf(h)) names[std::format("{}/H{}/F{}", base, k, ++fi)] = f;
   }
   TopoDS_Shape tool = holes.size() == 1 ? holes.front() : compoundOf(holes);
-  applyTool(ctx, tool, Operation::Cut, prop("targets").refs(), names, out);
+  if (!applyTool(ctx, tool, Operation::Cut, prop("targets").refs(), names, out)) return;
+  if (tap == Tapped) applyThreads(ctx, *iso, centres, axisDir, p.diameter / 2, out);
+}
+
+void HoleFeature::applyThreads(core::RecomputeContext& ctx, const IsoThread& iso, const std::vector<gp_Pnt>& centres,
+                               const gp_Dir& axisDir, double radius, Outcome& out) {
+  const bool modeled = flag("threadModeled"), full = flag("threadFullDepth");
+  const double depth = ctx.length("threadDepth");
+  for (auto& change : out.bodies) {
+    if (change.shape.IsNull()) continue;
+    std::vector<TopoDS_Shape> cutters;
+    for (const gp_Pnt& c : centres) {
+      // the hole wall: a full cylindrical face of the tap-drill radius on this hole's axis
+      for (const auto& f : facesOf(change.shape)) {
+        auto cyl = analyseThreadCylinder(change.shape, f);
+        if (!cyl || !cyl->internal || std::abs(cyl->radius - radius) > 1e-4) continue;
+        if (cyl->axis.Direction().IsParallel(axisDir, 1e-6) == Standard_False) continue;
+        if (gp_Lin(cyl->axis).Distance(c) > 1e-4) continue;
+        // start at the end nearest the hole's start point
+        gp_Vec oc(cyl->axis.Location(), c);
+        double vc = oc.Dot(gp_Vec(cyl->axis.Direction()));
+        bool flip = std::abs(vc - cyl->v1) < std::abs(vc - cyl->v0);
+        ThreadInfo info;
+        TopoDS_Shape cutter;
+        std::string err;
+        if (!placeThread(*cyl, iso, full, 0.0, depth, flip, false, modeled, info, modeled ? &cutter : nullptr, &err)) {
+          ctx.setWarning("thread: " + err);
+          continue;
+        }
+        holeThreads_.push_back(info);
+        if (!cutter.IsNull()) cutters.push_back(cutter);
+      }
+    }
+    if (cutters.empty()) continue;
+    BoolResult r = booleanOp(Operation::Cut, change.shape, cutters);
+    if (!r) {
+      ctx.setError("modelled thread failed: " + (r.error.empty() ? std::string("empty result") : r.error));
+      return;
+    }
+    NameMap mapped = mapNames(out.names, History::of(r.history), r.shape);
+    addEdgeNames(mapped, r.shape);
+    out.names = mapped;
+    change.shape = r.shape;
+  }
+  if (holeThreads_.empty()) ctx.setWarning("no hole wall found for the thread");
 }
 
 }  // namespace fabricad::part

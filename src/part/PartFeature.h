@@ -12,10 +12,16 @@
 #include "core/Types.h"
 
 #include <TopoDS_Shape.hxx>
+#include <gp_Trsf.hxx>
 
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
+
+namespace fabricad::core {
+class UndoStack;
+}
 
 namespace fabricad::part {
 
@@ -47,6 +53,8 @@ struct Outcome {
   NameMap names;            ///< named sub-shapes of the result (cumulative per body)
   std::vector<PreviewShape> previews;
   Operation operation = Operation::NewBody;
+  /// Local placements commit() writes into components (component patterns).
+  std::vector<std::pair<core::ObjectId, gp_Trsf>> placements;
 
   void addNew(const TopoDS_Shape& shape, const std::string& name = {}, core::ObjectId component = core::kInvalidId) {
     bodies.push_back({core::kInvalidId, shape, name, component});
@@ -84,8 +92,25 @@ class PartFeature : public core::Feature {
   /// The feature's boolean operation (from an "operation" enum if it has one).
   virtual Operation operation() const;
 
+  /// True when picks on the same B-rep entity at different points are different inputs of
+  /// `propName` (Hole on a face: every click is a hole). The pick point is stored in the
+  /// body's local coordinates.
+  virtual bool refsDistinguishedByPoint(const std::string& propName) const {
+    (void)propName;
+    return false;
+  }
+
   /// Solid used by Pattern/Mirror when patterning this feature (default: outputShape()).
   virtual TopoDS_Shape toolShape() const { return outputShape(); }
+
+  /// Features that own document objects besides bodies (component pattern occurrences) create
+  /// or remove them here, right before the tool pushes the Add/Modify feature command (both
+  /// inside one undo macro). `undo` may be null (direct edit).
+  virtual bool wantsCommitPreparation() const { return false; }
+  virtual void prepareCommit(core::Document& doc, core::UndoStack* undo) {
+    (void)doc;
+    (void)undo;
+  }
 
   /// Default: the "operation" enum, if present, is set to New Body when the document has
   /// no live body yet and to Join otherwise (Fusion behaviour on dialog open).

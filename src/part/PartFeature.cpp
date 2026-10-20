@@ -46,6 +46,12 @@ void PartFeature::commit(core::RecomputeContext& ctx, const Outcome& out) {
       ctx.setBodyShape(change.body, change.shape);
     }
   }
+  for (const auto& [comp, placement] : out.placements) {
+    core::Component* c = ctx.document().component(comp);
+    if (!c) continue;
+    c->placement = placement;
+    ctx.document().notifyComponentChanged(comp);
+  }
   setOutputShape(!out.tool.IsNull() ? out.tool : out.display);
   namedShapes() = out.names;
 }
