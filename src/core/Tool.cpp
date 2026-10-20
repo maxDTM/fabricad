@@ -222,8 +222,10 @@ bool ToolManager::run(const std::string& id, std::vector<std::string> args) {
   }
   ToolContext ctx = makeContext();
   if (!tool->isEnabled(ctx)) return false;
-  if (active_ && tool->isInstant() && tool->info().keepsActiveTool) {
-    // Non-interrupting command (view/display): run beside the active tool with its own context.
+  if (tool->isInstant() && tool->info().keepsActiveTool) {
+    // Non-interrupting command (view/display, shell verbs such as SELECT / INFO / CHECK): runs
+    // beside the active tool with its own context and never becomes the active tool itself, so
+    // it neither cancels a command nor disturbs the selection, prompt or filter of the idle state.
     ctx.args = std::move(args);
     if (ctx.selection) ctx.preselection = ctx.selection->items();
     if (host_) host_->echoCommand(id);
@@ -262,12 +264,42 @@ bool ToolManager::runCommandLine(const std::string& line) {
       while (in >> a) args.push_back(a);
       return run(shell->info().id, std::move(args));
     }
-    if (active_->commandLineInput(context_, line)) return true;
+    // A command name (FINISH, EXTRUDE 10, C) starts that command and ends the active one, as in
+    // Fusion; everything else (values, coordinates, name=value, keywords) is typed input for the
+    // active command. A document parameter that happens to share a name with an alias stays input.
+    const bool isParameter = document_ && document_->parameter(first) != nullptr;
+    if (ITool* other = registry_.byAlias(first); !other || isParameter) {
+      if (active_->commandLineInput(context_, line)) return true;
+    }
   }
   ITool* tool = registry_.byAlias(first);
   if (!tool) {
     if (host_) host_->showMessage("Unknown command: " + first, MessageLevel::Warning);
     return false;
+  }
+  // An alias shared by several tools (FILLET: sketch fillet / solid fillet, MIRROR, POINT...)
+  // means the one that is enabled in the current context.
+  const ToolContext probe = makeContext();
+  if (!tool->isEnabled(probe)) {
+    std::string lowered = first;
+    for (char& ch : lowered) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    for (ITool* t : registry_.tools()) {
+      if (t == tool || !t->isEnabled(probe)) continue;
+      bool match = false;
+      for (const std::string& al : t->info().aliases) {
+        std::string l = al;
+        for (char& ch : l) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        match = match || l == lowered;
+      }
+      if (match) {
+        tool = t;
+        break;
+      }
+    }
+    if (!tool->isEnabled(probe)) {
+      if (host_) host_->showMessage(tool->info().name + " is not available now", MessageLevel::Warning);
+      return false;
+    }
   }
   std::vector<std::string> args;
   std::string a;

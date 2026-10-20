@@ -874,13 +874,17 @@ void MainWindow::layoutOverlays() {
 }
 
 void MainWindow::onToolFinished(const std::string& id, bool accepted) {
-  (void)id;
-  (void)accepted;
   ++activation_;  // invalidate a pending dialog build
   dialog_->dismiss();
   layoutOverlays();
   acceptEnabled_ = true;
   scheduleStateRefresh();
+  // Fusion: "New Drawing" from a design opens the drawing document (its tab here)
+  if (accepted && id == "drawing.create" && active_ && active_->isDesign()) {
+    QTimer::singleShot(0, this, [this] {
+      if (active_ && active_->isDesign()) openDrawingTab(*active_);
+    });
+  }
 }
 
 void MainWindow::refreshToolDialog() {
@@ -1154,7 +1158,8 @@ bool MainWindow::openFile(const QString& path, QString* error) {
       activateTab(t.get());
       return true;
     }
-  if (!active_ || !active_->isPristine()) addDesignTab();
+  DocumentTab* created = nullptr;
+  if (!active_ || !active_->isPristine()) created = addDesignTab();
   if (manager_->isActive()) manager_->cancel();
   clearRecoveryFile();
   std::string err;
@@ -1162,7 +1167,9 @@ bool MainWindow::openFile(const QString& path, QString* error) {
   if (!document_->load(QFileInfo(path).absoluteFilePath().toStdString(), &err)) {
     if (error) *error = core::qs(err);
     document_->clear();
+    document_->setModified(false);
     afterDocumentReplaced();
+    if (created && tabCount() > 1) closeTab(created);  // do not leave an empty tab behind
     return false;
   }
   if (document_->name().empty() || document_->name() == "Untitled") document_->setName(QFileInfo(path).completeBaseName().toStdString());

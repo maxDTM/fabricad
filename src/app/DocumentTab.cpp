@@ -9,6 +9,7 @@
 #include "app/TimelineWidget.h"
 #include "core/Json.h"
 #include "core/UndoStack.h"
+#include "sketch/SketchSession.h"
 #include "viewer/ViewerWidget.h"
 
 #include <QLabel>
@@ -48,6 +49,9 @@ DocumentTab::DocumentTab(Kind kind, std::shared_ptr<core::Document> doc, core::T
 }
 
 DocumentTab::~DocumentTab() {
+  // an open sketch of this tab (process-wide session) must not outlive its document
+  if (sketch::SketchSession* s = sketch::SketchSession::current(); s && manager_ && s->manager() == manager_.get())
+    sketch::SketchSession::end();
   if (manager_ && manager_->isActive()) manager_->cancel();
   // the viewer is a child widget: detach it from the manager before widgets go away
   if (manager_) manager_->setViewer(nullptr);

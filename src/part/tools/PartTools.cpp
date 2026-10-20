@@ -22,7 +22,11 @@
 
 #include <QFileDialog>
 #include <QString>
+#include <TopLoc_Location.hxx>
 
+#include <cmath>
+#include <cstdlib>
+#include <format>
 #include <memory>
 
 namespace fabricad::part {
@@ -81,15 +85,37 @@ bool exportBodies(core::ToolContext& ctx, const std::string& format) {
   for (core::ObjectId id : bodies) {
     const TopoDS_Shape& s = doc.bodyShape(id);
     if (s.IsNull()) continue;
-    shapes.push_back(s);
     const core::Body* b = doc.body(id);
+    // bodies are written where the user sees them: in their component's world placement
+    const gp_Trsf world = b ? doc.worldPlacement(b->component) : gp_Trsf();
+    shapes.push_back(world.Form() == gp_Identity ? s : s.Moved(TopLoc_Location(world)));
     names.push_back(b ? b->name : "Body");
   }
   bool stl = format == "stl";
+  // command line: EXPORTSTL out.stl [deflection=0.05] [angle=20|0.2rad] [ascii]
+  double linear = 0.05, angularDeg = 20.0;
+  bool binary = true;
+  for (size_t i = 1; i < ctx.args.size(); ++i) {
+    const std::string& a = ctx.args[i];
+    if (a.rfind("deflection=", 0) == 0 || a.rfind("linear=", 0) == 0) {
+      linear = std::atof(a.substr(a.find('=') + 1).c_str());
+    } else if (a.rfind("angle=", 0) == 0 || a.rfind("angular=", 0) == 0) {
+      std::string v = a.substr(a.find('=') + 1);
+      const bool rad = v.size() > 3 && v.compare(v.size() - 3, 3, "rad") == 0;
+      if (rad) v.resize(v.size() - 3);
+      else if (v.size() > 3 && v.compare(v.size() - 3, 3, "deg") == 0) v.resize(v.size() - 3);
+      angularDeg = std::atof(v.c_str()) * (rad ? 180.0 / M_PI : 1.0);
+    } else if (a == "ascii") {
+      binary = false;
+    }
+  }
   std::string path = chooseFile(ctx, true, stl ? "STL files (*.stl)" : "STEP files (*.step *.stp)", stl ? ".stl" : ".step");
   if (path.empty()) return false;
   std::string err;
-  bool ok = stl ? exportStl(shapes, path, true, 0.05, 20.0, &err) : exportStep(shapes, names, path, &err);
+  bool ok = stl ? exportStl(shapes, path, binary, linear, angularDeg, &err) : exportStep(shapes, names, path, &err);
+  if (ok && stl)
+    ctx.showMessage(std::format("STL mesh: linear deflection {} mm, angular deflection {} deg ({} rad), {}", linear, angularDeg,
+                                angularDeg * M_PI / 180.0, binary ? "binary" : "ascii"));
   if (!ok) {
     ctx.showMessage("export failed: " + err, true);
     return false;

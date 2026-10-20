@@ -1,0 +1,247 @@
+# FabriCAD command script: the chair benchmark of docs/comparison/CHAIR_SPEC.md, built exactly
+# as a user would type it in the command line (see docs/SCRIPTING.md). Run with
+#   fabricad --script tests/scripts/chair.fcs --offscreen --log chair.log
+# from an empty output directory; it writes chair.step, chair.stl, seat.stl, leg_left.stl,
+# leg_right.stl, chair_default.stl and chair.fcad there and exits non-zero if any CHECK fails.
+#
+# Stage A: Seat and LegFrame components, B: split into LegLeft / LegRight, C: dress-up,
+# D: transforms, then exports. All numbers are the spec's; the CHECK lines are its reference
+# volumes (0.05 %) and bounding boxes (0.01 mm).
+# ---------------------------------------------------------------- Seat component
+NEWCOMPONENT Seat
+OK
+# S1: slab on z = 430, 420 x 400 with R20 sketch fillets at the two front corners
+SELECT plane:XY
+OFFSETPLANE 430
+OK
+SELECT plane:OffsetPlane1
+SKETCH
+RECT
+-210,-200
+420,400
+SFILLET 20
+PICK 0,-200 nosnap
+PICK -210,0 nosnap
+PICK 0,-200 nosnap
+PICK 210,0 nosnap
+FINISH
+SELECT profile:@0,0,430
+EXTRUDE 30
+OK
+RENAME component:Seat/bodies Seat
+# S2: R6 on the top front edge, tangent chain
+SELECT body:Seat/edge:@0,-200,460
+FILLET 6
+OK
+INFO body:Seat
+# S3: backrest on y = 175, X[-210,210] x Z[430,840], 25 towards +Y, join
+SELECT plane:XZ
+OFFSETPLANE 175
+flip=true
+OK
+SELECT plane:OffsetPlane2
+SKETCH
+INFO sketch:Sketch2
+RECT
+PICK -210,175,430 nosnap
+PICK 210,175,840 nosnap
+FINISH
+SELECT profile:@0,175,600
+EXTRUDE 25
+operation=Join
+flip=true
+OK
+INFO body:Seat
+# S4: lumbar slot through the backrest
+SELECT body:Seat/face:front@0,175,700
+SKETCH
+RECT
+PICK -150,175,680 nosnap
+PICK 150,175,740 nosnap
+FINISH
+SELECT profile:@0,175,710
+EXTRUDE
+operation=Cut
+extentType=All
+flip=true
+OK
+CHECK status ok
+INFO body:Seat
+CHECK body:Seat volume ~ 8565976 0.05%
+
+# ---------------------------------------------------------------- LegFrame component
+SELECT none
+ACTIVATE
+NEWCOMPONENT LegFrame
+OK
+# L1: four 40 x 40 legs, 430 tall
+SELECT plane:XY
+SKETCH
+RECT
+-190,-180
+40,40
+150,-180
+40,40
+-190,140
+40,40
+150,140
+40,40
+FINISH
+SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0
+EXTRUDE 430
+operation=New Body
+OK
+RENAME component:LegFrame/bodies LegFrame
+# L2: side rails, 20 x 280 x 40 centred on x = +-170, z = 150
+SELECT plane:YZ
+OFFSETPLANE 170
+OK
+SELECT plane:OffsetPlane3
+SKETCH
+RECT
+PICK 170,-140,130 nosnap
+PICK 170,140,170 nosnap
+FINISH
+SELECT profile:@170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+operation=Join
+OK
+SELECT plane:YZ
+OFFSETPLANE 170
+flip=true
+OK
+SELECT plane:OffsetPlane4
+SKETCH
+RECT
+PICK -170,-140,130 nosnap
+PICK -170,140,170 nosnap
+FINISH
+SELECT profile:@-170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+operation=Join
+OK
+# L3: front cross rail X[-150,150] x Y[-170,-150] x Z[130,170]
+SELECT plane:XY
+OFFSETPLANE 130
+OK
+SELECT plane:OffsetPlane5
+SKETCH
+RECT
+PICK -150,-170,130 nosnap
+PICK 150,-150,130 nosnap
+FINISH
+SELECT profile:@0,-160,130
+EXTRUDE 40
+operation=Join
+OK
+CHECK body:LegFrame volume == 3440000
+CHECK bodies == 2
+# assembly: ground the seat, rigid as-built joint
+SELECT component:Seat
+GROUND
+SELECT component:LegFrame component:Seat
+ASBUILTJOINT
+OK
+CHECK joints == 1
+
+# ---------------------------------------------------------------- Stage B: split into LegLeft / LegRight
+SELECT body:LegFrame
+SPLIT
+INPUT splitTool plane:YZ
+OK
+LIST bodies
+RENAME body:@-170,0,150 LegLeft
+RENAME body:@170,0,150 LegRight
+CHECK body:LegLeft volume == 1720000
+CHECK body:LegRight volume == 1720000
+SELECT body:LegLeft body:LegRight
+CFB
+LIST components
+CHECK component:LegLeft volume == 1720000
+
+# ---------------------------------------------------------------- Stage C: dress-up
+SELECT body:LegLeft/edges:z=0
+CHAMFER 3
+OK
+CHECK body:LegLeft volume ~ 1718632 0.05%
+SELECT body:LegRight/edges:z=0
+FILLET 5
+OK
+# hole D10 through the right side rail along X at (170, 0, 150)
+SELECT body:LegRight/face:right@180,0,150
+SKETCH
+POINT
+PICK 180,0,150 nosnap
+FINISH
+SELECT point:@180,0,150
+HOLE
+diameter=10
+extentType=All
+INPUT targets body:LegRight
+OPTIONS
+OK
+INFO body:LegRight
+CHECK body:LegRight volume ~ 1716808 0.05%
+
+# ---------------------------------------------------------------- Stage D: transforms
+SELECT feature:Joint1
+DELETE
+CHECK joints == 0
+SELECT component:LegLeft
+MOVECOMPONENT
+-15,0,0
+OK
+SELECT component:LegRight
+MOVECOMPONENT
+15,0,0
+OK
+SELECT body:Seat
+MOVE
+moveType=Rotate
+INPUT axis body:Seat/edge:@0,200,430
+angle=5
+OK
+INFO body:Seat
+SELECT component:LegLeft component:LegRight
+GROUND
+INFO component:LegLeft
+INFO component:LegRight
+CHECK component:LegLeft xmin ~ -205 0.01
+CHECK component:LegLeft xmax ~ -15 0.01
+CHECK component:LegRight xmin ~ 15 0.01
+CHECK component:LegRight xmax ~ 205 0.01
+CHECK body:Seat ymin ~ -198.478 0.01
+CHECK body:Seat ymax ~ 235.734 0.01
+CHECK body:Seat zmax ~ 840.619 0.01
+CHECK body:Seat zmin ~ 430 0.01
+
+# ---------------------------------------------------------------- exports
+SELECT none
+assembly.export-step chair.step
+EXPORTSTL chair.stl deflection=0.05 angle=0.2rad
+SELECT body:Seat
+EXPORTSTL seat.stl deflection=0.05 angle=0.2rad
+SELECT body:LegLeft
+EXPORTSTL leg_left.stl deflection=0.05 angle=0.2rad
+SELECT body:LegRight
+EXPORTSTL leg_right.stl deflection=0.05 angle=0.2rad
+SELECT none
+EXPORTSTL chair_default.stl
+CHECK file chair.step exists
+CHECK file chair.stl exists
+CHECK file seat.stl exists
+CHECK file leg_left.stl exists
+CHECK file leg_right.stl exists
+CHECK file chair_default.stl exists
+SAVE chair.fcad
+CHECK file chair.fcad exists
+# a drawing of the chair opens in its own tab
+DRAWING
+OK
+CHECK tabs == 2
+TAB 1
+LIST tabs

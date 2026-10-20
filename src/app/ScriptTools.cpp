@@ -400,7 +400,7 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
           const std::string& a = c.args[i];
           const std::string l = lower(a);
           if (l == "+" || l == "add" || l == "shift") modifiers |= core::ModShift;
-          else if (l == "ctrl" || l == "toggle") modifiers |= core::ModCtrl;
+          else if (l == "ctrl" || l == "toggle" || l == "nosnap" || l == "exact") modifiers |= core::ModCtrl;  // Ctrl: no inference snapping
           else if (l == "double" || l == "dblclick") dbl = true;
           else if (l.starts_with("tol=")) parseNumber(a.substr(4), tol);
           else if (l == "dir" && i + 1 < c.args.size()) {
@@ -654,6 +654,80 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
       if (win->indexOfTab(tab) >= 0) win->activateTab(tab);
     }, Qt::QueuedConnection);
   });
+
+  // --- RENAME -----------------------------------------------------------------------------------
+  add(verb("app.rename", "Rename", "Rename a body, component or feature: RENAME body:Body1 Seat", {"RENAME", "REN"}),
+      [](ToolContext& c) {
+        if (!c.document) return;
+        if (c.args.size() < 2) {
+          c.showMessage("RENAME: usage RENAME <body:|component:|feature:selector> <new name>", true);
+          return;
+        }
+        SelectorResult r = resolveSelector(*c.document, c.args[0]);
+        if (!r.ok() || r.refs.size() != 1) {
+          c.showMessage("RENAME: " + (r.ok() ? std::string("selector must name exactly one object") : r.error), true);
+          return;
+        }
+        const std::string name = join(c.args, 1);
+        const ShapeRef& ref = r.refs.front();
+        const std::string before = refLabel(*c.document, ref);
+        std::unique_ptr<core::UndoCommand> cmd;
+        if (ref.kind == ShapeKind::Body) cmd = makeRenameBody(*c.document, ref.owner, name);
+        else if (ref.kind == ShapeKind::Component) cmd = makeRenameComponent(*c.document, ref.owner, name);
+        else if (c.document->feature(ref.owner)) cmd = makeRenameFeature(*c.document, ref.owner, name);
+        if (!cmd) {
+          c.showMessage("RENAME: cannot rename " + before, true);
+          return;
+        }
+        if (c.undo) c.undo->push(std::move(cmd));
+        else cmd->redo();
+        c.showMessage(std::format("Renamed {} to '{}'", before, name));
+      });
+
+  // --- INPUT: choose the selection input of a feature command ---------------------------------------
+  add(verb("app.input", "Input", "Make a property of the active feature command the selection target: INPUT splitTool [selectors]",
+           {"INPUT", "INTO"}),
+      [win](ToolContext& c) {
+        core::ToolManager& m = win->toolManager();
+        auto* ft = dynamic_cast<part::FeatureTool*>(m.activeTool());
+        part::PartFeature* f = ft ? ft->feature() : nullptr;
+        if (!f) {
+          c.showMessage("INPUT: no feature command with a property list is active (see OPTIONS)", true);
+          return;
+        }
+        if (c.args.empty()) {
+          c.showMessage(std::format("Active input: {}", ft->activeInput()));
+          return;
+        }
+        const core::Property* p = f->property(c.args[0]);
+        if (!p || (p->type() != core::PropertyType::Ref && p->type() != core::PropertyType::RefList)) {
+          std::string names;
+          for (const core::Property& q : f->properties())
+            if (!q.flags().hidden && (q.type() == core::PropertyType::Ref || q.type() == core::PropertyType::RefList))
+              names += (names.empty() ? "" : ", ") + q.name();
+          c.showMessage(std::format("INPUT: '{}' is not a selection input of {} (inputs: {})", c.args[0], f->name(), names), true);
+          return;
+        }
+        core::ToolContext* tctx = m.activeContext();
+        ft->setActiveInput(tctx ? *tctx : c, p->name());
+        if (c.args.size() > 1 && c.document && c.selection) {
+          std::vector<std::string> texts(c.args.begin() + 1, c.args.end());
+          SelectorResult r = resolveSelectors(*c.document, texts);
+          if (!r.ok()) {
+            c.showMessage("INPUT: " + r.error, true);
+            return;
+          }
+          for (const ShapeRef& ref : r.refs)
+            if (!c.selection->isAllowed(ref)) {
+              c.showMessage(std::format("INPUT: {} does not accept {}", p->label(), refLabel(*c.document, ref)), true);
+              return;
+            }
+          c.selection->set(r.refs);
+          c.showMessage(std::format("{} = {}", p->name(), propertyText(*c.document, *f->property(p->name()))));
+        } else {
+          c.showMessage(std::format("Active input: {} ({})", p->name(), p->label()));
+        }
+      });
 }
 
 }  // namespace fabricad::app

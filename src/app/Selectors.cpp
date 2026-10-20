@@ -11,6 +11,8 @@
 #include "sketch/SketchFeature.h"
 
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
@@ -598,16 +600,16 @@ struct Segment {
 bool splitSegments(const std::string& text, std::vector<Segment>& out, std::string* err) {
   // split on '/' except inside a history name after "edge:"/"face:" (names contain '/'): a
   // segment boundary is a '/' followed by a known kind word and ':'.
-  static const char* kinds[] = {"body", "face", "faces", "edge", "edges", "vertex", "vertices", "sketch", "profile",
-                                "profiles", "curve", "curves", "point", "points", "feature", "component", "comp",
-                                "plane", "axis", "origin", "joint", "edge", "all"};
+  static const char* kinds[] = {"bodies", "body", "faces", "face", "edges", "edge", "vertices", "vertex", "sketch",
+                                "profiles", "profile", "curves", "curve", "points", "point", "feature", "component",
+                                "comp", "plane", "axis", "origin", "joint", "all"};
   size_t pos = 0;
   while (pos <= text.size()) {
     size_t colon = text.find(':', pos);
     if (colon == std::string::npos) {
       std::string rest = trim(text.substr(pos));
       if (!rest.empty()) {
-        if (rest == "all" || rest == "edges" || rest == "faces" || rest == "vertices" || rest == "profiles") {
+        if (rest == "all" || rest == "edges" || rest == "faces" || rest == "vertices" || rest == "profiles" || rest == "bodies") {
           out.push_back({lower(rest), "all"});
           return true;
         }
@@ -761,6 +763,22 @@ SelectorResult resolveSelector(const core::Document& doc, const std::string& tex
     }
     if (k == "body") {
       const core::Body* b = findBody(doc, s.spec);
+      if (!b && !s.spec.empty() && s.spec[0] == '@') {
+        // body:@x,y,z = the visible body nearest that world point (0 when the point is on it)
+        Vec3 p;
+        if (parsePoint(s.spec.substr(1), p) != 3) {
+          res.error = "bad point in '" + s.spec + "'";
+          return res;
+        }
+        double best = std::numeric_limits<double>::infinity();
+        for (ObjectId id : doc.liveBodies(true)) {
+          const double d = pointDistance(worldBodyShape(doc, id), p);
+          if (d < best) {
+            best = d;
+            b = doc.body(id);
+          }
+        }
+      }
       if (!b) {
         res.error = std::format("no body '{}'", s.spec);
         return res;
@@ -841,7 +859,7 @@ SelectorResult resolveSelector(const core::Document& doc, const std::string& tex
       res.refs = {ShapeRef::originPoint()};
       return res;
     }
-    if (k == "point" && !sk) {
+    if (k == "point" && !sk && s.spec.find('@') == std::string::npos) {
       const core::Feature* f = findFeature(doc, s.spec);
       if (f && f->asPoint()) {
         res.refs = {refForFeature(*f)};
@@ -856,25 +874,71 @@ SelectorResult resolveSelector(const core::Document& doc, const std::string& tex
         // search all sketches: the one that has a region at the point (or the only sketch)
         SelectorResult found;
         int hits = 0;
+        double foundArea = 0;
+        // a world point (@x,y,z) only matches sketches whose plane contains it
+        std::optional<Vec3> worldPt;
+        if (auto a = s.spec.find('@'); a != std::string::npos) {
+          Vec3 p;
+          if (parsePoint(s.spec.substr(a + 1), p) == 3) worldPt = p;
+        }
         for (const auto& f : doc.features()) {
           const auto* cand = dynamic_cast<const sketch::SketchFeature*>(f.get());
           if (!cand || cand->status() != core::FeatureStatus::Ok) continue;
+          if (worldPt) {
+            const gp_Ax3& pl = cand->plane();
+            const double off = std::abs(Vec3::from(pl.Direction()).dot(*worldPt - Vec3::from(pl.Location())));
+            if (off > 1e-3) continue;
+          }
           SelectorResult r = profilesOf(doc, *cand, s.spec, k == "profiles");
+          if (r.ok() && !r.refs.empty()) {
+            // several sketches on one plane: the innermost region (smallest area) is what a click
+            // at that point would pick; equal areas stay ambiguous
+            double area = 0;
+            for (const ShapeRef& ref : r.refs) {
+              TopoDS_Shape face = core::resolveProfileFace(doc, ref);
+              area += face.IsNull() ? 0.0 : core::area(face);
+            }
+            if (hits == 0 || area < foundArea - 1e-6) {
+              found = r;
+              foundArea = area;
+              hits = 1;
+            } else if (std::abs(area - foundArea) <= 1e-6) {
+              ++hits;
+            }
+          }
+        }
+        if (hits == 1) return found;
+        res.error = hits == 0 ? std::format("no sketch has a profile matching '{}'", s.spec)
+                              : std::format("'{}' matches equal profiles in {} sketches; prefix with sketch:<name>/", s.spec, hits);
+        return res;
+      }
+      return profilesOf(doc, *sk, s.spec, k == "profiles");
+    }
+    if (k == "curve" || k == "curves" || k == "point" || k == "points") {
+      if (!sk) {
+        // a world point (@x,y,z) finds the sketch whose plane contains it and that has a hit there
+        Vec3 p;
+        auto a = s.spec.find('@');
+        if (a == std::string::npos || parsePoint(s.spec.substr(a + 1), p) != 3) {
+          res.error = "sketch curves need a sketch: sketch:<name>/" + k + ":" + s.spec + " (or a world point @x,y,z)";
+          return res;
+        }
+        SelectorResult found;
+        int hits = 0;
+        for (const auto& f : doc.features()) {
+          const auto* cand = dynamic_cast<const sketch::SketchFeature*>(f.get());
+          if (!cand || cand->status() != core::FeatureStatus::Ok) continue;
+          const gp_Ax3& pl = cand->plane();
+          if (std::abs(Vec3::from(pl.Direction()).dot(p - Vec3::from(pl.Location()))) > 1e-3) continue;
+          SelectorResult r = curvesOf(doc, *cand, s.spec, k.back() == 's', k == "point" || k == "points");
           if (r.ok() && !r.refs.empty()) {
             found = r;
             ++hits;
           }
         }
         if (hits == 1) return found;
-        res.error = hits == 0 ? std::format("no sketch has a profile matching '{}'", s.spec)
-                              : std::format("'{}' matches profiles in {} sketches; prefix with sketch:<name>/", s.spec, hits);
-        return res;
-      }
-      return profilesOf(doc, *sk, s.spec, k == "profiles");
-    }
-    if (k == "curve" || k == "curves" || (sk && (k == "point" || k == "points"))) {
-      if (!sk) {
-        res.error = "sketch curves need a sketch: sketch:<name>/" + k + ":" + s.spec;
+        res.error = hits == 0 ? std::format("no sketch has a {} at '{}'", k, s.spec)
+                              : std::format("'{}' matches in {} sketches; prefix with sketch:<name>/", s.spec, hits);
         return res;
       }
       return curvesOf(doc, *sk, s.spec, k.back() == 's', k == "point" || k == "points");
@@ -1170,9 +1234,27 @@ const char* curveName(int t) {
   }
 }
 
+/// Tight bounding box (BRepBndLib::AddOptimal; the default Add() pads curved faces by their
+/// tolerance gap, which is useless for a CHECK to 0.01 mm).
+bool tightBbox(const TopoDS_Shape& s, Vec3& mn, Vec3& mx) {
+  if (s.IsNull()) return false;
+  Bnd_Box box;
+  try {
+    BRepBndLib::AddOptimal(s, box, false, false);
+  } catch (...) {
+    return core::bbox(s, mn, mx);
+  }
+  if (box.IsVoid()) return core::bbox(s, mn, mx);
+  double x0, y0, z0, x1, y1, z1;
+  box.Get(x0, y0, z0, x1, y1, z1);
+  mn = {x0, y0, z0};
+  mx = {x1, y1, z1};
+  return true;
+}
+
 std::string bboxText(const TopoDS_Shape& s) {
   Vec3 mn, mx;
-  if (!core::bbox(s, mn, mx)) return "bbox n/a";
+  if (!tightBbox(s, mn, mx)) return "bbox n/a";
   return std::format("bbox X[{}, {}] Y[{}, {}] Z[{}, {}]", fmt(mn.x), fmt(mx.x), fmt(mn.y), fmt(mx.y), fmt(mn.z), fmt(mx.z));
 }
 
@@ -1309,7 +1391,9 @@ std::string describeRef(const core::Document& doc, const ShapeRef& ref) {
                          sk->statusText(), sk->sketch().geometryCount(), sk->sketch().constraints().size(),
                          sk->isVisible() ? "visible" : "hidden");
       gp_Pnt o = sk->plane().Location();
-      out += std::format("\n  plane origin ({}, {}, {}) normal {}", fmt(o.X()), fmt(o.Y()), fmt(o.Z()), fmtPnt(Vec3::from(sk->plane().Direction())));
+      out += std::format("\n  plane origin ({}, {}, {}) normal {}, sketch x {} y {} (typed x,y are sketch coordinates)", fmt(o.X()),
+                         fmt(o.Y()), fmt(o.Z()), fmtPnt(Vec3::from(sk->plane().Direction())), fmtPnt(Vec3::from(sk->plane().XDirection())),
+                         fmtPnt(Vec3::from(sk->plane().YDirection())));
       int i = 0;
       for (const sketch::ProfileRegion& r : sk->regions())
         out += std::format("\n  profile #{}: area {} mm2, seed ({}, {}) sketch / {} world, curves {}", ++i, fmt(r.area), fmt(r.seed.x),
@@ -1389,14 +1473,14 @@ std::optional<double> refMetric(const core::Document& doc, const ShapeRef& ref, 
   if (m == "solids") return static_cast<double>(core::subShapeCount(s, TopAbs_SOLID));
   Vec3 mn, mx;
   if (m.size() == 4 && (m.ends_with("min") || m.ends_with("max"))) {
-    if (!core::bbox(s, mn, mx)) return std::nullopt;
+    if (!tightBbox(s, mn, mx)) return std::nullopt;
     const Vec3& v = m.ends_with("min") ? mn : mx;
     if (m[0] == 'x') return v.x;
     if (m[0] == 'y') return v.y;
     if (m[0] == 'z') return v.z;
   }
   if (m == "dx" || m == "dy" || m == "dz") {
-    if (!core::bbox(s, mn, mx)) return std::nullopt;
+    if (!tightBbox(s, mn, mx)) return std::nullopt;
     return m == "dx" ? mx.x - mn.x : m == "dy" ? mx.y - mn.y : mx.z - mn.z;
   }
   if (m == "cx" || m == "cy" || m == "cz") {

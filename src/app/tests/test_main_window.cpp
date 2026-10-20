@@ -333,17 +333,41 @@ class TestMainWindow : public QObject {
     QVERIFY(w_->windowTitle().startsWith("bracket"));
     QCOMPARE(w_->recentFiles().list().front(), QFileInfo(path + ".fcad").absoluteFilePath());
 
+    // Fusion: New Design opens its own tab, the saved design stays open in its tab
+    const int tabs = w_->tabCount();
+    app::DocumentTab* savedTab = w_->activeTab();
     QVERIFY(w_->newDocument());
-    QCOMPARE(doc.featureCount(), 0);
-    QVERIFY(!w_->viewer()->isFeatureHidden(f1));
-    QVERIFY2(w_->openFile(path + ".fcad", &err), qPrintable(err));
+    app::DocumentTab* emptyTab = w_->activeTab();
+    QCOMPARE(w_->tabCount(), tabs + 1);
+    QVERIFY(&w_->document() != &doc);
+    QCOMPARE(w_->document().featureCount(), 0);
     QCOMPARE(doc.featureCount(), 2);
-    QCOMPARE(doc.liveBodies().size(), size_t(2));
+    QVERIFY(!w_->viewer()->isFeatureHidden(f1));
+    QVERIFY(w_->viewer() != savedTab->viewer());
+    // opening a file that is already open activates its tab instead of loading it twice
+    QVERIFY2(w_->openFile(path + ".fcad", &err), qPrintable(err));
+    QCOMPARE(w_->activeTab(), savedTab);
+    QCOMPARE(w_->tabCount(), tabs + 1);
+    // close it (clean, no prompt) and load it from disk into the empty tab (an untouched,
+    // unnamed design that is active is reused, as Fusion reuses the start-up document)
+    QVERIFY(w_->closeTab(savedTab));
+    QCOMPARE(w_->tabCount(), tabs);
+    w_->activateTab(emptyTab);
+    QVERIFY(emptyTab->isPristine());
+    QVERIFY2(w_->openFile(path + ".fcad", &err), qPrintable(err));
+    QCOMPARE(w_->tabCount(), tabs);  // the pristine empty tab was reused
+    QCOMPARE(w_->activeTab(), emptyTab);
+    core::Document& reopened = w_->document();
+    QCOMPARE(reopened.featureCount(), 2);
+    QCOMPARE(reopened.liveBodies().size(), size_t(2));
     QVERIFY(w_->viewer()->isFeatureHidden(f1));
     QCOMPARE(w_->viewer()->displayMode(), core::DisplayMode::Wireframe);
-    QVERIFY(!doc.undoStack().canUndo());
+    QVERIFY(!reopened.undoStack().canUndo());
+    QVERIFY(w_->windowTitle().startsWith("bracket"));
+    QCOMPARE(w_->tabBar()->tabText(w_->indexOfTab(w_->activeTab())), QString("bracket"));
     w_->viewer()->setDisplayMode(core::DisplayMode::ShadedEdges);
     QVERIFY(!w_->openFile(dir.filePath("missing.fcad"), &err));
+    QCOMPARE(w_->tabCount(), tabs);  // a failed open leaves no tab behind
     // the command-line form: SAVE <path>
     QVERIFY(w_->commandLine()->submit("SAVE " + dir.filePath("copy.fcad")));
     QVERIFY(QFileInfo::exists(dir.filePath("copy.fcad")));
@@ -378,6 +402,10 @@ class TestMainWindow : public QObject {
 
   void autosaveAndRecovery() {
     QVERIFY(w_->newDocument());
+    // autosave covers every open document: close the (modified) tabs of the earlier tests
+    for (int i = w_->tabCount() - 1; i >= 0; --i)
+      if (w_->tabAt(i) != w_->activeTab()) QVERIFY(w_->closeTab(i));  // non-interactive: discards
+    QCOMPARE(w_->tabCount(), 1);
     core::Document& doc = w_->document();
     QDir(app::MainWindow::recoveryDirectory()).removeRecursively();
     QVERIFY(!w_->autosaveNow());  // nothing modified: nothing written
@@ -414,14 +442,84 @@ class TestMainWindow : public QObject {
   }
 
   void workspaceSwitch() {
+    // Design -> Drawing opens a drawing tab linked to the design's document
+    app::DocumentTab* design = w_->activeTab();
+    QVERIFY(design->isDesign());
+    core::Document* doc = &w_->document();
+    const int tabs = w_->tabCount();
     w_->setWorkspace(core::Workspace::Drawing);
     QCOMPARE(w_->workspace(), core::Workspace::Drawing);
     QCOMPARE(w_->ribbon()->workspace(), core::Workspace::Drawing);
-    QVERIFY(!w_->timeline()->isVisible());
+    QCOMPARE(w_->tabCount(), tabs + 1);
+    app::DocumentTab* drawing = w_->activeTab();
+    QVERIFY(!drawing->isDesign());
+    QCOMPARE(&w_->document(), doc);           // same document
+    QVERIFY(&w_->toolManager() != &design->manager());  // own tool manager
+    QCOMPARE(&w_->commandLine()->manager(), &w_->toolManager());
+    QCOMPARE(&w_->ribbon()->manager(), &w_->toolManager());
+    QVERIFY(w_->timeline() == nullptr);      // drawings have no timeline / 3D view
+    QVERIFY(w_->viewer() == nullptr);
+    QVERIFY(w_->tabBar()->tabText(w_->indexOfTab(drawing)).contains("Drawing"));
+    // a second request reuses the tab
     w_->setWorkspace(core::Workspace::Design);
+    QCOMPARE(w_->activeTab(), design);
     QCOMPARE(w_->ribbon()->workspace(), core::Workspace::Design);
     settle();
     QVERIFY(w_->timeline()->isVisible());
+    QCOMPARE(w_->viewer(), design->viewer());
+    w_->setWorkspace(core::Workspace::Drawing);
+    QCOMPARE(w_->activeTab(), drawing);
+    QCOMPARE(w_->tabCount(), tabs + 1);
+    // tab bar clicks switch too; closing the drawing tab keeps the document alive
+    w_->activateTab(design);
+    QCOMPARE(w_->workspace(), core::Workspace::Design);
+    QVERIFY(w_->closeTab(drawing));
+    QCOMPARE(w_->tabCount(), tabs);
+    QCOMPARE(&w_->document(), doc);
+    QCOMPARE(w_->activeTab(), design);
+  }
+
+  void tabsOwnTheirState() {
+    // every tab has its own document, undo stack, selection, tool manager and camera
+    app::DocumentTab* a = w_->activeTab();
+    core::Document& docA = w_->document();
+    addBox(docA, 10);
+    const auto bodiesA = docA.liveBodies();
+    QVERIFY(!bodiesA.empty());
+    docA.selection().set(ShapeRef::body(bodiesA.front()));
+    app::DocumentTab* b = w_->addDesignTab();
+    QVERIFY(b != a);
+    QCOMPARE(w_->activeTab(), b);
+    core::Document& docB = w_->document();
+    QVERIFY(&docB != &docA);
+    QCOMPARE(docB.featureCount(), 0);
+    QVERIFY(docB.selection().isEmpty());
+    QVERIFY(!docB.undoStack().canUndo());
+    QVERIFY(docA.undoStack().canUndo());
+    QCOMPARE(w_->browser(), b->browser());
+    QCOMPARE(w_->timeline(), b->timeline());
+    // a command typed in tab B runs in tab B's manager only
+    QVERIFY(w_->commandLine()->submit("test.dialog"));
+    QVERIFY(b->manager().isActive());
+    QVERIFY(!a->manager().isActive());
+    // switching tabs cancels the command of the tab being left (deferred, like Fusion)
+    w_->activateTab(a);
+    settle();
+    QVERIFY(!b->manager().isActive());
+    QCOMPARE(&w_->document(), &docA);
+    QCOMPARE(docA.selection().count(), size_t(1));
+    // TAB / CLOSE shell verbs
+    QVERIFY(w_->commandLine()->submit("TAB " + QString::number(w_->indexOfTab(b) + 1)));
+    settle();
+    QCOMPARE(w_->activeTab(), b);
+    QVERIFY(w_->commandLine()->submit("CLOSE"));
+    settle();
+    QVERIFY(w_->indexOfTab(b) < 0);
+    QCOMPARE(w_->activeTab(), a);
+    // closing the last tab leaves a fresh empty design
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    QCOMPARE(w_->tabCount(), 1);
+    QCOMPARE(w_->document().featureCount(), 0);
   }
 
   void searchAndMarking() {
