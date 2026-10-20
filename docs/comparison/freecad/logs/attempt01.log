@@ -1,0 +1,18 @@
+SeatSketch: Sketch with redundant constraints
+Remove the following redundant constraint:
+4
+
+
+    SeatSketch: solve=-2 FullyConstrained=False constraints=15 malformed=[] redundant=[4] conflicting=[]
+SeatSketch: Sketch with redundant constraints
+Remove the following redundant constraint:
+4
+
+
+    SeatSketch: solve=-2 FullyConstrained=False constraints=15 malformed=[] redundant=[4] conflicting=[]
+Exception while processing file: /home/user/Documents/projects/fabricad/docs/comparison/freecad/chair_freecad.py [sketch SeatSketch not fully constrained]
+FreeCAD 1.1.4, Libs: 1.1.4R20260928 (Git shallow)
+(C) 2001-2026 FreeCAD contributors
+FreeCAD is free and open-source software licensed under the terms of LGPL2+ license.
+
+Recompute......

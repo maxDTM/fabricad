@@ -1,0 +1,56 @@
+{
+  "chair_runs": [
+    {
+      "process_wall_s": 1.3020550810033455,
+      "in_script_s": 1.1529,
+      "rc": 0
+    },
+    {
+      "process_wall_s": 1.2983798619970912,
+      "in_script_s": 1.1467,
+      "rc": 0
+    },
+    {
+      "process_wall_s": 1.3310598410025705,
+      "in_script_s": 1.1872,
+      "rc": 0
+    }
+  ],
+  "chair_process_wall_median_s": 1.3020550810033455,
+  "chair_in_script_median_s": 1.1529,
+  "freecadcmd_startup_extracted_s": [
+    0.08150187399587594,
+    0.08116837199486326,
+    0.07850635999784572,
+    0.07614753000234487,
+    0.08536533200094709
+  ],
+  "freecadcmd_startup_extracted_median_s": 0.08116837199486326,
+  "freecadcmd_startup_appimage_s": [
+    0.3749889059981797,
+    0.33777295999607304,
+    0.36927407199982554
+  ],
+  "freecadcmd_startup_appimage_median_s": 0.36927407199982554,
+  "gui_startup_offscreen": [
+    {
+      "s": 2.8719967369979713,
+      "rc": 0,
+      "ready": true,
+      "marker": "GUI_READY visible=True wb=PartDesignWorkbench docks=1915"
+    },
+    {
+      "s": 2.679141852997418,
+      "rc": 0,
+      "ready": true,
+      "marker": "GUI_READY visible=True wb=PartDesignWorkbench docks=1915"
+    },
+    {
+      "s": 2.610145675993408,
+      "rc": 0,
+      "ready": true,
+      "marker": "GUI_READY visible=True wb=PartDesignWorkbench docks=1915"
+    }
+  ],
+  "gui_startup_offscreen_median_s": 2.679141852997418
+}
