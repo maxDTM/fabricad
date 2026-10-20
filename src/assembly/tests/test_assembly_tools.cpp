@@ -26,6 +26,9 @@
 #include <QWidget>
 #include <QtTest/QtTest>
 
+#include <gp_Ax1.hxx>
+
+#include <cmath>
 #include <memory>
 
 using namespace fabricad;
@@ -365,7 +368,29 @@ class AssemblyToolsTest : public QObject {
     QCOMPARE(mt->components(), std::vector<ObjectId>{b.compB});
     QVERIFY(!mt->constrainingJoint());
     QVERIFY(near(mt->triad().frame().Location(), gp_Pnt(45, 5, 5)));  // pivot = bbox centre
-    QVERIFY(!h.viewer.previews().empty());                             // triad drawn
+    // the triad is a viewer manipulator (no preview graphics): all handles, at the pivot
+    QVERIFY(h.viewer.previews().empty());
+    QVERIFY(mt->manipulatorId() != core::kInvalidManipulator);
+    const core::ManipulatorModel* tm = h.viewer.manipulators().model(mt->manipulatorId());
+    QVERIFY(tm);
+    QCOMPARE(tm->spec().kind, core::ManipulatorKind::Triad);
+    QCOMPARE(tm->spec().handles, unsigned(core::kHandleTriadAll));
+    QVERIFY(near(tm->spec().frame.Location(), gp_Pnt(45, 5, 5)));
+    QVERIFY(near(tm->spec().size, mt->triad().size()));
+    // drag the X arrow in the top view by 10 mm: pixel (x, y) -> world (0.01 x, -0.01 y)
+    h.viewer.setStandardView(core::StandardView::Top, false);
+    h.viewer.setPixelSize(0.01);
+    QVERIFY(h.viewer.manipulatorPress(4800, -500));  // on the shaft, 3 mm from the origin
+    QVERIFY(mt->isDragging());
+    QVERIFY(h.viewer.manipulatorMove(5800, -500, core::ModCtrl));
+    QVERIFY(near(worldOrigin(h.doc, b.compB), gp_Pnt(50, 0, 0)));
+    QVERIFY(near(tm->spec().frame.Location(), gp_Pnt(45, 5, 5)));  // the gizmo stays put during the drag
+    QVERIFY(h.viewer.manipulatorRelease(5800, -500, core::ModCtrl));
+    QVERIFY(!mt->isDragging());
+    QVERIFY(near(worldOrigin(h.doc, b.compB), gp_Pnt(50, 0, 0)));
+    QVERIFY(near(mt->triad().frame().Location(), gp_Pnt(55, 5, 5)));  // triad follows on release
+    QVERIFY(near(h.viewer.manipulators().model(mt->manipulatorId())->spec().frame.Location(), gp_Pnt(55, 5, 5)));
+    // the dialog / command line moves it the same way
     mt->setTransform(h.ctx(), 10, 0, 0, 0, 0, 0);
     QVERIFY(near(worldOrigin(h.doc, b.compB), gp_Pnt(50, 0, 0)));
     QVERIFY(near(mt->triad().frame().Location(), gp_Pnt(55, 5, 5)));  // triad follows
@@ -396,6 +421,27 @@ class AssemblyToolsTest : public QObject {
     QCOMPARE(mt->constrainingJoint(), j);
     QCOMPARE(mt->triad().enabledHandles(), unsigned(Triad::kRotZ));
     QVERIFY(near(mt->triad().frame().Location(), gp_Pnt(5, 5, 10)));
+    // only the Z ring is offered; dragging it a quarter turn drives the joint angle
+    const core::ManipulatorModel* jm = h.viewer.manipulators().model(mt->manipulatorId());
+    QVERIFY(jm);
+    QCOMPARE(jm->spec().handles, unsigned(core::kHandleRotZ));
+    QCOMPARE(jm->handles().size(), size_t(1));
+    {
+      const gp_Pnt o = jm->spec().frame.Location();
+      const gp_Dir axis = jm->spec().frame.Direction();
+      const gp_Pnt a = jm->handlePoint(core::ManipulatorHandle::RotZ, 0.01);  // on the ring
+      const gp_Pnt c = a.Rotated(gp_Ax1(o, axis), M_PI / 2);
+      double ax, ay, cx, cy;
+      h.viewer.worldToScreen(a, ax, ay);
+      h.viewer.worldToScreen(c, cx, cy);
+      QVERIFY(h.viewer.manipulatorPress(int(std::lround(ax)), int(std::lround(ay))));
+      QVERIFY(h.viewer.manipulatorMove(int(std::lround(cx)), int(std::lround(cy))));  // auto snap: 0.5 deg steps
+      QVERIFY(h.viewer.manipulatorRelease(int(std::lround(cx)), int(std::lround(cy))));
+    }
+    QVERIFY2(near(std::abs(j->primaryValue()), 90.0, 1e-6), qPrintable(QString::number(j->primaryValue())));
+    QVERIFY(near(gp_Pnt(5, 5, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(5, 5, 10)));  // still on the axis
+    QVERIFY(mt->commandLineInput(h.ctx(), "@0"));
+    QVERIFY(near(j->primaryValue(), 0.0));
     QVERIFY(mt->commandLineInput(h.ctx(), "@90"));
     QVERIFY(near(std::abs(j->primaryValue()), 90.0));
     QVERIFY(near(gp_Pnt(5, 5, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(5, 5, 10)));  // still on the axis
@@ -419,9 +465,43 @@ class AssemblyToolsTest : public QObject {
     QVERIFY(h.manager.run("assembly.drive-joint"));
     auto* dt = h.tool<DriveJointTool>("assembly.drive-joint");
     QCOMPARE(dt->joint(), j);
+    // the ring handle sits on the joint frame with the limits as clamps
+    QVERIFY(dt->manipulatorId() != core::kInvalidManipulator);
+    const core::ManipulatorModel* m = h.viewer.manipulators().model(dt->manipulatorId());
+    QVERIFY(m);
+    QCOMPARE(m->spec().kind, core::ManipulatorKind::Angular);
+    QVERIFY(near(m->spec().frame.Location(), gp_Pnt(5, 5, 10)));
+    QVERIFY(m->spec().minValue && near(*m->spec().minValue, -45.0));
+    QVERIFY(m->spec().maxValue && near(*m->spec().maxValue, 45.0));
     dt->setValue(h.ctx(), 30.0);
     QVERIFY(near(j->primaryValue(), 30.0));
+    QVERIFY(near(m->value(), 30.0));  // dialog -> gizmo
     QVERIFY(near(gp_Pnt(5, 5, 0).Transformed(h.doc.worldPlacement(b.compB)), gp_Pnt(5, 5, 10)));
+    // gizmo -> joint: turn the knob 10 degrees further (auto snap at this zoom: 5 deg steps), then past the limit
+    h.viewer.setStandardView(core::StandardView::Top, false);
+    h.viewer.setPixelSize(0.01);
+    {
+      const gp_Pnt o = m->spec().frame.Location();
+      const gp_Ax1 axis(o, m->spec().frame.Direction());
+      const gp_Pnt a = m->handlePoint(core::ManipulatorHandle::RotZ, 0.01);
+      const gp_Pnt b40 = a.Rotated(axis, 10.0 * M_PI / 180.0);
+      const gp_Pnt b70 = a.Rotated(axis, 40.0 * M_PI / 180.0);
+      double x, y;
+      h.viewer.worldToScreen(a, x, y);
+      QVERIFY(h.viewer.manipulatorPress(int(std::lround(x)), int(std::lround(y))));
+      QVERIFY(h.viewer.isManipulatorDragging());
+      h.viewer.worldToScreen(b40, x, y);
+      QVERIFY(h.viewer.manipulatorMove(int(std::lround(x)), int(std::lround(y))));
+      QVERIFY2(near(j->primaryValue(), 40.0, 1e-6), qPrintable(QString::number(j->primaryValue())));
+      h.viewer.worldToScreen(b70, x, y);
+      QVERIFY(h.viewer.manipulatorMove(int(std::lround(x)), int(std::lround(y))));
+      QVERIFY(near(j->primaryValue(), 45.0));  // clamped by the joint limits
+      QVERIFY(h.viewer.manipulatorRelease(int(std::lround(x)), int(std::lround(y))));
+      QVERIFY(!h.viewer.isManipulatorDragging());
+      QVERIFY(near(dt->value(), 45.0));
+      QVERIFY(near(m->value(), 45.0));
+    }
+    dt->setValue(h.ctx(), 30.0);
     dt->setValue(h.ctx(), 500.0);
     QVERIFY(near(j->primaryValue(), 45.0));  // clamped
     for (int i = 0; i < 400; ++i) {

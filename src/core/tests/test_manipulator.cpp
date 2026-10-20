@@ -491,6 +491,33 @@ class ManipulatorTest : public QObject {
     QCOMPARE(viewer.manipulators().count(), size_t(0));
   }
 
+  void escapeAbortsTheDragBeforeTheCommand() {
+    struct GizmoTool : ToolBase {
+      GizmoTool() : ToolBase(ToolInfo{.id = "test.gizmo2", .name = "Gizmo", .needsDocument = false}) {}
+      void activate(ToolContext& ctx) override { ctx.viewer->showManipulator(linearSpec(0.0), nullptr); }
+    };
+    ToolRegistry registry;
+    registry.registerTool(std::make_unique<GizmoTool>());
+    NullViewerContext viewer;
+    viewer.setPixelSize(0.1);
+    ToolManager manager(registry);
+    manager.setViewer(&viewer);
+    QVERIFY(manager.run("test.gizmo2"));
+    const ManipulatorId id = viewer.manipulators().ids().front();
+    QVERIFY(viewer.manipulatorPress(100, 0));
+    QVERIFY(viewer.manipulatorMove(150, 0, ModCtrl));
+    QVERIFY(near(viewer.manipulators().model(id)->value(), 5.0));
+    ViewerKeyEvent esc;
+    esc.key = Qt::Key_Escape;
+    QVERIFY(manager.keyPress(esc));  // consumed: the drag is aborted, the command stays
+    QVERIFY(!viewer.isManipulatorDragging());
+    QVERIFY(manager.isActive());
+    QVERIFY(near(viewer.manipulators().model(id)->value(), 0.0));
+    QVERIFY(!manager.keyPress(esc));  // idle: not consumed, so the shell cancels the command
+    manager.cancel();
+    QVERIFY(!manager.isActive());
+  }
+
   void namesAndMasks() {
     for (ManipulatorHandle h : {ManipulatorHandle::MoveX, ManipulatorHandle::RotY, ManipulatorHandle::PlaneZX, ManipulatorHandle::Point}) {
       QVERIFY(manipulatorHandleMask(h) != 0);

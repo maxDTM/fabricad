@@ -6,6 +6,7 @@
 #include "core/Document.h"
 #include "core/Log.h"
 #include "core/Selection.h"
+#include "core/ShapeUtils.h"
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
 #include "part/Naming.h"
@@ -16,6 +17,7 @@
 #include "part/tools/FeatureManipulators.h"
 #include "part/tools/PropertyPanel.h"
 
+#include <BRepAlgoAPI_Common.hxx>
 #include <Standard_Failure.hxx>
 
 #include <algorithm>
@@ -364,25 +366,32 @@ void FeatureTool::onManipulatorEvent(core::ToolContext& ctx, const core::Manipul
 void FeatureTool::autoOperation(core::ToolContext& ctx) {
   PartFeature* f = feature();
   if (!f || !operationAuto_ || !ctx.document) return;
+  // Only Extrude: its arrow may be dragged into existing material (Offset Face reads Join/Cut
+  // from the sign of its distance itself).
+  if (f->type() != ExtrudeFeature::kType) return;
   core::Property* op = f->property("operation");
   if (!op || op->type() != core::PropertyType::Enum) return;
-  const core::Property* dist = f->property(f->primaryNumeric());
-  if (!dist || !dist->isNumeric() || dist->dimension() != core::Dimension::Length()) return;
-  // Only Extrude: its distance may point into existing material (Offset Face picks Join/Cut from the sign itself).
-  if (f->type() != ExtrudeFeature::kType) return;
-  const bool intoMaterial = dist->toDouble() < 0;
   const Operation cur = operationFromIndex(op->toInt());
   if (cur != Operation::Join && cur != Operation::Cut) return;
-  if (intoMaterial && cur == Operation::Join) {
-    // does the tool solid actually reach a body?
-    bool touches = false;
-    if (!outcome_.tool.IsNull())
-      for (core::ObjectId id : ctx.document->liveBodies(true))
-        if (shapesTouch(outcome_.tool, ctx.document->bodyShape(id))) touches = true;
-    if (touches) {
-      op->setEnum("Cut");
-      if (panel_) panel_->rebuild();
+  if (outcome_.tool.IsNull()) return;
+  // "Into material" = more than half of the tool solid lies inside existing bodies.
+  const double total = core::volume(outcome_.tool);
+  if (!(total > 1e-9)) return;
+  double inside = 0.0;
+  for (core::ObjectId id : ctx.document->liveBodies(true)) {
+    const TopoDS_Shape& body = ctx.document->bodyShape(id);
+    if (body.IsNull() || !shapesTouch(outcome_.tool, body)) continue;
+    try {
+      BRepAlgoAPI_Common common(outcome_.tool, body);
+      if (common.IsDone()) inside += core::volume(common.Shape());
+    } catch (const Standard_Failure&) {
+      // ignore: the body simply does not count as material
     }
+  }
+  const bool intoMaterial = inside > 0.5 * total;
+  if (intoMaterial && cur == Operation::Join) {
+    op->setEnum("Cut");
+    if (panel_) panel_->rebuild();
   } else if (!intoMaterial && cur == Operation::Cut) {
     op->setEnum("Join");
     if (panel_) panel_->rebuild();
@@ -493,6 +502,7 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
     if (p->isNumeric()) return setNumeric(ctx, name, value);
     if (p->type() == core::PropertyType::Enum) {
       p->setEnum(value);
+      if (name == "operation") operationAuto_ = false;  // the user chose: stop switching Join/Cut automatically
       updatePreview(ctx);
       if (panel_) panel_->rebuild();
       return true;
