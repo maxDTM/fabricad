@@ -161,12 +161,13 @@ std::vector<core::ObjectId> Sheet::entitiesOf(core::ObjectId viewId) const {
     if (l.viewId == viewId) out.push_back(l.id);
   for (const auto& b : balloons)
     if (b.viewId == viewId) out.push_back(b.id);
+  for (core::ObjectId id : callouts.entitiesOf(viewId)) out.push_back(id);
   return out;
 }
 
 bool Sheet::contains(core::ObjectId id) const {
   return view(id) || dimension(id) || findById(notes, id) || findById(centerMarks, id) || findById(centerLines, id) ||
-         findById(balloons, id) || findById(partsLists, id);
+         findById(balloons, id) || findById(partsLists, id) || callouts.contains(id);
 }
 
 std::string Sheet::nextViewLabel() const {
@@ -225,6 +226,7 @@ QJsonObject Sheet::toJson() const {
   o["centerLines"] = arrayOf(centerLines);
   o["balloons"] = arrayOf(balloons);
   o["partsLists"] = arrayOf(partsLists);
+  callouts.writeJson(o);
   return o;
 }
 
@@ -246,6 +248,7 @@ Sheet Sheet::fromJson(const QJsonObject& o) {
   s.centerLines = vectorOf<CenterLine>(o["centerLines"]);
   s.balloons = vectorOf<Balloon>(o["balloons"]);
   s.partsLists = vectorOf<PartsList>(o["partsLists"]);
+  s.callouts = CalloutSet::readJson(o);
   return s;
 }
 

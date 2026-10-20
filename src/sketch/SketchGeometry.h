@@ -43,17 +43,27 @@ struct Pt2 {
 };
 inline Pt2 operator*(double s, const Pt2& p) { return p * s; }
 
-enum class GeomType { Point, Line, Circle, Arc };
+enum class GeomType { Point, Line, Circle, Arc, Ellipse, EllipseArc, Spline, FitSpline, Text };
 const char* geomTypeName(GeomType t);
 std::optional<GeomType> geomTypeFromName(const std::string& s);
 
-/// Which point of a geometry a reference means. `None` = the curve itself.
-enum class PointPos { None, Start, End, Center, Mid };
+/// Which point of a geometry a reference means. `None` = the curve itself. `Vertex` is an
+/// indexed point (GeoRef::index): spline control / fit points.
+enum class PointPos { None, Start, End, Center, Mid, Vertex };
 const char* pointPosName(PointPos p);
 PointPos pointPosFromName(const std::string& s);
 core::SketchPointRole toRole(PointPos p);
 PointPos fromRole(core::SketchPointRole r);
 PointPos fromRole(int subIndex);
+/// ShapeRef::subIndex encoding of a point reference (roles 0..4, indexed vertices 16 + index).
+constexpr int kVertexSubIndexBase = 16;
+
+struct BSpline2;
+struct GeoRef;
+/// ShapeRef::subIndex of a point reference / the reference decoded from (geo, subIndex).
+int toSubIndex(const GeoRef& r);
+GeoRef fromSubIndex(int geo, int subIndex);
+struct EllipseFrame;
 
 /// One sketch entity. Parameter layout (all mm / radians):
 ///   Point : x, y
@@ -61,6 +71,16 @@ PointPos fromRole(int subIndex);
 ///   Circle: cx, cy, r
 ///   Arc   : cx, cy, r, startAngle, endAngle, sx, sy, ex, ey   (counter-clockwise from start to end;
 ///           start/end points are kept consistent with the angles by normalize())
+///   Ellipse   : cx, cy, fx, fy, b          (centre, focus1 on the major axis, minor radius;
+///               PlaneGCS layout, major radius a = sqrt(|f-c|^2 + b^2))
+///   EllipseArc: cx, cy, fx, fy, b, u0, u1, sx, sy, ex, ey  (eccentric-anomaly parameters u,
+///               ccw from u0 to u1; start/end points derived by normalize())
+///   Spline    : x0, y0, x1, y1, ...        (control points = poles; `degree`, clamped uniform knots)
+///   FitSpline : x0, y0, x1, y1, ...        (fit points the curve passes through; `knots` holds the
+///               interpolation parameter of each fit point, fixed at creation so the curve stays
+///               linear in the fit points for the solver; cubic, or lower for < 4 points)
+///   Text      : x, y, height, angle        (baseline-left anchor, cap height in mm, radians;
+///               `text`, `font`, `bold`, `italic`, `mirrored`)
 struct Geometry {
   int id = -1;
   GeomType type = GeomType::Line;
@@ -69,6 +89,11 @@ struct Geometry {
   bool projected = false;     ///< comes from 3D geometry (source), solver treats it as fixed
   bool blocked = false;       ///< user "Fix" on the whole entity
   core::ShapeRef source;      ///< for projected geometry
+  int degree = 3;             ///< Spline: requested degree
+  std::vector<double> knots;  ///< FitSpline: parameter per fit point
+  std::string text;           ///< Text: the string
+  std::string font;           ///< Text: font family (empty = defaultTextFont())
+  bool bold = false, italic = false, mirrored = false;  ///< Text style
 
   static Geometry makePoint(Pt2 p);
   static Geometry makeLine(Pt2 a, Pt2 b);
@@ -79,6 +104,16 @@ struct Geometry {
   static std::optional<Geometry> makeArc3Points(Pt2 a, Pt2 mid, Pt2 b);
   /// Arc from start point, end point and a centre (direction chosen so the arc goes ccw from start).
   static Geometry makeArcCenter(Pt2 center, Pt2 start, Pt2 end, bool ccw = true);
+  /// Ellipse from centre, major radius along `majorAngle` (radians) and minor radius (swapped if a < b).
+  static Geometry makeEllipse(Pt2 center, double majorRadius, double minorRadius, double majorAngle = 0.0);
+  /// Elliptical arc of that ellipse from parameter u0 to u1 (ccw, eccentric anomaly).
+  static Geometry makeEllipseArc(Pt2 center, double majorRadius, double minorRadius, double majorAngle, double u0, double u1);
+  /// Control-point spline (degree reduced for few points).
+  static Geometry makeControlSpline(const std::vector<Pt2>& poles, int degree = 3);
+  /// Fit-point spline through the points (chord-length parameters).
+  static Geometry makeFitSpline(const std::vector<Pt2>& fitPoints);
+  /// Sketch text at a baseline-left anchor.
+  static Geometry makeText(Pt2 anchor, const std::string& text, double height, double angle = 0.0, const std::string& font = {});
 
   // --- typed access ------------------------------------------------------------
   Pt2 start() const;      ///< line/arc start, point position for Point, circle: point at angle 0
@@ -96,6 +131,24 @@ struct Geometry {
   std::vector<PointPos> pointPositions() const;
   bool isCurve() const { return type != GeomType::Point; }
   bool isCircular() const { return type == GeomType::Circle || type == GeomType::Arc; }
+  bool isElliptical() const { return type == GeomType::Ellipse || type == GeomType::EllipseArc; }
+  bool isSpline() const { return type == GeomType::Spline || type == GeomType::FitSpline; }
+  /// Closed curve without end points (circle, ellipse).
+  bool isClosedCurve() const { return type == GeomType::Circle || type == GeomType::Ellipse; }
+  /// Spline control / fit points (PointPos::Vertex indices 0..n-1); 0 for other types.
+  int vertexCount() const { return isSpline() ? static_cast<int>(p.size() / 2) : 0; }
+  Pt2 vertex(int index) const { return {p[static_cast<size_t>(2 * index)], p[static_cast<size_t>(2 * index + 1)]}; }
+  void setVertex(int index, Pt2 q) { p[static_cast<size_t>(2 * index)] = q.x; p[static_cast<size_t>(2 * index + 1)] = q.y; }
+  /// Every referencable point of this geometry (geo = id), including spline vertices.
+  std::vector<GeoRef> pointRefs() const;
+  /// Position of a referenced point (pos + vertex index).
+  Pt2 point(PointPos pos, int index) const;
+  /// Ellipse frame (Ellipse / EllipseArc).
+  EllipseFrame ellipse() const;
+  /// The B-spline of a Spline / FitSpline (empty for other types).
+  BSpline2 bspline() const;
+  double majorRadius() const;
+  double minorRadius() const;
   /// Is the solver allowed to move this entity? (not projected, not blocked)
   bool isMovable() const { return !projected && !blocked; }
 
@@ -111,6 +164,8 @@ struct Geometry {
   void translate(Pt2 d);
   /// Mirror about a line through `a` with direction `d`.
   void mirror(Pt2 a, Pt2 d);
+  /// Similarity transform about `origin`: rotate by `angle` (radians), then scale by `scale` (> 0).
+  void transform(Pt2 origin, double angle, double scale);
 
   // --- geometric queries ---------------------------------------------------------------
   /// Closest point on the (finite) curve to q.
@@ -130,6 +185,8 @@ struct Geometry {
   std::pair<Pt2, Pt2> bbox() const;
   /// Sample the curve as a polyline (for display); points count depends on `segments`.
   std::vector<Pt2> tessellate(int segments = 32) const;
+  /// Display polylines: one for ordinary curves, one per contour for text.
+  std::vector<std::vector<Pt2>> polylines(int segments = 32) const;
 
   QJsonObject toJson() const;
   static Geometry fromJson(const QJsonObject& o);
@@ -165,6 +222,7 @@ bool isDimensional(ConstraintType t);
 struct GeoRef {
   int geo = -1;
   PointPos pos = PointPos::None;
+  int index = -1;  ///< PointPos::Vertex: spline control / fit point index
   bool isValid() const { return geo >= 0; }
   bool isPoint() const { return geo >= 0 && pos != PointPos::None; }
   bool operator==(const GeoRef&) const = default;

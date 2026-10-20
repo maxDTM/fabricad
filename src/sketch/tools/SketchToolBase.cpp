@@ -242,7 +242,7 @@ void SketchTool::previewGeometry(const Geometry& g, const PreviewStyle& st) {
     previewPoints({g.center()}, st);
     return;
   }
-  previewPolyline(g.tessellate(g.type == GeomType::Line ? 1 : 64), st);
+  for (const auto& pl : g.polylines(g.type == GeomType::Line ? 1 : 64)) previewPolyline(pl, st);
 }
 
 void SketchTool::showInference(const InferenceResult& r) {

@@ -3,6 +3,7 @@
 #include "sketch/Sketch.h"
 
 #include "core/Json.h"
+#include "sketch/SketchCurves.h"
 #include "sketch/SketchSolver.h"
 
 #include <QJsonArray>
@@ -23,7 +24,7 @@ Sketch::Sketch() = default;
 
 int Sketch::addGeometry(Geometry g) {
   g.id = nextGeoId_++;
-  if (g.type == GeomType::Arc) g.normalize();
+  g.normalize();
   geometries_.push_back(std::move(g));
   return geometries_.back().id;
 }
@@ -58,8 +59,14 @@ std::optional<Pt2> Sketch::pointOf(const GeoRef& ref) const {
     return std::nullopt;
   }
   if (g->type == GeomType::Point) return g->center();
-  if (g->type == GeomType::Circle && ref.pos != PointPos::Center) return std::nullopt;
+  if (g->isClosedCurve() && ref.pos != PointPos::Center) return std::nullopt;
   if (g->type == GeomType::Line && ref.pos == PointPos::Center) return g->midpoint();
+  if (ref.pos == PointPos::Vertex) {
+    if (ref.index < 0 || ref.index >= g->vertexCount()) return std::nullopt;
+    return g->vertex(ref.index);
+  }
+  if (g->type == GeomType::Text && ref.pos != PointPos::Start) return std::nullopt;
+  if (g->isSpline() && ref.pos != PointPos::Start && ref.pos != PointPos::End) return std::nullopt;
   return g->point(ref.pos);
 }
 
@@ -71,6 +78,10 @@ bool Sketch::setPointOf(const GeoRef& ref, Pt2 p) {
     case PointPos::End: g->setEnd(p); return true;
     case PointPos::Center: g->setCenter(p); return true;
     case PointPos::Mid: g->translate(p - g->midpoint()); return true;
+    case PointPos::Vertex:
+      if (ref.index < 0 || ref.index >= g->vertexCount()) return false;
+      g->setVertex(ref.index, p);
+      return true;
     case PointPos::None:
       if (g->type == GeomType::Point) {
         g->setCenter(p);
@@ -322,7 +333,7 @@ bool Sketch::drag(Pt2 target) {
   if (!g) return false;
   // start from the original geometry each frame to keep the drag stable
   g->p = dragParams_;
-  if (g->type == GeomType::Arc) g->normalize();
+  g->normalize();
   DragTarget d;
   d.ref = dragRef_;
   d.target = target;
@@ -345,10 +356,10 @@ std::optional<SketchHit> Sketch::hitPoint(Pt2 q, double tol, const std::set<int>
   std::optional<SketchHit> best;
   for (const auto& g : geometries_) {
     if (exclude.count(g.id)) continue;
-    for (PointPos pos : g.pointPositions()) {
-      Pt2 p = g.point(pos);
+    for (const GeoRef& r : g.pointRefs()) {
+      Pt2 p = g.point(r.pos, r.index);
       double d = p.distance(q);
-      if (d <= tol && (!best || d < best->distance)) best = SketchHit{{g.id, pos}, p, d};
+      if (d <= tol && (!best || d < best->distance)) best = SketchHit{r, p, d};
     }
   }
   return best;
@@ -424,7 +435,8 @@ std::vector<int> Sketch::chain(int curveId) const {
   std::set<int> seen{curveId};
   auto endpointsOf = [](const Geometry& g) {
     std::vector<Pt2> pts;
-    if (g.type == GeomType::Line || g.type == GeomType::Arc) pts = {g.start(), g.end()};
+    if (g.type == GeomType::Line || g.type == GeomType::Arc || g.type == GeomType::EllipseArc || g.isSpline())
+      pts = {g.start(), g.end()};
     return pts;
   };
   while (!todo.empty()) {
@@ -547,6 +559,12 @@ TrimBracket computeBracket(const Sketch& sk, const Geometry& g, Pt2 at) {
     if (o.id == g.id || !o.isCurve()) continue;
     for (const Pt2& p : intersectCurves(g, o)) hits.push_back({g.paramOf(p), o.id});
   }
+  if (g.isSpline() || g.type == GeomType::Text) {
+    // splines and text are only removed as a whole (when nothing crosses them)
+    br.whole = hits.empty();
+    if (!br.whole) br.lo = br.hi = 0;
+    return br;
+  }
   if (g.type == GeomType::Line) {
     std::vector<ParamHit> ts;
     for (const auto& h : hits)
@@ -569,7 +587,7 @@ TrimBracket computeBracket(const Sketch& sk, const Geometry& g, Pt2 at) {
     br.whole = br.loOther == -1 && br.hiOther == -1;
     return br;
   }
-  if (g.type == GeomType::Circle) {
+  if (g.isClosedCurve()) {
     if (hits.size() < 2) {
       br.whole = true;
       br.circleClosed = true;
@@ -578,7 +596,7 @@ TrimBracket computeBracket(const Sketch& sk, const Geometry& g, Pt2 at) {
     std::vector<ParamHit> as = hits;
     for (auto& h : as) h.param = normalizeAngle(h.param);
     std::sort(as.begin(), as.end(), [](const ParamHit& a, const ParamHit& b) { return a.param < b.param; });
-    double aAt = normalizeAngle((at - g.center()).angle());
+    double aAt = normalizeAngle(g.paramOf(at));
     size_t i = as.size() - 1;
     for (size_t k = 0; k < as.size(); ++k)
       if (as[k].param <= aAt) i = k;
@@ -598,7 +616,7 @@ TrimBracket computeBracket(const Sketch& sk, const Geometry& g, Pt2 at) {
     if (rel > 1e-9 && rel < (a1 - a0) - 1e-9) as.push_back({a0 + rel, h.otherId});
   }
   std::sort(as.begin(), as.end(), [](const ParamHit& a, const ParamHit& b) { return a.param < b.param; });
-  double aAt = a0 + std::clamp(normalizeAngle((at - g.center()).angle() - a0), 0.0, a1 - a0);
+  double aAt = a0 + std::clamp(normalizeAngle(g.paramOf(at) - a0), 0.0, a1 - a0);
   br.lo = a0;
   br.hi = a1;
   for (const auto& h : as)
@@ -616,6 +634,15 @@ TrimBracket computeBracket(const Sketch& sk, const Geometry& g, Pt2 at) {
   return br;
 }
 
+/// Arc of the same circle / ellipse between two parameters (ccw).
+Geometry subArc(const Geometry& g, double lo, double hi) {
+  if (g.isElliptical()) {
+    EllipseFrame f = g.ellipse();
+    return Geometry::makeEllipseArc(f.center, f.a, f.b, f.major.angle(), lo, hi);
+  }
+  return Geometry::makeArc(g.center(), g.radius(), lo, hi);
+}
+
 }  // namespace
 
 std::optional<Geometry> Sketch::trimPiece(int curveId, Pt2 at) const {
@@ -623,12 +650,13 @@ std::optional<Geometry> Sketch::trimPiece(int curveId, Pt2 at) const {
   if (!g || !g->isCurve()) return std::nullopt;
   TrimBracket br = computeBracket(*this, *g, at);
   if (br.whole) return *g;
+  if (g->isSpline() || g->type == GeomType::Text) return std::nullopt;
   Geometry piece = *g;
   piece.id = -1;
   if (g->type == GeomType::Line) {
     piece = Geometry::makeLine(g->pointAt(br.lo), g->pointAt(br.hi));
   } else {
-    piece = Geometry::makeArc(g->center(), g->radius(), br.lo, br.hi);
+    piece = subArc(*g, br.lo, br.hi);
   }
   piece.construction = g->construction;
   return piece;
@@ -643,6 +671,7 @@ std::vector<int> Sketch::trim(int curveId, Pt2 at) {
     removeGeometry(curveId);
     return {};
   }
+  if (orig.isSpline() || orig.type == GeomType::Text) return {curveId};
   auto onCurve = [&](int geo, PointPos pos, int other) {
     if (other < 0) return;
     addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = {geo, pos}, .b = {other, PointPos::None}, .internal = true});
@@ -673,9 +702,9 @@ std::vector<int> Sketch::trim(int curveId, Pt2 at) {
     return {curveId, newId};
   }
 
-  if (orig.type == GeomType::Circle) {
+  if (orig.isClosedCurve()) {
     // the remaining arc runs ccw from the hi intersection round to the lo intersection
-    Geometry arc = Geometry::makeArc(orig.center(), orig.radius(), br.hi, br.lo);
+    Geometry arc = subArc(orig, br.hi, br.lo);
     arc.id = curveId;
     arc.construction = orig.construction;
     arc.projected = orig.projected;
@@ -701,7 +730,7 @@ std::vector<int> Sketch::trim(int curveId, Pt2 at) {
     onCurve(curveId, PointPos::End, br.loOther);
     return {curveId};
   }
-  Geometry second = Geometry::makeArc(orig.center(), orig.radius(), br.hi, a1);
+  Geometry second = subArc(orig, br.hi, a1);
   second.construction = orig.construction;
   int newId = addGeometry(second);
   g = geometry(curveId);
@@ -854,7 +883,12 @@ Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
       o.setRadius(r);
       break;
     }
-    case GeomType::Point: break;
+    case GeomType::Point:
+    case GeomType::Ellipse:
+    case GeomType::EllipseArc:
+    case GeomType::Spline:
+    case GeomType::FitSpline:
+    case GeomType::Text: break;  // not offsettable exactly; copied unchanged (filtered by offset())
   }
   return o;
 }
@@ -867,7 +901,7 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
   std::vector<int> curves;
   for (int id : ids) {
     const Geometry* g = geometry(id);
-    if (g && g->isCurve()) curves.push_back(id);
+    if (g && (g->type == GeomType::Line || g->isCircular())) curves.push_back(id);
   }
   auto runs = orderChains(*this, curves);
   for (auto& run : runs) {
@@ -997,7 +1031,7 @@ std::vector<int> Sketch::mirror(const std::vector<int>& ids, Pt2 a, Pt2 d) {
       const Geometry* og = geometry(r.geo);
       r.geo = idMap[r.geo];
       // arcs reverse orientation under mirroring
-      if (og && og->type == GeomType::Arc) {
+      if (og && (og->type == GeomType::Arc || og->type == GeomType::EllipseArc)) {
         if (r.pos == PointPos::Start) r.pos = PointPos::End;
         else if (r.pos == PointPos::End) r.pos = PointPos::Start;
       }
@@ -1043,10 +1077,28 @@ std::vector<int> Sketch::mirror(const std::vector<int>& ids, int mirrorLineId, b
         addConstraint(Constraint{.type = ConstraintType::Equal, .a = {filtered[i], PointPos::None}, .b = {out[i], PointPos::None}});
         break;
       case GeomType::Arc:
+      case GeomType::EllipseArc:
         addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = {filtered[i], PointPos::Start}, .b = {out[i], PointPos::End}, .c = {mirrorLineId, PointPos::None}});
         addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = {filtered[i], PointPos::End}, .b = {out[i], PointPos::Start}, .c = {mirrorLineId, PointPos::None}});
         addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = {filtered[i], PointPos::Center}, .b = {out[i], PointPos::Center}, .c = {mirrorLineId, PointPos::None}});
+        if (og->type == GeomType::EllipseArc)
+          addConstraint(Constraint{.type = ConstraintType::Equal, .a = {filtered[i], PointPos::None}, .b = {out[i], PointPos::None}});
         break;
+      case GeomType::Ellipse:
+        addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = {filtered[i], PointPos::Center}, .b = {out[i], PointPos::Center}, .c = {mirrorLineId, PointPos::None}});
+        addConstraint(Constraint{.type = ConstraintType::Equal, .a = {filtered[i], PointPos::None}, .b = {out[i], PointPos::None}});
+        break;
+      case GeomType::Spline:
+      case GeomType::FitSpline:
+        for (int k = 0; k < og->vertexCount() && k < ng->vertexCount(); ++k) {
+          GeoRef ra{filtered[i], PointPos::Vertex, k}, rb{out[i], PointPos::Vertex, k};
+          if (k == 0) ra.pos = rb.pos = PointPos::Start;
+          else if (k == og->vertexCount() - 1) ra.pos = rb.pos = PointPos::End;
+          if (ra.pos != PointPos::Vertex) ra.index = rb.index = -1;
+          addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = ra, .b = rb, .c = {mirrorLineId, PointPos::None}});
+        }
+        break;
+      case GeomType::Text: break;
     }
   }
   return out;

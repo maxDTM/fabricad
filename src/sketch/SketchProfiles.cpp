@@ -3,6 +3,8 @@
 #include "sketch/SketchProfiles.h"
 
 #include "core/Log.h"
+#include "sketch/SketchCurves.h"
+#include "sketch/SketchText.h"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRep_Builder.hxx>
@@ -16,7 +18,14 @@
 #include <BRepTools.hxx>
 #include <GC_MakeArcOfCircle.hxx>
 #include <GProp_GProps.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <Geom_Ellipse.hxx>
 #include <Geom_TrimmedCurve.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <gp_Elips.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopTools_DataMapOfShapeInteger.hxx>
@@ -54,7 +63,72 @@ gp_Ax2 circleAxes(const gp_Ax3& plane, const gp_Pnt& center, bool& mirrored) {
   return ax;
 }
 
+TopoDS_Shape bsplineEdge(const BSpline2& s, const gp_Ax3& plane) {
+  if (!s.isValid()) return {};
+  std::vector<double> vals;
+  std::vector<int> mults;
+  s.distinctKnots(vals, mults);
+  TColgp_Array1OfPnt poles(1, static_cast<int>(s.poles.size()));
+  for (size_t i = 0; i < s.poles.size(); ++i) poles.SetValue(static_cast<int>(i) + 1, toWorld(plane, s.poles[i]));
+  TColStd_Array1OfReal knots(1, static_cast<int>(vals.size()));
+  TColStd_Array1OfInteger mul(1, static_cast<int>(vals.size()));
+  for (size_t i = 0; i < vals.size(); ++i) {
+    knots.SetValue(static_cast<int>(i) + 1, vals[i]);
+    mul.SetValue(static_cast<int>(i) + 1, mults[i]);
+  }
+  Handle(Geom_BSplineCurve) c = new Geom_BSplineCurve(poles, knots, mul, s.degree);
+  return BRepBuilderAPI_MakeEdge(c).Edge();
+}
+
+TopoDS_Shape ellipseEdge(const Geometry& g, const gp_Ax3& plane) {
+  EllipseFrame f = g.ellipse();
+  if (f.b < 1e-9 || f.a < 1e-9) return {};
+  gp_Pnt c = toWorld(plane, f.center);
+  gp_Vec maj(toWorld(plane, f.center + f.major).XYZ() - c.XYZ());
+  gp_Vec minv(toWorld(plane, f.center + f.minor).XYZ() - c.XYZ());
+  gp_Dir n = gp_Dir(maj.Crossed(minv));
+  gp_Ax2 ax(c, n, gp_Dir(maj));
+  // gp_Elips needs major >= minor; f.a >= f.b holds by construction
+  gp_Elips el(ax, std::max(f.a, f.b + 1e-12), f.b);
+  if (g.type == GeomType::Ellipse) return BRepBuilderAPI_MakeEdge(el).Edge();
+  if (g.sweep() < 1e-9) return {};
+  Handle(Geom_Ellipse) ge = new Geom_Ellipse(el);
+  Handle(Geom_TrimmedCurve) arc = new Geom_TrimmedCurve(ge, g.startAngle(), g.endAngle(), true);
+  return BRepBuilderAPI_MakeEdge(arc).Edge();
+}
+
+std::vector<TopoDS_Shape> textEdges(const Geometry& g, const gp_Ax3& plane) {
+  std::vector<TopoDS_Shape> out;
+  for (const TextContour& contour : textContours(g)) {
+    for (const TextSegment& seg : contour) {
+      try {
+        if (!seg.cubic) {
+          if (seg.p0.near(seg.p3, 1e-9)) continue;
+          out.push_back(BRepBuilderAPI_MakeEdge(toWorld(plane, seg.p0), toWorld(plane, seg.p3)).Edge());
+        } else {
+          TColgp_Array1OfPnt poles(1, 4);
+          poles.SetValue(1, toWorld(plane, seg.p0));
+          poles.SetValue(2, toWorld(plane, seg.p1));
+          poles.SetValue(3, toWorld(plane, seg.p2));
+          poles.SetValue(4, toWorld(plane, seg.p3));
+          Handle(Geom_BezierCurve) bz = new Geom_BezierCurve(poles);
+          out.push_back(BRepBuilderAPI_MakeEdge(bz).Edge());
+        }
+      } catch (const Standard_Failure&) {
+      }
+    }
+  }
+  return out;
+}
+
 }  // namespace
+
+std::vector<TopoDS_Shape> makeEdges(const Geometry& g, const gp_Ax3& plane) {
+  if (g.type == GeomType::Text) return textEdges(g, plane);
+  TopoDS_Shape e = makeEdge(g, plane);
+  if (e.IsNull()) return {};
+  return {e};
+}
 
 TopoDS_Shape makeEdge(const Geometry& g, const gp_Ax3& plane) {
   try {
@@ -82,6 +156,19 @@ TopoDS_Shape makeEdge(const Geometry& g, const gp_Ax3& plane) {
         TopoDS_Edge e = BRepBuilderAPI_MakeEdge(arc).Edge();
         if (mirrored) e.Reverse();
         return e;
+      }
+      case GeomType::Ellipse:
+      case GeomType::EllipseArc: return ellipseEdge(g, plane);
+      case GeomType::Spline:
+      case GeomType::FitSpline: return bsplineEdge(g.bspline(), plane);
+      case GeomType::Text: {
+        std::vector<TopoDS_Shape> edges = textEdges(g, plane);
+        if (edges.empty()) return {};
+        TopoDS_Compound comp;
+        BRep_Builder b;
+        b.MakeCompound(comp);
+        for (const auto& e : edges) b.Add(comp, e);
+        return comp;
       }
     }
   } catch (const Standard_Failure& f) {
@@ -152,10 +239,10 @@ std::vector<ProfileRegion> computeProfiles(const Sketch& sketch, const gp_Ax3& p
   std::vector<std::pair<TopoDS_Shape, int>> originals;
   for (const Geometry& g : sketch.geometries()) {
     if (g.construction || !g.isCurve()) continue;
-    TopoDS_Shape e = makeEdge(g, plane);
-    if (e.IsNull()) continue;
-    tools.Append(e);
-    originals.push_back({e, g.id});
+    for (const TopoDS_Shape& e : makeEdges(g, plane)) {
+      tools.Append(e);
+      originals.push_back({e, g.id});
+    }
   }
   if (originals.empty()) return out;
 

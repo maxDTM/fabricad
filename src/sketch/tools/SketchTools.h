@@ -6,8 +6,11 @@
 //   CREATE    sketch.line L, sketch.rectangle R, sketch.rectangle-3point, sketch.rectangle-center,
 //             sketch.circle C, sketch.circle-2point, sketch.circle-3point, sketch.arc-3point,
 //             sketch.arc-center, sketch.arc-tangent, sketch.polygon, sketch.polygon-inscribed,
-//             sketch.slot, sketch.point, sketch.mirror, sketch.project P, sketch.dimension D
-//   MODIFY    sketch.fillet, sketch.trim T, sketch.extend, sketch.break, sketch.offset O,
+//             sketch.slot, sketch.point, sketch.mirror, sketch.project P, sketch.dimension D,
+//             sketch.ellipse, sketch.ellipse-arc, sketch.spline-fit, sketch.spline-control, sketch.text,
+//             sketch.pattern-rectangular, sketch.pattern-circular
+//   MODIFY    sketch.fillet, sketch.chamfer, sketch.trim T, sketch.extend, sketch.break, sketch.offset O,
+//             sketch.move, sketch.rotate, sketch.scale,
 //             sketch.construction X, sketch.dimension-edit (hidden)
 //   CONSTRAINTS sketch.constraint.<horizontal-vertical|coincident|tangent|equal|parallel|
 //             perpendicular|fix|midpoint|concentric|collinear|symmetric>
@@ -25,6 +28,10 @@ void registerModeTools(core::ToolRegistry& registry);
 void registerCreateTools(core::ToolRegistry& registry);
 void registerModifyTools(core::ToolRegistry& registry);
 void registerConstraintTools(core::ToolRegistry& registry);
+/// Ellipse, elliptical arc, fit / control point splines, text (tools/CurveTools.cpp).
+void registerCurveTools(core::ToolRegistry& registry);
+/// Move/Copy, rotate, scale, rectangular / circular pattern, chamfer (tools/TransformTools.cpp).
+void registerTransformTools(core::ToolRegistry& registry);
 
 /// Create a Sketch feature on `plane` (an origin plane, construction plane or planar face
 /// ref), add it at the timeline marker with undo, and enter sketch mode on it.

@@ -6,6 +6,8 @@
 #include "core/ShapeUtils.h"
 #include "core/Json.h"
 #include "drawing/DrawingModel.h"
+#include "drawing/CalloutRenderer.h"
+#include "drawing/Symbols.h"
 
 #include <QDate>
 #include <QFont>
@@ -181,31 +183,56 @@ void SheetRenderer::addTitleBlock(DisplayList& out, const Sheet& sheet,
 // ---------------------------------------------------------------------------------------
 
 void SheetRenderer::addViewCurves(DisplayList& out, const DrawingView& view) const {
+  if (!view.breaks.empty()) {
+    for (const auto& c : view.curves)
+      for (auto& piece : brokenCurves(c, view)) out.curves.push_back(std::move(piece));
+    return;
+  }
   for (const auto& c : view.curves) out.curves.push_back(c.transformed(view.position, view.scale, true));
 }
 
 void SheetRenderer::addSectionLine(DisplayList& out, const DrawingView& parent, const DrawingView& sec) const {
   const SectionLine& L = sec.section;
-  Point2 a = parent.toSheet(L.p1), b = parent.toSheet(L.p2);
-  Point2 d = (b - a).normalized();
-  if (d.length() < 0.5) return;
-  // arrow direction in sheet space (Y flipped)
+  std::vector<Point2> pts;
+  for (const Point2& p : L.path()) pts.push_back(parent.toSheet(p));
+  if (pts.size() < 2) return;
+  Point2 dFirst = (pts[1] - pts[0]).normalized();
+  Point2 dLast = (pts.back() - pts[pts.size() - 2]).normalized();
+  if (dFirst.length() < 0.5 || dLast.length() < 0.5) return;
+  // arrow direction in sheet space (Y flipped); aligned cuts: the last arm has its own arrow,
+  // the first arm's arrow revolved with the arm
   Point2 arrow = Point2{L.arrow.x, -L.arrow.y}.normalized();
+  Point2 arrowLast = arrow;
+  if (L.aligned && pts.size() >= 3) {
+    double rot = std::atan2(dFirst.cross(dLast), dFirst.dot(dLast));
+    arrowLast = {arrow.x * std::cos(rot) - arrow.y * std::sin(rot), arrow.x * std::sin(rot) + arrow.y * std::cos(rot)};
+  }
   const double ext = 4.0;        // line beyond the geometry
   const double thick = 6.0;      // thick end segments
-  Point2 a0 = a - d * ext, b0 = b + d * ext;
-  // thin chain line in the middle, thick ends
-  out.curves.push_back(Curve2D::segment(a0, b0, LineClass::Center));
-  out.curves.push_back(Curve2D::segment(a0, a0 + d * thick, LineClass::Visible));
-  out.curves.push_back(Curve2D::segment(b0 - d * thick, b0, LineClass::Visible));
-  // arrows perpendicular to the line, 6 mm shafts, pointing in the viewing direction
+  Point2 a0 = pts.front() - dFirst * ext, b0 = pts.back() + dLast * ext;
+  // thin chain line, thick ends and (ISO 128-44) thick strokes at every change of direction
+  std::vector<Point2> chain = pts;
+  chain.front() = a0;
+  chain.back() = b0;
+  for (size_t i = 0; i + 1 < chain.size(); ++i) out.curves.push_back(Curve2D::segment(chain[i], chain[i + 1], LineClass::Center));
+  out.curves.push_back(Curve2D::segment(a0, a0 + dFirst * thick, LineClass::Visible));
+  out.curves.push_back(Curve2D::segment(b0 - dLast * thick, b0, LineClass::Visible));
+  for (size_t i = 1; i + 1 < pts.size(); ++i) {
+    Point2 din = (pts[i] - pts[i - 1]).normalized(), dout = (pts[i + 1] - pts[i]).normalized();
+    double lin = std::min(thick * 0.5, pts[i].distance(pts[i - 1]) * 0.5);
+    double lout = std::min(thick * 0.5, pts[i].distance(pts[i + 1]) * 0.5);
+    out.curves.push_back(Curve2D::polyline({pts[i] - din * lin, pts[i], pts[i] + dout * lout}, LineClass::Visible));
+  }
+  // arrows perpendicular to the end segments, 7 mm shafts, pointing in the viewing direction
   const double shaft = 7.0;
-  for (const Point2& end : {a0, b0}) {
-    Point2 base = end - arrow * shaft;
-    Point2 tip = end - arrow * 1.0;
+  for (int k = 0; k < 2; ++k) {
+    Point2 end = k == 0 ? a0 : b0;
+    Point2 dir = k == 0 ? arrow : arrowLast;
+    Point2 base = end - dir * shaft;
+    Point2 tip = end - dir * 1.0;
     out.curves.push_back(Curve2D::segment(base, tip, LineClass::Dimension));
-    addArrow(out, tip, arrow, LineClass::Dimension);
-    Point2 textPos = base - arrow * (style_.dimTextHeight * 1.2);
+    addArrow(out, tip, dir, LineClass::Dimension);
+    Point2 textPos = base - dir * (style_.dimTextHeight * 1.2);
     out.texts.push_back({textPos, L.label, style_.dimTextHeight * 1.4, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, true});
   }
 }
@@ -229,6 +256,7 @@ void SheetRenderer::addViewDecorations(DisplayList& out, const Sheet& sheet, con
     if (child->type == ViewType::Section) addSectionLine(out, view, *child);
     else if (child->type == ViewType::Detail) addDetailCircle(out, view, *child);
   }
+  addBreakLines(out, view);
   if (view.showLabel) {
     out.texts.push_back({view.labelPosition(), viewLabelText(view), style_.dimTextHeight * 1.2, 0, HAlign::Center, VAlign::Top, LineClass::Annotation, true});
   }
@@ -254,7 +282,18 @@ void SheetRenderer::addDimension(DisplayList& out, const DrawingView& view, cons
   }
   for (const auto& c : L.lines) out.curves.push_back(c);
   for (const auto& a : L.arrows) out.fills.push_back({{a[0], a[1], a[2]}, LineClass::Dimension});
-  out.texts.push_back({L.textPos, L.text, style_.dimTextHeight, L.textAngle, HAlign::Center, VAlign::Middle, LineClass::Dimension});
+  if (!dim.tolerance.isSet()) {
+    out.texts.push_back({L.textPos, L.text, style_.dimTextHeight, L.textAngle, HAlign::Center, VAlign::Middle, LineClass::Dimension});
+    return;
+  }
+  // toleranced text block (drawing/Symbols.h)
+  Dimension measured = dim;
+  DimGeometry g;
+  if (measureDimension(dim, view, g)) {
+    measured.valid = true;
+    measured.value = g.value;
+  }
+  addToleranceText(out, measured, measured.value, L.textPos, L.textAngle, style_, units_);
 }
 
 void SheetRenderer::addNote(DisplayList& out, const TextNote& note) const {
@@ -384,6 +423,7 @@ void SheetRenderer::addSheet(DisplayList& out, const Sheet& sheet, const std::ma
     if (const DrawingView* v = sheet.view(b.viewId)) addBalloon(out, *v, b);
   for (const auto& n : sheet.notes) addNote(out, n);
   for (const auto& p : sheet.partsLists) addPartsList(out, p);
+  CalloutRenderer(style_, units_).addAll(out, sheet);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -514,6 +554,9 @@ std::map<std::string, std::string> titleBlockValues(const DrawingModel& model, c
   def("Sheet", std::to_string(std::max(index, 1)) + " / " + std::to_string(std::max(count, 1)));
   const core::Component& root = doc.rootComponent();
   def("PartNumber", root.partNumber);
+  // revision: latest row of the sheet's revision table
+  for (const auto& t : sheet.callouts.revisionTables)
+    if (!t.rows.empty()) def("Rev", t.rows.back().rev);
   // material / mass from bodies
   std::string material;
   double mass = 0;

@@ -350,6 +350,7 @@ void DrawingModel::moveView(ObjectId id, const Point2& position) {
     if (d.viewId == id) d.textPos += delta;
   for (auto& b : s->balloons)
     if (b.viewId == id) b.position += delta;
+  s->callouts.followView(id, delta);
   for (ObjectId child : s->childrenOf(id)) {
     DrawingView* c = s->view(child);
     if (!c) continue;
@@ -454,7 +455,8 @@ static bool eraseById(std::vector<T>& v, ObjectId id) {
 bool DrawingModel::removeEntity(ObjectId id) {
   for (auto& s : sheets_) {
     if (eraseById(s.dimensions, id) || eraseById(s.notes, id) || eraseById(s.centerMarks, id) ||
-        eraseById(s.centerLines, id) || eraseById(s.balloons, id) || eraseById(s.partsLists, id)) {
+        eraseById(s.centerLines, id) || eraseById(s.balloons, id) || eraseById(s.partsLists, id) ||
+        s.callouts.erase(id)) {
       notifyChanged(s.id);
       return true;
     }
@@ -487,6 +489,7 @@ void DrawingModel::refreshAnnotations(Sheet& sheet) {
     if (!haveRows) rows = bom(nullptr);
     for (auto& b : sheet.balloons) b.itemNumber = bomItemFor(rows, b.itemKey);
   }
+  refreshCallouts(doc_, sheet);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -583,6 +586,14 @@ ViewJob DrawingModel::makeJob(const DrawingView& v, bool exact) const {
     job.section.hatch = v.hatch;
     job.section.hatchSpacing = style_.hatchSpacing / std::max(1e-6, v.scale);
     job.section.hatchAngle = style_.hatchAngle;
+    if (v.section.isComplex()) {
+      // stepped / aligned cut: the path lives in the parent's projection frame
+      const DrawingView* parent = view(v.parent);
+      job.section.parentFrame = parent ? (parent->geometryValid ? parent->frame : parent->definitionFrame()) : v.customFrame;
+      job.section.path = v.section.points;
+      job.section.arrow = v.section.arrow;
+      job.section.aligned = v.section.aligned;
+    }
   }
   return job;
 }
@@ -621,6 +632,8 @@ void DrawingModel::moveObjects(Sheet& sheet, const std::vector<ObjectId>& ids, c
       b->position += delta;
     } else if (PartsList* p = sheet.partsList(id)) {
       p->position += delta;
+    } else {
+      sheet.callouts.move(id, delta, &sheet);
     }
   }
   notifyChanged(sheet.id);

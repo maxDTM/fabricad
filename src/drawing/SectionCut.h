@@ -22,6 +22,13 @@ struct SectionInput {
   double hatchSpacing = 3.0;         ///< view-local (model) mm between hatch lines
   double hatchAngle = 45.0;
   bool hatch = true;
+  // Stepped / aligned cuts (SectionLine::points): the cut path in the parent view's local
+  // coordinates, the parent's projection frame and the parent-local viewing direction. Empty
+  // path = straight cut through frame.Location() (above).
+  std::vector<Point2> path;
+  gp_Ax2 parentFrame;
+  Point2 arrow{0, 1};
+  bool aligned = false;
 };
 
 struct SectionOutput {
@@ -34,6 +41,8 @@ struct SectionOutput {
 };
 
 /// Cut the sources with the half-space in front of the frame's plane and compute hatch loops.
+/// With a path of >= 3 points: stepped (offset) section, or aligned section (the arm after the
+/// first bend is revolved into the plane of the first arm before projection).
 SectionOutput computeSection(const SectionInput& in);
 
 /// Polygonise the wires of a planar face into the frame's 2D coordinates (outer + holes).

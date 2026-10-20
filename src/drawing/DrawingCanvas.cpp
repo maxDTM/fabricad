@@ -7,6 +7,7 @@
 #include "core/Selection.h"
 #include "core/Tool.h"
 #include "core/UndoStack.h"
+#include "drawing/CalloutRenderer.h"
 #include "drawing/DrawingModel.h"
 #include "drawing/Sheet.h"
 
@@ -109,6 +110,7 @@ const char* hitKindName(HitKind k) {
     case HitKind::Balloon: return "Balloon";
     case HitKind::PartsList: return "PartsList";
     case HitKind::TitleBlock: return "TitleBlock";
+    case HitKind::Callout: return "Callout";
   }
   return "None";
 }
@@ -457,6 +459,7 @@ CanvasHit DrawingCanvas::hitTest(const Point2& at, bool wantGeometry) const {
       case HitKind::CenterLine: for (const auto& l : s->centerLines) if (l.id == h.id) h.viewId = l.viewId; break;
       case HitKind::Balloon: for (const auto& b : s->balloons) if (b.id == h.id) h.viewId = b.viewId; break;
       case HitKind::PartsList: for (const auto& p : s->partsLists) if (p.id == h.id) h.viewId = p.viewId; break;
+      case HitKind::Callout: h.viewId = s->callouts.viewOf(h.id); break;
       default: break;
     }
     return h;
@@ -694,6 +697,9 @@ void DrawingCanvas::rebuild() {
     add(HitKind::PartsList, pl.id, std::move(l), kZEntity);
   }
 
+  for (auto& [id, l] : CalloutRenderer(model_->style(), model_->document().units()).entityLists(*s))
+    add(HitKind::Callout, id, std::move(l), kZEntity);
+
   QRectF paper(0, 0, s->format.width, s->format.height);
   scene_->setSceneRect(paper.adjusted(-kSheetMargin, -kSheetMargin, kSheetMargin, kSheetMargin));
 
@@ -813,7 +819,7 @@ void DrawingCanvas::simulateDrag(const Point2& a, const Point2& b, int modifiers
 
 bool DrawingCanvas::isMovable(HitKind k) const {
   return k == HitKind::View || k == HitKind::Dimension || k == HitKind::Note || k == HitKind::Balloon ||
-         k == HitKind::PartsList;
+         k == HitKind::PartsList || k == HitKind::Callout;
 }
 
 void DrawingCanvas::updateHover(const Point2& sheet) {
@@ -969,6 +975,7 @@ void DrawingCanvas::handleDoubleClick(const Point2& sheet, int modifiers) {
     case HitKind::Note: requestTool("drawing.text", {"--edit", id}); break;
     case HitKind::Dimension: requestTool("drawing.edit-dimension", {id}); break;
     case HitKind::PartsList: requestTool("drawing.parts-list", {"--edit", id}); break;
+    case HitKind::Callout: requestTool("drawing.edit-callout", {id}); break;
     case HitKind::None: requestTool("drawing.edit-sheet"); break;
     default: break;
   }

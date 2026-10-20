@@ -26,8 +26,10 @@ struct ProfileRegion {
 gp_Pnt toWorld(const gp_Ax3& plane, Pt2 p);
 Pt2 toLocal(const gp_Ax3& plane, const gp_Pnt& p);
 
-/// 3D edge for a curve (null shape for points / degenerate curves).
+/// 3D edge for a curve (null shape for points / degenerate curves; a compound of edges for text).
 TopoDS_Shape makeEdge(const Geometry& g, const gp_Ax3& plane);
+/// The individual edges of a curve (one for ordinary curves, the glyph outline edges for text).
+std::vector<TopoDS_Shape> makeEdges(const Geometry& g, const gp_Ax3& plane);
 /// Vertex for a point geometry.
 TopoDS_Shape makeVertex(const Geometry& g, const gp_Ax3& plane);
 /// Compound of all curve edges (+ vertices for points). Null when empty.

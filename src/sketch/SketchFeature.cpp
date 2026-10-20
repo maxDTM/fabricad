@@ -184,8 +184,8 @@ void SketchFeature::rebuildDisplayShapes() {
     }
     TopoDS_Shape e = makeEdge(g, plane_);
     if (!e.IsNull()) groups[key].push_back(e);
-    for (PointPos pos : g.pointPositions())
-      if (pos != PointPos::Mid) points.push_back(BRepBuilderAPI_MakeVertex(toWorld(g.point(pos))).Vertex());
+    for (const GeoRef& r : g.pointRefs())
+      if (r.pos != PointPos::Mid) points.push_back(BRepBuilderAPI_MakeVertex(toWorld(g.point(r.pos, r.index))).Vertex());
   }
   for (auto& [key, shapes] : groups) {
     TopoDS_Shape c = core::makeCompound(shapes);
@@ -310,9 +310,8 @@ std::optional<gp_Pnt> SketchFeature::sketchPoint(const ShapeRef& ref) const {
   if (ref.kind != ShapeKind::SketchPoint) return std::nullopt;
   const Geometry* g = sketch_.geometry(ref.index);
   if (!g) return std::nullopt;
-  PointPos pos = fromRole(ref.subIndex);
   if (g->type == GeomType::Point) return toWorld(g->center());
-  auto p = sketch_.pointOf({ref.index, pos});
+  auto p = sketch_.pointOf(fromSubIndex(ref.index, ref.subIndex));
   if (!p) return std::nullopt;
   return toWorld(*p);
 }
@@ -324,13 +323,16 @@ std::optional<gp_Pnt> SketchFeature::sketchPoint(const ShapeRef& ref) const {
 std::vector<SketchDisplayItem> SketchFeature::displayItems() const {
   std::vector<SketchDisplayItem> out;
   for (const Geometry& g : sketch_.geometries()) {
-    SketchDisplayItem item;
-    item.geoId = g.id;
-    item.construction = g.construction;
-    item.status = sketch_.statusOf(g.id);
-    item.isPoint = g.type == GeomType::Point;
-    for (const Pt2& p : g.tessellate(64)) item.points.push_back(toWorldVec(p));
-    out.push_back(std::move(item));
+    // text yields one item per glyph contour
+    for (const auto& pl : g.polylines(64)) {
+      SketchDisplayItem item;
+      item.geoId = g.id;
+      item.construction = g.construction;
+      item.status = sketch_.statusOf(g.id);
+      item.isPoint = g.type == GeomType::Point;
+      for (const Pt2& p : pl) item.points.push_back(toWorldVec(p));
+      out.push_back(std::move(item));
+    }
   }
   return out;
 }

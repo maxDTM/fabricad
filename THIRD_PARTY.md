@@ -29,3 +29,10 @@ whole app shell are original code.
 
 Reference copies live outside the repository in `../fabricad-ref/` and are documented in
 `docs/research/freecad-occt.md`.
+
+Round 2 (sketch curves / drawing annotations): no third-party code was copied. The ISO 286
+limits-and-fits values in `src/drawing/Tolerance.cpp` are published engineering constants
+(ISO 286-1 table 1, ISO 286-2 fundamental deviations); the B-spline evaluation and global
+interpolation in `src/sketch/SketchCurves.cpp` are re-implemented from the algorithms in
+Piegl & Tiller, *The NURBS Book* (A2.2/A2.3, eq. 9.8); the ellipse / B-spline constraints use
+the already vendored PlaneGCS.

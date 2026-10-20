@@ -8,6 +8,7 @@
 #include "drawing/DrawingExport.h"
 #include "drawing/Sheet.h"
 #include "drawing/tools/AnnotationTools.h"
+#include "drawing/tools/CalloutTools.h"
 #include "drawing/tools/ViewTools.h"
 
 #include <QFileDialog>
@@ -192,6 +193,8 @@ void registerDrawingTools(core::ToolRegistry& tools) {
   tools.registerTool(std::make_unique<BalloonTool>());
   tools.registerTool(std::make_unique<BalloonAllTool>());
   // EXPORT
+  registerCalloutTools(tools);  // round 2: callouts, GD&T, ordinate/baseline/chain, sections, breaks
+
   tools.registerTool(std::make_unique<ExportTool>(ExportTool::Format::Pdf));
   tools.registerTool(std::make_unique<ExportTool>(ExportTool::Format::Svg));
   tools.registerTool(std::make_unique<ExportTool>(ExportTool::Format::Dxf));

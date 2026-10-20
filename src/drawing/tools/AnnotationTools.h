@@ -61,7 +61,8 @@ class DimensionTool : public DrawingToolBase {
   QPointer<QComboBox> typeCombo_;
 };
 
-/// Edit a dimension's text override / prefix / suffix / precision (double-click).
+/// Edit a dimension's text override / prefix / suffix / precision / tolerance and ISO fit (double-click).
+/// Settings: text, prefix, suffix, precision, type, tolerance=<mode>, upper, lower, pm, fit, fitdisplay, tolprecision.
 class EditDimensionTool : public DrawingToolBase {
   Q_OBJECT
  public:
@@ -80,6 +81,8 @@ class EditDimensionTool : public DrawingToolBase {
   QPointer<QLineEdit> textEdit_, prefixEdit_, suffixEdit_;
   QPointer<QSpinBox> precisionSpin_;
   QPointer<QComboBox> typeCombo_;
+  QPointer<QComboBox> tolCombo_;
+  QPointer<QLineEdit> upperEdit_, lowerEdit_, fitEdit_;
 };
 
 /// Centre mark: click circles/arcs (stays active). Args: view label + "all" marks every circle.
