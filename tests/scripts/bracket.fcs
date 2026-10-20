@@ -1,0 +1,90 @@
+# FabriCAD command script: a small bracket that exercises the sketch tools the chair benchmark
+# does not use (line chains with relative input, 3-point arc, circles, a driving dimension,
+# document parameters), a parameter edit, a drawing with views, exports and a second tab.
+# Run from an empty directory: fabricad --script tests/scripts/bracket.fcs --offscreen
+
+SET width=80 mm
+SET thick=12 mm
+CHECK params == 2
+
+# --- outline: lines typed as absolute / relative coordinates, plus a 3-point arc (start, end,
+# then a point on the arc) that makes a half-disc region above the top line ------------------
+SKETCH XY
+LINE
+0,0
+@80,0
+@0,30
+60,30
+0,30
+0,0
+ARC
+PICK 80,30 nosnap
+PICK 60,30 nosnap
+PICK 70,40 nosnap
+# a hole: centre + diameter
+CIRCLE
+40,15
+10
+# dimension the bottom line and drive it with the parameter (a dimension reads expressions)
+DIMENSION
+PICK 20,0 nosnap
+PICK 20,-12 nosnap
+width
+INFO sketch:Sketch1
+FINISH
+CHECK sketches == 1
+
+# --- solid: both regions (the line under the arc splits the half disc off) ------------------------
+SELECT profile:@20,15,0 profile:@70,35,0
+EXTRUDE thick
+OPTIONS
+OK
+CHECK bodies == 1
+CHECK status ok
+# outline 80x30 + half disc r10 - hole r5, times 12
+CHECK body:Body1 volume ~ 29742 0.5%
+CHECK body:Body1 zmax == 12
+# chamfer the top edges (all edges bounding the top face)
+SELECT body:Body1/face:top/edges
+CHAMFER 1
+OK
+CHECK status ok
+CHECK body:Body1 faces > 8
+# change a parameter: the model follows
+SET thick=20 mm
+CHECK body:Body1 zmax == 20
+CHECK body:Body1 volume ~ 49570 0.5%
+UNDO
+CHECK body:Body1 zmax == 12
+REDO
+CHECK body:Body1 zmax == 20
+
+# --- drawing in its own tab --------------------------------------------------------------------
+DRAWING
+OK
+CHECK tabs == 2
+BASEVIEW front 1:1 100,150
+OK
+PROJECTEDVIEW
+OK
+LIST tabs
+EXPORTPDF bracket.pdf
+EXPORTSVG bracket.svg
+CHECK file bracket.pdf exists
+CHECK file bracket.svg exists
+# back to the design tab: the drawing shares its document
+TAB 1
+CHECK bodies == 1
+EXPORTSTEP bracket.step
+EXPORTSTL bracket.stl
+SAVE bracket.fcad
+CHECK file bracket.step exists
+CHECK file bracket.stl exists
+CHECK file bracket.fcad exists
+# a second, independent design in another tab
+NEW
+CHECK tabs == 3
+CHECK bodies == 0
+CLOSE
+CHECK tabs == 2
+CHECK bodies == 1
