@@ -287,10 +287,22 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
     info.thread = stringProp(*f, {"threadDesignation", "threadSize", "thread"});
     bool threaded = !info.thread.empty();
     if (const core::Property* p = f->property("threaded"); p && p->type() == core::PropertyType::Bool && p->toBool()) threaded = true;
+    // Part Hole feature (round 2): the tap type decides; `threadSize` is only meaningful when Tapped,
+    // and a full-depth tap has no separate thread depth.
+    bool tappedHole = false;
+    if (const core::Property* tap = f->property("tapType"); tap && tap->type() == core::PropertyType::Enum) {
+      const std::string t = stringProp(*f, {"tapType"});
+      threaded = tappedHole = (t == "Tapped");
+      if (!threaded) info.thread.clear();
+    }
     if (threaded && info.thread.empty()) info.thread = metricThreadForHole(info.diameter);
     if (threaded) {
       info.threadClass = stringProp(*f, {"threadClass", "threadFit"});
-      if (const core::Property* p = f->property("threadDepth"); p && p->type() == core::PropertyType::Length) info.threadDepth = p->toDouble();
+      if (tappedHole && info.threadClass.empty()) info.threadClass = "6H";  // ISO internal thread, as ThreadInfo::callout()
+      bool fullDepth = false;
+      if (const core::Property* p = f->property("threadFullDepth"); p && p->type() == core::PropertyType::Bool) fullDepth = p->toBool();
+      if (const core::Property* p = f->property("threadDepth"); p && p->type() == core::PropertyType::Length && !fullDepth)
+        info.threadDepth = p->toDouble();
     }
   }
   return info;

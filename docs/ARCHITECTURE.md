@@ -1,6 +1,6 @@
 # FabriCAD architecture
 
-Status: skeleton v0.1 (2026-10-19). Owner: architect, then integrator. Module agents read
+Status: v0.2 after the round-2 integration (2026-10-20). Owner: integrator. Module agents read
 this before writing code and code against the headers in `src/core/` only. Research
 background: `docs/research/freecad-occt.md` (OCCT recipes), `ux.md` (UI spec),
 `algorithms.md` (solvers, profiles, HLR, file format).
@@ -350,9 +350,14 @@ Conventions:
 * Instant tools (`isInstant()`, or `LambdaTool`) do their work in `activate()`.
 * Mouse events reach the active tool after the viewer handled navigation (MMB/wheel). A tool
   returning `false` from `mousePress` lets the viewer do default selection.
-* Command line: `runCommandLine("EXTRUDE 10")` -> alias lookup -> `run(id, {"10"})`; with an
-  active tool the text goes to `commandLineInput()` first (coordinates `x,y`, `@dx,dy`,
-  `@len<ang`). Empty line = repeat last.
+* Command line: `runCommandLine("EXTRUDE 10")` -> alias lookup -> `run(id, {"10"})`. With an
+  active tool: a first word that is the alias of an instant `keepsActiveTool` tool (shell verbs
+  `OK`, `SELECT`, `PICK`, view commands) runs beside the active tool; any other command alias
+  starts that command and ends the active one (Fusion behaviour) unless it names a document
+  parameter; everything else (`x,y`, `@dx,dy`, `@len<ang`, `name=value`, keywords) goes to
+  `commandLineInput()`. An alias shared by several tools (FILLET, MIRROR, POINT, MOVE) resolves
+  to the one enabled in the current context. Empty line = repeat last. The same path drives
+  headless scripts (`fabricad --script file.fcs`, see `docs/SCRIPTING.md`).
 * Dialogs: `createDialog()` returns the body widget; the shell wraps it with the title and
   OK/Cancel (`wantsDialogButtons()`), routes Enter/Esc to `accept()/cancel()`, and
   `IAppHost::setToolAcceptEnabled(bool)` disables OK while the input is invalid.
@@ -508,8 +513,12 @@ Only the parametric definition is stored; geometry is recomputed on load.
   to draw it, or leave it null and draw glyphs via preview during tools.
 * Snap-point picking uses `ctx.viewer->pick()`/selection with `kBrepKinds`; compute frames
   with `resolvePlane/resolveAxis/resolvePoint`.
-* Manipulators (triad) are preview graphics + mouse handling in your tool; the viewer does
-  not provide an `AIS_Manipulator` wrapper yet (ask via integration notes if you need one).
+* Manipulators: `core/Manipulator.h` (`ManipulatorSpec` Linear / Angular / Triad / Point,
+  `ManipulatorModel`, `ManipulatorController`) plus `IViewerContext::showManipulator /
+  updateManipulator / removeManipulator`; the viewer draws them (`viewer/ManipulatorPrs`) and
+  routes mouse events to them ahead of tools. The Move triad and Drive Joint ring use this;
+  part features bind gizmos through `part/tools/FeatureManipulators.h`
+  (`registerManipulatorProvider`). `NullViewerContext` drives drags with pixels in tests.
 * BOM: `Component::partNumber/description/material` + body materials; expose a function
   `assembly::buildBom(const core::Document&)` for the drawing module (header in your dir).
 * Assembly STEP export: XCAF, see research section 5.
