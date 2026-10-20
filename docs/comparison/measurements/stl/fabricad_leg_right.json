@@ -1,0 +1,74 @@
+{
+ "file": "fabricad/out/leg_right.stl",
+ "reference": "fabricad/out/chair.step",
+ "binary": true,
+ "bytes": 31884,
+ "triangles": 636,
+ "vertices": 318,
+ "edges": 954,
+ "degenerate": 0,
+ "open_edges": 0,
+ "nonmanifold_edges": 0,
+ "inconsistent_winding_edges": 0,
+ "watertight": true,
+ "stored_normals_flipped": 0,
+ "stored_normals_zero": 0,
+ "volume": 1716804.8595,
+ "bbox": [
+  15.0,
+  -180.0,
+  -0.0,
+  205.0,
+  180.0,
+  430.0
+ ],
+ "shells": [
+  {
+   "triangles": 636,
+   "vertices": 318,
+   "volume": 1716804.8595,
+   "outward": true,
+   "euler": 0,
+   "genus": 1,
+   "area": 193755.329,
+   "bbox": [
+    15.0,
+    -180.0,
+    -0.0,
+    205.0,
+    180.0,
+    430.0
+   ],
+   "ref_solid": 2,
+   "ref_volume": 1716808.2593,
+   "ref_bbox": [
+    15.0,
+    -180.0,
+    -0.0,
+    205.0,
+    180.0,
+    430.0
+   ]
+  }
+ ],
+ "deviation": {
+  "subdiv": 4,
+  "samples": 7632,
+  "failed": 0,
+  "max": 0.010758,
+  "mean": 0.00219,
+  "rms": 0.003131,
+  "max_at": [
+   200.327,
+   -175.327,
+   0.021
+  ],
+  "max_surface": "cylinder",
+  "max_vertex": 8.35e-06,
+  "max_by_surface": {
+   "cylinder": 0.010758,
+   "edge": 0.006218,
+   "plane": 0.0
+  }
+ }
+}

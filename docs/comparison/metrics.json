@@ -1,0 +1,686 @@
+{
+ "spec": "docs/comparison/CHAIR_SPEC.md",
+ "date": "2026-10-20",
+ "machine": "Arch Linux, 8 threads, 7.7 GB RAM + zram, other agents running (load avg 1.30 before / 2.35 after)",
+ "versions": {
+  "fabricad": "main @ b246294 (Release build, binary 2026-10-20 12:54), OCCT 7.9.3",
+  "freecad": "1.1.4 AppImage (extracted, AppRun), OCCT 7.8.1"
+ },
+ "speed": {
+  "method": "tools/bench.py, 3 interleaved runs per item, median; FabriCAD --offscreen in a scratch dir, FreeCAD freecadcmd with FREECAD_USER_HOME and CHAIR_OUT in a scratch dir",
+  "fabricad": {
+   "startup_shutdown_s": 0.217,
+   "startup_runs_s": [
+    0.217,
+    0.217,
+    0.226
+   ],
+   "startup_note": "script mode always builds and shows the full MainWindow (no 3D view offscreen); there is no separate non-GUI runner",
+   "chair_fcs_wall_s": 3.536,
+   "chair_fcs_runs_s": [
+    3.503,
+    3.536,
+    3.561
+   ],
+   "chair_fcs_in_app_s": 3.299,
+   "chair_min_wall_s": 2.6,
+   "chair_min_runs_s": [
+    2.617,
+    2.595,
+    2.6
+   ],
+   "chair_min_in_app_s": 2.353,
+   "failed_commands": 0,
+   "stages_ms_chair_fcs_last_run": {
+    "Stage A: component Seat": 558.7,
+    "Stage A: component LegFrame": 797.0,
+    "Stage A: assembly": 60.2,
+    "Stage B: split LegFrame with the YZ plane": 83.7,
+    "Stage C: different leg features": 375.9,
+    "Stage D: transforms": 366.0,
+    "final checks: volumes (B-rep) and world bounding boxes": 0.0,
+    "exports": 141.3,
+    "reopen the saved document in a new tab: round trip": 294.0,
+    "read the STEP back: B-rep volumes and boxes of the exported assembly": 67.5
+   }
+  },
+  "freecad": {
+   "freecadcmd_startup_s": 0.074,
+   "freecadcmd_startup_runs_s": [
+    0.246,
+    0.074,
+    0.074
+   ],
+   "gui_startup_offscreen_s": 2.638,
+   "gui_startup_runs_s": [
+    3.362,
+    2.638,
+    2.616
+   ],
+   "chair_script_wall_s": 1.325,
+   "chair_script_runs_s": [
+    1.519,
+    1.325,
+    1.32
+   ],
+   "chair_in_script_s": 1.17,
+   "stages_ms_last_run": {
+    "setup": 0.0,
+    "A_seat": 189.6,
+    "A_legframe": 120.7,
+    "A_assembly": 47.8,
+    "B_split": 59.8,
+    "C_features": 209.1,
+    "D_transforms": 4.6,
+    "export": 196.1
+   },
+   "module_imports_s": 0.342
+  }
+ },
+ "stl": {
+  "fabricad": {
+   "chair": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 101684,
+    "triangles": 2032,
+    "vertices": 1018,
+    "shells": 3,
+    "genus_per_shell": [
+     1,
+     0,
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 12001329.377,
+    "reference_volume_mm3": 12001415.949,
+    "volume_dev_pct": -0.00072,
+    "bbox": [
+     -210.0,
+     -198.4779,
+     -0.0,
+     210.0,
+     235.7339,
+     840.6187
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0003,
+    "chordal_dev_max_mm": 0.03128,
+    "chordal_dev_mean_mm": 0.00811,
+    "chordal_dev_rms_mm": 0.01157,
+    "chordal_dev_max_surface": "torus",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.02409,
+     "edge": 0.02409,
+     "plane": 3e-05,
+     "torus": 0.03128
+    },
+    "vertex_dev_max_mm": 2.99e-05,
+    "chordal_dev_max_vs_other_app_step_mm": 0.03128,
+    "samples": 24384
+   },
+   "seat": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 66084,
+    "triangles": 1320,
+    "vertices": 660,
+    "shells": 1,
+    "genus_per_shell": [
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 8565892.518,
+    "reference_volume_mm3": 8565975.69,
+    "volume_dev_pct": -0.00097,
+    "bbox": [
+     -210.0,
+     -198.4779,
+     430.0,
+     210.0,
+     235.7339,
+     840.6187
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0003,
+    "chordal_dev_max_mm": 0.03128,
+    "chordal_dev_mean_mm": 0.01142,
+    "chordal_dev_rms_mm": 0.01419,
+    "chordal_dev_max_surface": "torus",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.02409,
+     "edge": 0.02409,
+     "plane": 3e-05,
+     "torus": 0.03128
+    },
+    "vertex_dev_max_mm": 2.99e-05,
+    "chordal_dev_max_vs_other_app_step_mm": 0.03128,
+    "samples": 15840
+   },
+   "leg_left": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 3884,
+    "triangles": 76,
+    "vertices": 40,
+    "shells": 1,
+    "genus_per_shell": [
+     0
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 1718632.0,
+    "reference_volume_mm3": 1718632.0,
+    "volume_dev_pct": 0.0,
+    "bbox": [
+     -205.0,
+     -180.0,
+     -0.0,
+     -15.0,
+     180.0,
+     430.0
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0,
+    "chordal_dev_max_mm": 0.0,
+    "chordal_dev_mean_mm": 0.0,
+    "chordal_dev_rms_mm": 0.0,
+    "chordal_dev_max_surface": "edge",
+    "chordal_dev_max_by_surface_mm": {
+     "edge": 0.0,
+     "plane": 0.0
+    },
+    "vertex_dev_max_mm": 3.13e-28,
+    "chordal_dev_max_vs_other_app_step_mm": 0.0,
+    "samples": 912
+   },
+   "leg_right": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 31884,
+    "triangles": 636,
+    "vertices": 318,
+    "shells": 1,
+    "genus_per_shell": [
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 1716804.86,
+    "reference_volume_mm3": 1716808.259,
+    "volume_dev_pct": -0.0002,
+    "bbox": [
+     15.0,
+     -180.0,
+     -0.0,
+     205.0,
+     180.0,
+     430.0
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0,
+    "chordal_dev_max_mm": 0.01076,
+    "chordal_dev_mean_mm": 0.00219,
+    "chordal_dev_rms_mm": 0.00313,
+    "chordal_dev_max_surface": "cylinder",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.01076,
+     "edge": 0.00622,
+     "plane": 0.0
+    },
+    "vertex_dev_max_mm": 8.35e-06,
+    "chordal_dev_max_vs_other_app_step_mm": 0.01076,
+    "samples": 7632
+   },
+   "chair_default": {
+    "setting": "linear 0.05 mm absolute, angular 20 deg (0.349 rad), relative off, binary",
+    "binary": true,
+    "bytes": 71884,
+    "triangles": 1436,
+    "vertices": 720,
+    "shells": 3,
+    "genus_per_shell": [
+     1,
+     0,
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 12001213.172,
+    "reference_volume_mm3": 12001415.949,
+    "volume_dev_pct": -0.00169,
+    "bbox": [
+     -210.0,
+     -198.4779,
+     -0.0,
+     210.0,
+     235.7339,
+     840.6187
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0003,
+    "chordal_dev_max_mm": 0.05287,
+    "chordal_dev_mean_mm": 0.01314,
+    "chordal_dev_rms_mm": 0.01755,
+    "chordal_dev_max_surface": "torus",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.02409,
+     "edge": 0.02409,
+     "plane": 3e-05,
+     "torus": 0.05287
+    },
+    "vertex_dev_max_mm": 2.99e-05,
+    "chordal_dev_max_vs_other_app_step_mm": 0.05287,
+    "samples": 17232
+   }
+  },
+  "freecad": {
+   "chair": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 102084,
+    "triangles": 2040,
+    "vertices": 1022,
+    "shells": 3,
+    "genus_per_shell": [
+     1,
+     0,
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 12001330.038,
+    "reference_volume_mm3": 12001415.949,
+    "volume_dev_pct": -0.00072,
+    "bbox": [
+     -210.0,
+     -198.4779,
+     -0.0,
+     210.0,
+     235.7339,
+     840.6187
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0003,
+    "chordal_dev_max_mm": 0.03128,
+    "chordal_dev_mean_mm": 0.00808,
+    "chordal_dev_rms_mm": 0.01155,
+    "chordal_dev_max_surface": "torus",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.02409,
+     "edge": 0.02409,
+     "plane": 3e-05,
+     "torus": 0.03128
+    },
+    "vertex_dev_max_mm": 1.8e-05,
+    "chordal_dev_max_vs_other_app_step_mm": 0.03128,
+    "samples": 24480
+   },
+   "seat": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 66084,
+    "triangles": 1320,
+    "vertices": 660,
+    "shells": 1,
+    "genus_per_shell": [
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 8565893.011,
+    "reference_volume_mm3": 8565975.69,
+    "volume_dev_pct": -0.00097,
+    "bbox": [
+     -210.0,
+     -198.4779,
+     430.0,
+     210.0,
+     235.7339,
+     840.6187
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0003,
+    "chordal_dev_max_mm": 0.03128,
+    "chordal_dev_mean_mm": 0.01142,
+    "chordal_dev_rms_mm": 0.01419,
+    "chordal_dev_max_surface": "torus",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.02409,
+     "edge": 0.02409,
+     "plane": 3e-05,
+     "torus": 0.03128
+    },
+    "vertex_dev_max_mm": 1.8e-05,
+    "chordal_dev_max_vs_other_app_step_mm": 0.03128,
+    "samples": 15840
+   },
+   "leg_left": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 3884,
+    "triangles": 76,
+    "vertices": 40,
+    "shells": 1,
+    "genus_per_shell": [
+     0
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 1718632.0,
+    "reference_volume_mm3": 1718632.0,
+    "volume_dev_pct": 0.0,
+    "bbox": [
+     -205.0,
+     -180.0,
+     -0.0,
+     -15.0,
+     180.0,
+     430.0
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0,
+    "chordal_dev_max_mm": 0.0,
+    "chordal_dev_mean_mm": 0.0,
+    "chordal_dev_rms_mm": 0.0,
+    "chordal_dev_max_surface": "edge",
+    "chordal_dev_max_by_surface_mm": {
+     "edge": 0.0,
+     "plane": 0.0
+    },
+    "vertex_dev_max_mm": 2.84e-14,
+    "chordal_dev_max_vs_other_app_step_mm": 0.0,
+    "samples": 912
+   },
+   "leg_right": {
+    "setting": "linear 0.05 mm absolute, angular 0.2 rad, relative off, binary",
+    "binary": true,
+    "bytes": 32284,
+    "triangles": 644,
+    "vertices": 322,
+    "shells": 1,
+    "genus_per_shell": [
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 1716805.026,
+    "reference_volume_mm3": 1716808.259,
+    "volume_dev_pct": -0.00019,
+    "bbox": [
+     15.0,
+     -180.0,
+     -0.0,
+     205.0,
+     180.0,
+     430.0
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0,
+    "chordal_dev_max_mm": 0.01076,
+    "chordal_dev_mean_mm": 0.00217,
+    "chordal_dev_rms_mm": 0.00309,
+    "chordal_dev_max_surface": "cylinder",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.01076,
+     "edge": 0.00622,
+     "plane": 0.0
+    },
+    "vertex_dev_max_mm": 8.35e-06,
+    "chordal_dev_max_vs_other_app_step_mm": 0.01076,
+    "samples": 7728
+   },
+   "chair_default": {
+    "setting": "linear 0.1 mm absolute, angular 0.1 rad, relative off, binary",
+    "binary": true,
+    "bytes": 299684,
+    "triangles": 5992,
+    "vertices": 2998,
+    "shells": 3,
+    "genus_per_shell": [
+     1,
+     0,
+     1
+    ],
+    "watertight": true,
+    "open_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistent_winding_edges": 0,
+    "normals_outward": true,
+    "stored_normals_flipped": 0,
+    "degenerate_triangles": 0,
+    "volume_mm3": 12001393.773,
+    "reference_volume_mm3": 12001415.949,
+    "volume_dev_pct": -0.00018,
+    "bbox": [
+     -210.0,
+     -198.4779,
+     -0.0,
+     210.0,
+     235.7339,
+     840.6187
+    ],
+    "bbox_max_dev_vs_spec_mm": 0.0003,
+    "chordal_dev_max_mm": 0.00784,
+    "chordal_dev_mean_mm": 0.00252,
+    "chordal_dev_rms_mm": 0.00329,
+    "chordal_dev_max_surface": "torus",
+    "chordal_dev_max_by_surface_mm": {
+     "cylinder": 0.00603,
+     "edge": 0.00603,
+     "plane": 3e-05,
+     "torus": 0.00784
+    },
+    "vertex_dev_max_mm": 2.63e-05,
+    "chordal_dev_max_vs_other_app_step_mm": 0.00784,
+    "samples": 71904
+   }
+  }
+ },
+ "ease": {
+  "source": "fabricad/REPORT.md (before and 'After fixes') and freecad/REPORT.md; concept count for FabriCAD and workbench-switch count for FreeCAD added in COMPARISON.md by the same rules as freecad/REPORT.md; GUI numbers are estimates counted from code/docs, not measured live, in both reports",
+  "fabricad": {
+   "script": "fabricad/chair_min.fcs",
+   "script_lines_commands": 170,
+   "tool_invocations": 63,
+   "selection_and_confirm_lines": 70,
+   "typed_values": 22,
+   "typed_properties": 15,
+   "distinct_commands": 27,
+   "distinct_properties": 8,
+   "full_script_chair_fcs_commands": 304,
+   "full_script_checks": 130,
+   "workspaces_or_workbenches": 1,
+   "workbench_switches": 0,
+   "ribbon_tabs_used": [
+    "SOLID",
+    "SKETCH (contextual)",
+    "ASSEMBLE",
+    "TOOLS"
+   ],
+   "concepts": 22,
+   "concept_list": [
+    "component",
+    "active component",
+    "body",
+    "origin planes",
+    "offset plane (normal, flip)",
+    "sketch on plane/face",
+    "sketch geometry with typed coordinates",
+    "sketch fillet",
+    "profile selection",
+    "Extrude operation New Body/Join/Cut",
+    "Extrude extent/direction (All, Symmetric, Whole Length, flip)",
+    "Fillet with tangent chain",
+    "Chamfer",
+    "Hole on a sketch point (extent All)",
+    "Split Body",
+    "Create Components from Bodies",
+    "Delete Component (children re-parented)",
+    "Ground",
+    "As-built joint (face picks)",
+    "Move Component with pivot + rx",
+    "STEP assembly export",
+    "STL tessellation settings"
+   ],
+   "sketches_fully_constrained": false,
+   "sketch_note": "rectangles are placed by typed corner + size; each sketch keeps 2-8 DOF (no dimensions); a Fusion-style draw-then-dimension would add about 70 clicks + 40 keys (fabricad/REPORT.md)",
+   "failed_attempts_before_fixes": 14,
+   "failed_attempts_app_caused": 11,
+   "defects_found": 7,
+   "usability_issues": 6,
+   "deviations_before_fixes": 3,
+   "workarounds_before_fixes": 4,
+   "deviations_after_fixes": 0,
+   "workarounds_after_fixes": 0,
+   "gui_estimate_before": {
+    "clicks": 144,
+    "keys": 610,
+    "steps": 51
+   },
+   "gui_estimate_after": {
+    "clicks": 155,
+    "keys": 455,
+    "steps": 52,
+    "by_stage": {
+     "A": [
+      76,
+      271
+     ],
+     "B": [
+      11,
+      20
+     ],
+     "C": [
+      25,
+      20
+     ],
+     "D": [
+      20,
+      20
+     ],
+     "export_save": [
+      23,
+      124
+     ]
+    },
+    "model_only_A_to_D": [
+     132,
+     331
+    ]
+   }
+  },
+  "freecad": {
+   "script": "freecad/chair_freecad.py",
+   "gui_operations": 121,
+   "top_level_operations": 55,
+   "in_sketch_operations": 66,
+   "workbenches": 5,
+   "workbench_list": [
+    "PartDesign",
+    "Sketcher (automatic)",
+    "Assembly",
+    "Part",
+    "Mesh"
+   ],
+   "workbench_switches": 8,
+   "workbench_switch_list": [
+    "A: PartDesign",
+    "A: Assembly",
+    "B: Part",
+    "B: PartDesign",
+    "B: Assembly",
+    "C: PartDesign",
+    "D: Assembly",
+    "Export: Mesh"
+   ],
+   "concepts": 24,
+   "sketches_fully_constrained": true,
+   "failed_attempts": 5,
+   "verifier_fixes": 2,
+   "deviations": 1,
+   "deviation_note": "Fixed joint referenced on the Seat's R20 arc centre instead of the bottom face (a face pick would spin LegFrame 180 deg or need a 180 deg offset)",
+   "gui_estimate": {
+    "clicks": 407,
+    "keys": 362,
+    "rows": 40,
+    "by_stage": {
+     "A": [
+      277,
+      215
+     ],
+     "B": [
+      29,
+      21
+     ],
+     "C": [
+      43,
+      18
+     ],
+     "D": [
+      26,
+      16
+     ],
+     "export": [
+      32,
+      92
+     ]
+    }
+   }
+  }
+ },
+ "verdict": {
+  "ease": "FabriCAD: 1 workspace vs 5 workbenches (8 switches), Fusion command names, ~155/455 vs ~407/362 estimated clicks/keys, 0 workarounds after fixes; but 14 failed attempts before fixes (4 silent wrong geometry/export) vs FreeCAD 5; FreeCAD sketches fully constrained",
+  "speed": "FreeCAD headless 2.0x faster (1.325 s vs 2.600 s), freecadcmd startup 0.074 s vs 0.217 s; FabriCAD GUI startup 12x faster (0.217 s vs 2.638 s offscreen)",
+  "stl": "matched 0.05 mm/0.2 rad: equivalent (max chordal 0.0313 mm both, volumes equal); defaults: FreeCAD 0.0078 mm max (5992 tri) vs FabriCAD 0.0529 mm (1436 tri), all watertight/outward/0 degenerate",
+  "recommendations": [
+   "skip/defer live preview in script mode; incremental recompute for DELETECOMPONENT/DELETE joint",
+   "non-GUI headless runner",
+   "finer default STL or presets",
+   "STEP import keeps assembly tree",
+   "typed sketch values create dimensions",
+   "warn on cross-component booleans",
+   "U3/U4 conventions",
+   "optional no-pcurve STEP",
+   "measure GUI path live"
+  ]
+ }
+}

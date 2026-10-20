@@ -1,0 +1,38 @@
+{
+ "source": "fabricad/REPORT.md (before and 'After fixes') and freecad/REPORT.md; concept count for FabriCAD and workbench-switch count for FreeCAD added in COMPARISON.md by the same rules as freecad/REPORT.md; GUI numbers are estimates counted from code/docs, not measured live, in both reports",
+ "fabricad": {
+  "script": "fabricad/chair_min.fcs",
+  "script_lines_commands": 170,
+  "tool_invocations": 63, "selection_and_confirm_lines": 70, "typed_values": 22, "typed_properties": 15,
+  "distinct_commands": 27, "distinct_properties": 8,
+  "full_script_chair_fcs_commands": 304, "full_script_checks": 130,
+  "workspaces_or_workbenches": 1, "workbench_switches": 0,
+  "ribbon_tabs_used": ["SOLID", "SKETCH (contextual)", "ASSEMBLE", "TOOLS"],
+  "concepts": 22,
+  "concept_list": ["component", "active component", "body", "origin planes", "offset plane (normal, flip)", "sketch on plane/face", "sketch geometry with typed coordinates", "sketch fillet", "profile selection", "Extrude operation New Body/Join/Cut", "Extrude extent/direction (All, Symmetric, Whole Length, flip)", "Fillet with tangent chain", "Chamfer", "Hole on a sketch point (extent All)", "Split Body", "Create Components from Bodies", "Delete Component (children re-parented)", "Ground", "As-built joint (face picks)", "Move Component with pivot + rx", "STEP assembly export", "STL tessellation settings"],
+  "sketches_fully_constrained": false,
+  "sketch_note": "rectangles are placed by typed corner + size; each sketch keeps 2-8 DOF (no dimensions); a Fusion-style draw-then-dimension would add about 70 clicks + 40 keys (fabricad/REPORT.md)",
+  "failed_attempts_before_fixes": 14, "failed_attempts_app_caused": 11,
+  "defects_found": 7, "usability_issues": 6,
+  "deviations_before_fixes": 3, "workarounds_before_fixes": 4,
+  "deviations_after_fixes": 0, "workarounds_after_fixes": 0,
+  "gui_estimate_before": {"clicks": 144, "keys": 610, "steps": 51},
+  "gui_estimate_after": {"clicks": 155, "keys": 455, "steps": 52,
+    "by_stage": {"A": [76, 271], "B": [11, 20], "C": [25, 20], "D": [20, 20], "export_save": [23, 124]},
+    "model_only_A_to_D": [132, 331]}
+ },
+ "freecad": {
+  "script": "freecad/chair_freecad.py",
+  "gui_operations": 121, "top_level_operations": 55, "in_sketch_operations": 66,
+  "workbenches": 5, "workbench_list": ["PartDesign", "Sketcher (automatic)", "Assembly", "Part", "Mesh"],
+  "workbench_switches": 8,
+  "workbench_switch_list": ["A: PartDesign", "A: Assembly", "B: Part", "B: PartDesign", "B: Assembly", "C: PartDesign", "D: Assembly", "Export: Mesh"],
+  "concepts": 24,
+  "sketches_fully_constrained": true,
+  "failed_attempts": 5, "verifier_fixes": 2,
+  "deviations": 1,
+  "deviation_note": "Fixed joint referenced on the Seat's R20 arc centre instead of the bottom face (a face pick would spin LegFrame 180 deg or need a 180 deg offset)",
+  "gui_estimate": {"clicks": 407, "keys": 362, "rows": 40,
+    "by_stage": {"A": [277, 215], "B": [29, 21], "C": [43, 18], "D": [26, 16], "export": [32, 92]}}
+ }
+}

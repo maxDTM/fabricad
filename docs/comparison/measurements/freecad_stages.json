@@ -1,0 +1,10 @@
+{
+ "setup": 0.0,
+ "A_seat": 0.1896,
+ "A_legframe": 0.1207,
+ "A_assembly": 0.0478,
+ "B_split": 0.0598,
+ "C_features": 0.2091,
+ "D_transforms": 0.0046,
+ "export": 0.1961
+}

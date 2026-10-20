@@ -1,0 +1,62 @@
+{
+ "Stage A: component Seat": {
+  "commands": 61,
+  "ms": 574.6,
+  "modelling_commands": 51,
+  "modelling_ms": 558.7
+ },
+ "Stage A: component LegFrame": {
+  "commands": 72,
+  "ms": 826.6,
+  "modelling_commands": 60,
+  "modelling_ms": 797.0
+ },
+ "Stage A: assembly": {
+  "commands": 11,
+  "ms": 66.8,
+  "modelling_commands": 7,
+  "modelling_ms": 60.2
+ },
+ "Stage B: split LegFrame with the YZ plane": {
+  "commands": 18,
+  "ms": 92.4,
+  "modelling_commands": 8,
+  "modelling_ms": 83.7
+ },
+ "Stage C: different leg features": {
+  "commands": 26,
+  "ms": 407.9,
+  "modelling_commands": 13,
+  "modelling_ms": 375.9
+ },
+ "Stage D: transforms": {
+  "commands": 33,
+  "ms": 398.9,
+  "modelling_commands": 19,
+  "modelling_ms": 366.0
+ },
+ "final checks: volumes (B-rep) and world bounding boxes": {
+  "commands": 21,
+  "ms": 125.5,
+  "modelling_commands": 0,
+  "modelling_ms": 0.0
+ },
+ "exports": {
+  "commands": 21,
+  "ms": 153.8,
+  "modelling_commands": 12,
+  "modelling_ms": 141.3
+ },
+ "reopen the saved document in a new tab: round trip": {
+  "commands": 10,
+  "ms": 340.3,
+  "modelling_commands": 1,
+  "modelling_ms": 294.0
+ },
+ "read the STEP back: B-rep volumes and boxes of the exported assembly": {
+  "commands": 31,
+  "ms": 327.0,
+  "modelling_commands": 3,
+  "modelling_ms": 67.5
+ }
+}

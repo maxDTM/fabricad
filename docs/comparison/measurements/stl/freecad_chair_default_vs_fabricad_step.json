@@ -1,0 +1,130 @@
+{
+ "file": "freecad/out/chair_default.stl",
+ "reference": "fabricad/out/chair.step",
+ "binary": true,
+ "bytes": 299684,
+ "triangles": 5992,
+ "vertices": 2998,
+ "edges": 8988,
+ "degenerate": 0,
+ "open_edges": 0,
+ "nonmanifold_edges": 0,
+ "inconsistent_winding_edges": 0,
+ "watertight": true,
+ "stored_normals_flipped": 0,
+ "stored_normals_zero": 0,
+ "volume": 12001393.7731,
+ "bbox": [
+  -210.0,
+  -198.47787,
+  -0.0,
+  210.0,
+  235.73386,
+  840.61871
+ ],
+ "shells": [
+  {
+   "triangles": 4648,
+   "vertices": 2324,
+   "volume": 8565954.1848,
+   "outward": true,
+   "euler": 0,
+   "genus": 1,
+   "area": 701578.48,
+   "bbox": [
+    -210.0,
+    -198.47787,
+    430.0,
+    210.0,
+    235.73386,
+    840.61871
+   ],
+   "ref_solid": 0,
+   "ref_volume": 8565975.69,
+   "ref_bbox": [
+    -210.0,
+    -198.47788,
+    430.0,
+    210.0,
+    235.73385,
+    840.61872
+   ]
+  },
+  {
+   "triangles": 76,
+   "vertices": 40,
+   "volume": 1718632.0,
+   "outward": true,
+   "euler": 2,
+   "genus": 0,
+   "area": 193407.822,
+   "bbox": [
+    -205.0,
+    -180.0,
+    -0.0,
+    -15.0,
+    180.0,
+    430.0
+   ],
+   "ref_solid": 1,
+   "ref_volume": 1718632.0,
+   "ref_bbox": [
+    -205.0,
+    -180.0,
+    -0.0,
+    -15.0,
+    180.0,
+    430.0
+   ]
+  },
+  {
+   "triangles": 1268,
+   "vertices": 634,
+   "volume": 1716807.5882,
+   "outward": true,
+   "euler": 0,
+   "genus": 1,
+   "area": 193756.012,
+   "bbox": [
+    15.0,
+    -180.0,
+    -0.0,
+    205.0,
+    180.0,
+    430.0
+   ],
+   "ref_solid": 2,
+   "ref_volume": 1716808.2593,
+   "ref_bbox": [
+    15.0,
+    -180.0,
+    -0.0,
+    205.0,
+    180.0,
+    430.0
+   ]
+  }
+ ],
+ "deviation": {
+  "subdiv": 4,
+  "samples": 71904,
+  "failed": 0,
+  "max": 0.007836,
+  "mean": 0.002525,
+  "rms": 0.003289,
+  "max_at": [
+   205.137,
+   -189.457,
+   488.312
+  ],
+  "max_surface": "torus",
+  "max_vertex": 2.99e-05,
+  "max_by_surface": {
+   "cylinder": 0.006031,
+   "edge": 0.006029,
+   "plane": 2.9e-05,
+   "torus": 0.007836,
+   "vertex": 0.001554
+  }
+ }
+}

@@ -1,0 +1,73 @@
+{
+ "file": "fabricad/out/leg_left.stl",
+ "reference": "fabricad/out/chair.step",
+ "binary": true,
+ "bytes": 3884,
+ "triangles": 76,
+ "vertices": 40,
+ "edges": 114,
+ "degenerate": 0,
+ "open_edges": 0,
+ "nonmanifold_edges": 0,
+ "inconsistent_winding_edges": 0,
+ "watertight": true,
+ "stored_normals_flipped": 0,
+ "stored_normals_zero": 0,
+ "volume": 1718632.0,
+ "bbox": [
+  -205.0,
+  -180.0,
+  -0.0,
+  -15.0,
+  180.0,
+  430.0
+ ],
+ "shells": [
+  {
+   "triangles": 76,
+   "vertices": 40,
+   "volume": 1718632.0,
+   "outward": true,
+   "euler": 2,
+   "genus": 0,
+   "area": 193407.822,
+   "bbox": [
+    -205.0,
+    -180.0,
+    -0.0,
+    -15.0,
+    180.0,
+    430.0
+   ],
+   "ref_solid": 1,
+   "ref_volume": 1718632.0,
+   "ref_bbox": [
+    -205.0,
+    -180.0,
+    -0.0,
+    -15.0,
+    180.0,
+    430.0
+   ]
+  }
+ ],
+ "deviation": {
+  "subdiv": 4,
+  "samples": 912,
+  "failed": 0,
+  "max": 0.0,
+  "mean": 0.0,
+  "rms": 0.0,
+  "max_at": [
+   -167.25,
+   -177.75,
+   0.75
+  ],
+  "max_surface": "edge",
+  "max_vertex": 3.13e-28,
+  "max_by_surface": {
+   "edge": 0.0,
+   "plane": 0.0
+  }
+ }
+}

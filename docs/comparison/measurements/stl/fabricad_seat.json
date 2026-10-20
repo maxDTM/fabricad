@@ -1,0 +1,75 @@
+{
+ "file": "fabricad/out/seat.stl",
+ "reference": "fabricad/out/chair.step",
+ "binary": true,
+ "bytes": 66084,
+ "triangles": 1320,
+ "vertices": 660,
+ "edges": 1980,
+ "degenerate": 0,
+ "open_edges": 0,
+ "nonmanifold_edges": 0,
+ "inconsistent_winding_edges": 0,
+ "watertight": true,
+ "stored_normals_flipped": 0,
+ "stored_normals_zero": 0,
+ "volume": 8565892.5175,
+ "bbox": [
+  -210.0,
+  -198.47787,
+  430.0,
+  210.0,
+  235.73386,
+  840.61871
+ ],
+ "shells": [
+  {
+   "triangles": 1320,
+   "vertices": 660,
+   "volume": 8565892.5175,
+   "outward": true,
+   "euler": 0,
+   "genus": 1,
+   "area": 701573.265,
+   "bbox": [
+    -210.0,
+    -198.47787,
+    430.0,
+    210.0,
+    235.73386,
+    840.61871
+   ],
+   "ref_solid": 0,
+   "ref_volume": 8565975.69,
+   "ref_bbox": [
+    -210.0,
+    -198.47788,
+    430.0,
+    210.0,
+    235.73385,
+    840.61872
+   ]
+  }
+ ],
+ "deviation": {
+  "subdiv": 4,
+  "samples": 15840,
+  "failed": 0,
+  "max": 0.031276,
+  "mean": 0.011425,
+  "rms": 0.014192,
+  "max_at": [
+   190.979,
+   -196.298,
+   489.058
+  ],
+  "max_surface": "torus",
+  "max_vertex": 2.99e-05,
+  "max_by_surface": {
+   "cylinder": 0.024094,
+   "edge": 0.024092,
+   "plane": 2.9e-05,
+   "torus": 0.031276
+  }
+ }
+}
