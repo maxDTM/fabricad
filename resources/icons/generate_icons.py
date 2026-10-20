@@ -589,6 +589,117 @@ I["timeline-prev"] = P("M16 5 L7 12 L16 19 Z", s=UI, f=UI, fo="0.3")
 I["timeline-next"] = P("M8 5 L17 12 L8 19 Z", s=UI, f=UI, fo="0.3")
 I["timeline-last"] = P("M18 5 V19", s=INK) + P("M6 5 L15 12 L6 19 Z", s=UI, f=UI, fo="0.3")
 
+# ===== round 2: sketch curves, patterns and transforms (blue) ================================
+I["sketch-ellipse"] = E(12, 12, 8.5, 5.5, s=SK) + P("M12 12 H20.5", s=GREY) + dot(12, 12) + dot(20.5, 12) + dot(12, 6.5)
+I["sketch-ellipse-arc"] = (P("M3.5 14 A8.5 5.5 0 0 1 20.5 14", s=SK) + P("M3.5 14 H20.5", s=GREY, da=DASH) +
+                           dot(3.5, 14) + dot(20.5, 14) + dot(12, 8.5))
+_spl = "M3 17 C7 3 10 21 14 10 C16 5 18.5 8 21 6"
+I["sketch-spline-fit"] = P(_spl, s=SK) + dot(3, 17) + dot(9.2, 12.2) + dot(14, 10) + dot(21, 6)
+I["sketch-spline-control"] = (P("M3 17 L7 3 L14 10 L21 6", s=GREY, da=DASH) + P(_spl, s=SK) +
+                              R(1.75, 15.75, 2.5, 2.5, s=INK, f=WH) + R(5.75, 1.75, 2.5, 2.5, s=INK, f=WH) +
+                              R(12.75, 8.75, 2.5, 2.5, s=INK, f=WH) + R(19.75, 4.75, 2.5, 2.5, s=INK, f=WH))
+I["sketch-text"] = P("M5 19 L11 5 L17 19 M7.5 13.5 H14.5", s=SK) + P("M3 21.5 H19", s=GREY, da=DASH) + dot(3, 21.5)
+I["sketch-pattern-rectangular"] = (C(6.5, 6.5, 2.6, s=INK) + C(17.5, 6.5, 2.6, s=SK) + C(6.5, 17.5, 2.6, s=SK) +
+                                   C(17.5, 17.5, 2.6, s=SK) + P("M6.5 9.1 V14.9 M9.1 6.5 H14.9", s=GREY, da=DASH))
+I["sketch-pattern-circular"] = C(12, 12, 7, s=GREY, da=DASH) + dot(12, 12, INK, 1.2) + "".join(
+    C(round(12 + 7 * x, 2), round(12 + 7 * y, 2), 2.2, s=(INK if i == 0 else SK))
+    for i, (x, y) in enumerate([(0, -1), (0.866, -0.5), (0.866, 0.5), (0, 1), (-0.866, 0.5), (-0.866, -0.5)]))
+I["sketch-move"] = R(8.5, 8.5, 7, 7, s=SK) + four_way(SK, 10, 12, 12, 5.5)
+I["sketch-rotate"] = (R(9, 9, 8, 8, s=GREY, da=DASH) + P("M5.5 9.5 L10 5 L14.5 9.5 L10 14 Z", s=SK) +
+                      P("M18.5 5 A8 8 0 0 1 20 13", s=INK) + arrow_head(20, 13, "down", INK, 2) + dot(12, 12, INK, 1.2))
+I["sketch-scale"] = (R(3.5, 12.5, 8, 8, s=SK) + R(3.5, 3.5, 17, 17, s=GREY, da=DASH) + P("M11.5 12.5 L19 5", s=INK) +
+                     P("M14.5 5 H19 V9.5", s=INK))
+I["sketch-chamfer"] = (P("M5 20 V5 H20", s=GREY, da=DASH) + P("M5 20 V11 L11 5 H20", s=SK) + dot(5, 11) + dot(11, 5))
+
+# ===== round 2: primitives, thread, rib, thicken, scale, split face ==========================
+BOX = cube(12, 11.5, 1.05, fill=BODY) + P("M3 21 H21", s=OR)
+I["part-box"] = BOX
+CYLINDER = P("M6 6.5 V17 A6 2.5 0 0 0 18 17 V6.5", f=BODY) + E(12, 6.5, 6, 2.5, f=WH) + P("M3 21 H21", s=OR)
+I["part-cylinder"] = CYLINDER
+SPHERE = C(12, 12, 8, f=BODY) + E(12, 12, 8, 3, s=GREY, da=DASH) + P("M12 4 A3 8 0 0 0 12 20", s=GREY, da=DASH)
+I["part-sphere"] = SPHERE
+TORUS = E(12, 12, 9, 5, f=BODY) + E(12, 12, 3.5, 1.8, f=WH) + P("M3 20.5 H21", s=OR)
+I["part-torus"] = TORUS
+COIL = (P("M12 2 V22", s=GREY, da=DASHDOT) +
+        P("M6 4.5 H15 A3 2.25 0 0 1 15 9 H9 A3 2.25 0 0 0 9 13.5 H15 A3 2.25 0 0 1 15 18 H9 A3 2.25 0 0 0 9 20.5", s=INK) +
+        P("M6 4.5 L4 6.5", s=OR))
+I["part-coil"] = COIL
+THREAD = (P("M7 4 H17 V20 H7 Z", f=BODY) + P("M7 8 L17 6.5 M7 11.5 L17 10 M7 15 L17 13.5 M7 18.5 L17 17", s=OR) +
+          P("M12 1.5 V3 M12 21 V22.5", s=GREY, da=DASHDOT))
+I["part-thread"] = THREAD
+RIB = (P("M3 20 H21 V15 H3 Z", f=BODY) + P("M10.5 15 V6 H13.5 V15", f=BODY, s=OR) + P("M5 6 H10.5", s=SK) + dot(5, 6, SK, 1.2))
+I["part-rib"] = RIB
+THICKEN = (P("M3 19 Q12 5 21 19 L21 15 Q12 1 3 15 Z", f=BODY) + P("M3 19 Q12 5 21 19", s=GREY, da=DASH) +
+           P("M12 11 V7.5", s=OR) + arrow_head(12, 7.5, "up", OR, 2))
+I["part-thicken"] = THICKEN
+SCALE_BODY = (cube(8.5, 15.5, 0.5, fill=BODY) + cube(13, 11, 1.0, fill="none", stroke=GREY) + P("M11.5 12.5 L19 5", s=OR) +
+              P("M14.5 5 H19 V9.5", s=OR))
+I["part-scale"] = SCALE_BODY
+_sf = cube_pts(12, 12, 1.1)
+SPLIT_FACE = (cube(12, 12, 1.1, fill=BODY) +
+              P(poly(_sf["tf"], _sf["tr"], _sf["br"], _sf["bf"]), f=OR, fo="0.25", s="none") +
+              P("M%g %g L%g %g" % ((_sf["tf"][0] + _sf["tr"][0]) / 2, (_sf["tf"][1] + _sf["tr"][1]) / 2,
+                                    (_sf["bf"][0] + _sf["br"][0]) / 2, (_sf["bf"][1] + _sf["br"][1]) / 2), s=OR, da=DASH))
+I["part-split-face"] = SPLIT_FACE
+I["assembly-paste-new"] = (R(4, 4, 16, 18, 1.5, f=WH) + R(8.5, 2.5, 7, 3.5, 1, f=WH) + component(11, 13, 0.55) +
+                           plus(17, 18.5, AS, 2.5))
+
+# ===== round 2: drawing annotations ==========================================================
+I["drawing-hole-callout"] = (C(7.5, 16, 4.5, s=INK) + P("M10.7 12.8 L15 8.5 H21.5", s=DR) + dot(10.7, 12.8, DR, 1.3) +
+                             C(16.5, 5.5, 2, s=DR) + P("M15 7.5 L18 3.5", s=DR))
+I["drawing-thread-callout"] = (C(7.5, 16, 4.5, s=INK) + C(7.5, 16, 3, s=GREY, da=DASH) +
+                               P("M10.7 12.8 L15 8.5 H21.5", s=DR) + dot(10.7, 12.8, DR, 1.3) +
+                               P("M14.5 7 V2.5 L17 5.5 L19.5 2.5 V7", s=DR))
+I["drawing-feature-control-frame"] = (R(2.5, 8, 19, 8, f=WH) + P("M8.5 8 V16 M15.5 8 V16", s=INK) +
+                                      C(5.5, 12, 1.8, s=DR) + P("M5.5 9.5 V14.5 M3 12 H8", s=DR) +
+                                      C(12, 12, 1.4, s=INK) + P("M10.6 13.4 L13.4 10.6", s=INK) +
+                                      P("M17 14.5 L18.5 9.5 L20 14.5 M17.6 13 H19.4", s=INK))
+I["drawing-datum"] = (R(9, 3, 6, 6, f=WH) + P("M10.5 7.5 L12 4.5 L13.5 7.5 M11 6.5 H13", s=DR) + P("M12 9 V16", s=INK) +
+                      P("M9 20 L12 16 L15 20 Z", f=DR, s=DR) + P("M4 20 H20", s=INK))
+I["drawing-surface-texture"] = (P("M5 11 L9.5 19.5 L16.5 5", s=DR) + P("M9.5 11 H20", s=DR) + P("M3 21.5 H21", s=INK) +
+                                P("M3 21.5 L5 19 M7 21.5 L9 19 M11 21.5 L13 19 M15 21.5 L17 19 M19 21.5 L21 19", s=GREY))
+I["drawing-dimension-ordinate"] = (P("M3 20 H21 M3 20 V4", s=INK) + dot(3, 20, DR, 1.6) +
+                                   P("M8 18.5 V7 M14 18.5 V7 M20 18.5 V7", s=DR) + P("M6.5 5 H9.5 M12.5 5 H15.5 M18.5 5 H21.5", s=GREY))
+I["drawing-dimension-baseline"] = (P("M3 21 H21", s=INK) + P("M3 21 V4 M9 21 V8 M15 21 V12 M21 21 V16", s=GREY) +
+                                   P("M3.5 7 H20.5 M3.5 11 H14.5 M3.5 15 H8.5", s=DR) +
+                                   arrow_head(20.5, 7, "right", DR, 1.5) + arrow_head(14.5, 11, "right", DR, 1.5) +
+                                   arrow_head(8.5, 15, "right", DR, 1.5))
+I["drawing-dimension-chain"] = (P("M3 21 H21", s=INK) + P("M3 21 V7 M9 21 V7 M15 21 V7 M21 21 V7", s=GREY) +
+                                P("M3.5 10 H8.5 M9.5 10 H14.5 M15.5 10 H20.5", s=DR) +
+                                arrow_head(8.5, 10, "right", DR, 1.5) + arrow_head(14.5, 10, "right", DR, 1.5) +
+                                arrow_head(20.5, 10, "right", DR, 1.5) + arrow_head(3.5, 10, "left", DR, 1.5))
+I["drawing-break-view"] = (P("M2.5 6 H9 L8 10 L10 14 L9 18 H2.5 Z", f=WH) + P("M21.5 6 H15 L14 10 L16 14 L15 18 H21.5 Z", f=WH) +
+                           P("M9 6 L8 10 L10 14 L9 18 M15 6 L14 10 L16 14 L15 18", s=DR) + P("M2.5 12 H5.5 M18.5 12 H21.5", s=GREY))
+_hatch = P("M6 17 L8 15 M6 14.5 L8 12.5 M8.5 17 L10 15.5", s=GREY)
+I["drawing-section-view-stepped"] = (R(4.5, 5.5, 15, 13, f=WH) + P("M2 9 H11 V15 H22", s=DR, da=DASHDOT) +
+                                     arrow_head(2, 9, "up", DR, 1.6) + arrow_head(22, 15, "down", DR, 1.6) + _hatch)
+I["drawing-section-view-aligned"] = (R(4.5, 5.5, 15, 13, f=WH) + P("M2 19 L12 12 H22", s=DR, da=DASHDOT) +
+                                     dot(12, 12, DR, 1.3) + arrow_head(22, 12, "down", DR, 1.6) + _hatch)
+I["drawing-revision-table"] = table(2.5, 4, 19, 13, 3, 3, DR) + P("M9.5 22 L12 18 L14.5 22 Z", f=WH, s=DR)
+I["drawing-revision"] = (P("M12 4 L21 20 H3 Z", f=WH, s=DR) + P("M10 17 L12 11 L14 17 M10.8 15 H13.2", s=INK))
+I["drawing-edit-callout"] = (C(6, 7.5, 3.5, s=INK) + P("M8.5 9.9 L11.5 13 H17.5", s=DR) + dot(8.5, 9.9, DR, 1.2) + pencil(13, 21))
+
+# ===== round 2: scripting shell verbs (UI accent) ============================================
+I["app-ok"] = C(12, 12, 9, s=UI, f=WH) + P("M7.5 12.5 L10.5 15.5 L16.5 9", s=AS)
+I["app-cancel"] = C(12, 12, 9, s=UI, f=WH) + cross(12, 12, RED, 3.5)
+I["app-select"] = cursor(UI, WH, -2, -1) + R(14, 14, 7, 7, 1, s=INK, da=DASH)
+I["app-pick"] = C(12, 12, 6, s=UI) + P("M12 2.5 V7 M12 17 V21.5 M2.5 12 H7 M17 12 H21.5", s=INK) + dot(12, 12, UI, 1.5)
+I["app-input"] = R(2.5, 7, 19, 10, 1.5, f=WH) + P("M6 12 H13", s=UI) + P("M16 9.5 V14.5", s=INK)
+I["app-options"] = (P("M4 7 H20 M4 12 H20 M4 17 H20", s=GREY) + R(7, 5, 3, 4, 0.8, s=UI, f=WH) + R(13, 10, 3, 4, 0.8, s=UI, f=WH) +
+                    R(9, 15, 3, 4, 0.8, s=UI, f=WH))
+I["app-info"] = C(12, 12, 9, s=UI) + P("M12 11 V17", s=INK) + dot(12, 7.5, INK, 1.3)
+I["app-list"] = P("M8 6 H20 M8 12 H20 M8 18 H20", s=INK) + dot(4.5, 6, UI, 1.5) + dot(4.5, 12, UI, 1.5) + dot(4.5, 18, UI, 1.5)
+I["app-check"] = R(4, 4, 16, 18, 1.5, f=WH) + R(8.5, 2.5, 7, 3.5, 1, f=WH) + P("M8 14 L11 17 L16.5 10.5", s=AS)
+I["app-rename"] = P("M12 5 V19 M9.5 5 H14.5 M9.5 19 H14.5", s=UI) + P("M3 9 H8 M3 15 H8 M16 9 H21 M16 15 H21", s=GREY)
+I["app-echo"] = P("M4 4 H20 V15 H11 L6.5 19.5 V15 H4 Z", f=WH) + P("M8 8 H16 M8 11.5 H13", s=UI)
+I["app-wait"] = (P("M7 3.5 H17 V6.5 L12 12 L17 17.5 V20.5 H7 V17.5 L12 12 L7 6.5 Z", f=WH) +
+                 P("M9.5 18.5 H14.5 L12 15.5 Z", f=UI, s="none"))
+I["app-screenshot"] = (R(2.5, 7, 19, 13, 2, f=WH) + P("M8 7 L9.5 4.5 H14.5 L16 7") + C(12, 13.5, 4, s=UI, f=WH) +
+                       dot(18.5, 10, INK, 1))
+I["app-tab"] = (R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=UI, f=UI, fo="0.3") +
+                P("M11 8.5 V5.5 H17 V8.5", s=INK))
+I["app-close"] = R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=INK) + cross(12, 14.5, RED, 3)
+
 # ===== feature types (browser / timeline items) ==============================================
 FEATURES = {
     "extrude": EXTRUDE, "revolve": REVOLVE, "sweep": SWEEP, "loft": LOFT, "hole": HOLE, "fillet": FILLET,
@@ -597,6 +708,8 @@ FEATURES = {
     "circularpattern": CIRC_PATTERN, "import": IMPORT, "offsetplane": OFFSET_PLANE, "planeatangle": PLANE_ANGLE,
     "tangentplane": TANGENT_PLANE, "midplane": MIDPLANE, "planethreepoints": PLANE_3P, "constructionaxis": AXIS,
     "constructionpoint": CPOINT, "rigidgroup": RIGID, "insertdesign": INSERT_DESIGN, "newcomponent": I["component"],
+    "box": BOX, "cylinder": CYLINDER, "sphere": SPHERE, "torus": TORUS, "coil": COIL, "thread": THREAD, "rib": RIB,
+    "thicken": THICKEN, "scalebody": SCALE_BODY, "splitface": SPLIT_FACE,
 }
 for k, v in FEATURES.items():
     I["feature-" + k] = v

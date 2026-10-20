@@ -1,11 +1,26 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
   <file>theme-light.qss</file>
+  <file>icons/app-cancel.svg</file>
+  <file>icons/app-check.svg</file>
+  <file>icons/app-close.svg</file>
+  <file>icons/app-echo.svg</file>
   <file>icons/app-edit-properties.svg</file>
   <file>icons/app-help.svg</file>
+  <file>icons/app-info.svg</file>
+  <file>icons/app-input.svg</file>
+  <file>icons/app-list.svg</file>
+  <file>icons/app-ok.svg</file>
+  <file>icons/app-options.svg</file>
+  <file>icons/app-pick.svg</file>
   <file>icons/app-redo-alt.svg</file>
+  <file>icons/app-rename.svg</file>
+  <file>icons/app-screenshot.svg</file>
+  <file>icons/app-select.svg</file>
   <file>icons/app-show-all.svg</file>
+  <file>icons/app-tab.svg</file>
   <file>icons/app-toggle-visibility.svg</file>
+  <file>icons/app-wait.svg</file>
   <file>icons/assembly-activate.svg</file>
   <file>icons/assembly-as-built-joint.svg</file>
   <file>icons/assembly-components-from-bodies.svg</file>
@@ -20,6 +35,7 @@
   <file>icons/assembly-joint.svg</file>
   <file>icons/assembly-move.svg</file>
   <file>icons/assembly-new-component.svg</file>
+  <file>icons/assembly-paste-new.svg</file>
   <file>icons/assembly-paste.svg</file>
   <file>icons/assembly-rigid-group.svg</file>
   <file>icons/axis.svg</file>
@@ -42,13 +58,19 @@
   <file>icons/drawing-balloon-all.svg</file>
   <file>icons/drawing-balloon.svg</file>
   <file>icons/drawing-base-view.svg</file>
+  <file>icons/drawing-break-view.svg</file>
   <file>icons/drawing-center-mark.svg</file>
   <file>icons/drawing-centerline.svg</file>
   <file>icons/drawing-create.svg</file>
+  <file>icons/drawing-datum.svg</file>
   <file>icons/drawing-delete-sheet.svg</file>
   <file>icons/drawing-delete.svg</file>
   <file>icons/drawing-detail-view.svg</file>
+  <file>icons/drawing-dimension-baseline.svg</file>
+  <file>icons/drawing-dimension-chain.svg</file>
+  <file>icons/drawing-dimension-ordinate.svg</file>
   <file>icons/drawing-dimension.svg</file>
+  <file>icons/drawing-edit-callout.svg</file>
   <file>icons/drawing-edit-dimension.svg</file>
   <file>icons/drawing-edit-sheet.svg</file>
   <file>icons/drawing-edit-title-block.svg</file>
@@ -57,24 +79,35 @@
   <file>icons/drawing-export-dxf.svg</file>
   <file>icons/drawing-export-pdf.svg</file>
   <file>icons/drawing-export-svg.svg</file>
+  <file>icons/drawing-feature-control-frame.svg</file>
+  <file>icons/drawing-hole-callout.svg</file>
   <file>icons/drawing-leader.svg</file>
   <file>icons/drawing-move.svg</file>
   <file>icons/drawing-new-sheet.svg</file>
   <file>icons/drawing-parts-list.svg</file>
   <file>icons/drawing-projected-view.svg</file>
+  <file>icons/drawing-revision-table.svg</file>
+  <file>icons/drawing-revision.svg</file>
+  <file>icons/drawing-section-view-aligned.svg</file>
+  <file>icons/drawing-section-view-stepped.svg</file>
   <file>icons/drawing-section-view.svg</file>
+  <file>icons/drawing-surface-texture.svg</file>
   <file>icons/drawing-text.svg</file>
+  <file>icons/drawing-thread-callout.svg</file>
   <file>icons/drawing-toggle-hidden-lines.svg</file>
   <file>icons/drawing-toggle-tangent-edges.svg</file>
   <file>icons/error.svg</file>
   <file>icons/eye-off.svg</file>
   <file>icons/eye.svg</file>
   <file>icons/fabricad.svg</file>
+  <file>icons/feature-box.svg</file>
   <file>icons/feature-chamfer.svg</file>
   <file>icons/feature-circularpattern.svg</file>
+  <file>icons/feature-coil.svg</file>
   <file>icons/feature-combine.svg</file>
   <file>icons/feature-constructionaxis.svg</file>
   <file>icons/feature-constructionpoint.svg</file>
+  <file>icons/feature-cylinder.svg</file>
   <file>icons/feature-draft.svg</file>
   <file>icons/feature-extrude.svg</file>
   <file>icons/feature-fillet.svg</file>
@@ -92,11 +125,18 @@
   <file>icons/feature-planethreepoints.svg</file>
   <file>icons/feature-rectangularpattern.svg</file>
   <file>icons/feature-revolve.svg</file>
+  <file>icons/feature-rib.svg</file>
   <file>icons/feature-rigidgroup.svg</file>
+  <file>icons/feature-scalebody.svg</file>
   <file>icons/feature-shell.svg</file>
+  <file>icons/feature-sphere.svg</file>
   <file>icons/feature-splitbody.svg</file>
+  <file>icons/feature-splitface.svg</file>
   <file>icons/feature-sweep.svg</file>
   <file>icons/feature-tangentplane.svg</file>
+  <file>icons/feature-thicken.svg</file>
+  <file>icons/feature-thread.svg</file>
+  <file>icons/feature-torus.svg</file>
   <file>icons/feature.svg</file>
   <file>icons/file-menu.svg</file>
   <file>icons/finish-sketch.svg</file>
@@ -122,9 +162,12 @@
   <file>icons/origin.svg</file>
   <file>icons/pan.svg</file>
   <file>icons/parameters.svg</file>
+  <file>icons/part-box.svg</file>
   <file>icons/part-chamfer.svg</file>
   <file>icons/part-circular-pattern.svg</file>
+  <file>icons/part-coil.svg</file>
   <file>icons/part-combine.svg</file>
+  <file>icons/part-cylinder.svg</file>
   <file>icons/part-draft.svg</file>
   <file>icons/part-edit-feature.svg</file>
   <file>icons/part-export-step.svg</file>
@@ -141,9 +184,16 @@
   <file>icons/part-press-pull.svg</file>
   <file>icons/part-rectangular-pattern.svg</file>
   <file>icons/part-revolve.svg</file>
+  <file>icons/part-rib.svg</file>
+  <file>icons/part-scale.svg</file>
   <file>icons/part-shell.svg</file>
+  <file>icons/part-sphere.svg</file>
   <file>icons/part-split-body.svg</file>
+  <file>icons/part-split-face.svg</file>
   <file>icons/part-sweep.svg</file>
+  <file>icons/part-thicken.svg</file>
+  <file>icons/part-thread.svg</file>
+  <file>icons/part-torus.svg</file>
   <file>icons/plane.svg</file>
   <file>icons/point.svg</file>
   <file>icons/redo.svg</file>
@@ -161,6 +211,7 @@
   <file>icons/sketch-arc-center.svg</file>
   <file>icons/sketch-arc-tangent.svg</file>
   <file>icons/sketch-break.svg</file>
+  <file>icons/sketch-chamfer.svg</file>
   <file>icons/sketch-circle-2point.svg</file>
   <file>icons/sketch-circle-3point.svg</file>
   <file>icons/sketch-circle.svg</file>
@@ -180,13 +231,18 @@
   <file>icons/sketch-dimension-edit.svg</file>
   <file>icons/sketch-dimension.svg</file>
   <file>icons/sketch-edit.svg</file>
+  <file>icons/sketch-ellipse-arc.svg</file>
+  <file>icons/sketch-ellipse.svg</file>
   <file>icons/sketch-extend.svg</file>
   <file>icons/sketch-fillet.svg</file>
   <file>icons/sketch-finish.svg</file>
   <file>icons/sketch-line.svg</file>
   <file>icons/sketch-look-at.svg</file>
   <file>icons/sketch-mirror.svg</file>
+  <file>icons/sketch-move.svg</file>
   <file>icons/sketch-offset.svg</file>
+  <file>icons/sketch-pattern-circular.svg</file>
+  <file>icons/sketch-pattern-rectangular.svg</file>
   <file>icons/sketch-point.svg</file>
   <file>icons/sketch-polygon-inscribed.svg</file>
   <file>icons/sketch-polygon.svg</file>
@@ -194,8 +250,13 @@
   <file>icons/sketch-rectangle-3point.svg</file>
   <file>icons/sketch-rectangle-center.svg</file>
   <file>icons/sketch-rectangle.svg</file>
+  <file>icons/sketch-rotate.svg</file>
+  <file>icons/sketch-scale.svg</file>
   <file>icons/sketch-select.svg</file>
   <file>icons/sketch-slot.svg</file>
+  <file>icons/sketch-spline-control.svg</file>
+  <file>icons/sketch-spline-fit.svg</file>
+  <file>icons/sketch-text.svg</file>
   <file>icons/sketch-toggle-constraints.svg</file>
   <file>icons/sketch-toggle-dimensions.svg</file>
   <file>icons/sketch-toggle-grid.svg</file>
