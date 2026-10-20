@@ -15,9 +15,9 @@
 #include <TopoDS.hxx>
 #include <gp_Pnt2d.hxx>
 
-#include <QJsonArray>
-
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
 
 #include <cmath>
 #include <format>
@@ -57,12 +57,9 @@ FilletFeature::FilletFeature() : PartFeature(kType) {
   addBool("tangentChain", true).setLabel("Tangent chain").setTooltip("Fillets propagate along tangent-continuous edges");
   addEnum("radiusType", {"Constant", "Variable"}, Constant).setLabel("Radius type");
   addLength("endRadius", 4.0).setLabel("End radius").setTooltip("Variable: radius at the end of each edge chain (Radius = start)");
-  core::Property points("radiusPoints", core::PropertyType::Json);
-  points.setJson(QJsonArray());
-  points.setLabel("Intermediate radii");
-  points.setTooltip("Variable: [[position 0..1 along the chain, radius mm], ...] between start and end");
-  points.flags().hidden = true;
-  addProperty(std::move(points));
+  addString("radiusPoints", "")
+      .setLabel("Intermediate radii")
+      .setTooltip("Variable: position along the chain (0..1) and radius, e.g. \"0.5:6; 0.25:3\"");
   addBool("flipVariable", false).setLabel("Flip start/end").setTooltip("Variable: swap which end of the chain gets Radius");
   updatePropertyFlags();
 }
@@ -71,15 +68,52 @@ void FilletFeature::updatePropertyFlags() {
   bool var = enumIndex("radiusType") == Variable;
   prop("endRadius").flags().hidden = !var;
   prop("flipVariable").flags().hidden = !var;
+  prop("radiusPoints").flags().hidden = !var;
+}
+
+bool FilletFeature::parseRadiusPoints(const std::string& text, std::vector<std::pair<double, double>>& points,
+                                      std::string* error) {
+  points.clear();
+  std::string item;
+  auto flush = [&]() -> bool {
+    std::string t;
+    for (char c : item)
+      if (!std::isspace(static_cast<unsigned char>(c))) t += c;
+    item.clear();
+    if (t.empty()) return true;
+    size_t sep = t.find_first_of(":=");
+    if (sep == std::string::npos) {
+      if (error) *error = std::format("intermediate radius \"{}\" must be position:radius", t);
+      return false;
+    }
+    char* end = nullptr;
+    std::string a = t.substr(0, sep), b = t.substr(sep + 1);
+    double pos = std::strtod(a.c_str(), &end);
+    bool ok = !a.empty() && *end == '\0';
+    double r = std::strtod(b.c_str(), &end);
+    ok = ok && !b.empty() && *end == '\0';
+    if (!ok || pos <= 0 || pos >= 1) {
+      if (error) *error = std::format("intermediate radius \"{}\": position must be between 0 and 1", t);
+      return false;
+    }
+    points.emplace_back(pos, r);
+    return true;
+  };
+  for (char c : text) {
+    if (c == ';' || c == ',') {
+      if (!flush()) return false;
+    } else {
+      item += c;
+    }
+  }
+  return flush();
 }
 
 std::vector<std::pair<double, double>> FilletFeature::radiusLaw(double startRadius, double endRadius,
-                                                                const QJsonArray& points, bool flip, std::string* error) {
+                                                                const std::vector<std::pair<double, double>>& points,
+                                                                bool flip, std::string* error) {
   std::vector<std::pair<double, double>> law{{0.0, startRadius}};
-  for (const auto& v : points) {
-    QJsonArray a = v.toArray();
-    if (a.size() != 2) continue;
-    double t = a[0].toDouble(), r = a[1].toDouble();
+  for (const auto& [t, r] : points) {
     if (t <= 1e-6 || t >= 1 - 1e-6) continue;  // the ends come from Radius / End radius
     law.emplace_back(t, r);
   }
@@ -113,7 +147,12 @@ void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   std::vector<std::pair<double, double>> law;
   if (variable) {
     std::string err;
-    law = radiusLaw(radius, ctx.length("endRadius"), prop("radiusPoints").json().toArray(), flag("flipVariable"), &err);
+    std::vector<std::pair<double, double>> points;
+    if (!parseRadiusPoints(prop("radiusPoints").toString(), points, &err)) {
+      ctx.setError(err);
+      return;
+    }
+    law = radiusLaw(radius, ctx.length("endRadius"), points, flag("flipVariable"), &err);
     if (law.empty()) {
       ctx.setError(err);
       return;

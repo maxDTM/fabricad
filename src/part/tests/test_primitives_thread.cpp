@@ -27,6 +27,8 @@
 #include <Bnd_Box.hxx>
 #include <TopoDS.hxx>
 
+#include <QComboBox>
+#include <QLineEdit>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
@@ -398,6 +400,29 @@ class PrimitivesThreadTest : public QObject {
                            "part.thicken", "part.scale", "part.split-face"})
       QVERIFY2(tools_.has(id), id);
     QCOMPARE(toolIdForFeatureType("Coil"), std::string("part.coil"));
+
+    // every new command opens its dialog (property panel) headless, with the tap / variable
+    // options in it, and cancels cleanly
+    for (const char* id : {"part.box", "part.cylinder", "part.sphere", "part.torus", "part.coil", "part.thread", "part.rib",
+                           "part.thicken", "part.scale", "part.split-face", "part.hole", "part.fillet", "part.move"}) {
+      QVERIFY2(mgr.run(id), id);
+      auto* ft = dynamic_cast<FeatureTool*>(mgr.activeTool());
+      QVERIFY2(ft, id);
+      QWidget* w = ft->createDialog(*mgr.activeContext(), nullptr);
+      QVERIFY2(w, id);
+      if (std::string(id) == "part.hole") QVERIFY(w->findChild<QComboBox*>("prop_tapType"));
+      if (std::string(id) == "part.fillet") QVERIFY(w->findChild<QComboBox*>("prop_radiusType"));
+      if (std::string(id) == "part.move") {
+        ft->feature()->prop("moveType").setEnum("Free Move");
+        ft->updatePreview(*mgr.activeContext());
+        delete w;
+        w = ft->createDialog(*mgr.activeContext(), nullptr);
+        QVERIFY(w->findChild<QLineEdit*>("prop_rx"));
+      }
+      delete w;
+      mgr.cancel();
+      QVERIFY(!mgr.isActive());
+    }
   }
 
  private:

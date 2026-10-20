@@ -24,7 +24,6 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Vertex.hxx>
 
-#include <QJsonArray>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
@@ -119,15 +118,22 @@ class BodyOpsTest : public QObject {
 
   void radiusLaw() {
     std::string err;
-    auto law = FilletFeature::radiusLaw(2, 4, QJsonArray{QJsonArray{0.5, 6}, QJsonArray{0.25, 3}}, false, &err);
+    std::vector<std::pair<double, double>> pts;
+    QVERIFY(FilletFeature::parseRadiusPoints(" 0.5:6; 0.25 = 3,", pts, &err));
+    QCOMPARE(pts.size(), size_t(2));
+    QVERIFY(!FilletFeature::parseRadiusPoints("0.5", pts, &err));
+    QVERIFY(!FilletFeature::parseRadiusPoints("1.5:3", pts, &err));
+    QVERIFY(!FilletFeature::parseRadiusPoints("0.5:x", pts, &err));
+    QVERIFY(FilletFeature::parseRadiusPoints("", pts, &err) && pts.empty());
+    auto law = FilletFeature::radiusLaw(2, 4, {{0.5, 6}, {0.25, 3}}, false, &err);
     QCOMPARE(law.size(), size_t(4));
     QCOMPARE(law[1].first, 0.25);
     QCOMPARE(law[2].second, 6.0);
-    auto flipped = FilletFeature::radiusLaw(2, 4, QJsonArray{QJsonArray{0.25, 3}}, true, &err);
+    auto flipped = FilletFeature::radiusLaw(2, 4, {{0.25, 3}}, true, &err);
     QCOMPARE(flipped.front().second, 4.0);
     QCOMPARE(flipped[1].first, 0.75);
     QCOMPARE(flipped.back().second, 2.0);
-    QVERIFY(FilletFeature::radiusLaw(2, -1, QJsonArray(), false, &err).empty());
+    QVERIFY(FilletFeature::radiusLaw(2, -1, {}, false, &err).empty());
     QVERIFY(!err.empty());
   }
 
@@ -169,7 +175,8 @@ class BodyOpsTest : public QObject {
     // an intermediate radius at mid-length bulges the fillet: more material removed
     ff->prop("flipVariable").setBool(false);
     ff->prop("endRadius").setDouble(2);
-    ff->prop("radiusPoints").setJson(QJsonArray{QJsonArray{0.5, 5}});
+    ff->prop("radiusPoints").setString("0.5:5");
+    QVERIFY(!ff->prop("radiusPoints").flags().hidden);  // editable in the dialog
     touch(doc, ff);
     QVERIFY2(ff->status() == core::FeatureStatus::Ok, ff->statusMessage().c_str());
     removed = full - core::volume(doc.bodyShape(b));
