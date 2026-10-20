@@ -1,0 +1,1037 @@
+// FabriCAD sketch tools: geometry creation (line, rectangles, circles, arcs, polygon, slot, point)
+// with Fusion-style rubber-banding, inference snapping and typed dynamic input.
+// SPDX-License-Identifier: LGPL-2.1-or-later
+#include "sketch/tools/SketchToolBase.h"
+#include "sketch/tools/SketchTools.h"
+
+#include "core/Document.h"
+#include "core/Units.h"
+
+#include <QtCore/Qt>
+
+#include <algorithm>
+#include <cmath>
+#include <format>
+#include <memory>
+
+namespace fabricad::sketch {
+
+using core::ToolContext;
+using core::ToolInfo;
+using core::ViewerKeyEvent;
+using core::ViewerMouseEvent;
+
+namespace {
+
+/// Keep only the coincidence part of an inference (used for points where H/V would be wrong).
+InferenceResult coincidenceOnly(InferenceResult r) {
+  r.horizontal = r.vertical = false;
+  r.parallelTo.reset();
+  r.perpendicularTo.reset();
+  return r;
+}
+
+/// Which end of an arc/line equals p.
+PointPos endMatching(const Geometry& g, Pt2 p) { return g.start().near(p, 1e-6) ? PointPos::Start : PointPos::End; }
+
+/// Unit tangent pointing away from the curve at one of its ends.
+Pt2 outwardTangent(const Geometry& g, PointPos pos) {
+  if (g.type == GeomType::Line) return pos == PointPos::End ? g.direction() : -g.direction();
+  Pt2 p = g.point(pos);
+  Pt2 t = (p - g.center()).perp().normalized();  // ccw tangent
+  return pos == PointPos::End ? t : -t;
+}
+
+/// Shared "collect N clicked points" tool: subclasses implement preview() and create().
+class PointsTool : public SketchTool {
+ public:
+  PointsTool(ToolInfo info, int needed) : SketchTool(std::move(info)), needed_(needed) {}
+
+  void activate(ToolContext& ctx) override {
+    SketchTool::activate(ctx);
+    pts_.clear();
+    ctx.setPrompt(prompt());
+  }
+
+  bool mouseMove(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    auto c = cursor(e);
+    if (!c) return false;
+    InferenceResult r = inferFor(*c, e);
+    lastCursor_ = r.point;
+    clearTemp();
+    showInference(r);
+    preview(ctx, r.point);
+    return true;
+  }
+
+  bool mousePress(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    if (e.button != core::MouseButton::Left) return false;
+    auto c = cursor(e);
+    if (!c) return true;
+    addPoint(ctx, inferFor(*c, e));
+    return true;
+  }
+
+  bool commandLineInput(ToolContext& ctx, const std::string& text) override {
+    TypedInput in = parseTypedInput(text);
+    std::optional<Pt2> last = pts_.empty() ? std::nullopt : std::optional<Pt2>(pts_.back().point);
+    double f = displayFactor();
+    switch (in.kind) {
+      case TypedInput::Kind::Pair:
+        if (last && typedSize(ctx, in.a * f, in.b * f)) return true;
+        addPoint(ctx, inferExact({in.a * f, in.b * f}, last));
+        return true;
+      case TypedInput::Kind::Relative:
+        if (!last) return false;
+        addPoint(ctx, inferExact(*last + Pt2{in.a * f, in.b * f}, last));
+        return true;
+      case TypedInput::Kind::Polar:
+        if (!last) return false;
+        addPoint(ctx, inferExact(*last + Pt2::polar(in.a * f, in.b * kPi / 180.0), last));
+        return true;
+      case TypedInput::Kind::Number:
+      case TypedInput::Kind::Text: {
+        std::string err;
+        auto v = evaluateTyped(ctx, text, false, &err);
+        if (!v) {
+          ctx.showMessage(err, true);
+          return true;
+        }
+        return typedNumber(ctx, *v);
+      }
+      default: return false;
+    }
+  }
+
+ protected:
+  virtual std::string prompt() const = 0;
+  virtual void preview(ToolContext& ctx, Pt2 cursor) = 0;
+  virtual void create(ToolContext& ctx) = 0;
+  /// A typed "w,h" style size after the first point. Return false to treat it as a coordinate.
+  virtual bool typedSize(ToolContext&, double, double) { return false; }
+  /// A typed single value (length along the cursor direction by default).
+  virtual bool typedNumber(ToolContext& ctx, double v) {
+    if (pts_.empty()) return false;
+    Pt2 d = lastCursor_ - pts_.back().point;
+    if (d.length() < 1e-9) d = {1, 0};
+    addPoint(ctx, inferExact(pts_.back().point + d.normalized() * v, pts_.back().point));
+    return true;
+  }
+  virtual InferenceResult inferFor(Pt2 c, const ViewerMouseEvent& e) {
+    InferenceInput in;
+    in.cursor = c;
+    if (!pts_.empty()) in.from = pts_.back().point;
+    return infer(in, snapSuppressed(e));
+  }
+
+  void addPoint(ToolContext& ctx, const InferenceResult& r) {
+    if (!pts_.empty() && r.point.distance(pts_.back().point) < 1e-9) return;
+    pts_.push_back(r);
+    if (static_cast<int>(pts_.size()) >= needed_) {
+      create(ctx);
+      pts_.clear();
+    }
+    ctx.setPrompt(prompt());
+  }
+
+  double displayFactor() const {
+    core::UnitSystem u = document() ? document()->units() : core::UnitSystem{};
+    return core::lengthUnitToMm(u.length);
+  }
+
+  int needed_;
+  std::vector<InferenceResult> pts_;
+  Pt2 lastCursor_;
+};
+
+// ---------------------------------------------------------------------------
+// Line (chained, closes loops, drag from the last point for a tangent arc)
+// ---------------------------------------------------------------------------
+
+class LineTool : public SketchTool {
+ public:
+  LineTool()
+      : SketchTool(ToolInfo{.id = "sketch.line",
+                            .name = "Line",
+                            .tooltip = "Draw lines: click points; drag from the last point for a tangent arc; double-click or Esc ends the chain",
+                            .icon = "sketch-line",
+                            .shortcut = "L",
+                            .aliases = {"LINE", "L"},
+                            .tab = "SKETCH",
+                            .group = "CREATE",
+                            .order = 1,
+                            .promoted = true}) {}
+
+  void activate(ToolContext& ctx) override {
+    SketchTool::activate(ctx);
+    resetChain();
+    ctx.setPrompt("Specify first point");
+  }
+
+  bool mouseMove(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    auto c = cursor(e);
+    if (!c) return false;
+    clearTemp();
+    if (last_ && pressOnLast_ && (e.buttons & 1)) {
+      if (!arcMode_ && c->distance(*last_) > tol(*last_, 4.0)) arcMode_ = true;
+      if (arcMode_) {
+        InferenceResult r = inferFor(*c, e);
+        showInference(r);
+        bool startIsP = false;
+        if (auto arc = tangentArc(*last_, lastDir_.value_or(Pt2{1, 0}), r.point, &startIsP)) {
+          previewGeometry(*arc, rubberStyle());
+          showDynamicText(r.point, "R" + formatLength(arc->radius()));
+        }
+        return true;
+      }
+    }
+    InferenceResult r = inferFor(*c, e);
+    lastCursor_ = r.point;
+    showInference(r);
+    if (last_) {
+      previewLines({*last_, r.point}, rubberStyle());
+      Pt2 d = r.point - *last_;
+      showDynamicText(r.point, std::format("{}  {}", formatLength(d.length()), formatAngle(normalizeAngle(d.angle()) * 180.0 / kPi)));
+    }
+    (void)ctx;
+    return true;
+  }
+
+  bool mousePress(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    if (e.button != core::MouseButton::Left) return false;
+    auto c = cursor(e);
+    if (!c) return true;
+    InferenceResult r = inferFor(*c, e);
+    if (last_ && r.point.distance(*last_) <= tol(*last_)) {
+      pressOnLast_ = true;
+      return true;
+    }
+    addPoint(ctx, r);
+    return true;
+  }
+
+  bool mouseRelease(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    if (e.button != core::MouseButton::Left) return false;
+    if (arcMode_) {
+      auto c = cursor(e);
+      if (c) finishArc(ctx, inferFor(*c, e));
+    }
+    arcMode_ = false;
+    pressOnLast_ = false;
+    clearTemp();
+    return true;
+  }
+
+  bool mouseDoubleClick(ToolContext& ctx, const ViewerMouseEvent&) override {
+    endChain(ctx);
+    return true;
+  }
+
+  bool keyPress(ToolContext& ctx, const ViewerKeyEvent& e) override {
+    if (e.key == Qt::Key_Escape) {
+      if (last_) endChain(ctx);
+      else cancel(ctx);
+      return true;
+    }
+    if (e.key == Qt::Key_Return || e.key == Qt::Key_Enter) {
+      if (last_) endChain(ctx);
+      else accept(ctx);
+      return true;
+    }
+    return false;
+  }
+
+  bool commandLineInput(ToolContext& ctx, const std::string& text) override {
+    TypedInput in = parseTypedInput(text);
+    core::UnitSystem u = document() ? document()->units() : core::UnitSystem{};
+    const double f = core::lengthUnitToMm(u.length);
+    std::optional<Pt2> p;
+    switch (in.kind) {
+      case TypedInput::Kind::Pair: p = Pt2{in.a * f, in.b * f}; break;
+      case TypedInput::Kind::Relative:
+        if (last_) p = *last_ + Pt2{in.a * f, in.b * f};
+        break;
+      case TypedInput::Kind::Polar:
+        if (last_) p = *last_ + Pt2::polar(in.a * f, in.b * kPi / 180.0);
+        break;
+      case TypedInput::Kind::Number:
+      case TypedInput::Kind::Text: {
+        if (!last_) return false;
+        std::string err;
+        auto v = evaluateTyped(ctx, text, false, &err);
+        if (!v) {
+          ctx.showMessage(err, true);
+          return true;
+        }
+        Pt2 d = lastCursor_ - *last_;
+        if (d.length() < 1e-9) d = lastDir_.value_or(Pt2{1, 0});
+        p = *last_ + d.normalized() * (*v);
+        break;
+      }
+      default: return false;
+    }
+    if (!p) return false;
+    addPoint(ctx, inferExact(*p, last_));
+    return true;
+  }
+
+ private:
+  InferenceResult inferFor(Pt2 c, const ViewerMouseEvent& e) {
+    InferenceInput in;
+    in.cursor = c;
+    in.from = last_;
+    if (lastDir_) in.referenceDirection = lastDir_;
+    if (lastLine_ >= 0) {
+      in.referenceCurve = lastLine_;
+      in.exclude.insert(lastLine_);
+    }
+    return infer(in, snapSuppressed(e));
+  }
+
+  void resetChain() {
+    last_.reset();
+    lastRef_.reset();
+    lastDir_.reset();
+    lastLine_ = -1;
+    firstRef_.reset();
+    pressOnLast_ = false;
+    arcMode_ = false;
+  }
+
+  void endChain(ToolContext& ctx) {
+    resetChain();
+    clearTemp();
+    ctx.setPrompt("Specify first point");
+  }
+
+  bool isChainStart(const InferenceResult& r) const {
+    if (!firstRef_) return false;
+    if (r.onPoint && *r.onPoint == *firstRef_) return true;
+    const Sketch* sk = sketch();
+    if (!sk) return false;
+    auto fp = sk->pointOf(*firstRef_);
+    return fp && fp->near(r.point, 1e-9);
+  }
+
+  void addPoint(ToolContext& ctx, const InferenceResult& r) {
+    Sketch* sk = sketch();
+    if (!sk || !session()) return;
+    Pt2 p = r.point;
+    if (!last_) {
+      last_ = p;
+      startInf_ = coincidenceOnly(r);
+      ctx.setPrompt("Specify next point");
+      return;
+    }
+    if (p.distance(*last_) < 1e-9) return;
+    session()->beginEdit();
+    int id = sk->addGeometry(asCreated(Geometry::makeLine(*last_, p)));
+    if (lastRef_) sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {id, PointPos::Start}, .b = *lastRef_});
+    else applyInference(*sk, startInf_, {id, PointPos::Start}, -1);
+    bool closing = isChainStart(r);
+    InferenceResult er = r;
+    if (closing && !er.onPoint) er.onPoint = firstRef_;
+    applyInference(*sk, er, {id, PointPos::End}, id);
+    session()->commitEdit("Line");
+    const Geometry* g = sk->geometry(id);
+    if (!g || closing) {
+      endChain(ctx);
+      return;
+    }
+    if (!firstRef_) firstRef_ = GeoRef{id, PointPos::Start};
+    last_ = g->end();
+    lastRef_ = GeoRef{id, PointPos::End};
+    lastDir_ = g->direction();
+    lastLine_ = id;
+    ctx.setPrompt("Specify next point (double-click or Esc to end)");
+  }
+
+  void finishArc(ToolContext& ctx, const InferenceResult& r) {
+    Sketch* sk = sketch();
+    if (!sk || !session() || !last_) return;
+    Pt2 t = lastDir_.value_or(Pt2{1, 0});
+    bool startIsP = false;
+    auto arc = tangentArc(*last_, t, r.point, &startIsP);
+    if (!arc) return;
+    session()->beginEdit();
+    int id = sk->addGeometry(asCreated(*arc));
+    GeoRef arcP{id, startIsP ? PointPos::Start : PointPos::End};
+    GeoRef arcQ{id, startIsP ? PointPos::End : PointPos::Start};
+    if (lastRef_) {
+      sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = arcP, .b = *lastRef_});
+      sk->addConstraint(Constraint{.type = ConstraintType::Tangent, .a = *lastRef_, .b = arcP});
+    } else {
+      applyInference(*sk, startInf_, arcP, -1);
+    }
+    bool closing = isChainStart(r);
+    InferenceResult er = coincidenceOnly(r);
+    if (closing && !er.onPoint) er.onPoint = firstRef_;
+    applyInference(*sk, er, arcQ, -1);
+    session()->commitEdit("Tangent arc");
+    const Geometry* g = sk->geometry(id);
+    if (!g || closing) {
+      endChain(ctx);
+      return;
+    }
+    if (!firstRef_) firstRef_ = arcP;
+    last_ = g->point(arcQ.pos);
+    lastRef_ = arcQ;
+    lastDir_ = outwardTangent(*g, arcQ.pos);
+    lastLine_ = -1;
+  }
+
+  std::optional<Pt2> last_;
+  std::optional<GeoRef> lastRef_;
+  std::optional<Pt2> lastDir_;
+  int lastLine_ = -1;
+  std::optional<GeoRef> firstRef_;
+  InferenceResult startInf_;
+  Pt2 lastCursor_;
+  bool pressOnLast_ = false;
+  bool arcMode_ = false;
+};
+
+// ---------------------------------------------------------------------------
+// Rectangles
+// ---------------------------------------------------------------------------
+
+enum class RectMode { TwoPoint, Center, ThreePoint };
+
+class RectangleTool : public PointsTool {
+ public:
+  RectangleTool(RectMode mode, ToolInfo info) : PointsTool(std::move(info), mode == RectMode::ThreePoint ? 3 : 2), mode_(mode) {}
+
+ protected:
+  std::string prompt() const override {
+    switch (mode_) {
+      case RectMode::TwoPoint: return pts_.empty() ? "Specify first corner" : "Specify opposite corner (or type width,height)";
+      case RectMode::Center: return pts_.empty() ? "Specify center" : "Specify corner (or type width,height)";
+      case RectMode::ThreePoint:
+        if (pts_.empty()) return "Specify first corner";
+        if (pts_.size() == 1) return "Specify second corner";
+        return "Specify height (or type a value)";
+    }
+    return {};
+  }
+
+  std::optional<std::array<Pt2, 4>> corners(const std::vector<Pt2>& p) const {
+    const double eps = 1e-9;
+    switch (mode_) {
+      case RectMode::TwoPoint:
+      case RectMode::Center: {
+        if (p.size() < 2) return std::nullopt;
+        Pt2 a = p[0], b = p[1];
+        if (mode_ == RectMode::Center) a = p[0] * 2.0 - b;
+        if (std::abs(b.x - a.x) < eps || std::abs(b.y - a.y) < eps) return std::nullopt;
+        return std::array<Pt2, 4>{a, Pt2{b.x, a.y}, b, Pt2{a.x, b.y}};
+      }
+      case RectMode::ThreePoint: {
+        if (p.size() < 3) return std::nullopt;
+        Pt2 d = p[1] - p[0];
+        if (d.length() < eps) return std::nullopt;
+        Pt2 n = d.normalized().perp();
+        double w = (p[2] - p[0]).dot(n);
+        if (std::abs(w) < eps) return std::nullopt;
+        return std::array<Pt2, 4>{p[0], p[1], p[1] + n * w, p[0] + n * w};
+      }
+    }
+    return std::nullopt;
+  }
+
+  std::vector<Pt2> pointsPlus(Pt2 c) const {
+    std::vector<Pt2> p;
+    for (const auto& r : pts_) p.push_back(r.point);
+    p.push_back(c);
+    return p;
+  }
+
+  void preview(ToolContext&, Pt2 c) override {
+    if (pts_.empty()) return;
+    auto cs = corners(pointsPlus(c));
+    if (!cs) {
+      if (mode_ == RectMode::ThreePoint && pts_.size() == 1) previewLines({pts_[0].point, c}, rubberStyle());
+      return;
+    }
+    previewPolyline({(*cs)[0], (*cs)[1], (*cs)[2], (*cs)[3], (*cs)[0]}, rubberStyle());
+    double w = (*cs)[1].distance((*cs)[0]), h = (*cs)[2].distance((*cs)[1]);
+    showDynamicText(c, std::format("{} x {}", formatLength(w), formatLength(h)));
+  }
+
+  bool typedSize(ToolContext& ctx, double w, double h) override {
+    if (pts_.empty() || mode_ == RectMode::ThreePoint) return false;
+    Pt2 a = pts_[0].point;
+    Pt2 b = mode_ == RectMode::Center ? a + Pt2{w / 2, h / 2} : a + Pt2{w, h};
+    addPoint(ctx, inferExact(b, a));
+    return true;
+  }
+
+  bool typedNumber(ToolContext& ctx, double v) override {
+    if (mode_ == RectMode::ThreePoint && pts_.size() == 2) {
+      Pt2 d = (pts_[1].point - pts_[0].point).normalized();
+      Pt2 n = d.perp();
+      double side = (lastCursor_ - pts_[0].point).dot(n) < 0 ? -1.0 : 1.0;
+      addPoint(ctx, inferExact(pts_[1].point + n * (side * v), pts_[1].point));
+      return true;
+    }
+    if (mode_ != RectMode::ThreePoint && !pts_.empty()) return typedSize(ctx, v, v);
+    return PointsTool::typedNumber(ctx, v);
+  }
+
+  void create(ToolContext& ctx) override {
+    Sketch* sk = sketch();
+    std::vector<Pt2> p;
+    for (const auto& r : pts_) p.push_back(r.point);
+    auto cs = corners(p);
+    if (!sk || !session() || !cs) {
+      ctx.showMessage("Degenerate rectangle ignored", true);
+      return;
+    }
+    session()->beginEdit();
+    int l[4];
+    for (int i = 0; i < 4; ++i) l[i] = sk->addGeometry(asCreated(Geometry::makeLine((*cs)[i], (*cs)[(i + 1) % 4])));
+    for (int i = 0; i < 4; ++i)
+      sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {l[i], PointPos::End}, .b = {l[(i + 1) % 4], PointPos::Start}});
+    if (mode_ == RectMode::ThreePoint) {
+      for (int i = 0; i < 3; ++i)
+        sk->addConstraint(Constraint{.type = ConstraintType::Perpendicular, .a = {l[i]}, .b = {l[i + 1]}});
+      applyInference(*sk, coincidenceOnly(pts_[0]), {l[0], PointPos::Start}, -1);
+      applyInference(*sk, coincidenceOnly(pts_[1]), {l[0], PointPos::End}, -1);
+    } else {
+      sk->addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = {l[0]}});
+      sk->addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = {l[2]}});
+      sk->addConstraint(Constraint{.type = ConstraintType::Vertical, .a = {l[1]}});
+      sk->addConstraint(Constraint{.type = ConstraintType::Vertical, .a = {l[3]}});
+      if (mode_ == RectMode::TwoPoint) {
+        applyInference(*sk, coincidenceOnly(pts_[0]), {l[0], PointPos::Start}, -1);
+        applyInference(*sk, coincidenceOnly(pts_[1]), {l[1], PointPos::End}, -1);
+      } else {
+        Geometry cp = Geometry::makePoint(pts_[0].point);
+        cp.construction = true;
+        int c = sk->addGeometry(cp);
+        sk->addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = {l[0], PointPos::Start}, .b = {l[1], PointPos::End}, .c = {c, PointPos::Center}});
+        sk->addConstraint(Constraint{.type = ConstraintType::Symmetric, .a = {l[0], PointPos::End}, .b = {l[2], PointPos::End}, .c = {c, PointPos::Center}});
+        applyInference(*sk, coincidenceOnly(pts_[0]), {c, PointPos::Center}, -1);
+        applyInference(*sk, coincidenceOnly(pts_[1]), {l[1], PointPos::End}, -1);
+      }
+    }
+    session()->commitEdit("Rectangle");
+  }
+
+ private:
+  RectMode mode_;
+};
+
+// ---------------------------------------------------------------------------
+// Circles
+// ---------------------------------------------------------------------------
+
+enum class CircleMode { CenterDiameter, TwoPoint, ThreePoint };
+
+class CircleTool : public PointsTool {
+ public:
+  CircleTool(CircleMode mode, ToolInfo info) : PointsTool(std::move(info), mode == CircleMode::ThreePoint ? 3 : 2), mode_(mode) {}
+
+ protected:
+  std::string prompt() const override {
+    switch (mode_) {
+      case CircleMode::CenterDiameter: return pts_.empty() ? "Specify center point" : "Specify diameter (or type a value)";
+      case CircleMode::TwoPoint: return pts_.empty() ? "Specify first point on the diameter" : "Specify second point";
+      case CircleMode::ThreePoint: return pts_.size() < 2 ? "Specify point on the circle" : "Specify third point";
+    }
+    return {};
+  }
+
+  std::optional<Geometry> circleFor(const std::vector<Pt2>& p) const {
+    switch (mode_) {
+      case CircleMode::CenterDiameter: {
+        if (p.size() < 2) return std::nullopt;
+        double r = p[0].distance(p[1]);
+        if (r < 1e-9) return std::nullopt;
+        return Geometry::makeCircle(p[0], r);
+      }
+      case CircleMode::TwoPoint: {
+        if (p.size() < 2) return std::nullopt;
+        double r = p[0].distance(p[1]) / 2;
+        if (r < 1e-9) return std::nullopt;
+        return Geometry::makeCircle((p[0] + p[1]) * 0.5, r);
+      }
+      case CircleMode::ThreePoint: {
+        if (p.size() < 3) return std::nullopt;
+        auto c = circumcenter(p[0], p[1], p[2]);
+        if (!c) return std::nullopt;
+        return Geometry::makeCircle(*c, c->distance(p[0]));
+      }
+    }
+    return std::nullopt;
+  }
+
+  void preview(ToolContext&, Pt2 c) override {
+    if (pts_.empty()) return;
+    std::vector<Pt2> p;
+    for (const auto& r : pts_) p.push_back(r.point);
+    p.push_back(c);
+    if (auto g = circleFor(p)) {
+      previewGeometry(*g, rubberStyle());
+      showDynamicText(c, "⌀" + formatLength(2 * g->radius()));
+    } else if (pts_.size() == 1) {
+      previewLines({pts_[0].point, c}, rubberStyle());
+    }
+  }
+
+  bool typedNumber(ToolContext& ctx, double v) override {
+    if (mode_ == CircleMode::CenterDiameter && pts_.size() == 1) {
+      Pt2 d = lastCursor_ - pts_[0].point;
+      if (d.length() < 1e-9) d = {1, 0};
+      addPoint(ctx, inferExact(pts_[0].point + d.normalized() * (v / 2), pts_[0].point));
+      return true;
+    }
+    return PointsTool::typedNumber(ctx, v);
+  }
+
+  void create(ToolContext& ctx) override {
+    Sketch* sk = sketch();
+    std::vector<Pt2> p;
+    for (const auto& r : pts_) p.push_back(r.point);
+    auto g = circleFor(p);
+    if (!sk || !session() || !g) {
+      ctx.showMessage("Degenerate circle ignored", true);
+      return;
+    }
+    session()->beginEdit();
+    int id = sk->addGeometry(asCreated(*g));
+    if (mode_ == CircleMode::CenterDiameter) {
+      applyInference(*sk, coincidenceOnly(pts_[0]), {id, PointPos::Center}, -1);
+      if (pts_[1].onPoint) sk->addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = *pts_[1].onPoint, .b = {id}});
+    } else {
+      for (const auto& r : pts_)
+        if (r.onPoint) sk->addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = *r.onPoint, .b = {id}});
+    }
+    session()->commitEdit("Circle");
+  }
+
+ private:
+  CircleMode mode_;
+};
+
+// ---------------------------------------------------------------------------
+// Arcs
+// ---------------------------------------------------------------------------
+
+enum class ArcMode { ThreePoint, Center, Tangent };
+
+class ArcTool : public PointsTool {
+ public:
+  ArcTool(ArcMode mode, ToolInfo info) : PointsTool(std::move(info), mode == ArcMode::Tangent ? 2 : 3), mode_(mode) {}
+
+ protected:
+  std::string prompt() const override {
+    switch (mode_) {
+      case ArcMode::ThreePoint:
+        if (pts_.empty()) return "Specify start point";
+        if (pts_.size() == 1) return "Specify end point";
+        return "Specify a point on the arc";
+      case ArcMode::Center:
+        if (pts_.empty()) return "Specify center point";
+        if (pts_.size() == 1) return "Specify start point";
+        return "Specify end point";
+      case ArcMode::Tangent: return pts_.empty() ? "Select the end point of a line or arc" : "Specify end point";
+    }
+    return {};
+  }
+
+  std::optional<Geometry> arcFor(const std::vector<Pt2>& p, bool* startIsFirst = nullptr) const {
+    if (startIsFirst) *startIsFirst = true;
+    switch (mode_) {
+      case ArcMode::ThreePoint: {
+        if (p.size() < 3) return std::nullopt;
+        auto a = Geometry::makeArc3Points(p[0], p[2], p[1]);
+        if (a && startIsFirst) *startIsFirst = a->start().near(p[0], 1e-6);
+        return a;
+      }
+      case ArcMode::Center: {
+        if (p.size() < 3) return std::nullopt;
+        double r = p[0].distance(p[1]);
+        if (r < 1e-9) return std::nullopt;
+        double a0 = (p[1] - p[0]).angle(), a1 = (p[2] - p[0]).angle();
+        if (std::abs(normalizeAngle(a1 - a0)) < 1e-9) return std::nullopt;
+        bool ccw = (p[1] - p[0]).cross(p[2] - p[0]) >= 0;
+        if (startIsFirst) *startIsFirst = ccw;
+        return ccw ? Geometry::makeArc(p[0], r, a0, a1) : Geometry::makeArc(p[0], r, a1, a0);
+      }
+      case ArcMode::Tangent: {
+        if (p.size() < 2 || !tangent_) return std::nullopt;
+        bool sp = false;
+        auto a = tangentArc(p[0], *tangent_, p[1], &sp);
+        if (startIsFirst) *startIsFirst = sp;
+        return a;
+      }
+    }
+    return std::nullopt;
+  }
+
+  InferenceResult inferFor(Pt2 c, const ViewerMouseEvent& e) override {
+    InferenceInput in;
+    in.cursor = c;
+    if (mode_ == ArcMode::Tangent && pts_.empty()) {
+      in.allowCurves = false;
+      in.allowAlignment = false;
+      in.allowDirections = false;
+    } else if (!pts_.empty()) {
+      in.from = pts_.back().point;
+    }
+    return infer(in, snapSuppressed(e));
+  }
+
+  void preview(ToolContext&, Pt2 c) override {
+    if (pts_.empty()) return;
+    std::vector<Pt2> p;
+    for (const auto& r : pts_) p.push_back(r.point);
+    p.push_back(c);
+    if (auto g = arcFor(p)) {
+      previewGeometry(*g, rubberStyle());
+      showDynamicText(c, "R" + formatLength(g->radius()));
+    } else if (pts_.size() == 1) {
+      previewLines({pts_[0].point, c}, rubberStyle());
+      if (mode_ == ArcMode::Center) showDynamicText(c, "R" + formatLength(pts_[0].point.distance(c)));
+    } else if (mode_ == ArcMode::ThreePoint && pts_.size() == 2) {
+      previewLines({pts_[0].point, pts_[1].point}, guideStyle());
+    }
+  }
+
+  void addPoint(ToolContext& ctx, const InferenceResult& r) {
+    if (mode_ == ArcMode::Tangent && pts_.empty()) {
+      // the first point must be a free end of a line or arc
+      const Sketch* sk = sketch();
+      const Geometry* g = (sk && r.onPoint) ? sk->geometry(r.onPoint->geo) : nullptr;
+      if (!g || (g->type != GeomType::Line && g->type != GeomType::Arc) ||
+          (r.onPoint->pos != PointPos::Start && r.onPoint->pos != PointPos::End)) {
+        ctx.showMessage("Select the end point of a line or arc to start a tangent arc", true);
+        return;
+      }
+      tangent_ = outwardTangent(*g, r.onPoint->pos);
+      startRef_ = *r.onPoint;
+    }
+    PointsTool::addPoint(ctx, r);
+  }
+
+  bool mousePress(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    if (e.button != core::MouseButton::Left) return false;
+    auto c = cursor(e);
+    if (!c) return true;
+    addPoint(ctx, inferFor(*c, e));
+    return true;
+  }
+
+  void create(ToolContext& ctx) override {
+    Sketch* sk = sketch();
+    std::vector<Pt2> p;
+    for (const auto& r : pts_) p.push_back(r.point);
+    bool startIsFirst = true;
+    auto g = arcFor(p, &startIsFirst);
+    if (!sk || !session() || !g) {
+      ctx.showMessage("Degenerate arc ignored", true);
+      return;
+    }
+    session()->beginEdit();
+    int id = sk->addGeometry(asCreated(*g));
+    const Geometry* created = sk->geometry(id);
+    auto endOf = [&](Pt2 pt) { return GeoRef{id, endMatching(*created, pt)}; };
+    switch (mode_) {
+      case ArcMode::ThreePoint:
+        applyInference(*sk, coincidenceOnly(pts_[0]), endOf(p[0]), -1);
+        applyInference(*sk, coincidenceOnly(pts_[1]), endOf(p[1]), -1);
+        if (pts_[2].onPoint) sk->addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = *pts_[2].onPoint, .b = {id}});
+        break;
+      case ArcMode::Center:
+        applyInference(*sk, coincidenceOnly(pts_[0]), {id, PointPos::Center}, -1);
+        applyInference(*sk, coincidenceOnly(pts_[1]), endOf(p[1]), -1);
+        applyInference(*sk, coincidenceOnly(pts_[2]), endOf(created->point(endMatching(*created, p[1]) == PointPos::Start ? PointPos::End : PointPos::Start)), -1);
+        break;
+      case ArcMode::Tangent: {
+        GeoRef arcP = endOf(p[0]);
+        GeoRef arcQ{id, arcP.pos == PointPos::Start ? PointPos::End : PointPos::Start};
+        sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = arcP, .b = startRef_});
+        sk->addConstraint(Constraint{.type = ConstraintType::Tangent, .a = startRef_, .b = arcP});
+        applyInference(*sk, coincidenceOnly(pts_[1]), arcQ, -1);
+        break;
+      }
+    }
+    session()->commitEdit("Arc");
+  }
+
+ private:
+  ArcMode mode_;
+  std::optional<Pt2> tangent_;
+  GeoRef startRef_;
+};
+
+// ---------------------------------------------------------------------------
+// Polygon (center + vertex / edge midpoint)
+// ---------------------------------------------------------------------------
+
+class PolygonTool : public PointsTool {
+ public:
+  PolygonTool(bool inscribed, ToolInfo info) : PointsTool(std::move(info), 2), inscribed_(inscribed) {}
+
+  void activate(ToolContext& ctx) override {
+    if (!ctx.args.empty()) {
+      try {
+        int n = std::stoi(ctx.args[0]);
+        if (n >= 3 && n <= 128) sides_ = n;
+      } catch (...) {
+      }
+    }
+    PointsTool::activate(ctx);
+  }
+
+ protected:
+  std::string prompt() const override {
+    if (pts_.empty()) return std::format("Specify center ({} sides; type a number of sides to change)", sides_);
+    return inscribed_ ? "Specify a vertex" : "Specify the midpoint of an edge";
+  }
+
+  std::vector<Pt2> vertices(Pt2 c, Pt2 v, double* circleRadius) const {
+    std::vector<Pt2> out;
+    double d = c.distance(v);
+    if (d < 1e-9) return out;
+    double step = 2 * kPi / sides_;
+    double r = inscribed_ ? d : d / std::cos(step / 2);
+    double a0 = (v - c).angle() + (inscribed_ ? 0.0 : step / 2);
+    if (circleRadius) *circleRadius = inscribed_ ? r : d;
+    for (int i = 0; i < sides_; ++i) out.push_back(c + Pt2::polar(r, a0 + step * i));
+    return out;
+  }
+
+  void preview(ToolContext&, Pt2 c) override {
+    if (pts_.empty()) return;
+    auto vs = vertices(pts_[0].point, c, nullptr);
+    if (vs.empty()) return;
+    vs.push_back(vs.front());
+    previewPolyline(vs, rubberStyle());
+    showDynamicText(c, std::format("{} sides  R{}", sides_, formatLength(pts_[0].point.distance(c))));
+  }
+
+  bool typedNumber(ToolContext& ctx, double v) override {
+    if (pts_.empty()) {
+      int n = static_cast<int>(std::lround(v));
+      if (std::abs(v - n) < 1e-9 && n >= 3 && n <= 128) {
+        sides_ = n;
+        ctx.setPrompt(prompt());
+        return true;
+      }
+      return false;
+    }
+    return PointsTool::typedNumber(ctx, v);
+  }
+
+  void create(ToolContext& ctx) override {
+    Sketch* sk = sketch();
+    if (!sk || !session()) return;
+    double R = 0;
+    auto vs = vertices(pts_[0].point, pts_[1].point, &R);
+    if (vs.empty()) {
+      ctx.showMessage("Degenerate polygon ignored", true);
+      return;
+    }
+    session()->beginEdit();
+    const int n = sides_;
+    std::vector<int> l(n);
+    for (int i = 0; i < n; ++i) l[i] = sk->addGeometry(asCreated(Geometry::makeLine(vs[i], vs[(i + 1) % n])));
+    Geometry circle = Geometry::makeCircle(pts_[0].point, R);
+    circle.construction = true;
+    int c = sk->addGeometry(circle);
+    for (int i = 0; i < n; ++i) {
+      sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {l[i], PointPos::End}, .b = {l[(i + 1) % n], PointPos::Start}});
+      if (i > 0) sk->addConstraint(Constraint{.type = ConstraintType::Equal, .a = {l[0]}, .b = {l[i]}});
+      if (inscribed_) sk->addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = {l[i], PointPos::Start}, .b = {c}, .internal = true});
+      else sk->addConstraint(Constraint{.type = ConstraintType::Tangent, .a = {l[i]}, .b = {c}, .internal = true});
+    }
+    applyInference(*sk, coincidenceOnly(pts_[0]), {c, PointPos::Center}, -1);
+    if (inscribed_) applyInference(*sk, coincidenceOnly(pts_[1]), {l[0], PointPos::Start}, -1);
+    session()->commitEdit("Polygon");
+  }
+
+ private:
+  bool inscribed_;
+  int sides_ = 6;
+};
+
+// ---------------------------------------------------------------------------
+// Slot (center to center)
+// ---------------------------------------------------------------------------
+
+class SlotTool : public PointsTool {
+ public:
+  SlotTool()
+      : PointsTool(ToolInfo{.id = "sketch.slot",
+                            .name = "Center to Center Slot",
+                            .tooltip = "Slot from two arc centers and a width",
+                            .icon = "sketch-slot",
+                            .aliases = {"SLOT"},
+                            .tab = "SKETCH",
+                            .group = "CREATE",
+                            .order = 12},
+                   3) {}
+
+ protected:
+  std::string prompt() const override {
+    if (pts_.empty()) return "Specify first slot center";
+    if (pts_.size() == 1) return "Specify second slot center";
+    return "Specify slot width (or type a value)";
+  }
+
+  struct SlotGeom {
+    Geometry l1, l2, a1, a2, axis;
+  };
+
+  std::optional<SlotGeom> slotFor(Pt2 c1, Pt2 c2, double r) const {
+    Pt2 d = c2 - c1;
+    if (d.length() < 1e-9 || r < 1e-9) return std::nullopt;
+    Pt2 dn = d.normalized(), n = dn.perp();
+    SlotGeom s;
+    s.l1 = Geometry::makeLine(c1 + n * r, c2 + n * r);
+    s.l2 = Geometry::makeLine(c2 - n * r, c1 - n * r);
+    s.a2 = Geometry::makeArc(c2, r, (-n).angle(), (-n).angle() + kPi);  // start c2-n r, end c2+n r
+    s.a1 = Geometry::makeArc(c1, r, n.angle(), n.angle() + kPi);        // start c1+n r, end c1-n r
+    s.axis = Geometry::makeLine(c1, c2);
+    s.axis.construction = true;
+    return s;
+  }
+
+  double halfWidth(Pt2 c) const {
+    Pt2 a = pts_[0].point, b = pts_[1].point;
+    return std::abs(signedDistanceToLine(a, b - a, c));
+  }
+
+  void preview(ToolContext&, Pt2 c) override {
+    if (pts_.empty()) return;
+    if (pts_.size() == 1) {
+      previewLines({pts_[0].point, c}, guideStyle());
+      return;
+    }
+    auto s = slotFor(pts_[0].point, pts_[1].point, halfWidth(c));
+    if (!s) return;
+    for (const Geometry* g : {&s->l1, &s->l2, &s->a1, &s->a2}) previewGeometry(*g, rubberStyle());
+    previewGeometry(s->axis, constructionStyle());
+    showDynamicText(c, formatLength(2 * halfWidth(c)));
+  }
+
+  bool typedNumber(ToolContext& ctx, double v) override {
+    if (pts_.size() == 2) {
+      Pt2 a = pts_[0].point, b = pts_[1].point;
+      Pt2 n = (b - a).normalized().perp();
+      addPoint(ctx, inferExact((a + b) * 0.5 + n * (v / 2)));
+      return true;
+    }
+    return PointsTool::typedNumber(ctx, v);
+  }
+
+  void create(ToolContext& ctx) override {
+    Sketch* sk = sketch();
+    if (!sk || !session()) return;
+    auto s = slotFor(pts_[0].point, pts_[1].point, halfWidth(pts_[2].point));
+    if (!s) {
+      ctx.showMessage("Degenerate slot ignored", true);
+      return;
+    }
+    session()->beginEdit();
+    int l1 = sk->addGeometry(asCreated(s->l1));
+    int l2 = sk->addGeometry(asCreated(s->l2));
+    int a1 = sk->addGeometry(asCreated(s->a1));
+    int a2 = sk->addGeometry(asCreated(s->a2));
+    int ax = sk->addGeometry(s->axis);
+    using CT = ConstraintType;
+    auto join = [&](GeoRef p, GeoRef q) {
+      sk->addConstraint(Constraint{.type = CT::Coincident, .a = p, .b = q});
+      sk->addConstraint(Constraint{.type = CT::Tangent, .a = p, .b = q});
+    };
+    join({l1, PointPos::End}, {a2, PointPos::End});
+    join({l2, PointPos::Start}, {a2, PointPos::Start});
+    join({l1, PointPos::Start}, {a1, PointPos::Start});
+    join({l2, PointPos::End}, {a1, PointPos::End});
+    sk->addConstraint(Constraint{.type = CT::Equal, .a = {a1}, .b = {a2}});
+    sk->addConstraint(Constraint{.type = CT::Coincident, .a = {ax, PointPos::Start}, .b = {a1, PointPos::Center}});
+    sk->addConstraint(Constraint{.type = CT::Coincident, .a = {ax, PointPos::End}, .b = {a2, PointPos::Center}});
+    applyInference(*sk, coincidenceOnly(pts_[0]), {a1, PointPos::Center}, -1);
+    applyInference(*sk, coincidenceOnly(pts_[1]), {a2, PointPos::Center}, -1);
+    if (pts_[1].horizontal) sk->addConstraint(Constraint{.type = CT::Horizontal, .a = {ax}});
+    else if (pts_[1].vertical) sk->addConstraint(Constraint{.type = CT::Vertical, .a = {ax}});
+    session()->commitEdit("Slot");
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Point
+// ---------------------------------------------------------------------------
+
+class PointTool : public PointsTool {
+ public:
+  PointTool()
+      : PointsTool(ToolInfo{.id = "sketch.point",
+                            .name = "Point",
+                            .tooltip = "Sketch point",
+                            .icon = "sketch-point",
+                            .aliases = {"POINT", "PO"},
+                            .tab = "SKETCH",
+                            .group = "CREATE",
+                            .order = 13},
+                   1) {}
+
+ protected:
+  std::string prompt() const override { return "Specify point"; }
+  void preview(ToolContext&, Pt2) override {}
+  void create(ToolContext&) override {
+    Sketch* sk = sketch();
+    if (!sk || !session()) return;
+    session()->beginEdit();
+    int id = sk->addGeometry(asCreated(Geometry::makePoint(pts_[0].point)));
+    applyInference(*sk, coincidenceOnly(pts_[0]), {id, PointPos::Center}, -1);
+    session()->commitEdit("Point");
+  }
+};
+
+}  // namespace
+
+void registerCreateTools(core::ToolRegistry& reg) {
+  reg.registerTool(std::make_unique<LineTool>());
+  reg.registerTool(std::make_unique<RectangleTool>(
+      RectMode::TwoPoint, ToolInfo{.id = "sketch.rectangle", .name = "2-Point Rectangle", .tooltip = "Rectangle from two opposite corners",
+                                   .icon = "sketch-rectangle", .shortcut = "R", .aliases = {"RECTANGLE", "REC", "RECT"}, .tab = "SKETCH",
+                                   .group = "CREATE", .order = 2, .promoted = true}));
+  reg.registerTool(std::make_unique<RectangleTool>(
+      RectMode::ThreePoint, ToolInfo{.id = "sketch.rectangle-3point", .name = "3-Point Rectangle", .tooltip = "Rectangle from an edge and a height",
+                                     .icon = "sketch-rectangle-3point", .aliases = {"REC3"}, .tab = "SKETCH", .group = "CREATE", .order = 3}));
+  reg.registerTool(std::make_unique<RectangleTool>(
+      RectMode::Center, ToolInfo{.id = "sketch.rectangle-center", .name = "Center Rectangle", .tooltip = "Rectangle from its center and a corner",
+                                 .icon = "sketch-rectangle-center", .aliases = {"RECC"}, .tab = "SKETCH", .group = "CREATE", .order = 4}));
+  reg.registerTool(std::make_unique<CircleTool>(
+      CircleMode::CenterDiameter, ToolInfo{.id = "sketch.circle", .name = "Center Diameter Circle", .tooltip = "Circle from center and diameter",
+                                           .icon = "sketch-circle", .shortcut = "C", .aliases = {"CIRCLE", "C"}, .tab = "SKETCH",
+                                           .group = "CREATE", .order = 5, .promoted = true}));
+  reg.registerTool(std::make_unique<CircleTool>(
+      CircleMode::TwoPoint, ToolInfo{.id = "sketch.circle-2point", .name = "2-Point Circle", .tooltip = "Circle from two diameter points",
+                                     .icon = "sketch-circle-2point", .aliases = {"CIRCLE2"}, .tab = "SKETCH", .group = "CREATE", .order = 6}));
+  reg.registerTool(std::make_unique<CircleTool>(
+      CircleMode::ThreePoint, ToolInfo{.id = "sketch.circle-3point", .name = "3-Point Circle", .tooltip = "Circle through three points",
+                                       .icon = "sketch-circle-3point", .aliases = {"CIRCLE3"}, .tab = "SKETCH", .group = "CREATE", .order = 7}));
+  reg.registerTool(std::make_unique<ArcTool>(
+      ArcMode::ThreePoint, ToolInfo{.id = "sketch.arc-3point", .name = "3-Point Arc", .tooltip = "Arc from start, end and a point on the arc",
+                                    .icon = "sketch-arc-3point", .aliases = {"ARC", "A"}, .tab = "SKETCH", .group = "CREATE", .order = 8,
+                                    .promoted = true}));
+  reg.registerTool(std::make_unique<ArcTool>(
+      ArcMode::Center, ToolInfo{.id = "sketch.arc-center", .name = "Center Point Arc", .tooltip = "Arc from center, start and end",
+                                .icon = "sketch-arc-center", .aliases = {"ARCC"}, .tab = "SKETCH", .group = "CREATE", .order = 9}));
+  reg.registerTool(std::make_unique<ArcTool>(
+      ArcMode::Tangent, ToolInfo{.id = "sketch.arc-tangent", .name = "Tangent Arc", .tooltip = "Arc tangent to the end of a line or arc",
+                                 .icon = "sketch-arc-tangent", .aliases = {"ARCT"}, .tab = "SKETCH", .group = "CREATE", .order = 10}));
+  reg.registerTool(std::make_unique<PolygonTool>(
+      false, ToolInfo{.id = "sketch.polygon", .name = "Circumscribed Polygon", .tooltip = "Regular polygon around a circle (argument: number of sides)",
+                      .icon = "sketch-polygon", .aliases = {"POLYGON", "POL"}, .tab = "SKETCH", .group = "CREATE", .order = 11}));
+  reg.registerTool(std::make_unique<PolygonTool>(
+      true, ToolInfo{.id = "sketch.polygon-inscribed", .name = "Inscribed Polygon", .tooltip = "Regular polygon inside a circle (argument: number of sides)",
+                     .icon = "sketch-polygon-inscribed", .aliases = {"POLI"}, .tab = "SKETCH", .group = "CREATE", .order = 11}));
+  reg.registerTool(std::make_unique<SlotTool>());
+  reg.registerTool(std::make_unique<PointTool>());
+}
+
+}  // namespace fabricad::sketch

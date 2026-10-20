@@ -1,0 +1,294 @@
+// Sketch model tests: geometry maths, trim/extend/offset/mirror/fillet, queries, JSON.
+// SPDX-License-Identifier: LGPL-2.1-or-later
+#include "sketch/Sketch.h"
+#include "support/SketchTestHelpers.h"
+
+#include <QtTest/QtTest>
+
+using namespace fabricad::sketch;
+using namespace fabricad::sketch::test;
+
+class SketchOpsTest : public QObject {
+  Q_OBJECT
+ private slots:
+  void geometryBasics() {
+    Geometry arc = Geometry::makeArc({0, 0}, 10, 0, kPi / 2);
+    QVERIFY(near(arc.start(), {10, 0}));
+    QVERIFY(near(arc.end(), {0, 10}));
+    QVERIFY(near(arc.midpoint(), Pt2::polar(10, kPi / 4)));
+    QVERIFY(arc.containsAngle(kPi / 4));
+    QVERIFY(!arc.containsAngle(kPi));
+    QVERIFY(near(arc.length(), 10 * kPi / 2));
+    auto a3 = Geometry::makeArc3Points({10, 0}, {0, 10}, {-10, 0});
+    QVERIFY(a3.has_value());
+    QVERIFY(near(a3->center(), {0, 0}));
+    QVERIFY(near(a3->sweep(), kPi));
+    auto a3b = Geometry::makeArc3Points({-10, 0}, {0, 10}, {10, 0});  // reversed order -> same arc
+    QVERIFY(near(a3b->midpoint(), {0, 10}));
+    Geometry line = Geometry::makeLine({0, 0}, {10, 0});
+    QVERIFY(near(line.closestPoint({5, 3}), {5, 0}));
+    QVERIFY(near(line.closestPoint({15, 3}), {10, 0}));
+    QVERIFY(near(line.distanceTo({5, 3}), 3.0));
+    Geometry circle = Geometry::makeCircle({0, 0}, 5);
+    QVERIFY(near(circle.closestPoint({10, 0}), {5, 0}));
+    // mirror an arc about the y axis
+    Geometry m = arc;
+    m.mirror({0, 0}, {0, 1});
+    QVERIFY(near(m.start(), {0, 10}));
+    QVERIFY(near(m.end(), {-10, 0}));
+  }
+
+  void intersections() {
+    Geometry l1 = Geometry::makeLine({0, 0}, {10, 10});
+    Geometry l2 = Geometry::makeLine({0, 10}, {10, 0});
+    auto x = intersectCurves(l1, l2);
+    QCOMPARE(x.size(), size_t(1));
+    QVERIFY(near(x[0], {5, 5}));
+    Geometry l3 = Geometry::makeLine({20, 0}, {30, 0});
+    QVERIFY(intersectCurves(l1, l3).empty());
+    Geometry c = Geometry::makeCircle({5, 5}, 5);
+    x = intersectCurves(l1, c);
+    QCOMPARE(x.size(), size_t(2));
+    Geometry arc = Geometry::makeArc({5, 5}, 5, 0, kPi / 2);
+    x = intersectCurves(l1, arc);
+    QCOMPARE(x.size(), size_t(1));
+    Geometry c2 = Geometry::makeCircle({12, 5}, 5);
+    x = intersectCurves(c, c2);
+    QCOMPARE(x.size(), size_t(2));
+  }
+
+  void hitTestingAndChain() {
+    Sketch sk;
+    auto ids = addRectangle(sk, {0, 0}, {10, 10});
+    auto hp = sk.hitPoint({0.2, 0.1}, 0.5);
+    QVERIFY(hp.has_value());
+    QVERIFY(near(hp->point, {0, 0}));
+    auto hm = sk.hitPoint({5.1, 0}, 0.5);
+    QVERIFY(hm.has_value());
+    QCOMPARE(hm->ref.pos, PointPos::Mid);
+    auto hc = sk.hitCurve({5, 0.3}, 0.5);
+    QVERIFY(hc.has_value());
+    QCOMPARE(hc->ref.geo, ids[0]);
+    QVERIFY(!sk.hit({5, 5}, 0.5).has_value());
+    QCOMPARE(sk.chain(ids[0]).size(), size_t(4));
+    QCOMPARE(sk.curvesInRect({-1, -1}, {11, 11}, false).size(), size_t(4));
+    QCOMPARE(sk.curvesInRect({-1, -1}, {5, 11}, false).size(), size_t(1));
+    QCOMPARE(sk.curvesInRect({-1, -1}, {5, 11}, true).size(), size_t(3));
+  }
+
+  void trimLineMiddle() {
+    Sketch sk;
+    int h = sk.addGeometry(Geometry::makeLine({0, 0}, {30, 0}));
+    int v1 = sk.addGeometry(Geometry::makeLine({10, -5}, {10, 5}));
+    int v2 = sk.addGeometry(Geometry::makeLine({20, -5}, {20, 5}));
+    auto pieces = sk.trim(h, {15, 0});
+    QCOMPARE(pieces.size(), size_t(2));
+    QVERIFY(near(sk.geometry(pieces[0])->end(), {10, 0}));
+    QVERIFY(near(sk.geometry(pieces[1])->start(), {20, 0}));
+    QVERIFY(near(sk.geometry(pieces[1])->end(), {30, 0}));
+    QVERIFY(sk.solve().ok());
+    // a piece ending exactly at the trimming curve with nothing else crossing is removed entirely
+    auto gone = sk.trim(pieces[1], {25, 0});
+    QVERIFY(gone.empty());
+    QVERIFY(!sk.geometry(pieces[1]));
+    // trim an end piece: start part removed up to the new vertical at x=5
+    sk.addGeometry(Geometry::makeLine({5, -5}, {5, 5}));
+    auto p2 = sk.trim(pieces[0], {2, 0});
+    QCOMPARE(p2.size(), size_t(1));
+    QVERIFY(near(sk.geometry(p2[0])->start(), {5, 0}));
+    QVERIFY(near(sk.geometry(p2[0])->end(), {10, 0}));
+    (void)v1;
+    (void)v2;
+    // trim with no intersections deletes
+    int lone = sk.addGeometry(Geometry::makeLine({100, 100}, {110, 100}));
+    QVERIFY(sk.trim(lone, {105, 100}).empty());
+    QVERIFY(!sk.geometry(lone));
+  }
+
+  void trimCircleToArc() {
+    Sketch sk;
+    int c = sk.addGeometry(Geometry::makeCircle({0, 0}, 10));
+    sk.addGeometry(Geometry::makeLine({-20, 0}, {20, 0}));
+    auto pieces = sk.trim(c, {0, -10});
+    QCOMPARE(pieces.size(), size_t(1));
+    const Geometry* g = sk.geometry(c);
+    QCOMPARE(g->type, GeomType::Arc);
+    QVERIFY(near(g->start(), {10, 0}));
+    QVERIFY(near(g->end(), {-10, 0}));
+    QVERIFY(near(g->midpoint(), {0, 10}));
+    QVERIFY(sk.solve().ok());
+  }
+
+  void trimArc() {
+    Sketch sk;
+    int a = sk.addGeometry(Geometry::makeArc({0, 0}, 10, 0, kPi));
+    sk.addGeometry(Geometry::makeLine({0, -20}, {0, 20}));
+    auto pieces = sk.trim(a, {-7, 7});
+    QCOMPARE(pieces.size(), size_t(1));
+    QVERIFY(near(sk.geometry(a)->end(), {0, 10}));
+    QVERIFY(near(sk.geometry(a)->start(), {10, 0}));
+  }
+
+  void extendLineAndArc() {
+    Sketch sk;
+    int l = sk.addGeometry(Geometry::makeLine({0, 0}, {5, 0}));
+    sk.addGeometry(Geometry::makeLine({10, -5}, {10, 5}));
+    QVERIFY(sk.extend(l, {5, 0}));
+    QVERIFY(near(sk.geometry(l)->end(), {10, 0}));
+    QVERIFY(!sk.extend(l, {0, 0}));  // nothing behind the start
+    int a = sk.addGeometry(Geometry::makeArc({0, 20}, 5, 0, kPi / 4));
+    sk.addGeometry(Geometry::makeLine({0, 20}, {0, 40}));
+    QVERIFY(sk.extend(a, sk.geometry(a)->end()));
+    QVERIFY(near(sk.geometry(a)->end(), {0, 25}));
+  }
+
+  void offsetRectangleAndCircle() {
+    Sketch sk;
+    auto ids = addRectangle(sk, {0, 0}, {10, 10}, false);
+    auto out = sk.offset(ids, 2.0, Pt2{5, 5});  // inward
+    QCOMPARE(out.size(), size_t(4));
+    Pt2 mn, mx;
+    Sketch tmp;
+    for (int id : out) tmp.addGeometry(*sk.geometry(id));
+    QVERIFY(tmp.bbox(mn, mx));
+    QVERIFY(near(mn, {2, 2}));
+    QVERIFY(near(mx, {8, 8}));
+    for (int id : out) QVERIFY(near(sk.geometry(id)->length(), 6.0));
+    auto out2 = sk.offset(ids, 3.0, Pt2{-5, -5});  // outward
+    Sketch tmp2;
+    for (int id : out2) tmp2.addGeometry(*sk.geometry(id));
+    QVERIFY(tmp2.bbox(mn, mx));
+    QVERIFY(near(mn, {-3, -3}));
+    QVERIFY(near(mx, {13, 13}));
+    int c = sk.addGeometry(Geometry::makeCircle({50, 50}, 5));
+    auto oc = sk.offset({c}, 2.0, Pt2{50, 50});
+    QCOMPARE(oc.size(), size_t(1));
+    QVERIFY(near(sk.geometry(oc[0])->radius(), 3.0));
+    QVERIFY(sk.solve().ok());
+  }
+
+  void offsetLineArcChain() {
+    Sketch sk;
+    int l = sk.addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    int a = sk.addGeometry(Geometry::makeArc({10, 5}, 5, -kPi / 2, 0));  // from (10,0) to (15,5)
+    auto out = sk.offset({l, a}, 1.0, Pt2{10, 10});  // towards the arc centre side
+    QCOMPARE(out.size(), size_t(2));
+    const Geometry* ol = sk.geometry(out[0]);
+    const Geometry* oa = sk.geometry(out[1]);
+    QVERIFY(near(ol->start().y, 1.0));
+    QVERIFY(near(oa->radius(), 4.0));
+    QVERIFY(near(ol->end(), oa->start(), 1e-6));
+  }
+
+  void mirrorWithConstraints() {
+    Sketch sk;
+    int axis = sk.addGeometry(Geometry::makeLine({0, -10}, {0, 10}));
+    sk.geometry(axis)->construction = true;
+    int l = sk.addGeometry(Geometry::makeLine({2, 0}, {6, 3}));
+    int c = sk.addGeometry(Geometry::makeCircle({5, 5}, 1));
+    auto out = sk.mirror({l, c}, axis, true);
+    QCOMPARE(out.size(), size_t(2));
+    QVERIFY(near(sk.geometry(out[0])->start(), {-2, 0}));
+    QVERIFY(near(sk.geometry(out[0])->end(), {-6, 3}));
+    QVERIFY(near(sk.geometry(out[1])->center(), {-5, 5}));
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {axis}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {l}});
+    SolveResult r = sk.solve();
+    QVERIFY(r.ok());
+    QVERIFY(r.isFullyConstrained(out[0]));
+    // move the original: the mirror follows through the symmetric constraints
+    sk.geometry(l)->setEnd({6, 8});
+    sk.removeConstraint(sk.constraints().back().id);  // drop fix on l
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {l}});
+    r = sk.solve();
+    QVERIFY(r.ok());
+    QVERIFY(near(sk.geometry(out[0])->end(), {-6, 8}, 1e-6));
+  }
+
+  void filletTwoLines() {
+    Sketch sk;
+    int l1 = sk.addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    int l2 = sk.addGeometry(Geometry::makeLine({10, 0}, {10, 10}));
+    sk.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {l1, PointPos::End}, .b = {l2, PointPos::Start}});
+    auto arcId = sk.fillet(l1, {5, 0}, l2, {10, 5}, 2.0);
+    QVERIFY(arcId.has_value());
+    const Geometry* a = sk.geometry(*arcId);
+    QVERIFY(near(a->center(), {8, 2}));
+    QVERIFY(near(a->radius(), 2.0));
+    QVERIFY(near(sk.geometry(l1)->end(), {8, 0}));
+    QVERIFY(near(sk.geometry(l2)->start(), {10, 2}));
+    QVERIFY(a->sweep() < kPi + 1e-9);
+    // tangency constraints exist and the sketch solves
+    int tangents = 0;
+    for (const auto& c : sk.constraints())
+      if (c.type == ConstraintType::Tangent) ++tangents;
+    QCOMPARE(tangents, 2);
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {l1, PointPos::Start}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = {l1}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {l2, PointPos::End}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Vertical, .a = {l2}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {*arcId}, .value = 3});
+    SolveResult r = sk.solve();
+    QVERIFY2(r.ok(), r.message.c_str());
+    QVERIFY(near(sk.geometry(*arcId)->radius(), 3.0));
+    QVERIFY(near(sk.geometry(l1)->end(), {7, 0}, 1e-5));
+    QVERIFY(near(sk.geometry(l2)->start(), {10, 3}, 1e-5));
+    QVERIFY(near(sk.geometry(*arcId)->center(), {7, 3}, 1e-5));
+    QCOMPARE(r.dofs, 0);
+  }
+
+  void filletLineArc() {
+    Sketch sk;
+    int l = sk.addGeometry(Geometry::makeLine({0, 0}, {20, 0}));
+    int c = sk.addGeometry(Geometry::makeCircle({20, 10}, 10));  // touches the line at (20,0)? no: passes through (20,0)
+    auto arcId = sk.fillet(l, {5, 0}, c, {10, 10}, 2.0);
+    QVERIFY(arcId.has_value());
+    QVERIFY(sk.solve().ok());
+  }
+
+  void splitLine() {
+    Sketch sk;
+    int l = sk.addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    auto n = sk.split(l, {4, 1});
+    QVERIFY(n.has_value());
+    QVERIFY(near(sk.geometry(l)->end(), {4, 0}));
+    QVERIFY(near(sk.geometry(*n)->start(), {4, 0}));
+    QVERIFY(sk.findConstraint(ConstraintType::Coincident, {l, PointPos::End}, {*n, PointPos::Start}));
+  }
+
+  void removeGeometryDropsConstraints() {
+    Sketch sk;
+    auto ids = addRectangle(sk, {0, 0}, {10, 10});
+    QCOMPARE(sk.constraints().size(), size_t(8));
+    sk.removeGeometry(ids[0]);
+    QCOMPARE(sk.constraints().size(), size_t(5));
+    QCOMPARE(sk.geometryCount(), 3);
+  }
+
+  void jsonRoundTrip() {
+    Sketch sk;
+    auto ids = addRectangle(sk, {0, 0}, {10, 10});
+    int a = sk.addGeometry(Geometry::makeArc({20, 0}, 5, 0.3, 2.0));
+    sk.geometry(a)->construction = true;
+    sk.addConstraint(Constraint{.type = ConstraintType::Distance, .a = {ids[0]}, .value = 10, .expression = "w"});
+    sk.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {a}, .value = 5, .driven = true});
+    QJsonObject o = sk.toJson();
+    Sketch back;
+    back.fromJson(o);
+    QCOMPARE(back.geometryCount(), sk.geometryCount());
+    QCOMPARE(back.constraints().size(), sk.constraints().size());
+    const Geometry* ga = back.geometry(a);
+    QVERIFY(ga && ga->type == GeomType::Arc && ga->construction);
+    QVERIFY(near(ga->start(), sk.geometry(a)->start()));
+    QVERIFY(near(ga->end(), sk.geometry(a)->end()));
+    const Constraint* d = back.dimensionByName("d1");
+    QVERIFY(d);
+    QCOMPARE(d->expression, std::string("w"));
+    QVERIFY(back.dimensionByName("d2")->driven);
+    int newId = back.addGeometry(Geometry::makePoint({0, 0}));
+    QVERIFY(newId > a);
+  }
+};
+
+QTEST_GUILESS_MAIN(SketchOpsTest)
+#include "test_sketch_ops.moc"

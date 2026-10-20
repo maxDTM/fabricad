@@ -1,0 +1,115 @@
+// FabriCAD part: generic command tool for a part feature (create or edit).
+//
+// Create: a working feature is built from the preselection, previewed live by running
+// PartFeature::compute() against the document state at the rollback marker, and committed
+// with core::AddFeatureCommand on OK. Edit (args {"edit", "<id>"} or a Feature ref in the
+// preselection): the live feature is modified in place with notifyFeatureChanged +
+// recompute for preview; OK pushes a ModifyFeatureCommand(before, after), Cancel restores.
+// Selection picks go to the active selection input of the dialog (PropertyPanel), with the
+// selection filter set from the property's ref filter. Everything works headlessly with
+// NullViewerContext / NullAppHost.
+// SPDX-License-Identifier: LGPL-2.1-or-later
+#pragma once
+
+#include "core/Tool.h"
+#include "core/ViewerContext.h"
+#include "part/PartFeature.h"
+
+#include <QJsonObject>
+#include <QPointer>
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace fabricad::part {
+
+class PropertyPanel;
+
+class FeatureTool : public core::ToolBase {
+ public:
+  using Creator = std::function<std::unique_ptr<PartFeature>()>;
+  FeatureTool(core::ToolInfo info, std::string featureType, Creator creator);
+  ~FeatureTool() override;
+
+  const std::string& featureType() const { return featureType_; }
+
+  void activate(core::ToolContext& ctx) override;
+  void deactivate(core::ToolContext& ctx) override;
+  void accept(core::ToolContext& ctx) override;
+  void cancel(core::ToolContext& ctx) override;
+  void selectionChanged(core::ToolContext& ctx) override;
+  void documentChanged(core::ToolContext& ctx) override;
+  bool commandLineInput(core::ToolContext& ctx, const std::string& text) override;
+  QWidget* createDialog(core::ToolContext& ctx, QWidget* parent) override;
+
+  // --- state inspection (dialog, tests) ------------------------------------------
+  /// The feature being defined (working copy when creating, the live one when editing).
+  PartFeature* feature() const;
+  bool isEditing() const { return editing_ != nullptr; }
+  const std::string& activeInput() const { return activeInput_; }
+  void setActiveInput(core::ToolContext& ctx, const std::string& propName);
+  /// Result of the last preview computation.
+  bool isValid() const { return valid_; }
+  const std::string& message() const { return message_; }
+  const Outcome& lastOutcome() const { return outcome_; }
+  /// Re-run the preview after a programmatic property change.
+  void updatePreview(core::ToolContext& ctx);
+  /// Set a numeric property from text (expression allowed). False if invalid.
+  bool setNumeric(core::ToolContext& ctx, const std::string& propName, const std::string& text);
+
+ protected:
+  /// Hook for subclasses that decide the feature type lazily (Press Pull).
+  virtual std::unique_ptr<PartFeature> createFeature(core::ToolContext& ctx);
+  void startWith(core::ToolContext& ctx, std::unique_ptr<PartFeature> f);
+  void applyPreselection(core::ToolContext& ctx, const std::vector<core::ShapeRef>& refs);
+  bool addRefToInput(core::ToolContext& ctx, const std::string& propName, core::ShapeRef ref);
+  void advanceActiveInput(core::ToolContext& ctx);
+  void applyFilter(core::ToolContext& ctx);
+  void clearPreviews(core::ToolContext& ctx);
+  void highlightRefs(core::ToolContext& ctx);
+  /// Edit mode: move the rollback marker just after the edited feature so previews recompute
+  /// only that feature; restoreRollback() replays the downstream history (OK / Cancel).
+  void rollbackToFeature(core::ToolContext& ctx);
+  void restoreRollback(core::ToolContext& ctx);
+  std::string primaryNumeric() const;
+
+  std::string featureType_;
+  Creator creator_;
+  std::unique_ptr<PartFeature> working_;
+  PartFeature* editing_ = nullptr;
+  QJsonObject before_;
+  int savedRollback_ = -1;  ///< rollback index before the edit moved the marker (-1 = unchanged)
+  std::string activeInput_;
+  std::vector<core::PreviewHandle> previews_;
+  QPointer<PropertyPanel> panel_;
+  Outcome outcome_;
+  bool valid_ = false;
+  std::string message_;
+  bool inSelectionUpdate_ = false;
+};
+
+/// Press Pull (Q): context command. Face -> Offset Face, edge -> Fillet, profile -> Extrude.
+class PressPullTool : public FeatureTool {
+ public:
+  explicit PressPullTool(core::ToolInfo info);
+  void activate(core::ToolContext& ctx) override;
+  void selectionChanged(core::ToolContext& ctx) override;
+
+ protected:
+  std::unique_ptr<PartFeature> featureFor(const std::vector<core::ShapeRef>& refs) const;
+};
+
+/// "part.edit-feature <id>": opens the feature's own tool in edit mode.
+class EditFeatureTool : public core::ToolBase {
+ public:
+  explicit EditFeatureTool(core::ToolInfo info) : ToolBase(std::move(info)) {}
+  void activate(core::ToolContext& ctx) override;
+};
+
+/// Tool id that edits features of the given type (empty if none registered).
+std::string toolIdForFeatureType(const std::string& type);
+void registerFeatureToolId(const std::string& type, const std::string& toolId);
+
+}  // namespace fabricad::part

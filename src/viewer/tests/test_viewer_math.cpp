@@ -1,0 +1,169 @@
+// Unit tests for the GL-free viewer math (camera mapping, grid, views, selection tables).
+// SPDX-License-Identifier: LGPL-2.1-or-later
+#include "viewer/ViewerMath.h"
+
+#include <QtTest/QtTest>
+
+using namespace fabricad;
+using namespace fabricad::viewer;
+
+namespace {
+Handle(Graphic3d_Camera) makeCamera(bool ortho, int w, int h) {
+  Handle(Graphic3d_Camera) cam = new Graphic3d_Camera();
+  cam->SetProjectionType(ortho ? Graphic3d_Camera::Projection_Orthographic : Graphic3d_Camera::Projection_Perspective);
+  cam->SetEyeAndCenter(gp_Pnt(0, 0, 100), gp_Pnt(0, 0, 0));
+  cam->SetUp(gp_Dir(0, 1, 0));
+  cam->SetAspect(double(w) / h);
+  cam->SetScale(200.0);
+  cam->SetZRange(1.0, 1000.0);
+  if (!ortho) cam->SetFOVy(45.0);
+  return cam;
+}
+}  // namespace
+
+class ViewerMathTest : public QObject {
+  Q_OBJECT
+ private slots:
+  void centreRayHitsOrigin() {
+    for (bool ortho : {true, false}) {
+      auto cam = makeCamera(ortho, 800, 600);
+      gp_Pnt o;
+      gp_Dir d;
+      QVERIFY(cameraScreenRay(*cam, 400, 300, 800, 600, o, d));
+      QVERIFY(d.IsParallel(gp_Dir(0, 0, -1), 1e-6));
+      QVERIFY(d.Z() < 0);  // into the scene
+      gp_Pnt hit;
+      QVERIFY(intersectLinePlane(o, d, gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), hit));
+      QVERIFY(hit.Distance(gp_Pnt(0, 0, 0)) < 1e-6);
+    }
+  }
+
+  void projectionRoundTrip() {
+    for (bool ortho : {true, false}) {
+      auto cam = makeCamera(ortho, 800, 600);
+      const gp_Pnt p(12.5, -7.25, 0);
+      double x = 0, y = 0;
+      QVERIFY(cameraWorldToScreen(*cam, p, 800, 600, x, y));
+      QVERIFY(x > 400 && y > 300);  // +x right, -y down on screen
+      gp_Pnt o;
+      gp_Dir d;
+      QVERIFY(cameraScreenRay(*cam, x, y, 800, 600, o, d));
+      gp_Pnt hit;
+      QVERIFY(intersectLinePlane(o, d, gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), hit));
+      QVERIFY2(hit.Distance(p) < 1e-6, qPrintable(QString("dist %1").arg(hit.Distance(p))));
+    }
+  }
+
+  void pixelSizeMatchesProjection() {
+    auto cam = makeCamera(true, 800, 600);
+    const double ps = cameraPixelSize(*cam, gp_Pnt(0, 0, 0), 800, 600);
+    QVERIFY(ps > 0);
+    double x0, y0, x1, y1;
+    QVERIFY(cameraWorldToScreen(*cam, gp_Pnt(0, 0, 0), 800, 600, x0, y0));
+    QVERIFY(cameraWorldToScreen(*cam, gp_Pnt(ps * 10, 0, 0), 800, 600, x1, y1));
+    QVERIFY(std::abs((x1 - x0) - 10.0) < 1e-6);
+    QVERIFY(std::abs(ps * 600 - 200.0) < 1e-6);  // ortho scale = view height
+  }
+
+  void behindPerspectiveCamera() {
+    auto cam = makeCamera(false, 800, 600);
+    double x, y;
+    QVERIFY(!cameraWorldToScreen(*cam, gp_Pnt(0, 0, cam->Eye().Z() + 50), 800, 600, x, y));
+  }
+
+  void parallelLineMissesPlane() {
+    gp_Pnt out;
+    QVERIFY(!intersectLinePlane(gp_Pnt(0, 0, 5), gp_Dir(1, 0, 0), gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), out));
+  }
+
+  void gridSnap() {
+    gp_Ax3 xy;
+    gp_Pnt s = snapToGrid(xy, gp_Pnt(12.4, -7.6, 0), 5.0);
+    QCOMPARE(s.X(), 10.0);
+    QCOMPARE(s.Y(), -10.0);
+    // tilted plane: snapping happens in plane coordinates
+    gp_Ax3 front(gp_Pnt(0, 0, 0), gp_Dir(0, -1, 0), gp_Dir(1, 0, 0));
+    gp_Pnt f = snapToGrid(front, gp_Pnt(3.2, 0, 8.9), 1.0);
+    QVERIFY(f.Distance(gp_Pnt(3, 0, 9)) < 1e-9);
+    QVERIFY(snapToGrid(xy, gp_Pnt(1.3, 2, 0), 0).IsEqual(gp_Pnt(1.3, 2, 0), 1e-12));
+  }
+
+  void niceSteps() {
+    QCOMPARE(niceStep(1.0), 1.0);
+    QCOMPARE(niceStep(1.2), 2.0);
+    QCOMPARE(niceStep(3.0), 5.0);
+    QCOMPARE(niceStep(7.0), 10.0);
+    QVERIFY(std::abs(niceStep(0.012) - 0.02) < 1e-12);
+    QCOMPARE(niceStep(420.0), 500.0);
+    QCOMPARE(niceStep(-1.0), 1.0);
+    // 0.5 mm/px with >= 12 px spacing -> 6 mm -> 10 mm
+    QCOMPARE(adaptiveGridStep(0.5, 12.0), 10.0);
+  }
+
+  void standardViews() {
+    auto front = standardViewOrientation(core::StandardView::Front);
+    QVERIFY(front.toEye.IsEqual(gp_Dir(0, -1, 0), 1e-12));
+    QVERIFY(front.up.IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    auto top = standardViewOrientation(core::StandardView::Top);
+    QVERIFY(top.toEye.IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    QVERIFY(top.up.IsEqual(gp_Dir(0, 1, 0), 1e-12));
+    auto bottom = standardViewOrientation(core::StandardView::Bottom);
+    QVERIFY(bottom.up.IsEqual(gp_Dir(0, -1, 0), 1e-12));
+    auto iso = standardViewOrientation(core::StandardView::Iso);
+    QVERIFY(std::abs(gp_Vec(iso.toEye).Dot(gp_Vec(iso.up))) < 1e-12);
+    QVERIFY(iso.up.Z() > 0);
+    // screen right of the front view is +X: forward x up
+    gp_Vec right = gp_Vec(front.toEye.Reversed()).Crossed(gp_Vec(front.up));
+    QVERIFY(gp_Dir(right).IsEqual(gp_Dir(1, 0, 0), 1e-12));
+    gp_Ax3 plane(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0), gp_Dir(0, 1, 0));
+    auto pv = planeViewOrientation(plane);
+    QVERIFY(pv.toEye.IsEqual(gp_Dir(1, 0, 0), 1e-12));
+    QVERIFY(pv.up.IsEqual(plane.YDirection(), 1e-12));
+  }
+
+  void selectionModes() {
+    BrepModes all = brepModesFor(core::kAllKinds);
+    QVERIFY(all.face && all.edge && all.vertex && !all.body);
+    BrepModes bodies = brepModesFor(core::mask(core::ShapeKind::Body));
+    QVERIFY(bodies.body && !bodies.face);
+    BrepModes faces = brepModesFor(core::kPlaneKinds);
+    QVERIFY(faces.face && !faces.edge && !faces.body);
+    QVERIFY(brepModesFor(core::mask(core::ShapeKind::Profile)) == BrepModes{});
+    const core::ShapeKindMask edgePrio = priorityMask(SelectionPriority::Edge);
+    QVERIFY(core::hasKind(edgePrio, core::ShapeKind::Edge));
+    QVERIFY(!core::hasKind(edgePrio, core::ShapeKind::Face));
+    QVERIFY(core::hasKind(edgePrio, core::ShapeKind::SketchCurve));
+    QCOMPARE(priorityMask(SelectionPriority::Default), core::kAllKinds);
+    QVERIFY(brepModesFor(priorityMask(SelectionPriority::Body)).body);
+  }
+
+  void selectOps() {
+    QCOMPARE(selectOpForModifiers(core::ModNone), SelectOp::Replace);
+    QCOMPARE(selectOpForModifiers(core::ModShift), SelectOp::Add);
+    QCOMPARE(selectOpForModifiers(core::ModCtrl), SelectOp::Toggle);
+    QVERIFY(isCrossingSelection(100, 20));
+    QVERIFY(!isCrossingSelection(20, 100));
+    QVERIFY(!exceedsDragThreshold(2, 3));
+    QVERIFY(exceedsDragThreshold(5, 0));
+  }
+
+  void navigationPresets() {
+    QCOMPARE(navActionFor(NavPreset::Fusion, 2, core::ModNone), NavAction::Pan);
+    QCOMPARE(navActionFor(NavPreset::Fusion, 2, core::ModShift), NavAction::Orbit);
+    QCOMPARE(navActionFor(NavPreset::Fusion, 1, core::ModNone), NavAction::None);  // LMB stays for selection
+    QCOMPARE(navActionFor(NavPreset::SolidWorks, 2, core::ModNone), NavAction::Orbit);
+    QCOMPARE(navActionFor(NavPreset::SolidWorks, 2, core::ModCtrl), NavAction::Pan);
+    QCOMPARE(navActionFor(NavPreset::Fusion, 2, core::ModShift | core::ModAlt), NavAction::Orbit);
+    QCOMPARE(navPresetFromName(navPresetName(NavPreset::SolidWorks)), NavPreset::SolidWorks);
+    QCOMPARE(navPresetFromName("garbage"), NavPreset::Fusion);
+  }
+
+  void colours() {
+    Rgb c = hexColor("#0B6CFF");
+    QVERIFY(std::abs(c.r - 11 / 255.0) < 1e-12);
+    QVERIFY(std::abs(c.b - 1.0) < 1e-12);
+  }
+};
+
+QTEST_GUILESS_MAIN(ViewerMathTest)
+#include "test_viewer_math.moc"
