@@ -1,0 +1,11 @@
+# REPRO: IMPORT <file> ignores the file argument; filePath=<file> is rejected as 'Unknown command' (string properties cannot be typed)
+# run: fabricad --script <this> --offscreen --keep-going   (a failing CHECK = the defect)
+# STATUS after the round-3 fixes: every CHECK passes (see REPORT.md, "After fixes")
+
+# needs out/chair.step from chair.fcs (run in docs/comparison/fabricad)
+IMPORT out/chair.step
+OPTIONS
+filePath=out/chair.step
+OK
+CANCEL
+CHECK bodies == 3

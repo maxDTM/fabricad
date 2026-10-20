@@ -1,0 +1,337 @@
+# FabriCAD chair benchmark (docs/comparison/CHAIR_SPEC.md), written by a test user; after the round-3 fixes
+# every step is typed as the spec words it (no workarounds): see docs/comparison/fabricad/REPORT.md.
+# ---------- Stage A: component Seat ----------
+NEWCOMPONENT Seat
+OK
+# S1: sketch on XY offset +430
+SELECT plane:XY
+OFFSETPLANE 430
+OK
+SELECT plane:OffsetPlane1
+SKETCH
+RECT
+-210,-200
+420,400
+SFILLET 20
+PICK -100,-200,430 nosnap
+PICK -210,0,430 nosnap
+PICK 100,-200,430 nosnap
+PICK 210,0,430 nosnap
+CANCEL
+FINISH
+SELECT profile:@0,0,430
+EXTRUDE 30
+OK
+CHECK status ok
+RENAME body:Body1 Seat
+CHECK body:Seat volume ~ 5034849.6 0.01%
+# S2: fillet R6 on the top front edge, tangent chain
+SELECT body:Seat/edge:@0,-200,460
+FILLET 6
+OK
+CHECK status ok
+# the chain: front line, both R20 arcs, both side edges (5 fillet faces); the rear top edge stays sharp
+CHECK body:Seat faces == 13
+CHECK body:Seat/face:cylinder@210,0,460 radius ~ 6 0.001
+CHECK body:Seat/face:cylinder@-210,0,460 radius ~ 6 0.001
+# (it is 408 long: the side fillets run out at the rear face and take 6 off each end)
+CHECK body:Seat/edge:@0,200,460 length ~ 408 0.001
+# S3: backrest sketch on y = 175
+SELECT plane:XZ
+OFFSETPLANE 175
+flip=true
+OK
+SELECT plane:OffsetPlane2
+SKETCH
+RECT
+-210,430
+420,410
+FINISH
+SELECT profile:@0,175,700
+EXTRUDE 25
+flip=true
+operation=Join
+OK
+CHECK status ok
+# S4: lumbar slot on the backrest front face
+SELECT body:Seat/face:front@0,175,700
+SKETCH
+RECT
+-150,680
+300,60
+FINISH
+SELECT profile:@0,175,710
+EXTRUDE
+operation=Cut
+extentType=All
+flip=true
+OK
+CHECK status ok
+CHECK body:Seat volume ~ 8565976 0.05%
+# ---------- Stage A: component LegFrame ----------
+SELECT none
+ACTIVATE
+NEWCOMPONENT LegFrame
+OK
+# L1: four 40x40 legs on XY, extrude 430
+SKETCH XY
+RECT
+-190,-180
+40,40
+150,-180
+40,40
+-190,140
+40,40
+150,140
+40,40
+FINISH
+SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0
+EXTRUDE 430
+# LegFrame is empty, so the operation defaults to New Body; the legs touch the Seat underside at
+# z = 430 but a body of another component never takes part in an automatic Join (F1)
+OPTIONS
+OK
+CHECK status ok
+RENAME body:Body1 LegFrame
+CHECK body:LegFrame volume ~ 2752000 0.01%
+CHECK body:Seat volume ~ 8565976 0.05%
+CHECK component:LegFrame bodies == 1
+# L2: side rails, one sketch per side on YZ offset planes x = +170 / -170, symmetric 20
+SELECT plane:YZ
+OFFSETPLANE 170
+OK
+SELECT plane:OffsetPlane3
+SKETCH
+RECT
+-140,130
+280,40
+FINISH
+SELECT profile:@170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+OK
+CHECK status ok
+CHECK body:LegFrame volume ~ 2976000 0.01%
+SELECT plane:YZ
+OFFSETPLANE 170
+flip=true
+OK
+SELECT plane:OffsetPlane4
+SKETCH
+RECT
+-140,130
+280,40
+FINISH
+SELECT profile:@-170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+OK
+CHECK status ok
+CHECK body:LegFrame volume ~ 3200000 0.01%
+# L3: front cross rail X[-150,150] x Y[-170,-150] x Z[130,170], sketch on XZ offset to y = -150
+SELECT plane:XZ
+OFFSETPLANE 150
+OK
+SELECT plane:OffsetPlane5
+SKETCH
+RECT
+-150,130
+300,40
+FINISH
+SELECT profile:@0,-150,150
+EXTRUDE 20
+OK
+CHECK status ok
+CHECK body:LegFrame volume == 3440000
+CHECK body:LegFrame/face:@0,-170,150 cy ~ -170 0.001
+# ---------- Stage A: assembly ----------
+SELECT none
+ACTIVATE
+SELECT component:Seat
+GROUND
+# rigid as-built joint between the top face of a leg (z = 430) and the bottom face of the seat
+SELECT body:LegFrame/face:@-170,-160,430 body:Seat/face:bottom
+ASBUILTJOINT
+OK
+CHECK joints == 1
+INFO joint:Joint1
+CHECK body:Seat volume ~ 8565976 0.05%
+CHECK body:LegFrame volume ~ 3440000 0.05%
+# ---------- Stage B: split LegFrame with the YZ plane ----------
+SELECT body:LegFrame
+SPLIT
+INPUT splitTool plane:YZ
+OK
+CHECK status ok
+RENAME body:@-170,0,150 LegLeft
+RENAME body:@170,0,150 LegRight
+CHECK bodies == 3
+CHECK body:LegLeft xmax ~ 0 0.001
+CHECK body:LegRight xmin ~ 0 0.001
+CHECK body:LegLeft volume ~ 1720000 0.01%
+CHECK body:LegRight volume ~ 1720000 0.01%
+SELECT body:LegLeft body:LegRight
+CFB
+CHECK components == 4
+CHECK component:LegLeft bodies == 1
+CHECK component:LegRight bodies == 1
+CHECK component:LegFrame bodies == 0
+# ---------- Stage C: different leg features ----------
+CHECK body:LegLeft/edges:z=0 count == 8
+SELECT body:LegLeft/edges:z=0
+CHAMFER 3
+OK
+CHECK status ok
+CHECK body:LegLeft volume ~ 1718632 0.05%
+CHECK body:LegRight/edges:z=0 count == 8
+SELECT body:LegRight/edges:z=0
+FILLET 5
+OK
+CHECK status ok
+CHECK body:LegRight volume ~ 1718379.06 0.001%
+SELECT none
+HOLE
+INPUT face body:LegRight/face:@180,0,150
+PICK 180,0,150 nosnap
+diameter=10
+extentType=All
+# no "Bodies to cut": the hole cuts the body it is placed on (LegRight), not LegLeft's rail (F3)
+OK
+CHECK status ok
+INFO body:LegRight/face:cylinder@170,5,150
+CHECK body:LegRight/face:cylinder@170,5,150 radius ~ 5 0.001
+CHECK body:LegRight/face:cylinder@170,5,150 cx ~ 170 0.001
+CHECK body:LegRight/face:cylinder@170,5,150 dx ~ 20 0.001
+CHECK body:LegRight volume ~ 1716808 0.05%
+CHECK body:LegLeft volume ~ 1718632 0.05%
+# ---------- Stage D: transforms ----------
+SELECT joint:Joint1
+DELETE
+CHECK joints == 0
+SELECT component:LegLeft
+MOVECOMPONENT
+-15,0,0
+OK
+SELECT component:LegRight
+MOVECOMPONENT
+15,0,0
+OK
+# Seat: -5 deg about the axis through (0,200,430) with direction +X, as a component transform
+SELECT component:Seat
+MOVECOMPONENT
+pivot=0,200,430
+rx=-5
+OK
+CHECK body:Seat volume ~ 8565976 0.05%
+# the placement holds the rotation: the component origin moved to (0, 200 - 200 cos5 - 430 sin5, 430 - 430 cos5 + 200 sin5)
+CHECK component:Seat y ~ -36.712 0.01
+CHECK component:Seat z ~ 19.067 0.01
+INFO component:Seat
+# ground all three components at their final placements (GROUND is idempotent: Seat stays grounded)
+SELECT component:Seat component:LegLeft component:LegRight
+GROUND
+# LegFrame is removed (spec: "removed or left empty"); its children LegLeft/LegRight move to the root
+# and keep their placements
+SELECT component:LegFrame
+DELETECOMPONENT
+LIST components
+CHECK components == 3
+CHECK component:LegLeft xmin ~ -205 0.01
+CHECK component:LegRight xmax ~ 205 0.01
+CHECK component:LegLeft bodies == 1
+CHECK component:LegRight bodies == 1
+INFO component:LegLeft
+CHECK joints == 0
+CHECK status ok
+# ---------- final checks: volumes (B-rep) and world bounding boxes ----------
+CHECK body:Seat volume ~ 8565976 0.05%
+CHECK body:LegLeft volume ~ 1718632 0.05%
+CHECK body:LegRight volume ~ 1716808 0.05%
+CHECK body:Seat xmin ~ -210 0.01
+CHECK body:Seat xmax ~ 210 0.01
+CHECK body:Seat ymin ~ -198.478 0.01
+CHECK body:Seat ymax ~ 235.734 0.01
+CHECK body:Seat zmin ~ 430 0.01
+CHECK body:Seat zmax ~ 840.619 0.01
+CHECK body:LegLeft xmin ~ -205 0.01
+CHECK body:LegLeft xmax ~ -15 0.01
+CHECK body:LegLeft ymin ~ -180 0.01
+CHECK body:LegLeft ymax ~ 180 0.01
+CHECK body:LegLeft zmin ~ 0 0.01
+CHECK body:LegLeft zmax ~ 430 0.01
+CHECK body:LegRight xmin ~ 15 0.01
+CHECK body:LegRight xmax ~ 205 0.01
+CHECK body:LegRight ymin ~ -180 0.01
+CHECK body:LegRight ymax ~ 180 0.01
+CHECK body:LegRight zmin ~ 0 0.01
+CHECK body:LegRight zmax ~ 430 0.01
+# ---------- exports ----------
+SELECT none
+assembly.export-step out/chair.step
+EXPORTSTL out/chair.stl deflection=0.05 angle=0.2rad
+SELECT body:Seat
+EXPORTSTL out/seat.stl deflection=0.05 angle=0.2rad
+SELECT body:LegLeft
+EXPORTSTL out/leg_left.stl deflection=0.05 angle=0.2rad
+SELECT body:LegRight
+EXPORTSTL out/leg_right.stl deflection=0.05 angle=0.2rad
+CHECK file out/chair.step exists
+CHECK file out/chair.stl size > 1000
+CHECK file out/seat.stl size > 1000
+CHECK file out/leg_left.stl size > 1000
+CHECK file out/leg_right.stl size > 1000
+# out-of-the-box export (default settings 0.05 mm / 20 deg) in the same session: every export
+# meshes afresh (F2), so this file is coarser than chair.stl (binary STL: 84 + 50 bytes per triangle)
+SELECT none
+EXPORTSTL out/chair_default.stl
+CHECK file out/chair_default.stl size > 1000
+CHECK file out/chair.stl size > 90000
+CHECK file out/chair_default.stl size < 90000
+SAVE out/chair.fcad
+CHECK file out/chair.fcad exists
+# ---------- reopen the saved document in a new tab: round trip ----------
+OPEN out/chair.fcad
+LIST tabs
+CHECK components == 3
+CHECK body:Seat volume ~ 8565976 0.05%
+CHECK body:LegLeft volume ~ 1718632 0.05%
+CHECK body:LegRight volume ~ 1716808 0.05%
+CHECK body:Seat ymin ~ -198.478 0.01
+CHECK body:Seat zmax ~ 840.619 0.01
+CHECK body:LegLeft xmin ~ -205 0.01
+CHECK body:LegRight xmax ~ 205 0.01
+# ---------- read the STEP back: B-rep volumes and boxes of the exported assembly ----------
+NEW
+IMPORT out/chair.step
+OPTIONS
+OK
+CHECK status ok
+LIST bodies
+CHECK bodies == 3
+# imported bodies are named 'chair 1..3' (spaces), so they are addressed by a world point
+CHECK body:@0,200,500 volume ~ 8565976 0.05%
+CHECK body:@-185,-160,300 volume ~ 1718632 0.05%
+CHECK body:@185,-160,300 volume ~ 1716808 0.05%
+CHECK body:@0,200,500 xmin ~ -210 0.01
+CHECK body:@0,200,500 xmax ~ 210 0.01
+CHECK body:@0,200,500 ymin ~ -198.478 0.01
+CHECK body:@0,200,500 ymax ~ 235.734 0.01
+CHECK body:@0,200,500 zmin ~ 430 0.01
+CHECK body:@0,200,500 zmax ~ 840.619 0.01
+CHECK body:@-185,-160,300 xmin ~ -205 0.01
+CHECK body:@-185,-160,300 xmax ~ -15 0.01
+CHECK body:@-185,-160,300 ymin ~ -180 0.01
+CHECK body:@-185,-160,300 ymax ~ 180 0.01
+CHECK body:@-185,-160,300 zmin ~ 0 0.01
+CHECK body:@-185,-160,300 zmax ~ 430 0.01
+CHECK body:@185,-160,300 xmin ~ 15 0.01
+CHECK body:@185,-160,300 xmax ~ 205 0.01
+CHECK body:@185,-160,300 ymin ~ -180 0.01
+CHECK body:@185,-160,300 ymax ~ 180 0.01
+CHECK body:@185,-160,300 zmin ~ 0 0.01
+CHECK body:@185,-160,300 zmax ~ 430 0.01
+INFO body:@0,200,500
+INFO body:@-185,-160,300
+INFO body:@185,-160,300

@@ -1,0 +1,172 @@
+# FabriCAD chair benchmark, modelling + exports only (chair.fcs without CHECK/INFO/LIST/OPTIONS and without the
+# .fcad reopen and the STEP read-back); used for the timing of the pure modelling sequence.
+NEWCOMPONENT Seat
+OK
+SELECT plane:XY
+OFFSETPLANE 430
+OK
+SELECT plane:OffsetPlane1
+SKETCH
+RECT
+-210,-200
+420,400
+SFILLET 20
+PICK -100,-200,430 nosnap
+PICK -210,0,430 nosnap
+PICK 100,-200,430 nosnap
+PICK 210,0,430 nosnap
+CANCEL
+FINISH
+SELECT profile:@0,0,430
+EXTRUDE 30
+OK
+RENAME body:Body1 Seat
+SELECT body:Seat/edge:@0,-200,460
+FILLET 6
+OK
+SELECT plane:XZ
+OFFSETPLANE 175
+flip=true
+OK
+SELECT plane:OffsetPlane2
+SKETCH
+RECT
+-210,430
+420,410
+FINISH
+SELECT profile:@0,175,700
+EXTRUDE 25
+flip=true
+operation=Join
+OK
+SELECT body:Seat/face:front@0,175,700
+SKETCH
+RECT
+-150,680
+300,60
+FINISH
+SELECT profile:@0,175,710
+EXTRUDE
+operation=Cut
+extentType=All
+flip=true
+OK
+SELECT none
+ACTIVATE
+NEWCOMPONENT LegFrame
+OK
+SKETCH XY
+RECT
+-190,-180
+40,40
+150,-180
+40,40
+-190,140
+40,40
+150,140
+40,40
+FINISH
+SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0
+EXTRUDE 430
+OK
+RENAME body:Body1 LegFrame
+SELECT plane:YZ
+OFFSETPLANE 170
+OK
+SELECT plane:OffsetPlane3
+SKETCH
+RECT
+-140,130
+280,40
+FINISH
+SELECT profile:@170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+OK
+SELECT plane:YZ
+OFFSETPLANE 170
+flip=true
+OK
+SELECT plane:OffsetPlane4
+SKETCH
+RECT
+-140,130
+280,40
+FINISH
+SELECT profile:@-170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+OK
+SELECT plane:XZ
+OFFSETPLANE 150
+OK
+SELECT plane:OffsetPlane5
+SKETCH
+RECT
+-150,130
+300,40
+FINISH
+SELECT profile:@0,-150,150
+EXTRUDE 20
+OK
+SELECT none
+ACTIVATE
+SELECT component:Seat
+GROUND
+SELECT body:LegFrame/face:@-170,-160,430 body:Seat/face:bottom
+ASBUILTJOINT
+OK
+SELECT body:LegFrame
+SPLIT
+INPUT splitTool plane:YZ
+OK
+RENAME body:@-170,0,150 LegLeft
+RENAME body:@170,0,150 LegRight
+SELECT body:LegLeft body:LegRight
+CFB
+SELECT body:LegLeft/edges:z=0
+CHAMFER 3
+OK
+SELECT body:LegRight/edges:z=0
+FILLET 5
+OK
+SELECT none
+HOLE
+INPUT face body:LegRight/face:@180,0,150
+PICK 180,0,150 nosnap
+diameter=10
+extentType=All
+OK
+SELECT joint:Joint1
+DELETE
+SELECT component:LegLeft
+MOVECOMPONENT
+-15,0,0
+OK
+SELECT component:LegRight
+MOVECOMPONENT
+15,0,0
+OK
+SELECT component:Seat
+MOVECOMPONENT
+pivot=0,200,430
+rx=-5
+OK
+SELECT component:Seat component:LegLeft component:LegRight
+GROUND
+SELECT component:LegFrame
+DELETECOMPONENT
+SELECT none
+assembly.export-step out/chair.step
+EXPORTSTL out/chair.stl deflection=0.05 angle=0.2rad
+SELECT body:Seat
+EXPORTSTL out/seat.stl deflection=0.05 angle=0.2rad
+SELECT body:LegLeft
+EXPORTSTL out/leg_left.stl deflection=0.05 angle=0.2rad
+SELECT body:LegRight
+EXPORTSTL out/leg_right.stl deflection=0.05 angle=0.2rad
+SELECT none
+EXPORTSTL out/chair_default.stl
+SAVE out/chair.fcad

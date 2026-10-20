@@ -1,0 +1,16 @@
+# FabriCAD script import_path.fcs, 2026-10-20T12:57:01, 12 lines
+   6  ok    IMPORT out/chair.step                                 85.3 ms
+   7  ok    OPTIONS                                                1.0 ms
+        info: Command Insert STEP/STL (part.import)
+        info:   prompt: Set the parameters
+        info:   active input:    valid: yes
+        info:   filePath='out/chair.step'   [File]
+        info:   format=Auto  (options: 'Auto' 'STEP' 'STL')   [Format]
+        info:   oneBodyPerSolid=true   [One body per solid]
+        info:   scale=1   [Scale]
+   8  ok    filePath=out/chair.step                                6.2 ms
+   9  ok    OK                                                     9.0 ms
+  10  ok    CANCEL                                                 0.3 ms
+  11  ok    CHECK bodies == 3                                      1.0 ms
+        info: CHECK bodies == 3: ok
+# 6 commands, 6 ok, 0 failed, 102.8 ms total

@@ -1,0 +1,7 @@
+chair.step: products ['LegLeft', 'LegRight', 'Seat', 'chair'], 3 instance(s) ['LegLeft', 'LegRight', 'Seat']
+chair.stl: 2032 triangles, 1018 vertices, 3 shell(s), volume 12001329.4 (ref 12001416, -0.0007 %), open/non-manifold edges 0, degenerate 0, box [-210.000, 210.000] [-198.478, 235.734] [-0.000, 840.619]
+chair_default.stl: 1436 triangles, 720 vertices, 3 shell(s), volume 12001213.2 (ref 12001416, -0.0017 %), open/non-manifold edges 0, degenerate 0, box [-210.000, 210.000] [-198.478, 235.734] [-0.000, 840.619]
+seat.stl: 1320 triangles, 660 vertices, 1 shell(s), volume 8565892.5 (ref 8565976, -0.0010 %), open/non-manifold edges 0, degenerate 0, box [-210.000, 210.000] [-198.478, 235.734] [430.000, 840.619]
+leg_left.stl: 76 triangles, 40 vertices, 1 shell(s), volume 1718632.0 (ref 1718632, +0.0000 %), open/non-manifold edges 0, degenerate 0, box [-205.000, -15.000] [-180.000, 180.000] [-0.000, 430.000]
+leg_right.stl: 636 triangles, 318 vertices, 1 shell(s), volume 1716804.9 (ref 1716808, -0.0002 %), open/non-manifold edges 0, degenerate 0, box [15.000, 205.000] [-180.000, 180.000] [-0.000, 430.000]
+all export checks passed

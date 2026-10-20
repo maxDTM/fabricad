@@ -1,0 +1,205 @@
+# REPRO: Hole extentType=All on LegRight's rail also drills LegLeft's rail (other component), no message
+# run: fabricad --script <this> --offscreen --keep-going   (a failing CHECK = the defect)
+# STATUS after the round-3 fixes: every CHECK passes (see REPORT.md, "After fixes")
+
+# FabriCAD chair benchmark (docs/comparison/CHAIR_SPEC.md), written by a test user
+# ---------- Stage A: component Seat ----------
+NEWCOMPONENT Seat
+OK
+# S1: sketch on XY offset +430
+SELECT plane:XY
+OFFSETPLANE 430
+OK
+SELECT plane:OffsetPlane1
+SKETCH
+RECT
+-210,-200
+420,400
+SFILLET 20
+PICK -100,-200,430 nosnap
+PICK -210,0,430 nosnap
+PICK 100,-200,430 nosnap
+PICK 210,0,430 nosnap
+CANCEL
+FINISH
+SELECT profile:@0,0,430
+EXTRUDE 30
+OK
+CHECK status ok
+RENAME body:Body1 Seat
+CHECK body:Seat volume ~ 5034849.6 0.01%
+# S2: fillet R6 on the top front edge, tangent chain
+SELECT body:Seat/edge:@0,-200,460
+FILLET 6
+OK
+CHECK status ok
+# the chain: front line, both R20 arcs, both side edges (5 fillet faces); the rear top edge stays sharp
+CHECK body:Seat faces == 13
+CHECK body:Seat/face:cylinder@210,0,460 radius ~ 6 0.001
+CHECK body:Seat/face:cylinder@-210,0,460 radius ~ 6 0.001
+# (it is 408 long: the side fillets run out at the rear face and take 6 off each end)
+CHECK body:Seat/edge:@0,200,460 length ~ 408 0.001
+# S3: backrest sketch on y = 175
+SELECT plane:XZ
+OFFSETPLANE 175
+flip=true
+OK
+SELECT plane:OffsetPlane2
+SKETCH
+RECT
+-210,430
+420,410
+FINISH
+SELECT profile:@0,175,700
+EXTRUDE 25
+flip=true
+operation=Join
+OK
+CHECK status ok
+# S4: lumbar slot on the backrest front face
+SELECT body:Seat/face:front@0,175,700
+SKETCH
+RECT
+-150,680
+300,60
+FINISH
+SELECT profile:@0,175,710
+EXTRUDE
+operation=Cut
+extentType=All
+flip=true
+OK
+CHECK status ok
+CHECK body:Seat volume ~ 8565976 0.05%
+# ---------- Stage A: component LegFrame ----------
+SELECT none
+ACTIVATE
+NEWCOMPONENT LegFrame
+OK
+# L1: four 40x40 legs on XY, extrude 430
+SKETCH XY
+RECT
+-190,-180
+40,40
+150,-180
+40,40
+-190,140
+40,40
+150,140
+40,40
+FINISH
+SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0
+EXTRUDE 430
+operation=New Body
+OK
+CHECK status ok
+RENAME body:Body1 LegFrame
+CHECK body:LegFrame volume ~ 2752000 0.01%
+# L2: side rails, one sketch per side on YZ offset planes x = +170 / -170, symmetric 20
+SELECT plane:YZ
+OFFSETPLANE 170
+OK
+SELECT plane:OffsetPlane3
+SKETCH
+RECT
+-140,130
+280,40
+FINISH
+SELECT profile:@170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+operation=Join
+INPUT targets body:LegFrame
+OK
+CHECK status ok
+CHECK body:LegFrame volume ~ 2976000 0.01%
+SELECT plane:YZ
+OFFSETPLANE 170
+flip=true
+OK
+SELECT plane:OffsetPlane4
+SKETCH
+RECT
+-140,130
+280,40
+FINISH
+SELECT profile:@-170,0,150
+EXTRUDE 20
+direction=Symmetric
+symmetricMeasure=Whole Length
+operation=Join
+INPUT targets body:LegFrame
+OK
+CHECK status ok
+CHECK body:LegFrame volume ~ 3200000 0.01%
+# L3: front cross rail X[-150,150] x Y[-170,-150] x Z[130,170], sketch on XZ offset to y = -150
+SELECT plane:XZ
+OFFSETPLANE 150
+OK
+SELECT plane:OffsetPlane5
+SKETCH
+RECT
+-150,130
+300,40
+FINISH
+SELECT profile:@0,-150,150
+EXTRUDE 20
+operation=Join
+INPUT targets body:LegFrame
+OK
+CHECK status ok
+CHECK body:LegFrame volume == 3440000
+CHECK body:LegFrame/face:@0,-170,150 cy ~ -170 0.001
+# ---------- Stage A: assembly ----------
+SELECT none
+ACTIVATE
+SELECT component:Seat
+GROUND
+SELECT component:LegFrame component:Seat
+ASBUILTJOINT     # rigid, as built, zero offset (the as-built joint takes the two components, no faces)
+OK
+CHECK joints == 1
+CHECK body:Seat volume ~ 8565976 0.05%
+CHECK body:LegFrame volume ~ 3440000 0.05%
+# ---------- Stage B: split LegFrame with the YZ plane ----------
+SELECT body:LegFrame
+SPLIT
+INPUT splitTool plane:YZ
+OK
+CHECK status ok
+RENAME body:@-170,0,150 LegLeft
+RENAME body:@170,0,150 LegRight
+CHECK bodies == 3
+CHECK body:LegLeft xmax ~ 0 0.001
+CHECK body:LegRight xmin ~ 0 0.001
+CHECK body:LegLeft volume ~ 1720000 0.01%
+CHECK body:LegRight volume ~ 1720000 0.01%
+SELECT body:LegLeft body:LegRight
+CFB
+CHECK components == 4
+CHECK component:LegLeft bodies == 1
+CHECK component:LegRight bodies == 1
+CHECK component:LegFrame bodies == 0
+# ---------- Stage C: different leg features ----------
+CHECK body:LegLeft/edges:z=0 count == 8
+SELECT body:LegLeft/edges:z=0
+CHAMFER 3
+OK
+CHECK status ok
+CHECK body:LegLeft volume ~ 1718632 0.05%
+CHECK body:LegRight/edges:z=0 count == 8
+SELECT body:LegRight/edges:z=0
+FILLET 5
+OK
+CHECK status ok
+CHECK body:LegRight volume ~ 1718379.06 0.001%
+SELECT none
+HOLE
+INPUT face body:LegRight/face:@180,0,150
+PICK 180,0,150 nosnap
+diameter=10
+extentType=All
+OK
+CHECK status ok
+CHECK body:LegLeft volume ~ 1718632 0.01%

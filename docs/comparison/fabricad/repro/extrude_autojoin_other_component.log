@@ -1,0 +1,126 @@
+# FabriCAD script extrude_autojoin_other_component.fcs, 2026-10-20T03:31:13, 96 lines
+   6  ok    NEWCOMPONENT Seat                                      5.6 ms
+   7  ok    OK                                                     4.0 ms
+        info: Created component 'Seat'
+   9  ok    SELECT plane:XY                                        1.7 ms
+        info: Selected 1: Origin OriginPlane XY
+  10  ok    OFFSETPLANE 430                                        6.6 ms
+  11  ok    OK                                                     3.9 ms
+  12  ok    SELECT plane:OffsetPlane1                              2.1 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane1' (#18)
+  13  ok    SKETCH                                                13.0 ms
+  14  ok    RECT                                                   5.6 ms
+  15  ok    -210,-200                                              2.3 ms
+  16  ok    420,400                                               15.2 ms
+        info: Sketch1: 2 DOF
+  17  ok    SFILLET 20                                             3.0 ms
+  18  ok    PICK -100,-200,430 nosnap                              2.8 ms
+        info: Picked SketchCurve #1 of Sketch1 at (-100, -200, 430)
+  19  ok    PICK -210,0,430 nosnap                                 6.1 ms
+        info: Sketch1: 3 DOF
+        info: Picked SketchPoint #4 of Sketch1 at (-210, 0, 430)
+  20  ok    PICK 100,-200,430 nosnap                               2.7 ms
+        info: Picked SketchCurve #1 of Sketch1 at (100, -200, 430)
+  21  ok    PICK 210,0,430 nosnap                                  6.3 ms
+        info: Sketch1: 4 DOF
+        info: Picked SketchPoint #2 of Sketch1 at (210, 0, 430)
+  22  ok    CANCEL                                                 3.1 ms
+  23  ok    FINISH                                                 2.8 ms
+  24  ok    SELECT profile:@0,0,430                                4.1 ms
+        info: Selected 1: Profile of Sketch1 at (0, 0.2, 430)
+  25  ok    EXTRUDE 30                                            17.3 ms
+  26  ok    OK                                                     7.9 ms
+  27  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  28  ok    RENAME body:Body1 Seat                                 2.9 ms
+        info: Renamed Body 'Body1' (#21) to 'Seat'
+  29  ok    CHECK body:Seat volume ~ 5034849.6 0.01%               1.5 ms
+        info: CHECK body:Seat volume ~ 5034849.6 0.01%: ok
+  31  ok    SELECT body:Seat/edge:@0,-200,460                      3.3 ms
+        info: Selected 1: Edge #18 of Seat '{Extrude1/End|Extrude1/Side/c1}'
+  32  ok    FILLET 6                                              25.5 ms
+  33  ok    OK                                                    13.4 ms
+  34  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  36  ok    CHECK body:Seat faces == 13                            0.7 ms
+        info: CHECK body:Seat faces == 13: ok
+  37  ok    CHECK body:Seat/face:cylinder@210,0,460 radius ~ 6 0.001       2.8 ms
+        info: CHECK body:Seat/face:cylinder@210,0,460 radius ~ 6 0.001: ok
+  38  ok    CHECK body:Seat/face:cylinder@-210,0,460 radius ~ 6 0.001       3.1 ms
+        info: CHECK body:Seat/face:cylinder@-210,0,460 radius ~ 6 0.001: ok
+  40  ok    CHECK body:Seat/edge:@0,200,460 length ~ 408 0.001       2.6 ms
+        info: CHECK body:Seat/edge:@0,200,460 length ~ 408 0.001: ok
+  42  ok    SELECT plane:XZ                                        1.9 ms
+        info: Selected 1: Origin OriginPlane XZ
+  43  ok    OFFSETPLANE 175                                        5.7 ms
+  44  ok    flip=true                                              2.1 ms
+  45  ok    OK                                                     4.1 ms
+  46  ok    SELECT plane:OffsetPlane2                              1.9 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane2' (#23)
+  47  ok    SKETCH                                                 7.6 ms
+  48  ok    RECT                                                   5.4 ms
+  49  ok    -210,430                                               2.1 ms
+  50  ok    420,410                                               11.0 ms
+        info: Sketch2: 2 DOF
+  51  ok    FINISH                                                 3.1 ms
+  52  ok    SELECT profile:@0,175,700                              3.4 ms
+        info: Selected 1: Profile of Sketch2 at (0, 175, 635)
+  53  ok    EXTRUDE 25                                            68.9 ms
+  54  ok    flip=true                                             32.5 ms
+  55  ok    operation=Join                                        40.2 ms
+  56  ok    OK                                                    32.7 ms
+  57  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  59  ok    SELECT body:Seat/face:front@0,175,700                  3.7 ms
+        info: Selected 1: Face #15 of Seat 'Extrude2/Start'
+  60  ok    SKETCH                                                 8.4 ms
+  61  ok    RECT                                                   5.4 ms
+  62  ok    -150,680                                               2.2 ms
+  63  ok    300,60                                                12.2 ms
+        info: Sketch3: 2 DOF
+  64  ok    FINISH                                                 3.4 ms
+  65  ok    SELECT profile:@0,175,710                              3.6 ms
+        info: Selected 1: Profile of Sketch3 at (0, 175, 710)
+  66  ok    EXTRUDE                                               26.9 ms
+  67  ok    operation=Cut                                         29.7 ms
+  68  ok    extentType=All                                        27.4 ms
+  69  ok    flip=true                                             23.1 ms
+  70  ok    OK                                                    24.8 ms
+  71  ok    CHECK status ok                                        0.8 ms
+        info: CHECK status ok: ok
+  72  ok    CHECK body:Seat volume ~ 8565976 0.05%                 1.9 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+  74  ok    SELECT none                                            0.6 ms
+        info: Selection cleared
+  75  ok    ACTIVATE                                               3.7 ms
+  76  ok    NEWCOMPONENT LegFrame                                  3.0 ms
+  77  ok    OK                                                     4.9 ms
+        info: Created component 'LegFrame'
+  79  ok    SKETCH XY                                             10.5 ms
+  80  ok    RECT                                                   6.2 ms
+  81  ok    -190,-180                                              2.3 ms
+  82  ok    40,40                                                 12.4 ms
+        info: Sketch4: 2 DOF
+  83  ok    150,-180                                               2.3 ms
+  84  ok    40,40                                                 12.6 ms
+        info: Sketch4: 4 DOF
+  85  ok    -190,140                                               2.2 ms
+  86  ok    40,40                                                 13.2 ms
+        info: Sketch4: 6 DOF
+  87  ok    150,140                                                2.2 ms
+  88  ok    40,40                                                 14.1 ms
+        info: Sketch4: 8 DOF
+  89  ok    FINISH                                                 3.5 ms
+  90  ok    SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0      10.8 ms
+        info: Selected 4: Profile of Sketch4 at (-170, -160, 0), Profile of Sketch4 at (170, -160, 0), Profile of Sketch4 at (-170, 160, 0), Profile of Sketch4 at (170, 160, 0)
+  91  ok    EXTRUDE 430                                          121.3 ms
+  92  ok    OK                                                    60.1 ms
+  93  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  94  ERROR CHECK body:Seat volume ~ 8565976 0.05%                 2.4 ms
+        error: CHECK body:Seat volume ~ 8565976 0.05%: FAILED (got 1.1318e+07)
+        line 94 failed: CHECK body:Seat volume ~ 8565976 0.05%: FAILED (got 1.1318e+07)
+  95  ERROR CHECK component:LegFrame bodies == 1                   0.7 ms
+        error: CHECK component:LegFrame bodies == 1: FAILED (got 0)
+        line 95 failed: CHECK component:LegFrame bodies == 1: FAILED (got 0)
+# 82 commands, 80 ok, 2 failed, 860.4 ms total

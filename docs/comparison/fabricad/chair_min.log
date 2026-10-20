@@ -1,0 +1,253 @@
+# FabriCAD script chair_min_tmp.fcs, 2026-10-20T12:56:14, 173 lines
+   3  ok    NEWCOMPONENT Seat                                      6.1 ms
+   4  ok    OK                                                     4.2 ms
+        info: Created component 'Seat'
+   5  ok    SELECT plane:XY                                        1.9 ms
+        info: Selected 1: Origin OriginPlane XY
+   6  ok    OFFSETPLANE 430                                        6.8 ms
+   7  ok    OK                                                     4.0 ms
+   8  ok    SELECT plane:OffsetPlane1                              2.2 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane1' (#18)
+   9  ok    SKETCH                                                12.9 ms
+  10  ok    RECT                                                   5.8 ms
+  11  ok    -210,-200                                              2.4 ms
+  12  ok    420,400                                               15.3 ms
+        info: Sketch1: 2 DOF
+  13  ok    SFILLET 20                                             2.9 ms
+  14  ok    PICK -100,-200,430 nosnap                              2.9 ms
+        info: Picked SketchCurve #1 of Sketch1 at (-100, -200, 430)
+  15  ok    PICK -210,0,430 nosnap                                 6.2 ms
+        info: Sketch1: 3 DOF
+        info: Picked SketchPoint #4 of Sketch1 at (-210, 0, 430)
+  16  ok    PICK 100,-200,430 nosnap                               2.6 ms
+        info: Picked SketchCurve #1 of Sketch1 at (100, -200, 430)
+  17  ok    PICK 210,0,430 nosnap                                  6.4 ms
+        info: Sketch1: 4 DOF
+        info: Picked SketchPoint #2 of Sketch1 at (210, 0, 430)
+  18  ok    CANCEL                                                 3.0 ms
+  19  ok    FINISH                                                 2.8 ms
+  20  ok    SELECT profile:@0,0,430                                4.6 ms
+        info: Selected 1: Profile of Sketch1 at (0, 0.2, 430)
+  21  ok    EXTRUDE 30                                            20.3 ms
+  22  ok    OK                                                     8.3 ms
+  23  ok    RENAME body:Body1 Seat                                 3.0 ms
+        info: Renamed Body 'Body1' (#21) to 'Seat'
+  24  ok    SELECT body:Seat/edge:@0,-200,460                      3.8 ms
+        info: Selected 1: Edge #18 of Seat '{Extrude1/End|Extrude1/Side/c1}'
+  25  ok    FILLET 6                                              26.3 ms
+  26  ok    OK                                                    13.7 ms
+  27  ok    SELECT plane:XZ                                        1.9 ms
+        info: Selected 1: Origin OriginPlane XZ
+  28  ok    OFFSETPLANE 175                                        5.9 ms
+  29  ok    flip=true                                              2.1 ms
+  30  ok    OK                                                     4.0 ms
+  31  ok    SELECT plane:OffsetPlane2                              2.0 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane2' (#23)
+  32  ok    SKETCH                                                 8.4 ms
+  33  ok    RECT                                                   5.7 ms
+  34  ok    -210,430                                               2.3 ms
+  35  ok    420,410                                               11.7 ms
+        info: Sketch2: 2 DOF
+  36  ok    FINISH                                                 3.0 ms
+  37  ok    SELECT profile:@0,175,700                              3.4 ms
+        info: Selected 1: Profile of Sketch2 at (0, 175, 635)
+  38  ok    EXTRUDE 25                                            68.0 ms
+  39  ok    flip=true                                             31.3 ms
+  40  ok    operation=Join                                        39.6 ms
+  41  ok    OK                                                    32.5 ms
+  42  ok    SELECT body:Seat/face:front@0,175,700                  3.8 ms
+        info: Selected 1: Face #15 of Seat 'Extrude2/Start'
+  43  ok    SKETCH                                                 8.2 ms
+  44  ok    RECT                                                   5.6 ms
+  45  ok    -150,680                                               2.1 ms
+  46  ok    300,60                                                11.5 ms
+        info: Sketch3: 2 DOF
+  47  ok    FINISH                                                 3.2 ms
+  48  ok    SELECT profile:@0,175,710                              3.6 ms
+        info: Selected 1: Profile of Sketch3 at (0, 175, 710)
+  49  ok    EXTRUDE                                               28.6 ms
+  50  ok    operation=Cut                                         25.6 ms
+  51  ok    extentType=All                                        25.8 ms
+  52  ok    flip=true                                             23.4 ms
+  53  ok    OK                                                    24.8 ms
+  54  ok    SELECT none                                            0.7 ms
+        info: Selection cleared
+  55  ok    ACTIVATE                                               3.9 ms
+  56  ok    NEWCOMPONENT LegFrame                                  3.0 ms
+  57  ok    OK                                                     5.4 ms
+        info: Created component 'LegFrame'
+  58  ok    SKETCH XY                                              8.8 ms
+  59  ok    RECT                                                   5.6 ms
+  60  ok    -190,-180                                              2.1 ms
+  61  ok    40,40                                                 12.2 ms
+        info: Sketch4: 2 DOF
+  62  ok    150,-180                                               2.2 ms
+  63  ok    40,40                                                 12.7 ms
+        info: Sketch4: 4 DOF
+  64  ok    -190,140                                               2.2 ms
+  65  ok    40,40                                                 13.4 ms
+        info: Sketch4: 6 DOF
+  66  ok    150,140                                                2.3 ms
+  67  ok    40,40                                                 14.2 ms
+        info: Sketch4: 8 DOF
+  68  ok    FINISH                                                 3.4 ms
+  69  ok    SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0       6.0 ms
+        info: Selected 4: Profile of Sketch4 at (-170, -160, 0), Profile of Sketch4 at (170, -160, 0), Profile of Sketch4 at (-170, 160, 0), Profile of Sketch4 at (170, 160, 0)
+  70  ok    EXTRUDE 430                                           44.1 ms
+  71  ok    OK                                                    22.5 ms
+  72  ok    RENAME body:Body1 LegFrame                             3.9 ms
+        info: Renamed Body 'Body1' (#32) to 'LegFrame'
+  73  ok    SELECT plane:YZ                                        2.3 ms
+        info: Selected 1: Origin OriginPlane YZ
+  74  ok    OFFSETPLANE 170                                        6.8 ms
+  75  ok    OK                                                     5.9 ms
+  76  ok    SELECT plane:OffsetPlane3                              2.6 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane3' (#33)
+  77  ok    SKETCH                                                 9.7 ms
+  78  ok    RECT                                                   6.1 ms
+  79  ok    -140,130                                               2.1 ms
+  80  ok    280,40                                                20.5 ms
+        info: Sketch5: 2 DOF
+  81  ok    FINISH                                                 3.9 ms
+  82  ok    SELECT profile:@170,0,150                              4.2 ms
+        info: Selected 1: Profile of Sketch5 at (170, 0, 150)
+  83  ok    EXTRUDE 20                                            58.1 ms
+  84  ok    direction=Symmetric                                   38.9 ms
+  85  ok    symmetricMeasure=Whole Length                         34.5 ms
+  86  ok    OK                                                    34.7 ms
+  87  ok    SELECT plane:YZ                                        3.9 ms
+        info: Selected 1: Origin OriginPlane YZ
+  88  ok    OFFSETPLANE 170                                       10.0 ms
+  89  ok    flip=true                                              4.1 ms
+  90  ok    OK                                                     7.1 ms
+  91  ok    SELECT plane:OffsetPlane4                              2.8 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane4' (#36)
+  92  ok    SKETCH                                                10.5 ms
+  93  ok    RECT                                                   6.3 ms
+  94  ok    -140,130                                               2.3 ms
+  95  ok    280,40                                                14.4 ms
+        info: Sketch6: 2 DOF
+  96  ok    FINISH                                                 3.9 ms
+  97  ok    SELECT profile:@-170,0,150                             4.2 ms
+        info: Selected 1: Profile of Sketch6 at (-170, 0, 150)
+  98  ok    EXTRUDE 20                                            62.4 ms
+  99  ok    direction=Symmetric                                   42.7 ms
+ 100  ok    symmetricMeasure=Whole Length                         36.4 ms
+ 101  ok    OK                                                    29.7 ms
+ 102  ok    SELECT plane:XZ                                        2.7 ms
+        info: Selected 1: Origin OriginPlane XZ
+ 103  ok    OFFSETPLANE 150                                        8.3 ms
+ 104  ok    OK                                                     6.6 ms
+ 105  ok    SELECT plane:OffsetPlane5                              2.7 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane5' (#39)
+ 106  ok    SKETCH                                                10.4 ms
+ 107  ok    RECT                                                   5.9 ms
+ 108  ok    -150,130                                               2.0 ms
+ 109  ok    300,40                                                15.0 ms
+        info: Sketch7: 2 DOF
+ 110  ok    FINISH                                                 3.9 ms
+ 111  ok    SELECT profile:@0,-150,150                             4.6 ms
+        info: Selected 1: Profile of Sketch7 at (0, -150, 150)
+ 112  ok    EXTRUDE 20                                            63.9 ms
+ 113  ok    OK                                                    32.9 ms
+ 114  ok    SELECT none                                            0.7 ms
+        info: Selection cleared
+ 115  ok    ACTIVATE                                               5.7 ms
+ 116  ok    SELECT component:Seat                                  2.8 ms
+        info: Selected 1: Component 'Seat' (#16)
+ 117  ok    GROUND                                                 4.4 ms
+        info: Grounded
+ 118  ok    SELECT body:LegFrame/face:@-170,-160,430 body:Seat/face:bottom      24.2 ms
+        info: Selected 2: Face #13 of LegFrame 'Extrude4/P1/End', Face #5 of Seat 'Extrude1/Start'
+ 119  ok    ASBUILTJOINT                                           8.9 ms
+ 120  ok    OK                                                    12.8 ms
+ 121  ok    SELECT body:LegFrame                                   3.5 ms
+        info: Selected 1: Body 'LegFrame' (#32)
+ 122  ok    SPLIT                                                  7.1 ms
+ 123  ok    INPUT splitTool plane:YZ                              24.1 ms
+        info: splitTool = Origin OriginPlane YZ
+ 124  ok    OK                                                    25.8 ms
+ 125  ok    RENAME body:@-170,0,150 LegLeft                        8.3 ms
+        info: Renamed Body 'LegFrame' (#32) to 'LegLeft'
+ 126  ok    RENAME body:@170,0,150 LegRight                        7.5 ms
+        info: Renamed Body 'LegFrame (2)' (#44) to 'LegRight'
+ 127  ok    SELECT body:LegLeft body:LegRight                      2.8 ms
+        info: Selected 2: Body 'LegLeft' (#32), Body 'LegRight' (#44)
+ 128  ok    CFB                                                    6.9 ms
+        info: Created 2 component(s)
+ 129  ok    SELECT body:LegLeft/edges:z=0                          3.9 ms
+        info: Selected 8: Edge #9 of LegLeft '{Extrude4/P1/Side/c2|Extrude4/P1/Start}', Edge #18 of LegLeft '{Extrude4/P1/Side/c1|Extrude4/P1/Start}', Edge #20 of LegLeft '{Extrude4/P1/Side/c4|Extrude4/P1/Start}', Edge #21 of LegLeft '{Extrude4/P1/Side/c3|Extrude4/P1/Start}', Edge #38 of LegLeft '{Extrude4/P3/Side/c9|Extrude4/P3/Start}', ...
+ 130  ok    CHAMFER 3                                             67.2 ms
+ 131  ok    OK                                                    34.9 ms
+ 132  ok    SELECT body:LegRight/edges:z=0                         3.2 ms
+        info: Selected 8: Edge #13 of LegRight, Edge #18 of LegRight, Edge #24 of LegRight, Edge #25 of LegRight, Edge #38 of LegRight, Edge #42 of LegRight, Edge #44 of LegRight, Edge #45 of LegRight
+ 133  ok    FILLET 5                                              71.5 ms
+ 134  ok    OK                                                    39.4 ms
+ 135  ok    SELECT none                                            0.8 ms
+        info: Selection cleared
+ 136  ok    HOLE                                                   9.4 ms
+ 137  ok    INPUT face body:LegRight/face:@180,0,150              26.9 ms
+        info: face = Face #14 of LegRight
+ 138  ok    PICK 180,0,150 nosnap                                 25.8 ms
+        info: Picked Face #14 of LegRight at (180, 0, 150)
+ 139  ok    diameter=10                                           17.0 ms
+ 140  ok    extentType=All                                        28.6 ms
+ 141  ok    OK                                                    24.0 ms
+ 142  ok    SELECT joint:Joint1                                    3.0 ms
+        info: Selected 1: Joint 'Joint1' (#42)
+ 143  ok    DELETE                                               112.3 ms
+ 144  ok    SELECT component:LegLeft                               3.3 ms
+        info: Selected 1: Component 'LegLeft' (#45)
+ 145  ok    MOVECOMPONENT                                          5.8 ms
+ 146  ok    -15,0,0                                                2.8 ms
+ 147  ok    OK                                                     5.6 ms
+ 148  ok    SELECT component:LegRight                              3.0 ms
+        info: Selected 1: Component 'LegRight' (#47)
+ 149  ok    MOVECOMPONENT                                          6.4 ms
+ 150  ok    15,0,0                                                 2.6 ms
+ 151  ok    OK                                                     5.0 ms
+ 152  ok    SELECT component:Seat                                  3.1 ms
+        info: Selected 1: Component 'Seat' (#16)
+ 153  ok    MOVECOMPONENT                                          7.0 ms
+ 154  ok    pivot=0,200,430                                        1.1 ms
+        info: pivot (0, 200, 430)
+ 155  ok    rx=-5                                                  3.0 ms
+ 156  ok    OK                                                     5.5 ms
+ 157  ok    SELECT component:Seat component:LegLeft component:LegRight       3.0 ms
+        info: Selected 3: Component 'Seat' (#16), Component 'LegLeft' (#45), Component 'LegRight' (#47)
+ 158  ok    GROUND                                                 5.0 ms
+        info: Grounded
+ 159  ok    SELECT component:LegFrame                              2.8 ms
+        info: Selected 1: Component 'LegFrame' (#28)
+ 160  ok    DELETECOMPONENT                                      195.6 ms
+        info: Deleted component 'LegFrame' (2 child components moved to the root)
+ 161  ok    SELECT none                                            0.7 ms
+        info: Selection cleared
+ 162  ok    assembly.export-step out_min/chair.step               28.4 ms
+        info: Exported 3 part(s), 3 instance(s) to out_min/chair.step
+ 163  ok    EXPORTSTL out_min/chair.stl deflection=0.05 angle=0.2rad      17.2 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 3 bodies to out_min/chair.stl
+ 164  ok    SELECT body:Seat                                       2.8 ms
+        info: Selected 1: Body 'Seat' (#21)
+ 165  ok    EXPORTSTL out_min/seat.stl deflection=0.05 angle=0.2rad      11.1 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 1 body to out_min/seat.stl
+ 166  ok    SELECT body:LegLeft                                    3.3 ms
+        info: Selected 1: Body 'LegLeft' (#32)
+ 167  ok    EXPORTSTL out_min/leg_left.stl deflection=0.05 angle=0.2rad       7.6 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 1 body to out_min/leg_left.stl
+ 168  ok    SELECT body:LegRight                                   3.0 ms
+        info: Selected 1: Body 'LegRight' (#44)
+ 169  ok    EXPORTSTL out_min/leg_right.stl deflection=0.05 angle=0.2rad       9.8 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 1 body to out_min/leg_right.stl
+ 170  ok    SELECT none                                            3.4 ms
+        info: Selection cleared
+ 171  ok    EXPORTSTL out_min/chair_default.stl                   16.1 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 20 deg (0.3490658503988659 rad), binary
+        info: exported 3 bodies to out_min/chair_default.stl
+ 172  ok    SAVE out_min/chair.fcad                               31.8 ms
+        info: Saved out_min/chair.fcad
+# 170 commands, 170 ok, 0 failed, 2364.9 ms total

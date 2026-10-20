@@ -1,0 +1,565 @@
+# FabriCAD script chair.fcs, 2026-10-20T12:56:01, 338 lines
+   4  ok    NEWCOMPONENT Seat                                      5.3 ms
+   5  ok    OK                                                     3.9 ms
+        info: Created component 'Seat'
+   7  ok    SELECT plane:XY                                        1.7 ms
+        info: Selected 1: Origin OriginPlane XY
+   8  ok    OFFSETPLANE 430                                        6.6 ms
+   9  ok    OK                                                     3.7 ms
+  10  ok    SELECT plane:OffsetPlane1                              2.0 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane1' (#18)
+  11  ok    SKETCH                                                12.7 ms
+  12  ok    RECT                                                   5.8 ms
+  13  ok    -210,-200                                              2.3 ms
+  14  ok    420,400                                               14.9 ms
+        info: Sketch1: 2 DOF
+  15  ok    SFILLET 20                                             3.1 ms
+  16  ok    PICK -100,-200,430 nosnap                              2.8 ms
+        info: Picked SketchCurve #1 of Sketch1 at (-100, -200, 430)
+  17  ok    PICK -210,0,430 nosnap                                 6.2 ms
+        info: Sketch1: 3 DOF
+        info: Picked SketchPoint #4 of Sketch1 at (-210, 0, 430)
+  18  ok    PICK 100,-200,430 nosnap                               2.7 ms
+        info: Picked SketchCurve #1 of Sketch1 at (100, -200, 430)
+  19  ok    PICK 210,0,430 nosnap                                  6.6 ms
+        info: Sketch1: 4 DOF
+        info: Picked SketchPoint #2 of Sketch1 at (210, 0, 430)
+  20  ok    CANCEL                                                 3.1 ms
+  21  ok    FINISH                                                 3.0 ms
+  22  ok    SELECT profile:@0,0,430                                4.6 ms
+        info: Selected 1: Profile of Sketch1 at (0, 0.2, 430)
+  23  ok    EXTRUDE 30                                            18.4 ms
+  24  ok    OK                                                     8.1 ms
+  25  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  26  ok    RENAME body:Body1 Seat                                 2.8 ms
+        info: Renamed Body 'Body1' (#21) to 'Seat'
+  27  ok    CHECK body:Seat volume ~ 5034849.6 0.01%               1.7 ms
+        info: CHECK body:Seat volume ~ 5034849.6 0.01%: ok
+  29  ok    SELECT body:Seat/edge:@0,-200,460                      3.6 ms
+        info: Selected 1: Edge #18 of Seat '{Extrude1/End|Extrude1/Side/c1}'
+  30  ok    FILLET 6                                              25.2 ms
+  31  ok    OK                                                    13.4 ms
+  32  ok    CHECK status ok                                        0.8 ms
+        info: CHECK status ok: ok
+  34  ok    CHECK body:Seat faces == 13                            0.7 ms
+        info: CHECK body:Seat faces == 13: ok
+  35  ok    CHECK body:Seat/face:cylinder@210,0,460 radius ~ 6 0.001       2.7 ms
+        info: CHECK body:Seat/face:cylinder@210,0,460 radius ~ 6 0.001: ok
+  36  ok    CHECK body:Seat/face:cylinder@-210,0,460 radius ~ 6 0.001       2.9 ms
+        info: CHECK body:Seat/face:cylinder@-210,0,460 radius ~ 6 0.001: ok
+  38  ok    CHECK body:Seat/edge:@0,200,460 length ~ 408 0.001       2.5 ms
+        info: CHECK body:Seat/edge:@0,200,460 length ~ 408 0.001: ok
+  40  ok    SELECT plane:XZ                                        1.8 ms
+        info: Selected 1: Origin OriginPlane XZ
+  41  ok    OFFSETPLANE 175                                        6.0 ms
+  42  ok    flip=true                                              2.2 ms
+  43  ok    OK                                                     4.4 ms
+  44  ok    SELECT plane:OffsetPlane2                              2.1 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane2' (#23)
+  45  ok    SKETCH                                                 8.5 ms
+  46  ok    RECT                                                   5.6 ms
+  47  ok    -210,430                                               2.8 ms
+  48  ok    420,410                                               11.8 ms
+        info: Sketch2: 2 DOF
+  49  ok    FINISH                                                 3.1 ms
+  50  ok    SELECT profile:@0,175,700                              3.6 ms
+        info: Selected 1: Profile of Sketch2 at (0, 175, 635)
+  51  ok    EXTRUDE 25                                            70.1 ms
+  52  ok    flip=true                                             34.6 ms
+  53  ok    operation=Join                                        39.6 ms
+  54  ok    OK                                                    35.1 ms
+  55  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  57  ok    SELECT body:Seat/face:front@0,175,700                  4.0 ms
+        info: Selected 1: Face #15 of Seat 'Extrude2/Start'
+  58  ok    SKETCH                                                 8.8 ms
+  59  ok    RECT                                                   5.6 ms
+  60  ok    -150,680                                               2.2 ms
+  61  ok    300,60                                                11.9 ms
+        info: Sketch3: 2 DOF
+  62  ok    FINISH                                                 3.2 ms
+  63  ok    SELECT profile:@0,175,710                              3.6 ms
+        info: Selected 1: Profile of Sketch3 at (0, 175, 710)
+  64  ok    EXTRUDE                                               30.6 ms
+  65  ok    operation=Cut                                         27.4 ms
+  66  ok    extentType=All                                        26.1 ms
+  67  ok    flip=true                                             23.5 ms
+  68  ok    OK                                                    26.2 ms
+  69  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  70  ok    CHECK body:Seat volume ~ 8565976 0.05%                 1.9 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+  72  ok    SELECT none                                            0.6 ms
+        info: Selection cleared
+  73  ok    ACTIVATE                                               3.9 ms
+  74  ok    NEWCOMPONENT LegFrame                                  3.2 ms
+  75  ok    OK                                                     5.3 ms
+        info: Created component 'LegFrame'
+  77  ok    SKETCH XY                                              9.1 ms
+  78  ok    RECT                                                   5.6 ms
+  79  ok    -190,-180                                              2.1 ms
+  80  ok    40,40                                                 12.2 ms
+        info: Sketch4: 2 DOF
+  81  ok    150,-180                                               2.4 ms
+  82  ok    40,40                                                 12.7 ms
+        info: Sketch4: 4 DOF
+  83  ok    -190,140                                               2.2 ms
+  84  ok    40,40                                                 13.4 ms
+        info: Sketch4: 6 DOF
+  85  ok    150,140                                                2.2 ms
+  86  ok    40,40                                                 14.3 ms
+        info: Sketch4: 8 DOF
+  87  ok    FINISH                                                 3.5 ms
+  88  ok    SELECT profile:@-170,-160,0 profile:@170,-160,0 profile:@-170,160,0 profile:@170,160,0       6.2 ms
+        info: Selected 4: Profile of Sketch4 at (-170, -160, 0), Profile of Sketch4 at (170, -160, 0), Profile of Sketch4 at (-170, 160, 0), Profile of Sketch4 at (170, 160, 0)
+  89  ok    EXTRUDE 430                                           43.8 ms
+  92  ok    OPTIONS                                                0.8 ms
+        info: Command Extrude (part.extrude)
+        info:   prompt: Select Profiles
+        info:   active input: profiles   valid: yes
+        info:   profiles=4 selected: [Profile of Sketch4 at (-170, -160, 0)] [Profile of Sketch4 at (170, -160, 0)] [Profile of Sketch4 at (-170, 160, 0)] [Profile of Sketch4 at (170, 160, 0)]   [Profiles]
+        info:   startOffset=0 mm   [Start offset]
+        info:   direction=One Side  (options: 'One Side' 'Two Sides' 'Symmetric')   [Direction]
+        info:   extentType=Distance  (options: 'Distance' 'To Object' 'All')   [Extent]
+        info:   distance=430 mm   [Distance]
+        info:   taperAngle=0 deg   [Taper angle]
+        info:   flip=false   [Flip direction]
+        info:   operation=New Body  (options: 'Join' 'Cut' 'Intersect' 'New Body')   [Operation]
+        info:   targets=(none)   [Objects to Cut/Join]
+  93  ok    OK                                                    21.8 ms
+  94  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+  95  ok    RENAME body:Body1 LegFrame                             3.6 ms
+        info: Renamed Body 'Body1' (#32) to 'LegFrame'
+  96  ok    CHECK body:LegFrame volume ~ 2752000 0.01%             1.4 ms
+        info: CHECK body:LegFrame volume ~ 2752000 0.01%: ok
+  97  ok    CHECK body:Seat volume ~ 8565976 0.05%                 1.7 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+  98  ok    CHECK component:LegFrame bodies == 1                   0.6 ms
+        info: CHECK component:LegFrame bodies == 1: ok
+ 100  ok    SELECT plane:YZ                                        2.2 ms
+        info: Selected 1: Origin OriginPlane YZ
+ 101  ok    OFFSETPLANE 170                                        6.9 ms
+ 102  ok    OK                                                     5.6 ms
+ 103  ok    SELECT plane:OffsetPlane3                              2.8 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane3' (#33)
+ 104  ok    SKETCH                                                11.1 ms
+ 105  ok    RECT                                                   7.0 ms
+ 106  ok    -140,130                                               2.7 ms
+ 107  ok    280,40                                                14.1 ms
+        info: Sketch5: 2 DOF
+ 108  ok    FINISH                                                 3.7 ms
+ 109  ok    SELECT profile:@170,0,150                              4.0 ms
+        info: Selected 1: Profile of Sketch5 at (170, 0, 150)
+ 110  ok    EXTRUDE 20                                            65.1 ms
+ 111  ok    direction=Symmetric                                   39.2 ms
+ 112  ok    symmetricMeasure=Whole Length                         32.8 ms
+ 113  ok    OK                                                    26.1 ms
+ 114  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+ 115  ok    CHECK body:LegFrame volume ~ 2976000 0.01%             1.6 ms
+        info: CHECK body:LegFrame volume ~ 2976000 0.01%: ok
+ 116  ok    SELECT plane:YZ                                        2.4 ms
+        info: Selected 1: Origin OriginPlane YZ
+ 117  ok    OFFSETPLANE 170                                        8.6 ms
+ 118  ok    flip=true                                              3.0 ms
+ 119  ok    OK                                                     6.4 ms
+ 120  ok    SELECT plane:OffsetPlane4                              2.6 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane4' (#36)
+ 121  ok    SKETCH                                                10.0 ms
+ 122  ok    RECT                                                   6.0 ms
+ 123  ok    -140,130                                               2.1 ms
+ 124  ok    280,40                                                14.0 ms
+        info: Sketch6: 2 DOF
+ 125  ok    FINISH                                                 3.7 ms
+ 126  ok    SELECT profile:@-170,0,150                             4.1 ms
+        info: Selected 1: Profile of Sketch6 at (-170, 0, 150)
+ 127  ok    EXTRUDE 20                                            63.0 ms
+ 128  ok    direction=Symmetric                                   39.9 ms
+ 129  ok    symmetricMeasure=Whole Length                         45.6 ms
+ 130  ok    OK                                                    29.9 ms
+ 131  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+ 132  ok    CHECK body:LegFrame volume ~ 3200000 0.01%             1.6 ms
+        info: CHECK body:LegFrame volume ~ 3200000 0.01%: ok
+ 134  ok    SELECT plane:XZ                                        2.6 ms
+        info: Selected 1: Origin OriginPlane XZ
+ 135  ok    OFFSETPLANE 150                                        8.1 ms
+ 136  ok    OK                                                     6.7 ms
+ 137  ok    SELECT plane:OffsetPlane5                              2.8 ms
+        info: Selected 1: ConstructionPlane 'OffsetPlane5' (#39)
+ 138  ok    SKETCH                                                10.4 ms
+ 139  ok    RECT                                                   6.5 ms
+ 140  ok    -150,130                                               2.2 ms
+ 141  ok    300,40                                                15.0 ms
+        info: Sketch7: 2 DOF
+ 142  ok    FINISH                                                 4.1 ms
+ 143  ok    SELECT profile:@0,-150,150                             4.8 ms
+        info: Selected 1: Profile of Sketch7 at (0, -150, 150)
+ 144  ok    EXTRUDE 20                                            68.0 ms
+ 145  ok    OK                                                    33.4 ms
+ 146  ok    CHECK status ok                                        0.8 ms
+        info: CHECK status ok: ok
+ 147  ok    CHECK body:LegFrame volume == 3440000                  1.8 ms
+        info: CHECK body:LegFrame volume == 3440000: ok
+ 148  ok    CHECK body:LegFrame/face:@0,-170,150 cy ~ -170 0.001      16.3 ms
+        info: CHECK body:LegFrame/face:@0,-170,150 cy ~ -170 0.001: ok
+ 150  ok    SELECT none                                            0.6 ms
+        info: Selection cleared
+ 151  ok    ACTIVATE                                               6.1 ms
+ 152  ok    SELECT component:Seat                                  3.0 ms
+        info: Selected 1: Component 'Seat' (#16)
+ 153  ok    GROUND                                                 4.6 ms
+        info: Grounded
+ 155  ok    SELECT body:LegFrame/face:@-170,-160,430 body:Seat/face:bottom      23.9 ms
+        info: Selected 2: Face #13 of LegFrame 'Extrude4/P1/End', Face #5 of Seat 'Extrude1/Start'
+ 156  ok    ASBUILTJOINT                                           9.1 ms
+ 157  ok    OK                                                    17.8 ms
+ 158  ok    CHECK joints == 1                                      1.3 ms
+        info: CHECK joints == 1: ok
+ 159  ok    INFO joint:Joint1                                      1.0 ms
+        info: Joint 'Joint1' (#42): type Joint, Ok
+        info:   componentA = Component 'LegFrame' (#28)
+        info:   componentB = Component 'Seat' (#16)
+        info:   type = Rigid  (options: 'Rigid' 'Revolute' 'Slider' 'Cylindrical' 'Pin-slot' 'Planar' 'Ball')
+        info:   flip = false
+        info:   offsetX = 0 mm
+        info:   offsetY = 0 mm
+        info:   offsetZ = 0 mm
+        info:   rotation = 0 deg
+ 160  ok    CHECK body:Seat volume ~ 8565976 0.05%                 2.1 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+ 161  ok    CHECK body:LegFrame volume ~ 3440000 0.05%             2.0 ms
+        info: CHECK body:LegFrame volume ~ 3440000 0.05%: ok
+ 163  ok    SELECT body:LegFrame                                   3.3 ms
+        info: Selected 1: Body 'LegFrame' (#32)
+ 164  ok    SPLIT                                                  7.2 ms
+ 165  ok    INPUT splitTool plane:YZ                              23.5 ms
+        info: splitTool = Origin OriginPlane YZ
+ 166  ok    OK                                                    26.1 ms
+ 167  ok    CHECK status ok                                        1.2 ms
+        info: CHECK status ok: ok
+ 168  ok    RENAME body:@-170,0,150 LegLeft                        7.6 ms
+        info: Renamed Body 'LegFrame' (#32) to 'LegLeft'
+ 169  ok    RENAME body:@170,0,150 LegRight                        7.0 ms
+        info: Renamed Body 'LegFrame (2)' (#44) to 'LegRight'
+ 170  ok    CHECK bodies == 3                                      0.8 ms
+        info: CHECK bodies == 3: ok
+ 171  ok    CHECK body:LegLeft xmax ~ 0 0.001                      0.9 ms
+        info: CHECK body:LegLeft xmax ~ 0 0.001: ok
+ 172  ok    CHECK body:LegRight xmin ~ 0 0.001                     0.7 ms
+        info: CHECK body:LegRight xmin ~ 0 0.001: ok
+ 173  ok    CHECK body:LegLeft volume ~ 1720000 0.01%              1.2 ms
+        info: CHECK body:LegLeft volume ~ 1720000 0.01%: ok
+ 174  ok    CHECK body:LegRight volume ~ 1720000 0.01%             1.2 ms
+        info: CHECK body:LegRight volume ~ 1720000 0.01%: ok
+ 175  ok    SELECT body:LegLeft body:LegRight                      2.7 ms
+        info: Selected 2: Body 'LegLeft' (#32), Body 'LegRight' (#44)
+ 176  ok    CFB                                                    6.9 ms
+        info: Created 2 component(s)
+ 177  ok    CHECK components == 4                                  1.2 ms
+        info: CHECK components == 4: ok
+ 178  ok    CHECK component:LegLeft bodies == 1                    0.9 ms
+        info: CHECK component:LegLeft bodies == 1: ok
+ 179  ok    CHECK component:LegRight bodies == 1                   0.8 ms
+        info: CHECK component:LegRight bodies == 1: ok
+ 180  ok    CHECK component:LegFrame bodies == 0                   0.7 ms
+        info: CHECK component:LegFrame bodies == 0: ok
+ 182  ok    CHECK body:LegLeft/edges:z=0 count == 8                1.1 ms
+        info: CHECK body:LegLeft/edges:z=0 count == 8: ok
+ 183  ok    SELECT body:LegLeft/edges:z=0                          3.7 ms
+        info: Selected 8: Edge #9 of LegLeft '{Extrude4/P1/Side/c2|Extrude4/P1/Start}', Edge #18 of LegLeft '{Extrude4/P1/Side/c1|Extrude4/P1/Start}', Edge #20 of LegLeft '{Extrude4/P1/Side/c4|Extrude4/P1/Start}', Edge #21 of LegLeft '{Extrude4/P1/Side/c3|Extrude4/P1/Start}', Edge #38 of LegLeft '{Extrude4/P3/Side/c9|Extrude4/P3/Start}', ...
+ 184  ok    CHAMFER 3                                             69.6 ms
+ 185  ok    OK                                                    35.9 ms
+ 186  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+ 187  ok    CHECK body:LegLeft volume ~ 1718632 0.05%              1.5 ms
+        info: CHECK body:LegLeft volume ~ 1718632 0.05%: ok
+ 188  ok    CHECK body:LegRight/edges:z=0 count == 8               1.0 ms
+        info: CHECK body:LegRight/edges:z=0 count == 8: ok
+ 189  ok    SELECT body:LegRight/edges:z=0                         3.5 ms
+        info: Selected 8: Edge #13 of LegRight, Edge #18 of LegRight, Edge #24 of LegRight, Edge #25 of LegRight, Edge #38 of LegRight, Edge #42 of LegRight, Edge #44 of LegRight, Edge #45 of LegRight
+ 190  ok    FILLET 5                                              70.0 ms
+ 191  ok    OK                                                    46.1 ms
+ 192  ok    CHECK status ok                                        0.8 ms
+        info: CHECK status ok: ok
+ 193  ok    CHECK body:LegRight volume ~ 1718379.06 0.001%         2.1 ms
+        info: CHECK body:LegRight volume ~ 1718379.06 0.001%: ok
+ 194  ok    SELECT none                                            0.8 ms
+        info: Selection cleared
+ 195  ok    HOLE                                                  10.1 ms
+ 196  ok    INPUT face body:LegRight/face:@180,0,150              27.1 ms
+        info: face = Face #14 of LegRight
+ 197  ok    PICK 180,0,150 nosnap                                 27.0 ms
+        info: Picked Face #14 of LegRight at (180, 0, 150)
+ 198  ok    diameter=10                                           18.6 ms
+ 199  ok    extentType=All                                        28.5 ms
+ 201  ok    OK                                                    22.5 ms
+ 202  ok    CHECK status ok                                        0.8 ms
+        info: CHECK status ok: ok
+ 203  ok    INFO body:LegRight/face:cylinder@170,5,150             5.2 ms
+        info: Face #21 of LegRight 'Hole1/H1/F2': cylindrical face, area 628.3 mm2, centre (170, 0, 150), radius 5, axis (-1, 0, 0), 3 edges
+ 204  ok    CHECK body:LegRight/face:cylinder@170,5,150 radius ~ 5 0.001       5.2 ms
+        info: CHECK body:LegRight/face:cylinder@170,5,150 radius ~ 5 0.001: ok
+ 205  ok    CHECK body:LegRight/face:cylinder@170,5,150 cx ~ 170 0.001       5.1 ms
+        info: CHECK body:LegRight/face:cylinder@170,5,150 cx ~ 170 0.001: ok
+ 206  ok    CHECK body:LegRight/face:cylinder@170,5,150 dx ~ 20 0.001       4.9 ms
+        info: CHECK body:LegRight/face:cylinder@170,5,150 dx ~ 20 0.001: ok
+ 207  ok    CHECK body:LegRight volume ~ 1716808 0.05%             2.0 ms
+        info: CHECK body:LegRight volume ~ 1716808 0.05%: ok
+ 208  ok    CHECK body:LegLeft volume ~ 1718632 0.05%              1.5 ms
+        info: CHECK body:LegLeft volume ~ 1718632 0.05%: ok
+ 210  ok    SELECT joint:Joint1                                    2.9 ms
+        info: Selected 1: Joint 'Joint1' (#42)
+ 211  ok    DELETE                                                98.0 ms
+ 212  ok    CHECK joints == 0                                      1.5 ms
+        info: CHECK joints == 0: ok
+ 213  ok    SELECT component:LegLeft                               3.4 ms
+        info: Selected 1: Component 'LegLeft' (#45)
+ 214  ok    MOVECOMPONENT                                          6.0 ms
+ 215  ok    -15,0,0                                                3.1 ms
+ 216  ok    OK                                                     5.8 ms
+ 217  ok    SELECT component:LegRight                              3.1 ms
+        info: Selected 1: Component 'LegRight' (#47)
+ 218  ok    MOVECOMPONENT                                          6.4 ms
+ 219  ok    15,0,0                                                 2.7 ms
+ 220  ok    OK                                                     5.1 ms
+ 222  ok    SELECT component:Seat                                  2.9 ms
+        info: Selected 1: Component 'Seat' (#16)
+ 223  ok    MOVECOMPONENT                                          6.4 ms
+ 224  ok    pivot=0,200,430                                        1.1 ms
+        info: pivot (0, 200, 430)
+ 225  ok    rx=-5                                                  2.8 ms
+ 226  ok    OK                                                     5.2 ms
+ 227  ok    CHECK body:Seat volume ~ 8565976 0.05%                 2.3 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+ 229  ok    CHECK component:Seat y ~ -36.712 0.01                  0.8 ms
+        info: CHECK component:Seat y ~ -36.712 0.01: ok
+ 230  ok    CHECK component:Seat z ~ 19.067 0.01                   0.8 ms
+        info: CHECK component:Seat z ~ 19.067 0.01: ok
+ 231  ok    INFO component:Seat                                   19.6 ms
+        info: Component 'Seat' (#16): grounded, 1 bodies, origin at (0, -36.72, 19.07)
+        info:   placement: translation (0, -36.72, 19.07), rotation XYZ (-5, 0, 0) deg
+        info:   parent: root (#1)
+        info:   volume 8.566e+06 mm3, bbox X[-210, 210] Y[-198.5, 235.7] Z[430, 840.6]
+        info:   body 'Seat' (#21)
+ 233  ok    SELECT component:Seat component:LegLeft component:LegRight       3.4 ms
+        info: Selected 3: Component 'Seat' (#16), Component 'LegLeft' (#45), Component 'LegRight' (#47)
+ 234  ok    GROUND                                                 5.1 ms
+        info: Grounded
+ 237  ok    SELECT component:LegFrame                              2.9 ms
+        info: Selected 1: Component 'LegFrame' (#28)
+ 238  ok    DELETECOMPONENT                                      195.3 ms
+        info: Deleted component 'LegFrame' (2 child components moved to the root)
+ 239  ok    LIST components                                        1.0 ms
+        info: Components (4, tree order; indented = child of the line above it):
+        info:   component:Untitled  #1  root grounded  0 bodies, 3 children  at (0, 0, 0)  (active)
+        info:     component:Seat  #16   grounded  1 bodies, 0 children  at (0, -36.7159, 19.0674)
+        info:     component:LegLeft  #45   grounded  1 bodies, 0 children  at (-15, 0, 0)
+        info:     component:LegRight  #47   grounded  1 bodies, 0 children  at (15, 0, 0)
+ 240  ok    CHECK components == 3                                  0.8 ms
+        info: CHECK components == 3: ok
+ 241  ok    CHECK component:LegLeft xmin ~ -205 0.01               0.9 ms
+        info: CHECK component:LegLeft xmin ~ -205 0.01: ok
+ 242  ok    CHECK component:LegRight xmax ~ 205 0.01               0.9 ms
+        info: CHECK component:LegRight xmax ~ 205 0.01: ok
+ 243  ok    CHECK component:LegLeft bodies == 1                    0.7 ms
+        info: CHECK component:LegLeft bodies == 1: ok
+ 244  ok    CHECK component:LegRight bodies == 1                   0.8 ms
+        info: CHECK component:LegRight bodies == 1: ok
+ 245  ok    INFO component:LegLeft                                 1.7 ms
+        info: Component 'LegLeft' (#45): grounded, 1 bodies, origin at (-15, 0, 0)
+        info:   placement: translation (-15, 0, 0), rotation XYZ (0, 0, 0) deg
+        info:   parent: root (#1)
+        info:   volume 1718632 mm3, bbox X[-205, -15] Y[-180, 180] Z[0, 430]
+        info:   body 'LegLeft' (#32)
+ 246  ok    CHECK joints == 0                                      0.7 ms
+        info: CHECK joints == 0: ok
+ 247  ok    CHECK status ok                                        0.7 ms
+        info: CHECK status ok: ok
+ 249  ok    CHECK body:Seat volume ~ 8565976 0.05%                 2.0 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+ 250  ok    CHECK body:LegLeft volume ~ 1718632 0.05%              1.5 ms
+        info: CHECK body:LegLeft volume ~ 1718632 0.05%: ok
+ 251  ok    CHECK body:LegRight volume ~ 1716808 0.05%             2.3 ms
+        info: CHECK body:LegRight volume ~ 1716808 0.05%: ok
+ 252  ok    CHECK body:Seat xmin ~ -210 0.01                      19.1 ms
+        info: CHECK body:Seat xmin ~ -210 0.01: ok
+ 253  ok    CHECK body:Seat xmax ~ 210 0.01                       18.5 ms
+        info: CHECK body:Seat xmax ~ 210 0.01: ok
+ 254  ok    CHECK body:Seat ymin ~ -198.478 0.01                  18.6 ms
+        info: CHECK body:Seat ymin ~ -198.478 0.01: ok
+ 255  ok    CHECK body:Seat ymax ~ 235.734 0.01                   17.7 ms
+        info: CHECK body:Seat ymax ~ 235.734 0.01: ok
+ 256  ok    CHECK body:Seat zmin ~ 430 0.01                       20.0 ms
+        info: CHECK body:Seat zmin ~ 430 0.01: ok
+ 257  ok    CHECK body:Seat zmax ~ 840.619 0.01                   19.1 ms
+        info: CHECK body:Seat zmax ~ 840.619 0.01: ok
+ 258  ok    CHECK body:LegLeft xmin ~ -205 0.01                    1.0 ms
+        info: CHECK body:LegLeft xmin ~ -205 0.01: ok
+ 259  ok    CHECK body:LegLeft xmax ~ -15 0.01                     0.9 ms
+        info: CHECK body:LegLeft xmax ~ -15 0.01: ok
+ 260  ok    CHECK body:LegLeft ymin ~ -180 0.01                    1.0 ms
+        info: CHECK body:LegLeft ymin ~ -180 0.01: ok
+ 261  ok    CHECK body:LegLeft ymax ~ 180 0.01                     0.9 ms
+        info: CHECK body:LegLeft ymax ~ 180 0.01: ok
+ 262  ok    CHECK body:LegLeft zmin ~ 0 0.01                       0.9 ms
+        info: CHECK body:LegLeft zmin ~ 0 0.01: ok
+ 263  ok    CHECK body:LegLeft zmax ~ 430 0.01                     0.9 ms
+        info: CHECK body:LegLeft zmax ~ 430 0.01: ok
+ 264  ok    CHECK body:LegRight xmin ~ 15 0.01                     0.9 ms
+        info: CHECK body:LegRight xmin ~ 15 0.01: ok
+ 265  ok    CHECK body:LegRight xmax ~ 205 0.01                    0.9 ms
+        info: CHECK body:LegRight xmax ~ 205 0.01: ok
+ 266  ok    CHECK body:LegRight ymin ~ -180 0.01                   0.8 ms
+        info: CHECK body:LegRight ymin ~ -180 0.01: ok
+ 267  ok    CHECK body:LegRight ymax ~ 180 0.01                    1.0 ms
+        info: CHECK body:LegRight ymax ~ 180 0.01: ok
+ 268  ok    CHECK body:LegRight zmin ~ 0 0.01                      0.9 ms
+        info: CHECK body:LegRight zmin ~ 0 0.01: ok
+ 269  ok    CHECK body:LegRight zmax ~ 430 0.01                    0.9 ms
+        info: CHECK body:LegRight zmax ~ 430 0.01: ok
+ 271  ok    SELECT none                                            0.9 ms
+        info: Selection cleared
+ 272  ok    assembly.export-step out/chair.step                   28.2 ms
+        info: Exported 3 part(s), 3 instance(s) to out/chair.step
+ 273  ok    EXPORTSTL out/chair.stl deflection=0.05 angle=0.2rad      17.9 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 3 bodies to out/chair.stl
+ 274  ok    SELECT body:Seat                                       3.1 ms
+        info: Selected 1: Body 'Seat' (#21)
+ 275  ok    EXPORTSTL out/seat.stl deflection=0.05 angle=0.2rad      11.6 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 1 body to out/seat.stl
+ 276  ok    SELECT body:LegLeft                                    3.3 ms
+        info: Selected 1: Body 'LegLeft' (#32)
+ 277  ok    EXPORTSTL out/leg_left.stl deflection=0.05 angle=0.2rad       7.8 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 1 body to out/leg_left.stl
+ 278  ok    SELECT body:LegRight                                   3.3 ms
+        info: Selected 1: Body 'LegRight' (#44)
+ 279  ok    EXPORTSTL out/leg_right.stl deflection=0.05 angle=0.2rad      10.0 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 11.459155902616466 deg (0.20000000000000004 rad), binary
+        info: exported 1 body to out/leg_right.stl
+ 280  ok    CHECK file out/chair.step exists                       1.0 ms
+        info: CHECK file out/chair.step exists: ok (239623 bytes)
+ 281  ok    CHECK file out/chair.stl size > 1000                   0.9 ms
+        info: CHECK file out/chair.stl size > 1000: ok
+ 282  ok    CHECK file out/seat.stl size > 1000                    0.9 ms
+        info: CHECK file out/seat.stl size > 1000: ok
+ 283  ok    CHECK file out/leg_left.stl size > 1000                1.0 ms
+        info: CHECK file out/leg_left.stl size > 1000: ok
+ 284  ok    CHECK file out/leg_right.stl size > 1000               0.9 ms
+        info: CHECK file out/leg_right.stl size > 1000: ok
+ 287  ok    SELECT none                                            3.2 ms
+        info: Selection cleared
+ 288  ok    EXPORTSTL out/chair_default.stl                       16.1 ms
+        info: STL mesh: linear deflection 0.05 mm, angular deflection 20 deg (0.3490658503988659 rad), binary
+        info: exported 3 bodies to out/chair_default.stl
+ 289  ok    CHECK file out/chair_default.stl size > 1000           1.0 ms
+        info: CHECK file out/chair_default.stl size > 1000: ok
+ 290  ok    CHECK file out/chair.stl size > 90000                  0.8 ms
+        info: CHECK file out/chair.stl size > 90000: ok
+ 291  ok    CHECK file out/chair_default.stl size < 90000          0.8 ms
+        info: CHECK file out/chair_default.stl size < 90000: ok
+ 292  ok    SAVE out/chair.fcad                                   33.7 ms
+        info: Saved out/chair.fcad
+ 293  ok    CHECK file out/chair.fcad exists                       1.1 ms
+        info: CHECK file out/chair.fcad exists: ok (110710 bytes)
+ 295  ok    OPEN out/chair.fcad                                  287.0 ms
+ 296  ok    LIST tabs                                              0.9 ms
+        info: Tabs (2):
+        info:   1. chair  [design]  out/chair.fcad
+        info:   2. chair  [design]  /home/user/Documents/projects/fabricad/docs/comparison/fabricad/out/chair.fcad  (active)
+ 297  ok    CHECK components == 3                                  0.9 ms
+        info: CHECK components == 3: ok
+ 298  ok    CHECK body:Seat volume ~ 8565976 0.05%                 2.2 ms
+        info: CHECK body:Seat volume ~ 8565976 0.05%: ok
+ 299  ok    CHECK body:LegLeft volume ~ 1718632 0.05%              1.7 ms
+        info: CHECK body:LegLeft volume ~ 1718632 0.05%: ok
+ 300  ok    CHECK body:LegRight volume ~ 1716808 0.05%             2.4 ms
+        info: CHECK body:LegRight volume ~ 1716808 0.05%: ok
+ 301  ok    CHECK body:Seat ymin ~ -198.478 0.01                  17.7 ms
+        info: CHECK body:Seat ymin ~ -198.478 0.01: ok
+ 302  ok    CHECK body:Seat zmax ~ 840.619 0.01                   17.7 ms
+        info: CHECK body:Seat zmax ~ 840.619 0.01: ok
+ 303  ok    CHECK body:LegLeft xmin ~ -205 0.01                    0.9 ms
+        info: CHECK body:LegLeft xmin ~ -205 0.01: ok
+ 304  ok    CHECK body:LegRight xmax ~ 205 0.01                    0.9 ms
+        info: CHECK body:LegRight xmax ~ 205 0.01: ok
+ 306  ok    NEW                                                    9.7 ms
+ 307  ok    IMPORT out/chair.step                                 55.2 ms
+ 308  ok    OPTIONS                                                0.8 ms
+        info: Command Insert STEP/STL (part.import)
+        info:   prompt: Set the parameters
+        info:   active input:    valid: yes
+        info:   filePath='out/chair.step'   [File]
+        info:   format=Auto  (options: 'Auto' 'STEP' 'STL')   [Format]
+        info:   oneBodyPerSolid=true   [One body per solid]
+        info:   scale=1   [Scale]
+ 309  ok    OK                                                     3.8 ms
+ 310  ok    CHECK status ok                                        0.8 ms
+        info: CHECK status ok: ok
+ 311  ok    LIST bodies                                            4.7 ms
+        info: Bodies (3):
+        info:   body:chair 1  #17  component Untitled  visible  volume 8565975.689974844 mm3
+        info:   body:chair 2  #18  component Untitled  visible  volume 1718632.0000000233 mm3
+        info:   body:chair 3  #19  component Untitled  visible  volume 1716808.2593204372 mm3
+ 312  ok    CHECK bodies == 3                                      0.8 ms
+        info: CHECK bodies == 3: ok
+ 314  ok    CHECK body:@0,200,500 volume ~ 8565976 0.05%           5.4 ms
+        info: CHECK body:@0,200,500 volume ~ 8565976 0.05%: ok
+ 315  ok    CHECK body:@-185,-160,300 volume ~ 1718632 0.05%       5.5 ms
+        info: CHECK body:@-185,-160,300 volume ~ 1718632 0.05%: ok
+ 316  ok    CHECK body:@185,-160,300 volume ~ 1716808 0.05%        6.2 ms
+        info: CHECK body:@185,-160,300 volume ~ 1716808 0.05%: ok
+ 317  ok    CHECK body:@0,200,500 xmin ~ -210 0.01                21.6 ms
+        info: CHECK body:@0,200,500 xmin ~ -210 0.01: ok
+ 318  ok    CHECK body:@0,200,500 xmax ~ 210 0.01                 21.2 ms
+        info: CHECK body:@0,200,500 xmax ~ 210 0.01: ok
+ 319  ok    CHECK body:@0,200,500 ymin ~ -198.478 0.01            20.9 ms
+        info: CHECK body:@0,200,500 ymin ~ -198.478 0.01: ok
+ 320  ok    CHECK body:@0,200,500 ymax ~ 235.734 0.01             21.0 ms
+        info: CHECK body:@0,200,500 ymax ~ 235.734 0.01: ok
+ 321  ok    CHECK body:@0,200,500 zmin ~ 430 0.01                 22.1 ms
+        info: CHECK body:@0,200,500 zmin ~ 430 0.01: ok
+ 322  ok    CHECK body:@0,200,500 zmax ~ 840.619 0.01             21.7 ms
+        info: CHECK body:@0,200,500 zmax ~ 840.619 0.01: ok
+ 323  ok    CHECK body:@-185,-160,300 xmin ~ -205 0.01             5.4 ms
+        info: CHECK body:@-185,-160,300 xmin ~ -205 0.01: ok
+ 324  ok    CHECK body:@-185,-160,300 xmax ~ -15 0.01              4.9 ms
+        info: CHECK body:@-185,-160,300 xmax ~ -15 0.01: ok
+ 325  ok    CHECK body:@-185,-160,300 ymin ~ -180 0.01             4.6 ms
+        info: CHECK body:@-185,-160,300 ymin ~ -180 0.01: ok
+ 326  ok    CHECK body:@-185,-160,300 ymax ~ 180 0.01              4.6 ms
+        info: CHECK body:@-185,-160,300 ymax ~ 180 0.01: ok
+ 327  ok    CHECK body:@-185,-160,300 zmin ~ 0 0.01                4.5 ms
+        info: CHECK body:@-185,-160,300 zmin ~ 0 0.01: ok
+ 328  ok    CHECK body:@-185,-160,300 zmax ~ 430 0.01              4.6 ms
+        info: CHECK body:@-185,-160,300 zmax ~ 430 0.01: ok
+ 329  ok    CHECK body:@185,-160,300 xmin ~ 15 0.01                4.5 ms
+        info: CHECK body:@185,-160,300 xmin ~ 15 0.01: ok
+ 330  ok    CHECK body:@185,-160,300 xmax ~ 205 0.01               4.5 ms
+        info: CHECK body:@185,-160,300 xmax ~ 205 0.01: ok
+ 331  ok    CHECK body:@185,-160,300 ymin ~ -180 0.01              4.5 ms
+        info: CHECK body:@185,-160,300 ymin ~ -180 0.01: ok
+ 332  ok    CHECK body:@185,-160,300 ymax ~ 180 0.01               4.5 ms
+        info: CHECK body:@185,-160,300 ymax ~ 180 0.01: ok
+ 333  ok    CHECK body:@185,-160,300 zmin ~ 0 0.01                 4.4 ms
+        info: CHECK body:@185,-160,300 zmin ~ 0 0.01: ok
+ 334  ok    CHECK body:@185,-160,300 zmax ~ 430 0.01               4.4 ms
+        info: CHECK body:@185,-160,300 zmax ~ 430 0.01: ok
+ 335  ok    INFO body:@0,200,500                                  26.7 ms
+        info: Body 'chair 1' (#17): component 'Untitled', visible
+        info:   volume 8.566e+06 mm3, area 7.016e+05 mm2, 19 faces, 47 edges, 30 vertices
+        info:   bbox X[-210, 210] Y[-198.5, 235.7] Z[430, 840.6], centroid (0, 86.56, 536.8)
+ 336  ok    INFO body:@-185,-160,300                               8.9 ms
+        info: Body 'chair 2' (#18): component 'Untitled', visible
+        info:   volume 1.719e+06 mm3, area 1.934e+05 mm2, 29 faces, 64 edges, 40 vertices
+        info:   bbox X[-205, -15] Y[-180, 180] Z[0, 430], centroid (-178.4, -11.17, 202.2)
+ 337  ok    INFO body:@185,-160,300                               10.8 ms
+        info: Body 'chair 3' (#19): component 'Untitled', visible
+        info:   volume 1.717e+06 mm3, area 1.938e+05 mm2, 30 faces, 67 edges, 42 vertices
+        info:   bbox X[15, 205] Y[-180, 180] Z[0, 430], centroid (178.4, -11.18, 202.2)
+# 304 commands, 304 ok, 0 failed, 3296.5 ms total

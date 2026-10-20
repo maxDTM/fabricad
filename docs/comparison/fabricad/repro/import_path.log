@@ -1,0 +1,21 @@
+# FabriCAD script import_path.fcs, 2026-10-20T03:31:17, 11 lines
+   5  ok    IMPORT out/chair.step                                  6.0 ms
+   6  ok    OPTIONS                                                0.8 ms
+        info: Command Insert STEP/STL (part.import)
+        info:   prompt: Set the parameters
+        info:   active input:    valid: no  (choose a file to import)
+        info:   filePath=''   [File]
+        info:   format=Auto  (options: 'Auto' 'STEP' 'STL')   [Format]
+        info:   oneBodyPerSolid=true   [One body per solid]
+        info:   scale=1   [Scale]
+   7  ERROR filePath=out/chair.step                                0.9 ms
+        warn: Unknown command: filePath=out/chair.step
+        line 7 failed: Unknown command: filePath=out/chair.step
+   8  ERROR OK                                                     0.7 ms
+        error: OK is disabled for Insert STEP/STL
+        line 8 failed: OK is disabled for Insert STEP/STL
+   9  ok    CANCEL                                                 1.2 ms
+  10  ERROR CHECK bodies == 3                                      0.9 ms
+        error: CHECK bodies == 3: FAILED (got 0)
+        line 10 failed: CHECK bodies == 3: FAILED (got 0)
+# 6 commands, 3 ok, 3 failed, 10.5 ms total
