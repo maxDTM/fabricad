@@ -218,7 +218,9 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
                        Std{"view.iso", "Isometric", "Ctrl+7", core::StandardView::Iso}}) {
     std::string alias = s.name;
     for (char& ch : alias) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-    view(info(s.id, std::string(s.name) + " View", std::string("Look from the ") + s.name, s.key, {alias}, "views"),
+    std::vector<std::string> aliases{alias};
+    if (s.v == core::StandardView::Iso) aliases.push_back("ISO");  // docs/SCRIPTING.md
+    view(info(s.id, std::string(s.name) + " View", std::string("Look from the ") + s.name, s.key, aliases, "views"),
          [v = s.v](viewer::ViewerWidget& vw) { vw.setStandardView(v, true); });
   }
   view(info("view.look-at", "Look At", "Look straight at the selected face or plane", "Ctrl+8", {"LOOKAT", "PLAN"},

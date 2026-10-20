@@ -37,6 +37,8 @@ QMenu::separator { height: 1px; background: #E1E4E8; margin: 4px 8px; }
 QDockWidget { color: #2B2E33; font-weight: 600; }
 QDockWidget::title { background: #F7F7F8; padding: 4px 8px; border-bottom: 1px solid #D3D6DB; }
 QTreeWidget#Browser { background: #FFFFFF; border: none; }
+QListWidget { background: #FFFFFF; color: #2B2E33; border: none; }
+QListWidget::item:selected { background: #D3E6F5; color: #2B2E33; }
 QTreeWidget#Browser { color: #2B2E33; }
 QTreeWidget#Browser::item { padding: 2px 0; color: #2B2E33; }
 QTreeWidget#Browser::item:hover { background: #EEF5FB; }

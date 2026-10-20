@@ -8,7 +8,9 @@ line. It makes **parts** (sketches + solid features), **assemblies** (components
 motion) and **engineering drawings** (sheets, projected/section/detail views, dimensions,
 parts lists; PDF/SVG/DXF export).
 
-![FabriCAD with a bracket and a lever](docs/screenshots/fabricad-assembly.png)
+![FabriCAD with the chair benchmark model](docs/screenshots/fabricad-assembly.png)
+
+![The same chair as a drawing tab](docs/screenshots/fabricad-drawing.png)
 
 * Stack: C++20, CMake, Qt 6 Widgets, OpenCASCADE 7.9 (modelling kernel, HLR, STEP/STL,
   AIS/V3d viewer), Eigen (sketch and assembly solvers), FreeCAD's PlaneGCS (vendored).
@@ -20,9 +22,13 @@ parts lists; PDF/SVG/DXF export).
 
 **Sketch** (`SKETCH` contextual tab, PlaneGCS solver, Fusion-style inference)
 * Line (chained, tangent-arc drag), 2-point / 3-point / centre rectangles, centre-diameter /
-  2-point / 3-point circles, 3-point / centre / tangent arcs, polygons, slots, points.
-* Fillet, trim (power trim), extend, break, offset, mirror, project (associative purple
-  geometry from edges, faces and bodies), construction toggle (X).
+  2-point / 3-point circles, 3-point / centre / tangent arcs, polygons, slots, points, ellipses
+  and elliptical arcs, fit-point and control-point splines, text (font outlines, usable as an
+  extrude profile).
+* Fillet, chamfer, trim (power trim), extend, break, offset, mirror, project (associative purple
+  geometry from edges, faces and bodies), construction toggle (X), move/copy, rotate, scale,
+  rectangular and circular sketch patterns. A sketch fillet or chamfer on a dimensioned corner
+  keeps the dimension meaningful (it measures to the virtual sharp, as in Fusion).
 * Dimensions (D): length, diameter, radius, point-point (aligned / horizontal / vertical by
   label placement), point-line, angle; driven dimensions; expressions with document parameters
   (`width/2 + 3 mm`).
@@ -38,9 +44,18 @@ parts lists; PDF/SVG/DXF export).
 
 **Part** (`SOLID` tab)
 * Extrude (one side / two sides / symmetric; distance / to object / through all; taper; join /
-  cut / intersect / new body), revolve, sweep, loft, hole (simple / counterbore / countersink),
-  fillet, chamfer, shell, draft, press-pull / offset face, combine, split body, move/copy body,
-  rectangular / circular pattern, mirror.
+  cut / intersect / new body), revolve, sweep, loft, hole (simple / counterbore / countersink;
+  simple / clearance (ISO 273) / tapped with cosmetic or modelled thread; placed by clicking
+  faces), fillet (constant or variable radius), chamfer, shell, draft, press-pull / offset face,
+  combine, split body, split face, move/copy body (free move with typed rotations), scale,
+  rectangular / circular pattern (bodies, features or components), mirror, rib, thicken.
+* Primitives: box, cylinder, sphere, torus and coil (spring) placed on a plane, sketch or face.
+  Thread feature: ISO 261 metric coarse / fine sizes on rods and holes, cosmetic or modelled.
+* On-canvas manipulators (Fusion-style arrows and rings) on extrude, revolve, fillet, chamfer,
+  shell, press pull / offset face, offset plane, hole, box / cylinder / sphere / torus / coil,
+  thicken and rib: drag with 1-2-5 snapping (Shift coarser, Ctrl free), Esc aborts the drag;
+  an extrude dragged into material switches Join -> Cut. The feature's value box sits at the
+  arrow tip: type a value or expression there, Enter commits.
 * Construction: offset plane, plane at angle, tangent plane, midplane, plane through three
   points, axes, points.
 * Topological naming: history names (`Extrude1/End`, `Extrude1/Side/c5`,
@@ -71,6 +86,9 @@ parts lists; PDF/SVG/DXF export).
 * Copy / Paste of components (Ctrl+C / Ctrl+V, browser context menu): paste inserts an
   occurrence of the copied component's definition under the active component and hands it to
   the Move triad, so four identical bolts are four occurrences and the BOM quantity reads 4.
+  Paste New (Ctrl+Shift+V) makes an independent deep copy with its own feature history.
+* The Move / Rotate triad and the Drive Joint ring are viewer manipulators (only the joint's
+  degrees of freedom are offered on a jointed component).
 * Joints are edited with the Joint tool itself (double-click a joint): the motion type, offsets,
   limits and both snaps can be changed with a live solver preview; OK is one undo step.
 * Interference check, BOM (CSV), XCAF STEP export with occurrences, names and colours.
@@ -87,6 +105,13 @@ parts lists; PDF/SVG/DXF export).
 * Automatic view layout: projected and section views are placed at least a gap away from their
   parent (parent half-size + child half-size + 15 mm), pushed clear of other views, kept inside
   the frame and above the title block; a parts list dropped on the title block snaps above it.
+* Tolerances on every dimension (symmetric, deviation, limits, basic, reference) and ISO 286
+  fits (`H7/g6`, IT grades, clearance / transition / interference analysis); GD&T feature
+  control frames, datum identifiers, ISO 1302 surface texture symbols, hole and thread callouts
+  read from the solid (counterbore, countersink, depth, drill point, instance count, tapped
+  hole data), ordinate / baseline / chain dimensions, revision tables that fill the title block.
+* Break views, stepped (offset) and aligned section views. Symbols are drawn as geometry so
+  PDF, SVG and DXF match.
 * Export: PDF, SVG, DXF (R12), CSV. HLR runs on a worker thread.
 
 **Application shell**
@@ -95,6 +120,9 @@ parts lists; PDF/SVG/DXF export).
   suppress, edit by double-click), command dialogs with live preview, status bar, marking menu,
   command search (S), command line (Ctrl+9), change-parameters dialog, Fusion / SolidWorks /
   AutoCAD / Inventor navigation presets, ViewCube, nav bar.
+* A consistent generated SVG line-icon set (one icon per tool, feature type and shell item;
+  `resources/icons/generate_icons.py`, contact sheet in `docs/screenshots/icons.png`); a test
+  fails when a tool has no icon.
 * Document tabs like Fusion: every design and every drawing is a tab in the application bar
   with its own document, undo stack, selection, active command, camera, browser and timeline;
   New/Open make a tab, a drawing opens as a tab linked to its design, closing prompts for
@@ -119,7 +147,7 @@ Requirements (all system packages, nothing is downloaded): `cmake >= 3.25`, `g++
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG"
 cmake --build build -j2                      # ALWAYS -j2 on this machine (7 GB RAM)
-ctest --test-dir build --output-on-failure   # 36 tests, headless (QT_QPA_PLATFORM=offscreen)
+ctest --test-dir build --output-on-failure   # 53 tests, headless (QT_QPA_PLATFORM=offscreen)
 ./build/bin/fabricad --script tests/scripts/chair.fcs --offscreen   # scripted run, docs/SCRIPTING.md
 ./build/bin/fabricad [file.fcad|part.step]   # run
 ```
@@ -226,19 +254,24 @@ resources/                icons, stylesheet (.qrc)
 
 ## Known limitations
 
-* Sketch: no ellipse / spline / conic / text, no sketch patterns, move/copy, scale or chamfer;
-  non-circular projected edges become chords; absolute `x,y` coordinates typed while drawing
-  place points without constraints; value boxes have no drag handles.
-* Part: constant-radius fillets only; no Thread feature or thread spec on Hole (hole placement
-  only on sketch points, vertices or circular edges); no Box/Cylinder/Sphere/Torus/Coil
-  primitives, Rib, Thicken, Replace Face or Scale; feature values have no on-canvas drag arrows
-  (only Move Component has a manipulator). Chamfers that OCCT propagates along tangent chains
-  (e.g. over a fillet) leave those generated faces unnamed.
-* Assembly: no motion links or contact sets; Paste New (independent copy) is not available and
-  rectangular / circular patterns do not take components; component ids are not preserved
-  across undo -> redo of a component creation.
-* Drawing: single straight section line; no hole/thread callouts, ordinate / baseline / chain
-  dimensions, tolerances, GD&T frames, datums, surface finish or weld symbols, break views or
-  revision tables. Section views reference edges by index + position (no history names).
-* App: toolbar / timeline icons without an SVG are generated two-letter badges; single document
-  window (autosave + recovery exist, tabs do not); light theme only; no "Select Other".
+* Sketch: no conics; non-circular projected edges become chords; absolute `x,y` coordinates
+  typed while drawing place points without constraints; sketch value boxes have no drag handles;
+  a fillet on an oblique dimensioned corner demotes the dimension to driven (a message says so);
+  offsetting curved geometry adds no offset dimension; `sketch.fillet` and the dimension tools
+  keep their line-edit dialogs.
+* Part: variable fillet intermediate radii apply to single-edge chains only; modelled threads are
+  capped at 200 turns; rib growth is perpendicular to the curve's chord; no Replace Face; no
+  manipulators yet for sweep, loft, draft, patterns, move body, scale, thread or split; only the
+  first edge / face of a fillet / chamfer / shell selection carries an arrow. Chamfers that OCCT
+  propagates along tangent chains (e.g. over a fillet) leave those generated faces unnamed.
+* Assembly: no motion links or contact sets; component patterns re-sync their occurrences only
+  from the dialog (a parameter change warns); mirror does not take components; component ids
+  are not preserved across undo -> redo of a component creation.
+* Drawing: stepped sections still draw the step-face edges; aligned sections have one bend; no
+  weld symbols, all-around / between GD&T symbols or datum targets; ordinate labels do not
+  stagger; cosmetic threads are not drawn in views (callouts read the data). Section views
+  reference edges by index + position (no history names).
+* App: the command line has no quoting (names with spaces cannot be typed); `EXPORTSTEP` is the
+  part exporter (the assembly XCAF export is `assembly.export-step`); `SCREENSHOT` is blank in
+  `--offscreen` runs; light theme only (icons and value boxes have no dark palette); no "Select
+  Other"; the manipulator rendering was verified by hand only (no GL in the test environment).
