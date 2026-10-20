@@ -294,6 +294,7 @@ void ToolManager::finishActive(bool accepted) {
   tool->deactivate(context_);
   if (viewer_) {
     viewer_->clearPreviews();
+    viewer_->clearManipulators();
     viewer_->setHighlighted({});
     viewer_->setCursor(CursorShape::Arrow);
     if (document_) viewer_->setSelectionFilter(kAllKinds);

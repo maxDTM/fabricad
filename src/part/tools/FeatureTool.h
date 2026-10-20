@@ -59,7 +59,25 @@ class FeatureTool : public core::ToolBase {
   /// Set a numeric property from text (expression allowed). False if invalid.
   bool setNumeric(core::ToolContext& ctx, const std::string& propName, const std::string& text);
 
+  // --- on-canvas manipulators (FeatureManipulators.h) ------------------------------
+  /// One gizmo shown in the viewer, bound to a numeric property of the feature.
+  struct ManipulatorLink {
+    core::ManipulatorId id = core::kInvalidManipulator;
+    std::string property;
+    double scale = 1.0;  ///< gizmo value = property * scale
+  };
+  const std::vector<ManipulatorLink>& manipulatorLinks() const { return manipulators_; }
+  const ManipulatorLink* manipulatorFor(const std::string& property) const;
+  /// Gizmo event (drag) -> property value -> preview. Public so scripts/tests can feed events.
+  void onManipulatorEvent(core::ToolContext& ctx, const core::ManipulatorEvent& e);
+  bool isManipulatorDragging() const { return manipulatorDragging_; }
+
  protected:
+  /// Show/update/remove the gizmos for the feature's current inputs (after each preview).
+  void syncManipulators(core::ToolContext& ctx, core::RecomputeContext& rctx);
+  void clearManipulators(core::ToolContext& ctx);
+  /// Fusion: a Join extrusion dragged into existing material becomes a Cut (until the user picks an operation).
+  void autoOperation(core::ToolContext& ctx);
   /// Hook for subclasses that decide the feature type lazily (Press Pull).
   virtual std::unique_ptr<PartFeature> createFeature(core::ToolContext& ctx);
   void startWith(core::ToolContext& ctx, std::unique_ptr<PartFeature> f);
@@ -88,6 +106,9 @@ class FeatureTool : public core::ToolBase {
   bool valid_ = false;
   std::string message_;
   bool inSelectionUpdate_ = false;
+  std::vector<ManipulatorLink> manipulators_;
+  bool manipulatorDragging_ = false;
+  bool operationAuto_ = true;  ///< the user has not chosen an operation explicitly yet
 };
 
 /// Press Pull (Q): context command. Face -> Offset Face, edge -> Fillet, profile -> Extrude.

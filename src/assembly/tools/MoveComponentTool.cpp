@@ -1,4 +1,8 @@
 // FabriCAD assembly tools: Move/Rotate component implementation.
+//
+// The triad is a viewer manipulator (core::ManipulatorKind::Triad): the viewer draws it, picks
+// it ahead of selection and reports drags through onTriadEvent(); the tool turns the delta
+// transform into component placements or a joint value and keeps the dialog in sync.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/tools/MoveComponentTool.h"
 
@@ -28,7 +32,6 @@ namespace fabricad::assembly {
 using core::Document;
 using core::kInvalidId;
 using core::ObjectId;
-using core::PreviewStyle;
 using core::ShapeKind;
 using core::ShapeRef;
 using core::ToolContext;
@@ -36,8 +39,6 @@ using core::ToolInfo;
 using core::Vec3;
 
 namespace {
-
-constexpr double kHitPixels = 10.0;
 
 unsigned handlesForJoint(JointType t) {
   switch (t) {
@@ -71,8 +72,8 @@ void MoveComponentTool::activate(ToolContext& ctx) {
   placementsBefore_ = snapshotPlacements(*ctx.document);
   delta_ = gp_Trsf();
   dragging_ = false;
-  hovered_ = Triad::Handle::None;
-  previews_.clear();
+  activeHandle_ = core::ManipulatorHandle::None;
+  triadId_ = core::kInvalidManipulator;
   joint_ = nullptr;
   for (double& v : values_) v = 0.0;
   ctx.selection->setFilter(core::kBrepKinds | ShapeKind::Component);
@@ -84,7 +85,8 @@ void MoveComponentTool::activate(ToolContext& ctx) {
 }
 
 void MoveComponentTool::deactivate(ToolContext& ctx) {
-  (void)ctx;
+  if (ctx.viewer && triadId_ != core::kInvalidManipulator) ctx.viewer->removeManipulator(triadId_);
+  triadId_ = core::kInvalidManipulator;
   ctx_ = nullptr;
   for (auto& e : edits_) e = nullptr;
   targetLabel_ = nullptr;
@@ -150,7 +152,8 @@ void MoveComponentTool::setComponents(ToolContext& ctx, const std::vector<Object
 void MoveComponentTool::setupTriad(ToolContext& ctx) {
   Document& doc = *ctx.document;
   if (components_.empty()) {
-    drawTriad(ctx, Triad::Handle::None);
+    if (ctx.viewer && triadId_ != core::kInvalidManipulator) ctx.viewer->removeManipulator(triadId_);
+    triadId_ = core::kInvalidManipulator;
     return;
   }
   gp_Ax3 frame;
@@ -176,28 +179,34 @@ void MoveComponentTool::setupTriad(ToolContext& ctx) {
   moveTriadToCurrent(ctx);
 }
 
+core::ManipulatorSpec MoveComponentTool::triadSpec() const {
+  core::ManipulatorSpec s;
+  s.kind = core::ManipulatorKind::Triad;
+  s.frame = triad_.frame();
+  s.size = triad_.size();
+  s.handles = triad_.enabledHandles();  // Triad::HandleMask and core::ManipulatorHandleMask share the bit layout
+  s.label = joint_ ? joint_->name() : std::string("Move");
+  s.tag = 1;
+  return s;
+}
+
+void MoveComponentTool::showTriad(ToolContext& ctx) {
+  if (!ctx.viewer) return;
+  core::ManipulatorSpec spec = triadSpec();
+  if (triadId_ != core::kInvalidManipulator && ctx.viewer->manipulators().has(triadId_)) {
+    ctx.viewer->updateManipulator(triadId_, spec);
+    return;
+  }
+  core::ToolContext* pctx = ctx.manager ? ctx.manager->activeContext() : nullptr;
+  if (!pctx) pctx = &ctx;
+  triadId_ = ctx.viewer->showManipulator(spec, [this, pctx](const core::ManipulatorEvent& e) { onTriadEvent(*pctx, e); });
+}
+
 void MoveComponentTool::moveTriadToCurrent(ToolContext& ctx) {
   if (components_.empty()) return;
   if (joint_) triad_.setFrame(gp_Ax3().Transformed(joint_->worldFrame(*ctx.document)));
   else triad_.setFrame(baseFrame_.Transformed(delta_));
-  drawTriad(ctx, Triad::Handle::None);
-}
-
-void MoveComponentTool::drawTriad(ToolContext& ctx, Triad::Handle hovered) {
-  if (!ctx.viewer) return;
-  for (core::PreviewHandle h : previews_) ctx.viewer->removePreview(h);
-  previews_.clear();
-  if (components_.empty()) return;
-  for (const auto& [h, segs] : triad_.allSegments()) {
-    PreviewStyle s;
-    s.color = Triad::handleColor(h);
-    s.shaded = false;
-    s.onTop = true;
-    s.lineWidth = h == hovered ? 4.0f : 2.0f;
-    if (h == hovered) s.color = {1.0f, 0.85f, 0.2f, 1.0f};
-    previews_.push_back(ctx.viewer->showPreviewLines(segs, s));
-  }
-  ctx.viewer->requestRedraw();
+  showTriad(ctx);
 }
 
 void MoveComponentTool::selectionChanged(ToolContext& ctx) {
@@ -211,56 +220,35 @@ void MoveComponentTool::selectionChanged(ToolContext& ctx) {
   }
 }
 
-bool MoveComponentTool::mousePress(ToolContext& ctx, const core::ViewerMouseEvent& e) {
-  if (e.button != core::MouseButton::Left || components_.empty()) return false;
-  gp_Pnt ro = e.rayOrigin.toPnt();
-  if (e.rayDir.isZero()) return false;
-  gp_Dir rd = e.rayDir.toDir();
-  double tol = ctx.viewer ? kHitPixels * ctx.viewer->pixelSize(triad_.frame().Location()) : 2.0;
-  Triad::Handle h = triad_.hit(ro, rd, tol);
-  if (h == Triad::Handle::None) return false;
-  if (!triad_.beginDrag(h, ro, rd)) return false;
-  dragging_ = true;
-  if (ctx.viewer) ctx.viewer->setSelectionEnabled(false);
-  ctx.selection->setEnabled(false);
-  drawTriad(ctx, h);
-  return true;
-}
-
-bool MoveComponentTool::mouseMove(ToolContext& ctx, const core::ViewerMouseEvent& e) {
-  if (components_.empty() || e.rayDir.isZero()) return false;
-  gp_Pnt ro = e.rayOrigin.toPnt();
-  gp_Dir rd = e.rayDir.toDir();
-  if (dragging_) {
-    gp_Trsf d;
-    double snap = (e.modifiers & core::ModShift) ? (Triad::isRotation(triad_.activeHandle()) ? 15.0 : 1.0) : 0.0;
-    if (triad_.dragTo(ro, rd, d, snap)) {
-      // incremental: the triad was rebuilt at the drag start, so d is relative to the start of this drag
-      gp_Trsf total = d.Multiplied(dragBase_);
-      applyDelta(ctx, total);
-    }
-    return true;
+void MoveComponentTool::onTriadEvent(ToolContext& ctx, const core::ManipulatorEvent& e) {
+  using core::ManipulatorPhase;
+  if (components_.empty()) return;
+  switch (e.phase) {
+    case ManipulatorPhase::Hover:
+    case ManipulatorPhase::Leave: return;
+    case ManipulatorPhase::DragBegin:
+      dragging_ = true;
+      activeHandle_ = e.handle;
+      dragBase_ = delta_;
+      ctx.selection->setEnabled(false);
+      return;
+    case ManipulatorPhase::Drag:
+      // the triad sits at the start-of-drag frame, so the transform is relative to dragBase_
+      activeHandle_ = e.handle;
+      applyDelta(ctx, e.transform.Multiplied(dragBase_));
+      return;
+    case ManipulatorPhase::DragEnd:
+    case ManipulatorPhase::DragCancel:
+      if (e.phase == ManipulatorPhase::DragEnd) applyDelta(ctx, e.transform.Multiplied(dragBase_));
+      else applyDelta(ctx, dragBase_);
+      dragging_ = false;
+      activeHandle_ = core::ManipulatorHandle::None;
+      ctx.selection->setEnabled(true);
+      // move the triad with the component and remember the accumulated delta
+      dragBase_ = delta_;
+      moveTriadToCurrent(ctx);
+      return;
   }
-  double tol = ctx.viewer ? kHitPixels * ctx.viewer->pixelSize(triad_.frame().Location()) : 2.0;
-  Triad::Handle h = triad_.hit(ro, rd, tol);
-  if (h != hovered_) {
-    hovered_ = h;
-    drawTriad(ctx, h);
-    if (ctx.viewer) ctx.viewer->setCursor(h == Triad::Handle::None ? core::CursorShape::Arrow : core::CursorShape::Hand);
-  }
-  return h != Triad::Handle::None;
-}
-
-bool MoveComponentTool::mouseRelease(ToolContext& ctx, const core::ViewerMouseEvent& e) {
-  if (!dragging_ || e.button != core::MouseButton::Left) return false;
-  dragging_ = false;
-  triad_.endDrag();
-  if (ctx.viewer) ctx.viewer->setSelectionEnabled(true);
-  ctx.selection->setEnabled(true);
-  // move the triad with the component and remember the accumulated delta
-  dragBase_ = delta_;
-  moveTriadToCurrent(ctx);
-  return true;
 }
 
 void MoveComponentTool::applyDelta(ToolContext& ctx, const gp_Trsf& delta) {
@@ -291,11 +279,12 @@ void MoveComponentTool::applyJointDrive(ToolContext& ctx, const gp_Trsf& newWorl
   JointValues q = AssemblySolver::currentValues(sj, newWorldA, doc.worldPlacement(sj.compB));
   JointValues cur = joint_->values();
   // only the DOF the handle drives changes; keep the others
-  Triad::Handle h = triad_.activeHandle();
+  const core::ManipulatorHandle h = activeHandle_;
   const auto& dofs = jointDofs(joint_->jointType());
   for (size_t i = 0; i < dofs.size(); ++i) {
     bool rot = dofs[i].kind == DofKind::Rotation;
-    bool matches = h == Triad::Handle::None || (rot && Triad::isRotation(h)) || (!rot && (Triad::isMove(h) || Triad::isPlane(h)));
+    bool matches = h == core::ManipulatorHandle::None || (rot && core::isRotationHandle(h)) ||
+                   (!rot && (core::isMoveHandle(h) || core::isPlaneHandle(h)));
     if (matches) cur[i] = q[i];
   }
   if (joint_->limitsEnabled()) cur[0] = joint_->clampToLimits(cur[0]);
@@ -333,6 +322,7 @@ bool MoveComponentTool::commandLineInput(ToolContext& ctx, const std::string& te
       joint_->setPrimaryValue(a);
       ctx.document->notifyFeatureChanged(joint_->id());
       ctx.document->recompute();
+      moveTriadToCurrent(ctx);
       syncDialog();
     } else {
       setTransform(ctx, values_[0], values_[1], values_[2], values_[3], values_[4], a);
@@ -355,6 +345,7 @@ bool MoveComponentTool::commandLineInput(ToolContext& ctx, const std::string& te
     joint_->setPrimaryValue(v[0]);
     ctx.document->notifyFeatureChanged(joint_->id());
     ctx.document->recompute();
+    moveTriadToCurrent(ctx);
     syncDialog();
     return true;
   }
@@ -412,7 +403,7 @@ QWidget* MoveComponentTool::createDialog(ToolContext& ctx, QWidget* parent) {
     edits_[i] = new ExpressionEdit(ctx.document, i < 3 ? core::Dimension::Length() : core::Dimension::Angle(), w);
     edits_[i]->setValue(values_[i]);
     QObject::connect(edits_[i], &ExpressionEdit::valueChanged, this, [this](double) {
-      if (!ctx_ || syncing_ || components_.empty()) return;
+      if (!ctx_ || syncing_ || components_.empty() || dragging_) return;
       setTransform(*ctx_, edits_[0]->value(), edits_[1]->value(), edits_[2]->value(), edits_[3]->value(), edits_[4]->value(),
                    edits_[5]->value());
     });

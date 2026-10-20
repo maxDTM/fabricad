@@ -32,9 +32,6 @@ class MoveComponentTool : public QObject, public core::ToolBase {
   void deactivate(core::ToolContext& ctx) override;
   void accept(core::ToolContext& ctx) override;
   void cancel(core::ToolContext& ctx) override;
-  bool mousePress(core::ToolContext& ctx, const core::ViewerMouseEvent& e) override;
-  bool mouseMove(core::ToolContext& ctx, const core::ViewerMouseEvent& e) override;
-  bool mouseRelease(core::ToolContext& ctx, const core::ViewerMouseEvent& e) override;
   void selectionChanged(core::ToolContext& ctx) override;
   bool commandLineInput(core::ToolContext& ctx, const std::string& text) override;
   QWidget* createDialog(core::ToolContext& ctx, QWidget* parent) override;
@@ -51,11 +48,16 @@ class MoveComponentTool : public QObject, public core::ToolBase {
   /// The joint that constrains the moved component (nullptr for free move).
   const JointFeature* constrainingJoint() const { return joint_; }
   bool isDragging() const { return dragging_; }
+  /// The viewer manipulator (core::ManipulatorKind::Triad) that drives this tool; kInvalidManipulator without a target.
+  core::ManipulatorId manipulatorId() const { return triadId_; }
+  /// Gizmo event -> placement/joint value (public so scripts/tests can feed events).
+  void onTriadEvent(core::ToolContext& ctx, const core::ManipulatorEvent& e);
 
  private:
   void setupTriad(core::ToolContext& ctx);
   void moveTriadToCurrent(core::ToolContext& ctx);
-  void drawTriad(core::ToolContext& ctx, Triad::Handle hovered);
+  void showTriad(core::ToolContext& ctx);
+  core::ManipulatorSpec triadSpec() const;
   void applyJointDrive(core::ToolContext& ctx, const gp_Trsf& newWorldA);
   void syncDialog();
 
@@ -65,10 +67,10 @@ class MoveComponentTool : public QObject, public core::ToolBase {
   gp_Trsf delta_;      ///< accumulated delta since activation (world)
   gp_Trsf dragBase_;   ///< delta_ at the start of the current drag
   gp_Ax3 baseFrame_;   ///< triad frame before any move
-  Triad triad_;
+  Triad triad_;        ///< frame + enabled handles (geometry reference for scripts/tests)
+  core::ManipulatorId triadId_ = core::kInvalidManipulator;
   bool dragging_ = false;
-  Triad::Handle hovered_ = Triad::Handle::None;
-  std::vector<core::PreviewHandle> previews_;
+  core::ManipulatorHandle activeHandle_ = core::ManipulatorHandle::None;
   JointFeature* joint_ = nullptr;
   QJsonObject jointBefore_;
   double jointValueStart_ = 0.0;

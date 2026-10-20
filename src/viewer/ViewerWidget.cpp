@@ -8,6 +8,8 @@
 #include "core/Selection.h"
 #include "core/ShapeUtils.h"
 #include "core/Tool.h"
+#include "core/Units.h"
+#include "viewer/ManipulatorPrs.h"
 #include "viewer/PrimitivePrs.h"
 #include "viewer/TopoHelpers.h"
 #include "viewer/occt/OcctQtTools.h"
@@ -170,6 +172,13 @@ struct ViewerWidget::Impl {
   PreviewHandle nextPreview = kFirstGlPreview;
   std::vector<Handle(AIS_InteractiveObject)> overlays;
 
+  struct ManipObj {
+    Handle(ManipulatorPrs) prs;
+    Handle(AIS_TextLabel) label;
+    double pixelSize = 0.0;  ///< pixel size the glyphs were built with (auto-sized gizmos)
+  };
+  std::map<core::ManipulatorId, ManipObj> manips;
+
   Handle(Graphic3d_Camera) home;
 
   bool ready() const { return view && view->isReady(); }
@@ -206,6 +215,7 @@ ViewerWidget::ViewerWidget(QWidget* parent) : QWidget(parent), d_(std::make_uniq
   auto* lay = new QVBoxLayout(this);
   lay->setContentsMargins(0, 0, 0, 0);
   d_->listener = std::make_unique<ViewerListener>(this);
+  manipulators_.setChangeListener([this] { syncManipulatorPrs(); });
 }
 
 ViewerWidget::~ViewerWidget() {
@@ -1009,12 +1019,21 @@ Qt::MouseButtons ViewerWidget::onMousePress(QMouseEvent* e) {
     return Qt::MiddleButton | Qt::LeftButton;
   }
   if (e->button() == Qt::LeftButton) {
-    core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::Left, true);
     leftDown_ = true;
     rubber_ = false;
     suppressRelease_ = false;
     pressPos_ = e->position().toPoint();
     rubberEnd_ = pressPos_;
+    // manipulators grab the pointer ahead of tools and selection
+    if (manipulatorPress(pressPos_.x(), pressPos_.y(), modifiersOf(e->modifiers()))) {
+      leftConsumed_ = true;
+      if (hoverRef_ && document_) {
+        hoverRef_.reset();
+        document_->selection().setPreselection(std::nullopt);
+      }
+      return Qt::MiddleButton;
+    }
+    core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::Left, true);
     leftConsumed_ = manager_ && manager_->mousePress(ev);
   } else if (e->button() == Qt::RightButton) {
     core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::Right, true);
@@ -1035,10 +1054,19 @@ Qt::MouseButtons ViewerWidget::onMouseMove(QMouseEvent* e) {
     return Qt::MiddleButton;
   }
   navigating_ = false;
-  core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::None, !rubber_);
+  const QPoint pos = e->position().toPoint();
+  if (manipulators_.isDragging()) {
+    manipulatorMove(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+    return Qt::MiddleButton;
+  }
+  const bool onGizmo = !rubber_ && !leftDown_ && manipulatorMove(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+  if (onGizmo != gizmoCursor_) {
+    gizmoCursor_ = onGizmo;
+    setCursor(onGizmo ? core::CursorShape::Hand : core::CursorShape::Arrow);
+  }
+  core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::None, !rubber_ && !onGizmo);
   if (manager_) manager_->mouseMove(ev);
   if (!rubber_) updateHover(ev);
-  const QPoint pos = e->position().toPoint();
   if (leftDown_ && !leftConsumed_) {
     const QPoint dlt = pos - pressPos_;
     if (!rubber_ && exceedsDragThreshold(dlt.x(), dlt.y())) rubber_ = true;
@@ -1064,6 +1092,15 @@ Qt::MouseButtons ViewerWidget::onMouseRelease(QMouseEvent* e) {
     return Qt::MiddleButton;
   }
   const QPoint pos = e->position().toPoint();
+  if (e->button() == Qt::LeftButton && manipulators_.isDragging()) {
+    manipulatorRelease(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+    leftDown_ = false;
+    leftConsumed_ = false;
+    rubber_ = false;
+    suppressRelease_ = false;
+    requestRedraw();
+    return Qt::MiddleButton;
+  }
   if (e->button() == Qt::LeftButton) {
     core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::Left, !rubber_);
     const bool consumed = (manager_ && manager_->mouseRelease(ev)) || leftConsumed_;
@@ -1136,6 +1173,11 @@ void ViewerWidget::onMouseDoubleClick(QMouseEvent* e) {
 double ViewerWidget::onWheel(QWheelEvent*) { return reverseZoom_ ? -1.0 : 1.0; }
 
 void ViewerWidget::onLeave() {
+  manipulators_.leave();
+  if (gizmoCursor_) {
+    gizmoCursor_ = false;
+    setCursor(core::CursorShape::Arrow);
+  }
   if (hoverRef_ && document_) {
     hoverRef_.reset();
     document_->selection().setPreselection(std::nullopt);
@@ -1208,7 +1250,10 @@ void ViewerWidget::paintEvent(QPaintEvent*) {
   }
 }
 
-void ViewerWidget::beforeRedraw() { updateGrid(false); }
+void ViewerWidget::beforeRedraw() {
+  updateGrid(false);
+  refreshManipulatorSizes();
+}
 
 void ViewerWidget::paintOverlay(QPainter& p) {
   if (!rubber_) return;
@@ -1391,6 +1436,114 @@ void ViewerWidget::setHighlighted(const std::vector<ShapeRef>& refs) {
   null_.setHighlighted(refs);
   highlighted_ = refs;
   scheduleOverlaySync();
+}
+
+// ---------------------------------------------------------------------------------------
+// manipulators
+// ---------------------------------------------------------------------------------------
+
+core::ManipulatorId ViewerWidget::showManipulator(const core::ManipulatorSpec& spec, core::ManipulatorCallback callback) {
+  return manipulators_.add(spec, std::move(callback));  // the change listener builds the presentation
+}
+
+void ViewerWidget::updateManipulator(core::ManipulatorId id, const core::ManipulatorSpec& spec) { manipulators_.update(id, spec); }
+void ViewerWidget::setManipulatorValue(core::ManipulatorId id, double value) { manipulators_.setValue(id, value); }
+void ViewerWidget::removeManipulator(core::ManipulatorId id) { manipulators_.remove(id); }
+void ViewerWidget::clearManipulators() { manipulators_.clear(); }
+
+std::string ViewerWidget::manipulatorValueText(const core::ManipulatorModel& m, core::ManipulatorHandle highlight) const {
+  using core::ManipulatorKind;
+  const core::ManipulatorSpec& s = m.spec();
+  if (!s.showValue || highlight == core::ManipulatorHandle::None) return {};
+  bool angular = s.kind == ManipulatorKind::Angular;
+  double v = s.value;
+  if (s.kind == ManipulatorKind::Triad) {
+    if (!m.isDragging()) return {};
+    angular = core::isRotationHandle(highlight);
+    v = m.dragAmount();
+  } else if (s.kind == ManipulatorKind::Point) {
+    return s.label;
+  }
+  std::string text;
+  if (angular) {
+    text = std::format("{:.4g}°", std::round(v * 1000.0) / 1000.0);
+  } else if (document_) {
+    text = core::formatQuantity(core::Quantity{v, core::Dimension::Length()}, document_->units());
+  } else {
+    text = std::format("{:.4g} mm", std::round(v * 1000.0) / 1000.0);
+  }
+  return s.label.empty() ? text : s.label + ": " + text;
+}
+
+void ViewerWidget::syncManipulatorPrs() {
+  if (!d_->ready()) return;
+  const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+  for (auto it = d_->manips.begin(); it != d_->manips.end();) {
+    if (manipulators_.has(it->first)) {
+      ++it;
+      continue;
+    }
+    if (!it->second.prs.IsNull()) ctx->Remove(it->second.prs, false);
+    if (!it->second.label.IsNull()) ctx->Remove(it->second.label, false);
+    it = d_->manips.erase(it);
+  }
+  for (core::ManipulatorId id : manipulators_.ids()) {
+    const core::ManipulatorModel* m = manipulators_.model(id);
+    if (!m) continue;
+    Impl::ManipObj& obj = d_->manips[id];
+    const double ps = pixelSize(m->spec().frame.Location());
+    obj.pixelSize = ps;
+    const core::ManipulatorHandle hl = manipulators_.highlightFor(id);
+    std::vector<core::ManipulatorGlyph> glyphs = m->glyphs(ps, hl);
+    if (obj.prs.IsNull()) {
+      obj.prs = new ManipulatorPrs();
+      obj.prs->setGlyphs(std::move(glyphs));
+      ctx->Display(obj.prs, 0, -1, false);
+      ctx->SetZLayer(obj.prs, Graphic3d_ZLayerId_Topmost);
+    } else {
+      obj.prs->setGlyphs(std::move(glyphs));
+      ctx->Redisplay(obj.prs, false);
+    }
+    const std::string text = manipulatorValueText(*m, hl);
+    if (text.empty()) {
+      if (!obj.label.IsNull()) {
+        ctx->Remove(obj.label, false);
+        obj.label.Nullify();
+      }
+      continue;
+    }
+    const gp_Pnt at = m->handlePoint(hl, ps).Translated(gp_Vec(upDirection()) * (14.0 * ps));
+    if (obj.label.IsNull()) {
+      obj.label = new AIS_TextLabel();
+      obj.label->SetHeight(13.0);
+      obj.label->SetColor(hexq("#1A1A1A"));
+      obj.label->SetZoomable(false);
+      obj.label->SetDisplayType(Aspect_TODT_SUBTITLE);
+      obj.label->SetColorSubTitle(hexq("#FFF4C2"));
+      obj.label->SetText(TCollection_ExtendedString(text.c_str(), true));
+      obj.label->SetPosition(at);
+      ctx->Display(obj.label, 0, -1, false);
+      ctx->SetZLayer(obj.label, Graphic3d_ZLayerId_Topmost);
+    } else {
+      obj.label->SetText(TCollection_ExtendedString(text.c_str(), true));
+      obj.label->SetPosition(at);
+      ctx->Redisplay(obj.label, false);
+    }
+  }
+  requestRedraw();
+}
+
+void ViewerWidget::refreshManipulatorSizes() {
+  if (!d_->ready() || d_->manips.empty()) return;
+  for (const auto& [id, obj] : d_->manips) {
+    const core::ManipulatorModel* m = manipulators_.model(id);
+    if (!m || m->spec().size > 0) continue;
+    const double ps = pixelSize(m->spec().frame.Location());
+    if (obj.pixelSize <= 0 || std::abs(ps - obj.pixelSize) > 0.02 * obj.pixelSize) {
+      syncManipulatorPrs();
+      return;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------------------
