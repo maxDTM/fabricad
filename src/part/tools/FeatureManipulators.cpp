@@ -5,11 +5,14 @@
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
 #include "part/PartFeature.h"
+#include "part/ExtraUtils.h"
 #include "part/PartUtils.h"
+#include "part/features/BodyOps.h"
 #include "part/features/Construction.h"
 #include "part/features/Extrude.h"
 #include "part/features/Fillet.h"
 #include "part/features/Hole.h"
+#include "part/features/Primitives.h"
 #include "part/features/Revolve.h"
 #include "part/features/Shell.h"
 
@@ -19,6 +22,8 @@
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <ShapeAnalysis_Surface.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
@@ -291,10 +296,147 @@ std::vector<ManipulatorBinding> holeManipulators(PartFeature& f, core::Recompute
   return out;
 }
 
+// --- Primitives (round 2): placed on a plane at x/y; height along the normal, diameters radial ---
+
+std::optional<gp_Ax3> primitiveFrame(PartFeature& f, core::RecomputeContext& ctx) {
+  std::optional<gp_Ax3> plane = resolvePlaneInput(ctx, f.prop("plane"));
+  if (!plane) return std::nullopt;
+  gp_Ax3 frame = *plane;
+  frame.Translate(gp_Vec(plane->XDirection()) * f.length("x") + gp_Vec(plane->YDirection()) * f.length("y"));
+  return frame;
+}
+
+/// Height arrow of a Box / Cylinder / Coil: from the placement point along the normal (negative
+/// heights go to the other side); symmetric primitives show half the height, like Extrude.
+void addHeightArrow(std::vector<ManipulatorBinding>& out, PartFeature& f, const gp_Ax3& frame, bool symmetric) {
+  const double h = f.length("height");
+  ManipulatorSpec s = linear(frame.Location(), frame.Direction(), symmetric ? std::abs(h) / 2 : h, "Height");
+  if (symmetric) s.minValue = 0.0;
+  out.push_back({"height", s, symmetric ? 0.5 : 1.0});
+}
+
+/// Diameter arrow: radial along the frame X from the centre; the handle sits on the surface (radius).
+void addDiameterArrow(std::vector<ManipulatorBinding>& out, PartFeature& f, const gp_Ax3& frame, const std::string& prop,
+                      const std::string& label, double alongNormal = 0.0) {
+  gp_Pnt origin = frame.Location().Translated(gp_Vec(frame.Direction()) * alongNormal);
+  ManipulatorSpec s = linear(origin, frame.XDirection(), f.length(prop) / 2, label);
+  s.minValue = 0.0;
+  out.push_back({prop, s, 0.5});
+}
+
+std::vector<ManipulatorBinding> boxManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  if (auto frame = primitiveFrame(f, ctx)) addHeightArrow(out, f, *frame, f.enumIndex("direction") == PrimitiveFeature::Symmetric);
+  return out;
+}
+
+std::vector<ManipulatorBinding> cylinderManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  if (auto frame = primitiveFrame(f, ctx)) {
+    const bool sym = f.enumIndex("direction") == PrimitiveFeature::Symmetric;
+    addHeightArrow(out, f, *frame, sym);
+    const double h = f.length("height");
+    // diameter arrow at the base of the cylinder (or the mid plane when symmetric)
+    addDiameterArrow(out, f, *frame, "diameter", "Diameter", sym ? 0.0 : std::min(0.0, h));
+  }
+  return out;
+}
+
+std::vector<ManipulatorBinding> sphereManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  if (auto frame = primitiveFrame(f, ctx)) addDiameterArrow(out, f, *frame, "diameter", "Diameter");
+  return out;
+}
+
+std::vector<ManipulatorBinding> torusManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  if (auto frame = primitiveFrame(f, ctx)) {
+    addDiameterArrow(out, f, *frame, "majorDiameter", "Diameter");
+    // the ring's own diameter: an arrow from the centre line of the ring outwards along X
+    gp_Pnt ring = frame->Location().Translated(gp_Vec(frame->XDirection()) * (f.length("majorDiameter") / 2));
+    ManipulatorSpec s = linear(ring, frame->XDirection(), f.length("minorDiameter") / 2, "Torus diameter");
+    s.minValue = 0.0;
+    out.push_back({"minorDiameter", s, 0.5});
+  }
+  return out;
+}
+
+std::vector<ManipulatorBinding> coilManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  if (auto frame = primitiveFrame(f, ctx)) {
+    addDiameterArrow(out, f, *frame, "diameter", "Diameter");
+    if (f.enumIndex("coilType") != CoilFeature::RevolutionPitch) {
+      ManipulatorSpec s = linear(frame->Location(), frame->Direction(), f.length("height"), "Height");
+      s.minValue = 0.0;
+      out.push_back({"height", s, 1.0});
+    }
+  }
+  return out;
+}
+
+// --- Thicken / Rib (round 2) -------------------------------------------------------------------------
+
+std::vector<ManipulatorBinding> thickenManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  const auto& refs = f.prop("faces").refs();
+  if (refs.empty()) return out;
+  core::ShapeRef ref = refs.front();
+  TopoDS_Shape face = ctx.resolve(ref);
+  if (face.IsNull()) return out;
+  auto n = faceNormal(face);
+  if (!n) return out;
+  GProp_GProps props;
+  BRepGProp::SurfaceProperties(face, props);
+  const bool sym = f.enumIndex("direction") == ThickenFeature::Symmetric;
+  const double t = f.length("thickness");
+  ManipulatorSpec s = linear(props.CentreOfMass(), *n, sym ? std::abs(t) / 2 : t, "Thickness");
+  if (sym) s.minValue = 0.0;
+  out.push_back({"thickness", s, sym ? 0.5 : 1.0});
+  return out;
+}
+
+std::vector<ManipulatorBinding> ribManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn&) {
+  std::vector<ManipulatorBinding> out;
+  const auto& refs = f.prop("curves").refs();
+  if (refs.empty()) return out;
+  core::ShapeRef ref = refs.front();
+  std::optional<gp_Dir> normal;
+  if (f.ref("plane").isValid())
+    if (auto pl = resolvePlaneInput(ctx, f.prop("plane"))) normal = pl->Direction();
+  if (!normal && ref.kind == core::ShapeKind::SketchCurve)
+    if (const core::IProfileSource* ps = ctx.profileSource(ref)) normal = ps->sketchPlane().Direction();
+  if (!normal) return out;
+  TopoDS_Shape edge;
+  if (ref.kind == core::ShapeKind::SketchCurve) {
+    if (const core::IProfileSource* ps = ctx.profileSource(ref)) edge = ps->curveEdge(ref.index);
+  } else {
+    edge = ctx.resolve(ref);
+  }
+  if (edge.IsNull() || edge.ShapeType() != TopAbs_EDGE) return out;
+  BRepAdaptor_Curve c(TopoDS::Edge(edge));
+  const gp_Pnt mid = c.Value(0.5 * (c.FirstParameter() + c.LastParameter()));
+  const int tt = f.enumIndex("thicknessType");
+  const double t = f.length("thickness");
+  gp_Dir dir = *normal;
+  if (tt == RibFeature::OtherSide) dir.Reverse();
+  const bool sym = tt == RibFeature::Symmetric;
+  ManipulatorSpec s = linear(mid, dir, sym ? t / 2 : t, "Thickness");
+  s.minValue = 0.0;
+  out.push_back({"thickness", s, sym ? 0.5 : 1.0});
+  return out;
+}
+
 void installBuiltins() {
   static std::once_flag once;
   std::call_once(once, [] {
     auto& m = providers();
+    m.emplace(BoxFeature::kType, boxManipulators);
+    m.emplace(CylinderFeature::kType, cylinderManipulators);
+    m.emplace(SphereFeature::kType, sphereManipulators);
+    m.emplace(TorusFeature::kType, torusManipulators);
+    m.emplace(CoilFeature::kType, coilManipulators);
+    m.emplace(ThickenFeature::kType, thickenManipulators);
+    m.emplace(RibFeature::kType, ribManipulators);
     m.emplace(ExtrudeFeature::kType, extrudeManipulators);
     m.emplace(RevolveFeature::kType, revolveManipulators);
     m.emplace(FilletFeature::kType, filletManipulators);

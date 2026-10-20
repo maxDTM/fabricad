@@ -3,6 +3,7 @@
 #include "part/tools/FeatureValueBox.h"
 
 #include "core/Document.h"
+#include "core/Manipulator.h"
 #include "core/Property.h"
 #include "core/ViewerContext.h"
 #include "part/tools/FeatureTool.h"
@@ -12,13 +13,24 @@
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
 #include <QWidget>
+#include <gp_Pnt.hxx>
 
 namespace fabricad::part {
 
 namespace {
 
-/// Centre of the bounding box of the preview shapes (or the edited feature's solid).
-std::optional<core::Vec3> anchorFor(const FeatureTool& tool) {
+/// The value box sits at the tip of the manipulator arrow that drives the same property (Fusion
+/// shows the value next to the handle); without a gizmo, at the centre of the bounding box of the
+/// preview shapes (or the edited feature's solid).
+std::optional<core::Vec3> anchorFor(const FeatureTool& tool, core::ToolContext& ctx, const std::string& prop) {
+  if (ctx.viewer) {
+    if (const FeatureTool::ManipulatorLink* link = tool.manipulatorFor(prop); link && ctx.viewer->manipulators().has(link->id)) {
+      if (const core::ManipulatorModel* m = ctx.viewer->manipulators().model(link->id)) {
+        const gp_Pnt tip = m->handlePoint(core::ManipulatorHandle::None, ctx.viewer->pixelSize(m->spec().frame.Location()));
+        return core::Vec3{tip.X(), tip.Y(), tip.Z()};
+      }
+    }
+  }
   Bnd_Box box;
   for (const auto& pv : tool.lastOutcome().previews)
     if (!pv.shape.IsNull()) BRepBndLib::Add(pv.shape, box, false);
@@ -60,7 +72,6 @@ FeatureValueBox::~FeatureValueBox() {
 }
 
 void FeatureValueBox::update(core::ToolContext& ctx) {
-  (void)ctx;
   PartFeature* f = tool_.feature();
   std::string name = f ? f->primaryNumeric() : std::string();
   const core::Property* p = (f && !name.empty()) ? f->property(name) : nullptr;
@@ -80,7 +91,7 @@ void FeatureValueBox::update(core::ToolContext& ctx) {
     model_.addField(sketch::ValueField{.id = name, .label = p->label(), .kind = kind});
   }
   model_.setMeasured(prop_, p->toDouble());
-  if (auto a = anchorFor(tool_)) model_.setAnchor(prop_, *a);
+  if (auto a = anchorFor(tool_, ctx, prop_)) model_.setAnchor(prop_, *a);
 }
 
 void FeatureValueBox::applyTyped(core::ToolContext& ctx) {
