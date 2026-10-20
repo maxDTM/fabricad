@@ -5,6 +5,49 @@
 
 namespace fabricad::core {
 
+// ---------------------------------------------------------------------------
+// IViewerContext: manipulator pointer routing
+// ---------------------------------------------------------------------------
+
+namespace {
+ManipulatorController::PixelSizeFn pixelSizeFn(const IViewerContext& v) {
+  return [&v](const gp_Pnt& at) { return v.pixelSize(at); };
+}
+}  // namespace
+
+bool IViewerContext::manipulatorPress(int x, int y, int modifiers) {
+  ManipulatorController& c = manipulators();
+  if (c.count() == 0) return false;
+  gp_Pnt o;
+  gp_Dir d;
+  if (!screenRay(x, y, o, d)) return false;
+  return c.press(o, d, modifiers, pixelSizeFn(*this));
+}
+
+bool IViewerContext::manipulatorMove(int x, int y, int modifiers) {
+  ManipulatorController& c = manipulators();
+  if (c.count() == 0 && !c.isDragging()) return false;
+  gp_Pnt o;
+  gp_Dir d;
+  if (!screenRay(x, y, o, d)) return false;
+  return c.move(o, d, modifiers, pixelSizeFn(*this));
+}
+
+bool IViewerContext::manipulatorRelease(int x, int y, int modifiers) {
+  ManipulatorController& c = manipulators();
+  if (!c.isDragging()) return false;
+  gp_Pnt o;
+  gp_Dir d;
+  if (!screenRay(x, y, o, d)) return false;
+  return c.release(o, d, modifiers, pixelSizeFn(*this));
+}
+
+void IViewerContext::manipulatorCancel() { manipulators().cancelDrag(); }
+
+// ---------------------------------------------------------------------------
+// NullViewerContext
+// ---------------------------------------------------------------------------
+
 PreviewHandle NullViewerContext::showPreviewShape(const TopoDS_Shape& shape, const PreviewStyle& style) {
   PreviewHandle h = nextHandle_++;
   previews_[h] = PreviewItem{"shape", shape, {}, {}, style};

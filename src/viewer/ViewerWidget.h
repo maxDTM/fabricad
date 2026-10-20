@@ -145,6 +145,14 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void setCursor(core::CursorShape shape) override;
   void requestRedraw() override;
   QWidget* widget() override { return this; }
+  // manipulators: the headless controller does hit testing / drags; ManipulatorPrs draws them
+  core::ManipulatorId showManipulator(const core::ManipulatorSpec& spec, core::ManipulatorCallback callback) override;
+  void updateManipulator(core::ManipulatorId id, const core::ManipulatorSpec& spec) override;
+  void setManipulatorValue(core::ManipulatorId id, double value) override;
+  void removeManipulator(core::ManipulatorId id) override;
+  void clearManipulators() override;
+  using core::IViewerContext::manipulators;
+  core::ManipulatorController& manipulators() override { return manipulators_; }
 
  signals:
   /// RMB click/gesture not consumed by a tool. `dragged`: RMB was dragged before release
@@ -195,6 +203,11 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void rectangleSelect(QPoint a, QPoint b, int modifiers);
   void updateHover(const core::ViewerMouseEvent& ev);
   void updateGrid(bool force);
+  /// Rebuild the AIS presentations of all manipulators from the controller state.
+  void syncManipulatorPrs();
+  /// Auto-sized gizmos follow the zoom level: rebuild those whose pixel size changed.
+  void refreshManipulatorSizes();
+  std::string manipulatorValueText(const core::ManipulatorModel& m, core::ManipulatorHandle highlight) const;
 
   fabricad::core::Document* document_ = nullptr;
   fabricad::core::ToolManager* manager_ = nullptr;
@@ -227,6 +240,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
 
   std::vector<core::ShapeRef> highlighted_;
   std::optional<core::ShapeRef> hoverRef_;  ///< preselection the viewer itself set
+  core::ManipulatorController manipulators_;
+  bool gizmoCursor_ = false;  ///< the hand cursor is ours (a gizmo is hovered)
 
   // mouse state
   bool leftDown_ = false, leftConsumed_ = false, rubber_ = false, suppressRelease_ = false;

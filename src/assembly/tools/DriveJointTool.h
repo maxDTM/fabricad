@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include "core/Manipulator.h"
 #include "core/Tool.h"
 
 #include <QJsonObject>
@@ -41,13 +42,20 @@ class DriveJointTool : public QObject, public core::ToolBase {
   bool isAnimating() const { return timer_.isActive(); }
   /// One animation step (what the timer does); exposed for tests.
   void step(core::ToolContext& ctx);
+  /// On-canvas handle on the joint frame: a ring (rotation DOF) or an arrow (translation DOF)
+  /// that drives the primary value; kInvalidManipulator without a joint.
+  core::ManipulatorId manipulatorId() const { return manipId_; }
+  void onManipulatorEvent(core::ToolContext& ctx, const core::ManipulatorEvent& e);
 
  private:
   void syncDialog();
+  void showManipulator(core::ToolContext& ctx);
   void restore(core::ToolContext& ctx);
   std::vector<core::ObjectId> candidates(const core::Document& doc) const;
 
   JointFeature* joint_ = nullptr;
+  core::ManipulatorId manipId_ = core::kInvalidManipulator;
+  bool dragging_ = false;
   QJsonObject before_;
   double rangeMin_ = -180, rangeMax_ = 180;
   double speed_ = 1.0;     ///< units per step

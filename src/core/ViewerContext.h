@@ -18,6 +18,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include "core/Manipulator.h"
 #include "core/ShapeRef.h"
 #include "core/Types.h"
 
@@ -95,6 +96,32 @@ class IViewerContext {
   /// All pickable entities at a pixel (for "select other").
   virtual std::vector<ShapeRef> pickAll(int x, int y, ShapeKindMask kinds) = 0;
 
+  // --- on-canvas manipulators (core/Manipulator.h) ------------------------------
+  // A tool shows a gizmo bound to one of its values (extrude arrow, revolve ring, move
+  // triad). The viewer draws it, picks it ahead of selection, highlights it on hover and
+  // reports drags through the callback; the tool updates its value / preview from the
+  // events and calls setManipulatorValue() when the dialog changes the value. All
+  // manipulators are removed when the tool finishes (ToolManager calls clearManipulators()).
+  virtual ManipulatorId showManipulator(const ManipulatorSpec& spec, ManipulatorCallback callback) = 0;
+  /// Re-anchor / re-configure (frame, size, handles, limits). Keeps the value of a handle that is being dragged.
+  virtual void updateManipulator(ManipulatorId id, const ManipulatorSpec& spec) = 0;
+  /// Dialog -> gizmo sync. Ignored while that gizmo is being dragged.
+  virtual void setManipulatorValue(ManipulatorId id, double value) = 0;
+  virtual void removeManipulator(ManipulatorId id) = 0;
+  virtual void clearManipulators() = 0;
+  /// The headless interaction layer behind the gizmos (hover/drag state, models). Tests inspect it.
+  virtual ManipulatorController& manipulators() = 0;
+  const ManipulatorController& manipulators() const { return const_cast<IViewerContext*>(this)->manipulators(); }
+  /// Pointer routing for the gizmos in widget pixels, built on screenRay()/pixelSize(). Viewer
+  /// implementations call these before the active tool sees the event; headless tests drive
+  /// drags with them. Return true when the event was consumed (a handle is hovered/dragged).
+  bool manipulatorPress(int x, int y, int modifiers = 0);
+  bool manipulatorMove(int x, int y, int modifiers = 0);
+  bool manipulatorRelease(int x, int y, int modifiers = 0);
+  /// Esc while dragging: restore the value at DragBegin.
+  void manipulatorCancel();
+  bool isManipulatorDragging() const { return manipulators().isDragging(); }
+
   // --- sketch mode -------------------------------------------------------------
   /// Look at the plane, show the grid, restrict picking to sketch entities + bodies,
   /// and make ViewerMouseEvent::planePoint valid. Idempotent.
@@ -165,6 +192,14 @@ class NullViewerContext : public IViewerContext {
   void setSelectionEnabled(bool e) override { selectionEnabled_ = e; }
   bool pick(int, int, ShapeKindMask, ShapeRef&, gp_Pnt*) override { return false; }
   std::vector<ShapeRef> pickAll(int, int, ShapeKindMask) override { return {}; }
+  ManipulatorId showManipulator(const ManipulatorSpec& spec, ManipulatorCallback callback) override {
+    return manipulators_.add(spec, std::move(callback));
+  }
+  void updateManipulator(ManipulatorId id, const ManipulatorSpec& spec) override { manipulators_.update(id, spec); }
+  void setManipulatorValue(ManipulatorId id, double value) override { manipulators_.setValue(id, value); }
+  void removeManipulator(ManipulatorId id) override { manipulators_.remove(id); }
+  void clearManipulators() override { manipulators_.clear(); }
+  ManipulatorController& manipulators() override { return manipulators_; }
   void enterSketchMode(const gp_Ax3& plane, bool lookAt = true) override;
   void exitSketchMode() override { sketchMode_ = false; }
   bool inSketchMode() const override { return sketchMode_; }
@@ -205,6 +240,7 @@ class NullViewerContext : public IViewerContext {
  private:
   std::map<PreviewHandle, PreviewItem> previews_;
   PreviewHandle nextHandle_ = 1;
+  ManipulatorController manipulators_;
   std::vector<ShapeRef> highlighted_;
   ShapeKindMask filter_ = kAllKinds;
   bool selectionEnabled_ = true;

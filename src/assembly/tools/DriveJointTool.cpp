@@ -22,6 +22,8 @@
 #include <cmath>
 #include <format>
 
+#include <gp_Ax3.hxx>
+
 namespace fabricad::assembly {
 
 using core::Document;
@@ -85,7 +87,9 @@ void DriveJointTool::activate(ToolContext& ctx) {
 
 void DriveJointTool::deactivate(ToolContext& ctx) {
   timer_.stop();
-  (void)ctx;
+  if (ctx.viewer && manipId_ != core::kInvalidManipulator) ctx.viewer->removeManipulator(manipId_);
+  manipId_ = core::kInvalidManipulator;
+  dragging_ = false;
   ctx_ = nullptr;
   jointCombo_ = nullptr;
   slider_ = nullptr;
@@ -111,9 +115,62 @@ void DriveJointTool::setJoint(ToolContext& ctx, ObjectId jointId) {
     rangeMax_ = rot ? 180.0 : 100.0;
   }
   speed_ = (rangeMax_ - rangeMin_) / 120.0;
-  ctx.setPrompt(std::format("Drive '{}': drag the slider or type a value ({})", joint_->name(), dofs.empty() ? "" : dofs.front().label));
+  ctx.setPrompt(std::format("Drive '{}': drag the handle or the slider, or type a value ({})", joint_->name(),
+                            dofs.empty() ? "" : dofs.front().label));
   if (ctx.host) ctx.host->setToolAcceptEnabled(true);
+  showManipulator(ctx);
   syncDialog();
+}
+
+void DriveJointTool::showManipulator(ToolContext& ctx) {
+  if (!ctx.viewer || !joint_) return;
+  const auto& dofs = jointDofs(joint_->jointType());
+  if (dofs.empty()) return;
+  const DofInfo& dof = dofs.front();
+  const gp_Ax3 jf = gp_Ax3().Transformed(joint_->worldFrame(*ctx.document));
+  const gp_Dir axes[3] = {jf.XDirection(), jf.YDirection(), jf.Direction()};
+  const gp_Dir axis = axes[std::clamp(dof.axis, 0, 2)];
+  core::ManipulatorSpec s;
+  s.kind = dof.kind == DofKind::Rotation ? core::ManipulatorKind::Angular : core::ManipulatorKind::Linear;
+  // X direction of the gizmo frame: the joint axis that is not the DOF axis (angle 0 = joint rest pose)
+  const gp_Dir zero = dof.axis == 0 ? jf.YDirection() : jf.XDirection();
+  s.frame = gp_Ax3(jf.Location(), axis, zero);
+  s.value = value();
+  s.label = dof.label;
+  if (joint_->limitsEnabled()) {
+    s.minValue = rangeMin_;
+    s.maxValue = rangeMax_;
+  }
+  s.tag = 1;
+  if (manipId_ != core::kInvalidManipulator && ctx.viewer->manipulators().has(manipId_)) {
+    ctx.viewer->updateManipulator(manipId_, s);
+    return;
+  }
+  core::ToolContext* pctx = ctx.manager ? ctx.manager->activeContext() : nullptr;
+  if (!pctx) pctx = &ctx;
+  manipId_ = ctx.viewer->showManipulator(s, [this, pctx](const core::ManipulatorEvent& e) { onManipulatorEvent(*pctx, e); });
+}
+
+void DriveJointTool::onManipulatorEvent(ToolContext& ctx, const core::ManipulatorEvent& e) {
+  using core::ManipulatorPhase;
+  if (!joint_) return;
+  switch (e.phase) {
+    case ManipulatorPhase::Hover:
+    case ManipulatorPhase::Leave: return;
+    case ManipulatorPhase::DragBegin:
+      dragging_ = true;
+      timer_.stop();
+      if (animateButton_) animateButton_->setChecked(false);
+      return;
+    case ManipulatorPhase::Drag:
+      setValue(ctx, e.value);
+      return;
+    case ManipulatorPhase::DragEnd:
+    case ManipulatorPhase::DragCancel:
+      dragging_ = false;
+      setValue(ctx, e.value);
+      return;
+  }
 }
 
 double DriveJointTool::value() const { return joint_ ? joint_->primaryValue() : 0.0; }
@@ -123,6 +180,7 @@ void DriveJointTool::setValue(ToolContext& ctx, double v) {
   joint_->setPrimaryValue(v);
   ctx.document->notifyFeatureChanged(joint_->id());
   ctx.document->recompute();
+  if (ctx.viewer && manipId_ != core::kInvalidManipulator) ctx.viewer->setManipulatorValue(manipId_, value());
   syncDialog();
 }
 

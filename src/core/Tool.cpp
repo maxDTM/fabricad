@@ -335,6 +335,7 @@ void ToolManager::finishActive(bool accepted) {
   tool->deactivate(context_);
   if (viewer_) {
     viewer_->clearPreviews();
+    viewer_->clearManipulators();
     viewer_->setHighlighted({});
     viewer_->setCursor(CursorShape::Arrow);
     if (document_) viewer_->setSelectionFilter(kAllKinds);
@@ -364,6 +365,12 @@ bool ToolManager::mouseRelease(const ViewerMouseEvent& e) { return active_ ? act
 bool ToolManager::mouseDoubleClick(const ViewerMouseEvent& e) { return active_ ? active_->mouseDoubleClick(context_, e) : false; }
 
 bool ToolManager::keyPress(const ViewerKeyEvent& e) {
+  // Esc while a gizmo is being dragged aborts the drag only (the value returns to what it was
+  // at DragBegin); the command and its dialog stay open. A second Esc cancels the command.
+  if (e.key == Qt::Key_Escape && viewer_ && viewer_->isManipulatorDragging()) {
+    viewer_->manipulatorCancel();
+    return true;
+  }
   if (active_ && active_->keyPress(context_, e)) return true;
   return false;
 }

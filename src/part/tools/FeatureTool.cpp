@@ -6,15 +6,19 @@
 #include "core/Document.h"
 #include "core/Log.h"
 #include "core/Selection.h"
+#include "core/ShapeUtils.h"
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
 #include "part/Naming.h"
 #include "part/features/Extrude.h"
 #include "part/features/Fillet.h"
 #include "part/features/Shell.h"
+#include "part/PartUtils.h"
+#include "part/tools/FeatureManipulators.h"
 #include "part/tools/FeatureValueBox.h"
 #include "part/tools/PropertyPanel.h"
 
+#include <BRepAlgoAPI_Common.hxx>
 #include <Standard_Failure.hxx>
 
 #include <algorithm>
@@ -93,6 +97,9 @@ void FeatureTool::activate(core::ToolContext& ctx) {
   activeInput_.clear();
   previews_.clear();
   valueBox_.reset();
+  manipulators_.clear();
+  manipulatorDragging_ = false;
+  operationAuto_ = true;
   outcome_ = {};
   valid_ = false;
   message_.clear();
@@ -117,6 +124,7 @@ void FeatureTool::activate(core::ToolContext& ctx) {
     editing_ = f;
     before_ = f->toJson();
     f->updatePropertyFlags();
+    operationAuto_ = false;  // editing: the operation was chosen when the feature was made
     activeInput_ = f->primaryInput();
     // Roll the timeline marker just after the feature so every keystroke recomputes this
     // feature only; the downstream history is replayed once on OK / Cancel.
@@ -282,6 +290,127 @@ void FeatureTool::clearPreviews(core::ToolContext& ctx) {
   previews_.clear();
 }
 
+// ---------------------------------------------------------------------------
+// manipulators
+// ---------------------------------------------------------------------------
+
+const FeatureTool::ManipulatorLink* FeatureTool::manipulatorFor(const std::string& property) const {
+  for (const auto& l : manipulators_)
+    if (l.property == property) return &l;
+  return nullptr;
+}
+
+void FeatureTool::clearManipulators(core::ToolContext& ctx) {
+  if (ctx.viewer)
+    for (const auto& l : manipulators_) ctx.viewer->removeManipulator(l.id);
+  manipulators_.clear();
+  manipulatorDragging_ = false;
+}
+
+void FeatureTool::syncManipulators(core::ToolContext& ctx, core::RecomputeContext& rctx) {
+  PartFeature* f = feature();
+  if (!f || !ctx.viewer) return;
+  core::IViewerContext& viewer = *ctx.viewer;
+  PixelSizeFn pixelSize = [&viewer](const gp_Pnt& at) { return viewer.pixelSize(at); };
+  std::vector<ManipulatorBinding> bindings = manipulatorsFor(*f, rctx, pixelSize);
+  core::ToolContext* pctx = ctx.manager ? ctx.manager->activeContext() : nullptr;
+  if (!pctx) pctx = &ctx;
+  std::vector<ManipulatorLink> next;
+  for (ManipulatorBinding& b : bindings) {
+    ManipulatorLink link;
+    link.property = b.property;
+    link.scale = b.scale;
+    if (const ManipulatorLink* old = manipulatorFor(b.property); old && viewer.manipulators().has(old->id)) {
+      link.id = old->id;
+      viewer.updateManipulator(link.id, b.spec);
+    } else {
+      link.id = viewer.showManipulator(b.spec, [this, pctx](const core::ManipulatorEvent& e) { onManipulatorEvent(*pctx, e); });
+    }
+    next.push_back(link);
+  }
+  for (const auto& old : manipulators_) {
+    bool kept = false;
+    for (const auto& n : next)
+      if (n.id == old.id) kept = true;
+    if (!kept) viewer.removeManipulator(old.id);
+  }
+  manipulators_ = std::move(next);
+}
+
+void FeatureTool::onManipulatorEvent(core::ToolContext& ctx, const core::ManipulatorEvent& e) {
+  using core::ManipulatorPhase;
+  PartFeature* f = feature();
+  if (!f) return;
+  const ManipulatorLink* link = nullptr;
+  for (const auto& l : manipulators_)
+    if (l.id == e.id) link = &l;
+  if (!link) return;
+  switch (e.phase) {
+    case ManipulatorPhase::Hover:
+    case ManipulatorPhase::Leave: return;
+    case ManipulatorPhase::DragBegin:
+      manipulatorDragging_ = true;
+      if (ctx.selection) ctx.selection->setEnabled(false);
+      return;
+    case ManipulatorPhase::Drag:
+    case ManipulatorPhase::DragEnd:
+    case ManipulatorPhase::DragCancel: break;
+  }
+  core::Property* p = f->property(link->property);
+  const double scale = std::abs(link->scale) > 1e-12 ? link->scale : 1.0;
+  const double value = e.value / scale;
+  bool changed = false;
+  if (p && p->isNumeric() && (std::abs(p->toDouble() - value) > 1e-9 || !p->expression().empty())) {
+    p->setDouble(value);  // a drag replaces an expression with the dragged number (Fusion)
+    changed = true;
+  }
+  const bool ending = e.phase != ManipulatorPhase::Drag;
+  if (ending) {
+    manipulatorDragging_ = false;
+    if (ctx.selection) ctx.selection->setEnabled(true);
+  }
+  if (changed || ending) {
+    if (ending && !editing_) autoOperation(ctx);
+    updatePreview(ctx);
+    if (ending && panel_) panel_->refresh();
+  }
+}
+
+void FeatureTool::autoOperation(core::ToolContext& ctx) {
+  PartFeature* f = feature();
+  if (!f || !operationAuto_ || !ctx.document) return;
+  // Only Extrude: its arrow may be dragged into existing material (Offset Face reads Join/Cut
+  // from the sign of its distance itself).
+  if (f->type() != ExtrudeFeature::kType) return;
+  core::Property* op = f->property("operation");
+  if (!op || op->type() != core::PropertyType::Enum) return;
+  const Operation cur = operationFromIndex(op->toInt());
+  if (cur != Operation::Join && cur != Operation::Cut) return;
+  if (outcome_.tool.IsNull()) return;
+  // "Into material" = more than half of the tool solid lies inside existing bodies.
+  const double total = core::volume(outcome_.tool);
+  if (!(total > 1e-9)) return;
+  double inside = 0.0;
+  for (core::ObjectId id : ctx.document->liveBodies(true)) {
+    const TopoDS_Shape& body = ctx.document->bodyShape(id);
+    if (body.IsNull() || !shapesTouch(outcome_.tool, body)) continue;
+    try {
+      BRepAlgoAPI_Common common(outcome_.tool, body);
+      if (common.IsDone()) inside += core::volume(common.Shape());
+    } catch (const Standard_Failure&) {
+      // ignore: the body simply does not count as material
+    }
+  }
+  const bool intoMaterial = inside > 0.5 * total;
+  if (intoMaterial && cur == Operation::Join) {
+    op->setEnum("Cut");
+    if (panel_) panel_->rebuild();
+  } else if (!intoMaterial && cur == Operation::Cut) {
+    op->setEnum("Join");
+    if (panel_) panel_->rebuild();
+  }
+}
+
 void FeatureTool::updatePreview(core::ToolContext& ctx) {
   PartFeature* f = feature();
   if (!f || !ctx.document) return;
@@ -296,6 +425,12 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
     doc.recompute();
     valid_ = editing_->status() != core::FeatureStatus::Error;
     message_ = editing_->statusMessage();
+    if (ctx.viewer) {
+      // anchor the gizmos on the state before the edited feature (what its inputs refer to)
+      const int idx = doc.indexOf(editing_->id());
+      core::RecomputeContext rctx(doc, *editing_, doc.bodyStatesAfter(idx - 1));
+      syncManipulators(ctx, rctx);
+    }
   } else {
     core::RecomputeContext rctx(doc, *working_, doc.bodyStatesAfter(doc.rollbackIndex() - 1));
     try {
@@ -310,6 +445,7 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
     if (valid_ && ctx.viewer) {
       for (const auto& pv : outcome_.previews) previews_.push_back(ctx.viewer->showPreviewShape(pv.shape, styleFor(pv.operation)));
     }
+    if (ctx.viewer) syncManipulators(ctx, rctx);
   }
   if (ctx.host) ctx.host->setToolAcceptEnabled(valid_);
   if (panel_) {
@@ -385,6 +521,7 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
     if (p->isNumeric()) return setNumeric(ctx, name, value);
     if (p->type() == core::PropertyType::Enum) {
       p->setEnum(value);
+      if (name == "operation") operationAuto_ = false;  // the user chose: stop switching Join/Cut automatically
       updatePreview(ctx);
       if (panel_) panel_->rebuild();
       return true;
@@ -415,6 +552,7 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     if (!ff) return;
     const core::Property* p = ff->property(name);
     bool structural = p && p->type() == core::PropertyType::Enum;
+    if (name == "operation") operationAuto_ = false;  // the user chose: stop switching Join/Cut automatically
     updatePreview(*pctx);
     if (structural && panel_) panel_->rebuild();
   });
@@ -496,6 +634,7 @@ void FeatureTool::cancel(core::ToolContext& ctx) {
 void FeatureTool::deactivate(core::ToolContext& ctx) {
   valueBox_.reset();
   clearPreviews(ctx);
+  clearManipulators(ctx);
   if (editing_ && ctx.document) {
     // deactivated without accept (another tool started): behave like cancel
     editing_->fromJson(before_);
