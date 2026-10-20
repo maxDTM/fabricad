@@ -474,6 +474,11 @@ void BrowserTree::contextMenuEvent(QContextMenuEvent* e) {
       emit runToolRequested("assembly.paste");
     });
     paste->setEnabled(canPaste);
+    QAction* pasteNew = menu.addAction("Paste New\tCtrl+Shift+V", this, [this, id] {
+      doc_.setActiveComponent(id);  // paste into the clicked component
+      emit runToolRequested("assembly.paste-new");
+    });
+    pasteNew->setEnabled(canPaste);
     menu.addAction("Properties...", this, [this, id] { editComponentProperties(id); });
   }
   if (kind == KindBody) {

@@ -11,7 +11,13 @@
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <TopoDS.hxx>
+#include <gp_Pnt2d.hxx>
+
+#include <QJsonArray>
+
+#include <algorithm>
 
 #include <cmath>
 #include <format>
@@ -49,6 +55,51 @@ FilletFeature::FilletFeature() : PartFeature(kType) {
   addRefs("edges", kEdgeOrFace).setLabel("Edges").setTooltip("Edges to round (a face adds all of its edges)");
   addLength("radius", 2.0).setLabel("Radius");
   addBool("tangentChain", true).setLabel("Tangent chain").setTooltip("Fillets propagate along tangent-continuous edges");
+  addEnum("radiusType", {"Constant", "Variable"}, Constant).setLabel("Radius type");
+  addLength("endRadius", 4.0).setLabel("End radius").setTooltip("Variable: radius at the end of each edge chain (Radius = start)");
+  core::Property points("radiusPoints", core::PropertyType::Json);
+  points.setJson(QJsonArray());
+  points.setLabel("Intermediate radii");
+  points.setTooltip("Variable: [[position 0..1 along the chain, radius mm], ...] between start and end");
+  points.flags().hidden = true;
+  addProperty(std::move(points));
+  addBool("flipVariable", false).setLabel("Flip start/end").setTooltip("Variable: swap which end of the chain gets Radius");
+  updatePropertyFlags();
+}
+
+void FilletFeature::updatePropertyFlags() {
+  bool var = enumIndex("radiusType") == Variable;
+  prop("endRadius").flags().hidden = !var;
+  prop("flipVariable").flags().hidden = !var;
+}
+
+std::vector<std::pair<double, double>> FilletFeature::radiusLaw(double startRadius, double endRadius,
+                                                                const QJsonArray& points, bool flip, std::string* error) {
+  std::vector<std::pair<double, double>> law{{0.0, startRadius}};
+  for (const auto& v : points) {
+    QJsonArray a = v.toArray();
+    if (a.size() != 2) continue;
+    double t = a[0].toDouble(), r = a[1].toDouble();
+    if (t <= 1e-6 || t >= 1 - 1e-6) continue;  // the ends come from Radius / End radius
+    law.emplace_back(t, r);
+  }
+  law.emplace_back(1.0, endRadius);
+  std::stable_sort(law.begin(), law.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  for (size_t i = 1; i < law.size(); ++i)
+    if (law[i].first - law[i - 1].first < 1e-6) {
+      if (error) *error = "two intermediate radii at the same position";
+      return {};
+    }
+  for (const auto& [t, r] : law)
+    if (r <= 1e-9) {
+      if (error) *error = "all radii must be positive";
+      return {};
+    }
+  if (flip) {
+    for (auto& [t, r] : law) t = 1.0 - t;
+    std::reverse(law.begin(), law.end());
+  }
+  return law;
 }
 
 void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
@@ -56,6 +107,17 @@ void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   if (radius <= 1e-9) {
     ctx.setError("radius must be positive");
     return;
+  }
+  // older documents have no radiusType: constant
+  const bool variable = property("radiusType") && enumIndex("radiusType") == Variable;
+  std::vector<std::pair<double, double>> law;
+  if (variable) {
+    std::string err;
+    law = radiusLaw(radius, ctx.length("endRadius"), prop("radiusPoints").json().toArray(), flag("flipVariable"), &err);
+    if (law.empty()) {
+      ctx.setError(err);
+      return;
+    }
   }
   std::vector<ResolvedGroup> groups = resolveByBody(ctx, prop("edges").refs(), core::ShapeKind::Edge, true);
   if (groups.empty()) {
@@ -67,7 +129,30 @@ void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     if (g.shapes.empty()) continue;
     try {
       BRepFilletAPI_MakeFillet mk(g.bodyShape);
-      for (const auto& e : g.shapes) mk.Add(radius, TopoDS::Edge(e));
+      for (const auto& e : g.shapes) {
+        if (!variable) {
+          mk.Add(radius, TopoDS::Edge(e));
+          continue;
+        }
+        const TopoDS_Edge& edge = TopoDS::Edge(e);
+        if (mk.Contour(edge) > 0) continue;  // already part of a tangent chain
+        if (law.size() == 2) {
+          mk.Add(law.front().second, law.back().second, edge);  // linear along the whole chain
+          continue;
+        }
+        mk.Add(edge);
+        const int ic = mk.NbContours();
+        if (mk.NbEdges(ic) != 1) {
+          // intermediate points need a single-edge chain (edge parameters are per edge)
+          mk.Remove(edge);
+          mk.Add(law.front().second, law.back().second, edge);
+          ctx.setWarning("intermediate radii apply to single-edge chains only; a linear law was used");
+          continue;
+        }
+        TColgp_Array1OfPnt2d ur(1, static_cast<int>(law.size()));
+        for (size_t k = 0; k < law.size(); ++k) ur(static_cast<int>(k) + 1) = gp_Pnt2d(law[k].first, law[k].second);
+        mk.SetRadius(ur, ic, 1);
+      }
       mk.Build();
       if (!mk.IsDone()) {
         ctx.setError("fillet failed (radius too large for the geometry?)");

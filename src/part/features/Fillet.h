@@ -4,16 +4,29 @@
 
 #include "part/PartFeature.h"
 
+#include <utility>
+#include <vector>
+
+class QJsonArray;
+
 namespace fabricad::part {
 
-/// Constant-radius fillet on edges (selecting a face adds all its edges). Edges may belong
-/// to several bodies; each body is filleted separately.
+/// Fillet on edges (selecting a face adds all its edges). Edges may belong to several bodies;
+/// each body is filleted separately. Radius type Constant, or Variable: the radius runs from
+/// "radius" at the start of each edge chain to "endRadius" at its end, through optional
+/// intermediate [position 0..1, radius] points ("radiusPoints"), linearly between points.
 class FilletFeature : public PartFeature {
  public:
   static constexpr const char* kType = "Fillet";
+  enum RadiusType { Constant = 0, Variable = 1 };
   FilletFeature();
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
+  void updatePropertyFlags() override;
   std::string primaryInput() const override { return "edges"; }
+
+  /// Sorted (position, radius) law including both ends; empty + error when invalid.
+  static std::vector<std::pair<double, double>> radiusLaw(double startRadius, double endRadius, const QJsonArray& points,
+                                                          bool flip, std::string* error);
 };
 
 /// Chamfer: equal distance / two distances / distance and angle.

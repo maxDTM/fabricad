@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "part/features/Pattern.h"
 
+#include "core/Commands.h"
 #include "core/Document.h"
+#include "core/UndoStack.h"
 #include "core/Feature.h"
 #include "core/Json.h"
 #include "core/ShapeUtils.h"
@@ -26,13 +28,187 @@ constexpr auto kPlaneKinds = core::kPlaneKinds | core::ShapeKind::Sketch;
 // ---------------------------------------------------------------------------
 
 void TransformFeature::addObjectProperties() {
-  addEnum("patternType", {"Features", "Bodies"}, Features).setLabel("Pattern type");
-  addRefs("objects", core::ShapeKind::Feature | core::ShapeKind::Body).setLabel("Objects");
+  addEnum("patternType", {"Features", "Bodies", "Components"}, Features).setLabel("Pattern type");
+  addRefs("objects", core::ShapeKind::Feature | core::ShapeKind::Body | core::ShapeKind::Component).setLabel("Objects");
   core::Property suppressed("suppressed", core::PropertyType::Json);
   suppressed.setJson(QJsonArray());
   suppressed.setLabel("Suppressed instances");
   suppressed.flags().hidden = true;
   addProperty(std::move(suppressed));
+  core::Property instances("instances", core::PropertyType::Json);
+  instances.setJson(QJsonArray());
+  instances.setLabel("Component instances");
+  instances.flags().hidden = true;
+  addProperty(std::move(instances));
+}
+
+std::vector<core::ObjectId> TransformFeature::instanceComponents() const {
+  std::vector<core::ObjectId> out;
+  if (const core::Property* p = property("instances"))
+    for (const auto& v : p->json().toArray()) out.push_back(core::idFromJson(v.toObject().value("component")));
+  return out;
+}
+
+bool TransformFeature::wantsCommitPreparation() const {
+  if (enumIndex("patternType") == Components) return true;
+  return !instanceComponents().empty();  // switched away from Components: remove the occurrences
+}
+
+namespace {
+
+/// Insert a component with a fixed id (allocated on the first redo); undo removes it.
+class AddComponentCommand : public core::UndoCommand {
+ public:
+  AddComponentCommand(core::Document& doc, core::Component c) : UndoCommand("Add pattern instance"), doc_(doc), c_(std::move(c)) {}
+  core::ObjectId id() const { return c_.id; }
+  void redo() override {
+    if (!doc_.component(c_.parent)) c_.parent = core::kRootComponentId;
+    c_.children.clear();
+    c_.id = doc_.addComponent(c_).id;
+    doc_.notifyComponentChanged(c_.id);
+  }
+  void undo() override { doc_.removeComponent(c_.id); }
+
+ private:
+  core::Document& doc_;
+  core::Component c_;
+};
+
+/// Remove a (leaf) instance component; undo puts it back with the same id.
+class RemoveComponentCommand : public core::UndoCommand {
+ public:
+  RemoveComponentCommand(core::Document& doc, core::ObjectId id) : UndoCommand("Remove pattern instance"), doc_(doc), id_(id) {}
+  void redo() override {
+    if (const core::Component* c = doc_.component(id_)) {
+      saved_ = *c;
+      saved_.children.clear();
+      doc_.removeComponent(id_);
+    }
+  }
+  void undo() override {
+    if (saved_.id == core::kInvalidId || doc_.component(saved_.id)) return;
+    if (!doc_.component(saved_.parent)) saved_.parent = core::kRootComponentId;
+    doc_.addComponent(saved_);
+    doc_.notifyComponentChanged(saved_.id);
+  }
+
+ private:
+  core::Document& doc_;
+  core::ObjectId id_;
+  core::Component saved_;
+};
+
+void runOrPush(core::UndoStack* undo, std::unique_ptr<core::UndoCommand> cmd) {
+  if (undo) undo->push(std::move(cmd));
+  else cmd->redo();
+}
+
+gp_Trsf parentWorld(const core::Document& doc, core::ObjectId comp) {
+  const core::Component* c = doc.component(comp);
+  return c && c->parent != core::kInvalidId ? doc.worldPlacement(c->parent) : gp_Trsf();
+}
+
+}  // namespace
+
+void TransformFeature::prepareCommit(core::Document& doc, core::UndoStack* undo) {
+  const bool comps = enumIndex("patternType") == Components;
+  QJsonArray old = prop("instances").json().toArray();
+  QJsonArray next;
+  std::vector<bool> used(static_cast<size_t>(old.size()), false);
+  if (comps) {
+    for (const ComponentInstance& need : needed_) {
+      core::ObjectId found = core::kInvalidId;
+      for (int i = 0; i < old.size(); ++i) {
+        QJsonObject o = old[i].toObject();
+        if (used[static_cast<size_t>(i)] || core::idFromJson(o.value("source")) != need.source || o.value("index").toInt() != need.index)
+          continue;
+        core::ObjectId id = core::idFromJson(o.value("component"));
+        if (!doc.component(id)) continue;
+        used[static_cast<size_t>(i)] = true;
+        found = id;
+        break;
+      }
+      if (found == core::kInvalidId) {
+        const core::Component* src = doc.component(need.source);
+        if (!src) continue;
+        core::Component c;
+        c.name = src->name;
+        c.parent = src->parent == core::kInvalidId ? core::kRootComponentId : src->parent;
+        c.definition = doc.definitionOf(need.source);
+        c.placement = parentWorld(doc, need.source).Inverted() * need.world;
+        c.partNumber = src->partNumber;
+        c.description = src->description;
+        c.material = src->material;
+        c.visible = src->visible;
+        auto cmd = std::make_unique<AddComponentCommand>(doc, c);
+        AddComponentCommand* raw = cmd.get();
+        runOrPush(undo, std::move(cmd));
+        found = raw->id();
+      }
+      QJsonObject o;
+      o["source"] = core::idToJson(need.source);
+      o["index"] = need.index;
+      o["component"] = core::idToJson(found);
+      next.append(o);
+    }
+  }
+  for (int i = 0; i < old.size(); ++i) {
+    if (used[static_cast<size_t>(i)]) continue;
+    core::ObjectId id = core::idFromJson(old[i].toObject().value("component"));
+    if (doc.component(id)) runOrPush(undo, std::make_unique<RemoveComponentCommand>(doc, id));
+  }
+  prop("instances").setJson(next);
+}
+
+void TransformFeature::applyComponentTransforms(core::RecomputeContext& ctx, const std::vector<gp_Trsf>& transforms,
+                                                Outcome& out) {
+  const core::Document& doc = ctx.document();
+  needed_.clear();
+  // sources: component refs, or the component of a picked body
+  std::vector<core::ObjectId> sources;
+  for (const auto& ref : prop("objects").refs()) {
+    core::ObjectId comp = core::kInvalidId;
+    if (ref.kind == core::ShapeKind::Component) comp = ref.owner;
+    else if (ref.kind == core::ShapeKind::Body)
+      if (const core::Body* b = doc.body(ref.owner)) comp = b->component;
+    if (comp == core::kInvalidId || comp == core::kRootComponentId || !doc.component(comp)) continue;
+    if (std::find(sources.begin(), sources.end(), comp) == sources.end()) sources.push_back(comp);
+  }
+  if (sources.empty()) {
+    ctx.setError("select components to pattern");
+    return;
+  }
+  // The pattern's directions live in the frame of the component the feature belongs to.
+  const core::ObjectId owner = component() != core::kInvalidId && doc.component(component()) ? component() : core::kRootComponentId;
+  const gp_Trsf frame = doc.worldPlacement(owner);
+  const QJsonArray inst = prop("instances").json().toArray();
+  int missing = 0;
+  for (core::ObjectId src : sources) {
+    const gp_Trsf srcWorld = doc.worldPlacement(src);
+    // geometry for the preview: the bodies the source displays, in world coordinates
+    std::vector<TopoDS_Shape> local;
+    for (core::ObjectId b : doc.displayedBodies(src))
+      if (!ctx.bodyShape(b).IsNull()) local.push_back(ctx.bodyShape(b));
+    TopoDS_Shape srcShape = compoundOf(local);
+    for (size_t k = 0; k < transforms.size(); ++k) {
+      const int idx = k < transformIndices_.size() ? transformIndices_[k] : static_cast<int>(k) + 1;
+      gp_Trsf world = frame * transforms[k] * frame.Inverted() * srcWorld;
+      needed_.push_back({src, idx, world});
+      if (!srcShape.IsNull()) out.addPreview(core::transformed(srcShape, world), Operation::NewBody);
+      core::ObjectId target = core::kInvalidId;
+      for (const auto& v : inst) {
+        QJsonObject o = v.toObject();
+        if (core::idFromJson(o.value("source")) == src && o.value("index").toInt() == idx) target = core::idFromJson(o.value("component"));
+      }
+      if (target == core::kInvalidId || !doc.component(target)) {
+        ++missing;
+        continue;
+      }
+      out.placements.emplace_back(target, parentWorld(doc, target).Inverted() * world);
+    }
+  }
+  if (missing > 0 && !instanceComponents().empty())
+    ctx.setWarning(std::format("{} pattern instance(s) have no component yet; edit the pattern and press OK", missing));
 }
 
 std::vector<int> TransformFeature::suppressedInstances() const {
@@ -52,6 +228,10 @@ void TransformFeature::applyTransforms(core::RecomputeContext& ctx, const std::v
   std::vector<core::ShapeRef>& objects = prop("objects").refs();
   if (objects.empty()) {
     ctx.setError("select features or bodies to pattern");
+    return;
+  }
+  if (enumIndex("patternType") == Components) {
+    applyComponentTransforms(ctx, transforms, out);
     return;
   }
   const bool bodiesMode = enumIndex("patternType") == Bodies;
@@ -253,6 +433,7 @@ void RectangularPatternFeature::compute(core::RecomputeContext& ctx, Outcome& ou
   }
   std::vector<int> suppressed = suppressedInstances();
   std::vector<gp_Trsf> transforms;
+  transformIndices_.clear();
   int index = 0;
   for (double b : off2) {
     for (double a : off1) {
@@ -264,6 +445,7 @@ void RectangularPatternFeature::compute(core::RecomputeContext& ctx, Outcome& ou
       gp_Trsf t;
       t.SetTranslation(v);
       transforms.push_back(t);
+      transformIndices_.push_back(idx);
     }
   }
   applyTransforms(ctx, transforms, out, false);
@@ -304,11 +486,13 @@ void CircularPatternFeature::compute(core::RecomputeContext& ctx, Outcome& out) 
   }
   std::vector<int> suppressed = suppressedInstances();
   std::vector<gp_Trsf> transforms;
+  transformIndices_.clear();
   auto add = [&](int idx, double deg) {
     if (std::find(suppressed.begin(), suppressed.end(), idx) != suppressed.end()) return;
     gp_Trsf t;
     t.SetRotation(*axis, deg * M_PI / 180.0);
     transforms.push_back(t);
+    transformIndices_.push_back(idx);
   };
   if (type == Full) {
     double step = 360.0 / n;
@@ -344,8 +528,13 @@ void MirrorFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     ctx.setError("select a mirror plane");
     return;
   }
+  if (enumIndex("patternType") == Components) {
+    ctx.setError("Mirror works on features and bodies (a mirrored component is not an occurrence)");
+    return;
+  }
   gp_Trsf t;
   t.SetMirror(gp_Ax2(plane->Location(), plane->Direction()));
+  transformIndices_ = {1};
   applyTransforms(ctx, {t}, out, enumIndex("operation") == 0);
 }
 

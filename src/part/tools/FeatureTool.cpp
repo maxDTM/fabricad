@@ -185,6 +185,17 @@ bool FeatureTool::addRefToInput(core::ToolContext& ctx, const std::string& propN
   }
   if (p->type() != core::PropertyType::RefList) return false;
   auto& refs = p->refs();
+  if (f->refsDistinguishedByPoint(propName) && ref.hasPoint && ref.isBrep() && ctx.document) {
+    // pick points arrive in world coordinates; features work in the body's local frame
+    if (const core::Body* b = ctx.document->body(ref.owner))
+      ref.point = core::Vec3::from(ref.point.toPnt().Transformed(ctx.document->worldPlacement(b->component).Inverted()));
+    auto same = std::find_if(refs.begin(), refs.end(), [&](const core::ShapeRef& r) {
+      return r == ref && r.hasPoint && r.point.toPnt().Distance(ref.point.toPnt()) < 1e-6;
+    });
+    if (same != refs.end()) refs.erase(same);
+    else refs.push_back(ref);
+    return true;
+  }
   auto it = std::find(refs.begin(), refs.end(), ref);
   if (it != refs.end()) {
     refs.erase(it);  // picking a selected item again deselects it (Fusion)
@@ -421,14 +432,25 @@ void FeatureTool::accept(core::ToolContext& ctx) {
     return;
   }
   clearPreviews(ctx);
+  // Features owning extra document objects (component pattern occurrences) sync them first,
+  // in the same undo step as the feature command.
+  PartFeature* committing = editing_ ? editing_ : working_.get();
+  const bool prepare = committing && committing->wantsCommitPreparation();
   if (editing_) {
+    std::string name = editing_->name();
+    if (prepare && ctx.undo) ctx.undo->beginMacro(std::format("Edit {}", name));
+    if (prepare) editing_->prepareCommit(*ctx.document, ctx.undo);
     QJsonObject after = editing_->toJson();
     core::ObjectId id = editing_->id();
-    std::string name = editing_->name();
     editing_ = nullptr;
     restoreRollback(ctx);  // replay the downstream features with the new definition
     if (ctx.undo && after != before_)
       ctx.undo->push(std::make_unique<core::ModifyFeatureCommand>(*ctx.document, id, before_, after, std::format("Edit {}", name)));
+    else if (prepare) {
+      ctx.document->notifyFeatureChanged(id);
+      ctx.document->recompute();
+    }
+    if (prepare && ctx.undo) ctx.undo->endMacro();
     ctx.finish();
     return;
   }
@@ -437,6 +459,8 @@ void FeatureTool::accept(core::ToolContext& ctx) {
     return;
   }
   std::string text = std::format("{}", working_->name());
+  if (prepare && ctx.undo) ctx.undo->beginMacro(text);
+  if (prepare) working_->prepareCommit(*ctx.document, ctx.undo);
   auto cmd = std::make_unique<core::AddFeatureCommand>(*ctx.document, std::move(working_));
   cmd->setText(text);
   if (ctx.undo) ctx.undo->push(std::move(cmd));
@@ -444,6 +468,7 @@ void FeatureTool::accept(core::ToolContext& ctx) {
     // no undo stack (scripting): apply directly
     cmd->redo();
   }
+  if (prepare && ctx.undo) ctx.undo->endMacro();
   ctx.finish();
 }
 

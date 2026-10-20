@@ -1,11 +1,15 @@
-// FabriCAD part: Hole feature (simple / counterbore / countersink at sketch points or
-// vertices, distance / through all, flat or angled drill point). The proto-hole profile
+// FabriCAD part: Hole feature (simple / counterbore / countersink at sketch points,
+// vertices, circle centres or clicks on a planar face, distance / through all, flat or angled
+// drill point; tap type simple / clearance (ISO 273) / tapped (ISO metric thread, cosmetic or
+// modelled)). The proto-hole profile
 // follows FreeCAD PartDesign FeatureHole.cpp (LGPL-2.1+): a half cross-section revolved
 // about the hole axis, then one copy per placement point and a single cut.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include "part/ExtraUtils.h"
 #include "part/PartFeature.h"
+#include "part/features/Thread.h"
 
 #include <TopoDS_Shape.hxx>
 #include <gp_Ax1.hxx>
@@ -18,6 +22,7 @@ class HoleFeature : public PartFeature {
   enum HoleType { Simple = 0, Counterbore = 1, Countersink = 2 };
   enum Extent { Distance = 0, All = 1 };
   enum DrillPoint { Flat = 0, Angled = 1 };
+  enum TapType { SimpleTap = 0, Clearance = 1, Tapped = 2 };
 
   HoleFeature();
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
@@ -42,6 +47,18 @@ class HoleFeature : public PartFeature {
     double topExtension = 0;
   };
   static TopoDS_Shape makeProtoHole(const Params& p, std::string* error);
+
+  /// ISO 273 clearance hole diameter (fit 0 close / 1 normal / 2 loose).
+  static double clearanceDiameter(const IsoThread& t, int fit);
+  /// Threads of tapped holes from the last recompute (cosmetic or modelled).
+  const std::vector<ThreadInfo>& threads() const { return holeThreads_; }
+  /// Several clicks on the same face are separate holes.
+  bool refsDistinguishedByPoint(const std::string& propName) const override { return propName == "points"; }
+
+ private:
+  void applyThreads(core::RecomputeContext& ctx, const IsoThread& iso, const std::vector<gp_Pnt>& centres,
+                    const gp_Dir& axisDir, double radius, Outcome& out);
+  std::vector<ThreadInfo> holeThreads_;
 };
 
 }  // namespace fabricad::part

@@ -5,6 +5,10 @@
 
 #include "part/PartFeature.h"
 
+#include <gp_Pnt.hxx>
+#include <gp_Trsf.hxx>
+#include <gp_Vec.hxx>
+
 namespace fabricad::part {
 
 /// Shell: remove faces and thicken the remaining skin (or hollow a body without openings).
@@ -45,12 +49,16 @@ class CombineFeature : public PartFeature {
   std::string primaryInput() const override { return "target"; }
 };
 
-/// Move/Copy bodies: translate, rotate about an axis, or point to point; optional copy.
+/// Move/Copy bodies: translate, rotate about an axis, point to point, or Free Move (numeric
+/// X/Y/Z distances and X/Y/Z angles about a pivot); optional copy.
 class MoveBodyFeature : public PartFeature {
  public:
   static constexpr const char* kType = "MoveBody";
-  enum MoveType { Translate = 0, Rotate = 1, PointToPoint = 2 };
+  enum MoveType { Translate = 0, Rotate = 1, PointToPoint = 2, Free = 3 };
   MoveBodyFeature();
+  /// Free Move: rotate about the pivot's X, then Y, then Z axis (world-parallel axes, degrees),
+  /// then translate.
+  static gp_Trsf freeMoveTransform(const gp_Pnt& pivot, double rxDeg, double ryDeg, double rzDeg, const gp_Vec& translation);
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   void updatePropertyFlags() override;
   std::string primaryInput() const override { return "bodies"; }
