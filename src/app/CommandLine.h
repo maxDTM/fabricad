@@ -15,15 +15,15 @@
 
 #include "core/Tool.h"
 
+#include <QFrame>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QStringList>
 #include <QWidget>
 
 class QCompleter;
-class QFrame;
 class QLabel;
 class QLineEdit;
-class QPlainTextEdit;
 class QStringListModel;
 class QToolButton;
 

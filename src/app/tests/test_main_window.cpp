@@ -468,9 +468,14 @@ class TestMainWindow : public QObject {
     app::MainToolbar* tb = w_->mainToolbar();
     QVERIFY(tb->isSectionCollapsed("CREATE"));
     std::set<int> baselines;
+    QString where;
     for (QToolButton* c : tb->findChildren<QToolButton*>("RibbonGroupLabel"))
-      if (c->isVisibleTo(tb)) baselines.insert(c->mapTo(tb, QPoint(0, c->height())).y());
-    QVERIFY2(baselines.size() == 1, qPrintable(QString::number(baselines.size())));
+      if (c->isVisibleTo(tb)) {
+        const int y = c->mapTo(tb, QPoint(0, c->height())).y();
+        baselines.insert(y);
+        where += QString(" %1@%2").arg(c->text()).arg(y);
+      }
+    QVERIFY2(baselines.size() == 1, qPrintable(where));
     QVERIFY(w_->runCommand("app.workspace-design"));
     settle();
     // p1-check 7: toggles in the sketch MORE dropdown show their state

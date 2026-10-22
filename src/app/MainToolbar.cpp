@@ -286,8 +286,8 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
     folded->setAutoRaise(true);
     folded->setToolButtonStyle(Qt::ToolButtonIconOnly);
     folded->setIconSize(QSize(kIcon, kIcon));
-    folded->setFixedHeight(kButtonHeight);
-    folded->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    folded->setMinimumHeight(kButtonHeight);  // takes the button row's height, caption below it
+    folded->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     folded->setMenu(menu);
     folded->hide();
     v->addWidget(folded, 1);
@@ -506,7 +506,7 @@ void MainToolbar::refreshStates() {
     // toggles (snap, grid, show profile, selection filters): their own state (p1-check 7)
     core::ITool* tool = manager_->registry().tool(id);
     const bool toggle = tool && tool->info().checked;
-    const bool on = toggle && tool->info().checked();
+    const bool on = toggle && it->second && tool->info().checked();  // disabled: no state to show
     if (auto* b = qobject_cast<QToolButton*>(obj)) {
       b->setEnabled(it->second);
       if (b->objectName() == QLatin1StringView("RibbonTool") && !b->menu()) {

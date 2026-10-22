@@ -80,6 +80,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
 
   // --- active tab's objects ---------------------------------------------------------------
   fabricad::core::Document& document() { return *document_; }
+  bool hasDocument() const { return document_ != nullptr; }
   fabricad::core::ToolRegistry& tools() { return registry_; }
   fabricad::core::ToolManager& toolManager() { return *manager_; }
   /// Null while a drawing tab is active.

@@ -142,7 +142,7 @@ class TestScriptGroups : public QObject {
     settle();
     settle();
     const QString m = w_->messageText();
-    QVERIFY2(m.contains("Suppress group Base") && m.contains("Extrude1 failed"), qPrintable(m));
+    QVERIFY2(m.startsWith("Suppress Base") && m.contains("Extrude1 failed"), qPrintable(m));
     QVERIFY(w_->commandLine()->submit("UNDO"));
     settle();
   }
