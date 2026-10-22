@@ -115,7 +115,7 @@ void KeyHints::paintEvent(QPaintEvent*) {
   for (const auto& [k, l] : hints_) {
     const QString key = keycapText(k);
     const int kw = kf.horizontalAdvance(key) + 10;
-    if (x + kw > width()) break;
+    if (x + kw + 5 + lf.horizontalAdvance(l) > width()) break;  // whole hints only
     const QRect cap(x, (h - 16) / 2, kw, 16);
     p.fillRect(cap, theme::color(Tok::SurfaceHeader));
     p.setPen(theme::color(Tok::BorderDefault));
@@ -214,9 +214,11 @@ void RebuildMeter::setMilliseconds(qint64 ms) {
 }
 
 QSize RebuildMeter::sizeHint() const {
-  const QString label = ms_ < 0 ? QString("REBUILD") : QString("REBUILD %1 ms").arg(ms_);
-  return QSize(8 + 8 * 3 + 6 + fontMetrics().horizontalAdvance(label) + 8 + fontMetrics().horizontalAdvance("0000"),
-               22);
+  // the same fonts as paintEvent: caption (caps) + value; room for 4 digits so it does not jump
+  QFont val = theme::font(TextStyle::Value);
+  val.setPixelSize(font().pixelSize() > 0 ? font().pixelSize() + 1 : val.pixelSize());
+  const int value = QFontMetrics(val).horizontalAdvance(QStringLiteral("0000 ms"));
+  return QSize(8 + 8 * 3 + 6 + fontMetrics().horizontalAdvance(QStringLiteral("Rebuild")) + 6 + value + 8, 22);
 }
 
 void RebuildMeter::paintEvent(QPaintEvent*) {

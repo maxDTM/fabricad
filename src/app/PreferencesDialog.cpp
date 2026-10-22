@@ -35,11 +35,13 @@ constexpr core::AngleUnit kAngles[] = {core::AngleUnit::Degree, core::AngleUnit:
 
 QComboBox* lengthBox(QWidget* parent) {
   auto* b = new QComboBox(parent);
+  b->setProperty("textCase", "as-is");  // units are lowercase (redesign 3.3)
   for (core::LengthUnit u : kLengths) b->addItem(core::lengthUnitSymbol(u), static_cast<int>(u));
   return b;
 }
 QComboBox* angleBox(QWidget* parent) {
   auto* b = new QComboBox(parent);
+  b->setProperty("textCase", "as-is");
   for (core::AngleUnit u : kAngles) b->addItem(core::angleUnitSymbol(u), static_cast<int>(u));
   return b;
 }

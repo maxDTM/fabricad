@@ -524,7 +524,7 @@ void MainWindow::buildStatusBar() {
   snapCell_->setClickAction([this] { runCommand("view.snap"); QTimer::singleShot(0, this, &MainWindow::updateViewCells); });
   rebuildMeter_ = new RebuildMeter(sb);
   sb->addWidget(statusCommand_);
-  sb->addWidget(promptLabel_, 3);
+  sb->addWidget(promptLabel_);  // sized to its text, elided when the bar is short
   sb->addWidget(keyHints_);
   sb->addWidget(messageLabel_, 2);
   messageLabel_->hide();
@@ -1831,13 +1831,13 @@ void MainWindow::applyResponsiveChrome() {
   const int w = width();
   if (occtCell_) occtCell_->setVisible(w >= 1500);
   if (rebuildMeter_) rebuildMeter_->setVisible(w >= 1150);
-  if (keyHints_) keyHints_->setVisible(w >= 1050 && !keyHints_->hints().empty());
+  if (keyHints_) keyHints_->setVisible(w >= 1350 && !keyHints_->hints().empty());
   if (searchBox_) {
     const bool compact = w < 1100;
     searchBox_->setFixedWidth(compact ? 64 : 260);
     if (QWidget* t = searchBox_->findChild<QWidget*>("SearchBoxText")) t->setVisible(!compact);
   }
-  if (commandLine_) commandLine_->setMinimumWidth(w < 1100 ? 160 : 280);
+  if (commandLine_) commandLine_->setMinimumWidth(w < 1100 ? 200 : 300);
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
