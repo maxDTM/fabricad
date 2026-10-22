@@ -1048,6 +1048,9 @@ bool MainWindow::isIdleTool() const {
 
 void MainWindow::onToolActivated(const std::string& id) {
   const quint64 serial = ++activation_;
+  // a new command starts from a clean status bar: an old error or warning would read as its
+  // own; a message the tool posts while activating comes after this and stays (DOC-08)
+  if (messageLevel_ != core::MessageLevel::Info && !messageLabel_->text().isEmpty()) clearStatusMessage();
   acceptEnabled_ = true;
   dialog_->dismiss();
   // ToolManager emits toolActivated before ITool::activate(); toolStarted (after it) builds the
@@ -1147,11 +1150,26 @@ void MainWindow::reportNewFailures(bool announce) {
     now.insert(f->id());
     if (!first && !before.count(f->id())) first = f;
   }
+  // the failure on display is fixed (undo, edit): its text goes too (DOC-08)
+  if (failureDoc_ == document_ && failureFeature_ != core::kInvalidId && !now.count(failureFeature_)) {
+    if (messageLabel_->text() == failureText_) clearStatusMessage();
+    failureFeature_ = core::kInvalidId;
+  }
   before = std::move(now);
   if (!announce || !first) return;
   std::string msg = first->name() + " failed";
   if (!first->statusMessage().empty()) msg += ": " + first->statusMessage();
   showMessage(msg, core::MessageLevel::Error);
+  failureDoc_ = document_;
+  failureFeature_ = first->id();
+  failureText_ = messageLabel_->text();
+}
+
+void MainWindow::clearStatusMessage() {
+  messageLabel_->clear();
+  messageLabel_->setToolTip({});
+  messageTimer_->stop();
+  messageLevel_ = core::MessageLevel::Info;
 }
 
 void MainWindow::scheduleStateRefresh() {
@@ -1181,6 +1199,7 @@ void MainWindow::showMessage(const std::string& text, core::MessageLevel level) 
   const QString firstLine = q.section('\n', 0, 0);
   messageLabel_->setStyleSheet(QString("color: %1;").arg(color));
   messageLabel_->setText(firstLine);
+  messageLevel_ = level;
   messageLabel_->setToolTip(q);
   messageTimer_->start(level == core::MessageLevel::Info ? 5000 : 9000);
   commandLine_->appendHistory(q);

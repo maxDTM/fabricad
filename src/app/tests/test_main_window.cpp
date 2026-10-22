@@ -801,6 +801,13 @@ class TestMainWindow : public QObject {
     QVERIFY2(w_->messageText().startsWith(core::qs(box->name()) + " failed"), qPrintable(w_->messageText()));
     doc.undoStack().undo();
     settle();
+    QVERIFY2(w_->messageText().isEmpty(), qPrintable(w_->messageText()));  // fixed: the error goes
+    // an error left on display is cleared when the next command starts
+    w_->showMessage("something broke", core::MessageLevel::Error);
+    QVERIFY(w_->runCommand("test.dialog"));
+    QVERIFY2(w_->messageText().isEmpty(), qPrintable(w_->messageText()));
+    w_->toolManager().cancel();
+    settle();
     w_->document().setModified(false);
   }
 
