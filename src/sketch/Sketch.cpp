@@ -251,6 +251,8 @@ std::optional<double> Sketch::measure(const Constraint& c) const {
     }
     case ConstraintType::Radius: return ga->isCircular() ? std::optional<double>(ga->radius()) : std::nullopt;
     case ConstraintType::Diameter: return ga->isCircular() ? std::optional<double>(2 * ga->radius()) : std::nullopt;
+    case ConstraintType::MajorRadius: return ga->isElliptical() ? std::optional<double>(ga->majorRadius()) : std::nullopt;
+    case ConstraintType::MinorRadius: return ga->isElliptical() ? std::optional<double>(ga->minorRadius()) : std::nullopt;
     case ConstraintType::Angle: {
       if (ga->type == GeomType::Arc && !gb) return ga->sweep() * 180.0 / kPi;  // arc sweep
       if (ga->type != GeomType::Line) return std::nullopt;
@@ -271,6 +273,14 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
   switch (c.type) {
     case ConstraintType::Radius:
     case ConstraintType::Diameter: return ga->center() + Pt2::polar(ga->radius() * 1.3 + off, kPi / 4);
+    case ConstraintType::MajorRadius:
+    case ConstraintType::MinorRadius: {
+      if (!ga->isElliptical()) return ga->center();
+      EllipseFrame f = ga->ellipse();
+      bool major = c.type == ConstraintType::MajorRadius;
+      Pt2 axis = major ? f.major : f.major.perp();
+      return f.center + axis * ((major ? f.a : f.b) * 0.6) + axis.perp() * off;
+    }
     case ConstraintType::Angle: {
       const Geometry* gb = c.b.isValid() ? geometry(c.b.geo) : nullptr;
       if (ga->type == GeomType::Arc) return ga->center() + Pt2::polar(ga->radius() * 0.6, ga->startAngle() + ga->sweep() / 2);
@@ -294,6 +304,41 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
       return ga->midpoint() + Pt2{off, off};
     }
   }
+}
+
+int Sketch::findOriginHelper(OriginRef which) const {
+  for (const Geometry& g : geometries_) {
+    if (!g.isOriginHelper()) continue;
+    switch (which) {
+      case OriginRef::Point:
+        if (g.type == GeomType::Point && g.center().length() < 1e-9) return g.id;
+        break;
+      case OriginRef::XAxis:
+        if (g.type == GeomType::Line && std::abs(g.p[1]) < 1e-9 && std::abs(g.p[3]) < 1e-9) return g.id;
+        break;
+      case OriginRef::YAxis:
+        if (g.type == GeomType::Line && std::abs(g.p[0]) < 1e-9 && std::abs(g.p[2]) < 1e-9) return g.id;
+        break;
+    }
+  }
+  return -1;
+}
+
+int Sketch::originHelper(OriginRef which) {
+  if (int id = findOriginHelper(which); id >= 0) return id;
+  Geometry g;
+  if (which == OriginRef::Point) {
+    g = Geometry::makePoint({0, 0});
+  } else {
+    // a segment of the axis covering the sketch (the solver treats lines as infinite anyway)
+    double ext = 50.0;
+    Pt2 mn, mx;
+    if (bbox(mn, mx)) ext = std::max({ext, std::abs(mn.x), std::abs(mn.y), std::abs(mx.x), std::abs(mx.y)}) * 1.2;
+    g = which == OriginRef::XAxis ? Geometry::makeLine({-ext, 0}, {ext, 0}) : Geometry::makeLine({0, -ext}, {0, ext});
+  }
+  g.construction = true;
+  g.projected = true;  // fixed for the solver, not selectable by Select All, drawn as reference
+  return addGeometry(std::move(g));
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +402,7 @@ void Sketch::endDrag() {
 std::optional<SketchHit> Sketch::hitPoint(Pt2 q, double tol, const std::set<int>& exclude) const {
   std::optional<SketchHit> best;
   for (const auto& g : geometries_) {
-    if (exclude.count(g.id)) continue;
+    if (exclude.count(g.id) || g.isOriginHelper()) continue;
     for (const GeoRef& r : g.pointRefs()) {
       Pt2 p = g.point(r.pos, r.index);
       double d = p.distance(q);
@@ -370,7 +415,7 @@ std::optional<SketchHit> Sketch::hitPoint(Pt2 q, double tol, const std::set<int>
 std::optional<SketchHit> Sketch::hitCurve(Pt2 q, double tol, const std::set<int>& exclude) const {
   std::optional<SketchHit> best;
   for (const auto& g : geometries_) {
-    if (exclude.count(g.id) || !g.isCurve()) continue;
+    if (exclude.count(g.id) || !g.isCurve() || g.isOriginHelper()) continue;
     Pt2 p = g.closestPoint(q);
     double d = p.distance(q);
     if (d <= tol && (!best || d < best->distance)) best = SketchHit{{g.id, PointPos::None}, p, d};
@@ -387,6 +432,7 @@ std::vector<int> Sketch::curvesInRect(Pt2 a, Pt2 b, bool crossing) const {
   Pt2 mn{std::min(a.x, b.x), std::min(a.y, b.y)}, mx{std::max(a.x, b.x), std::max(a.y, b.y)};
   std::vector<int> out;
   for (const auto& g : geometries_) {
+    if (g.isOriginHelper()) continue;
     auto [gmn, gmx] = g.bbox();
     bool inside = gmn.x >= mn.x && gmn.y >= mn.y && gmx.x <= mx.x && gmx.y <= mx.y;
     bool overlaps = gmn.x <= mx.x && gmx.x >= mn.x && gmn.y <= mx.y && gmx.y >= mn.y;
@@ -400,7 +446,7 @@ std::vector<Pt2> Sketch::intersectionsOn(int curveId, bool includeConstruction) 
   const Geometry* g = geometry(curveId);
   if (!g || !g->isCurve()) return out;
   for (const auto& o : geometries_) {
-    if (o.id == curveId || !o.isCurve()) continue;
+    if (o.id == curveId || !o.isCurve() || o.isOriginHelper()) continue;
     if (!includeConstruction && o.construction) continue;
     for (const Pt2& p : intersectCurves(*g, o)) {
       bool dup = false;
@@ -415,7 +461,7 @@ std::vector<Pt2> Sketch::intersectionsOn(int curveId, bool includeConstruction) 
 bool Sketch::bbox(Pt2& mn, Pt2& mx, bool includeConstruction) const {
   bool any = false;
   for (const auto& g : geometries_) {
-    if (!includeConstruction && g.construction) continue;
+    if ((!includeConstruction && g.construction) || g.isOriginHelper()) continue;
     auto [a, b] = g.bbox();
     if (!any) {
       mn = a;

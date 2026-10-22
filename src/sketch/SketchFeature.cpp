@@ -166,6 +166,7 @@ void SketchFeature::rebuildDisplayShapes() {
   std::map<std::string, std::vector<TopoDS_Shape>> groups;
   std::vector<TopoDS_Shape> points;
   for (const Geometry& g : sketch_.geometries()) {
+    if (g.isOriginHelper()) continue;  // stands for the origin / an axis, which are drawn already
     if (g.type == GeomType::Point) {
       points.push_back(makeVertex(g, plane_));
       continue;
@@ -324,6 +325,7 @@ std::optional<gp_Pnt> SketchFeature::sketchPoint(const ShapeRef& ref) const {
 std::vector<SketchDisplayItem> SketchFeature::displayItems() const {
   std::vector<SketchDisplayItem> out;
   for (const Geometry& g : sketch_.geometries()) {
+    if (g.isOriginHelper()) continue;
     // text yields one item per glyph contour
     for (const auto& pl : g.polylines(64)) {
       SketchDisplayItem item;

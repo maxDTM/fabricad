@@ -11,6 +11,7 @@
 #include "core/Tool.h"
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
+#include "sketch/SketchCurves.h"
 #include "sketch/SketchFeature.h"
 #include "sketch/SketchModule.h"
 #include "sketch/SketchSession.h"
@@ -1232,6 +1233,129 @@ class ToolsTest : public QObject {
     QVERIFY(r.viewer.visibilityOverrides().count(r.session()->sketchId()));
     r.mgr.run("sketch.finish");
     QVERIFY(r.viewer.previews().empty());
+  }
+
+  // ---- G4 regression tests ----
+
+  // SK-02: a vertical point-to-point dimension picked top-first is stored positive and keeps
+  // the geometry on its side when a new value is typed.
+  void pointToPointDimensionPositiveKeepsSide() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int a = r.sk().addGeometry(Geometry::makePoint({0, 20}));
+    int b = r.sk().addGeometry(Geometry::makePoint({0, 0}));
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a}});
+    r.session()->refresh();
+    r.mgr.run("sketch.dimension");
+    r.click(0, 20);
+    r.click(0, 0);
+    r.click(10, 10);  // to the right -> DistanceY
+    const Constraint* d = r.sk().dimensionByName("d1");
+    QVERIFY(d);
+    QCOMPARE(d->type, ConstraintType::DistanceY);
+    QVERIFY(d->value > 0);
+    QCOMPARE(r.session()->dimensionText(*d).find('-'), std::string::npos);
+    QVERIFY(r.mgr.runCommandLine("30"));
+    QVERIFY(near(r.sk().geometry(b)->center(), {0, -10}, 1e-6));  // still below the fixed point
+    // an older negative (signed) dimension: positive typed values keep the side
+    r.mgr.cancel();
+    Constraint* c = r.sk().constraint(r.sk().dimensionByName("d1")->id);
+    std::swap(c->a, c->b);
+    c->value = -30;
+    r.sk().solve();
+    QVERIFY(near(r.sk().geometry(b)->center(), {0, -10}, 1e-6));
+    QCOMPARE(r.session()->dimensionText(*c).find('-'), std::string::npos);
+    QVERIFY(r.mgr.run("sketch.dimension-edit", {"d1", "12"}));
+    QVERIFY(near(r.sk().geometry(b)->center(), {0, 8}, 1e-6));
+  }
+
+  // SK-06: ellipse major / minor radius dimensions, ellipse centre pairs, origin picks.
+  void ellipseAndOriginDimensions() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int e = r.sk().addGeometry(Geometry::makeEllipse({40, 30}, 20, 10, 0.0));
+    r.session()->refresh();
+    int dofBefore = r.sk().solve().dofs;
+    r.mgr.run("sketch.dimension");
+    r.click(60, 30);  // on the ellipse (major vertex)
+    r.click(70, 32);  // place along the major axis -> major radius
+    const Constraint* d1 = r.sk().dimensionByName("d1");
+    QVERIFY(d1);
+    QCOMPARE(d1->type, ConstraintType::MajorRadius);
+    QVERIFY(near(d1->value, 20.0, 1e-6));
+    QVERIFY(r.mgr.runCommandLine("25"));
+    QVERIFY(near(r.sk().geometry(e)->majorRadius(), 25.0, 1e-6));
+    QVERIFY(near(r.sk().geometry(e)->minorRadius(), 10.0, 1e-6));
+    QCOMPARE(r.sk().solve().dofs, dofBefore - 1);
+    r.click(40, 40);  // minor vertex
+    r.click(42, 50);  // place along the minor axis -> minor radius
+    const Constraint* d2 = r.sk().dimensionByName("d2");
+    QVERIFY(d2);
+    QCOMPARE(d2->type, ConstraintType::MinorRadius);
+    QVERIFY(r.mgr.runCommandLine("6"));
+    QVERIFY(near(r.sk().geometry(e)->minorRadius(), 6.0, 1e-6));
+    QVERIFY(near(r.sk().geometry(e)->majorRadius(), 25.0, 1e-6));
+    QCOMPARE(r.sk().solve().dofs, dofBefore - 2);
+    // ellipse (through its centre) to the sketch origin: a pick on the origin is not ignored
+    size_t msgs = r.host.messages().size();
+    r.click(65, 30);     // ellipse curve (major vertex after the change)
+    r.click(0.2, 0.1);   // the origin
+    r.click(-10, 15);    // to the side -> vertical distance
+    const Constraint* d3 = r.sk().dimensionByName("d3");
+    if (!d3) {
+      for (auto& m : r.host.messages()) qWarning() << m.second.c_str();
+      qWarning() << r.sk().geometry(e)->center().x << r.sk().geometry(e)->center().y << r.sk().geometry(e)->ellipse().major.x;
+      for (auto& c : r.sk().constraints()) qWarning() << constraintTypeName(c.type) << c.name.c_str() << c.value;
+    }
+    QVERIFY2(d3, "origin pick ignored");
+    QCOMPARE(d3->type, ConstraintType::DistanceY);
+    QVERIFY(d3->value > 0);
+    QVERIFY(r.mgr.runCommandLine("50"));
+    QVERIFY(near(r.sk().geometry(e)->center(), {40, 50}, 1e-6));
+    QVERIFY(near(r.sk().geometry(e)->majorRadius(), 25.0, 1e-6));
+    // the helper is hidden: not hit, not in the bbox, one per kind
+    int helper = r.sk().findOriginHelper(OriginRef::Point);
+    QVERIFY(helper >= 0);
+    QVERIFY(!r.sk().hit({0, 0}, 1.0));
+    QCOMPARE(r.sk().originHelper(OriginRef::Point), helper);
+    // a pair that cannot be dimensioned gives feedback instead of being ignored
+    r.sk().addGeometry(Geometry::makeControlSpline({{0, 80}, {10, 95}, {20, 80}, {30, 95}}));
+    r.session()->refresh();
+    msgs = r.host.messages().size();
+    r.click(40, 56);  // ellipse minor vertex (curve)
+    r.click(15, 87.5);  // the spline's curve
+    QVERIFY(r.host.messages().size() > msgs);
+    QVERIFY(r.host.messages().back().second.find("Cannot dimension") != std::string::npos);
+    r.mgr.cancel();
+    // cancelling picks on the origin leaves no helper behind
+    int before = r.sk().geometryCount();
+    r.mgr.run("sketch.dimension");
+    r.click(30, 0.1);  // X axis
+    r.mgr.cancel();
+    QCOMPARE(r.sk().geometryCount(), before);
+  }
+
+  // SK-04: clicking near the first fit point closes the spline: one closed profile.
+  void fitSplineClosesOnFirstPoint() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.mgr.run("sketch.spline-fit");
+    r.click(0, 0);
+    r.click(30, -5);
+    r.click(35, 25);
+    r.click(5, 30);
+    r.click(0.9, 0.6);  // near (not exactly on) the first point
+    QCOMPARE(r.sk().geometryCount(), 1);
+    const Geometry* g = &r.sk().geometries().front();
+    QCOMPARE(g->type, GeomType::FitSpline);
+    QVERIFY(near(g->start(), g->end(), 1e-9));
+    QCOMPARE(g->vertexCount(), 5);
+    QVERIFY(r.sk().findConstraint(ConstraintType::Coincident, {g->id, PointPos::End}, {g->id, PointPos::Start}));
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(1));
+    QVERIFY(r.mgr.isActive());  // ready for the next spline
   }
 };
 

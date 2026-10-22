@@ -83,6 +83,12 @@ class Sketch {
   std::optional<double> measure(const Constraint& c) const;
   /// Default label position for a dimension (used when none was placed).
   Pt2 defaultLabelPos(const Constraint& c) const;
+  /// The hidden fixed helper geometry standing for the sketch origin (a Point) or an origin axis
+  /// (a construction Line through the origin), created on first use so constraints and
+  /// dimensions can reference it. Returns its id.
+  int originHelper(OriginRef which);
+  /// Existing origin helper of that kind, or -1.
+  int findOriginHelper(OriginRef which) const;
 
   // --- solving ------------------------------------------------------------------
   /// Full solve + diagnosis (DOF, conflicts, free geometry). Geometry is updated on success.

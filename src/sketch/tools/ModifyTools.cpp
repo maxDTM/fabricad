@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "sketch/tools/SketchToolBase.h"
 #include "sketch/tools/SketchTools.h"
+#include "sketch/SketchCurves.h"
 
 #include "core/AppHost.h"
 #include "core/Document.h"
@@ -59,6 +60,9 @@ bool applyDimensionText(ToolContext& ctx, Sketch& sk, int id, const std::string&
   const std::string oldExpr = c->expression;
   TypedInput ti = parseTypedInput(text);
   c->value = *v;
+  // a horizontal / vertical offset is shown as a length: a typed number keeps the side the
+  // geometry is on, a negative one flips it (SK-02). Expressions are taken as given.
+  if (c->isRelativeOffset() && ti.kind == TypedInput::Kind::Number && oldValue < 0) c->value = -*v;
   c->expression = ti.kind == TypedInput::Kind::Number ? std::string() : trimmed(text);
   SolveResult r = sk.solve();
   if (!r.ok()) {
@@ -75,7 +79,7 @@ bool applyDimensionText(ToolContext& ctx, Sketch& sk, int id, const std::string&
 std::string dimensionEditText(const Constraint& c, const core::UnitSystem& units) {
   if (!c.expression.empty()) return c.expression;
   if (c.type == ConstraintType::Angle) return core::formatQuantity(core::Quantity::deg(c.value), units, false);
-  return core::formatQuantity(core::Quantity::mm(c.value), units, false);
+  return core::formatQuantity(core::Quantity::mm(c.isRelativeOffset() ? std::abs(c.value) : c.value), units, false);
 }
 
 /// Give a dimension value field keyboard focus with its text selected, on the next event-loop
@@ -898,6 +902,11 @@ class DimensionTool : public SketchTool {
     ctx.setPrompt(prompt());
   }
 
+  void deactivate(ToolContext& ctx) override {
+    dropHelperEdit();
+    SketchTool::deactivate(ctx);
+  }
+
   bool mouseMove(ToolContext&, const ViewerMouseEvent& e) override {
     auto c = cursor(e);
     const Sketch* sk = sketch();
@@ -931,14 +940,40 @@ class DimensionTool : public SketchTool {
     if (phase_ == Phase::Value) finishValue(ctx);
     auto hit = sk->hit(*c, tol(*c));
     if (hit && hit->ref.pos == PointPos::Mid) hit = sk->hitCurve(*c, tol(*c));  // mid of a curve = the curve
-    if (hit) {
-      GeoRef r = normalize(hit->ref);
-      bool samePick = std::find(picks_.begin(), picks_.end(), r) != picks_.end();
-      bool sameGeo = !picks_.empty() && picks_[0].geo == r.geo && !r.isPoint();
-      if (picks_.size() < 2 && !samePick && !(phase_ == Phase::Place && sameGeo)) {
-        picks_.push_back(r);
-        phase_ = candidate(*c).ok ? Phase::Place : Phase::Pick;
-        ctx.setPrompt(prompt());
+    std::optional<GeoRef> pick;
+    std::optional<OriginRef> originPick;
+    if (hit) pick = normalize(hit->ref);
+    else if (picks_.size() < 2) originPick = originAt(*c);
+    if (pick || originPick) {
+      if (picks_.size() < 2) {
+        if (originPick) {
+          // the origin / axes are not sketch geometry: stand them in with a hidden fixed helper,
+          // created inside the edit the dimension will be committed with (SK-06)
+          if (!helperEdit_) {
+            session()->beginEdit();
+            helperEdit_ = true;
+          }
+          pick = GeoRef{sk->originHelper(*originPick),
+                        *originPick == OriginRef::Point ? PointPos::Center : PointPos::None};
+        }
+        GeoRef r = *pick;
+        bool samePick = std::find(picks_.begin(), picks_.end(), r) != picks_.end();
+        bool sameGeo = !picks_.empty() && picks_[0].geo == r.geo && !r.isPoint();
+        if (!samePick && !(phase_ == Phase::Place && sameGeo)) {
+          picks_.push_back(r);
+          if (picks_.size() == 2 && !candidate(*c).ok) {
+            // a pair that cannot be dimensioned: say so instead of silently ignoring the pick
+            picks_.pop_back();
+            ctx.showMessage("Cannot dimension those two entities together; pick another one or place the dimension", true);
+            return true;
+          }
+          phase_ = candidate(*c).ok ? Phase::Place : Phase::Pick;
+          ctx.setPrompt(prompt());
+          return true;
+        }
+      }
+      if (phase_ != Phase::Place) {
+        ctx.showMessage(picks_.size() >= 2 ? "Two entities are already selected" : "That entity is already selected", true);
         return true;
       }
     }
@@ -980,6 +1015,7 @@ class DimensionTool : public SketchTool {
       return;
     }
     if (phase_ == Phase::Place) {
+      dropHelperEdit();
       reset();
       ctx.setPrompt(prompt());
       return;
@@ -993,6 +1029,7 @@ class DimensionTool : public SketchTool {
       return;
     }
     if (!picks_.empty()) {
+      dropHelperEdit();
       reset();
       clearTemp();
       ctx.setPrompt(prompt());
@@ -1028,6 +1065,22 @@ class DimensionTool : public SketchTool {
     pendingId_ = -1;
     edit_ = nullptr;
     typed_.clear();
+    helperEdit_ = false;
+  }
+
+  /// Undo an origin helper created for picks that never became a dimension.
+  void dropHelperEdit() {
+    if (helperEdit_ && phase_ != Phase::Value && session()) session()->cancelEdit();
+    helperEdit_ = false;
+  }
+
+  /// The sketch origin or an origin axis under the cursor (when no sketch entity is).
+  std::optional<OriginRef> originAt(Pt2 c) const {
+    double t = tol(c);
+    if (c.length() <= t) return OriginRef::Point;
+    if (std::abs(c.y) <= t * 0.75) return OriginRef::XAxis;
+    if (std::abs(c.x) <= t * 0.75) return OriginRef::YAxis;
+    return std::nullopt;
   }
 
   std::string prompt() const {
@@ -1087,10 +1140,13 @@ class DimensionTool : public SketchTool {
       const GeoRef& r = picks_[0];
       const Geometry* g = sk->geometry(r.geo);
       if (!g || r.isPoint() || g->type == GeomType::Point) return c;
+      if (g->isOriginHelper()) return c;  // an axis alone has nothing to measure
       c.a = {r.geo};
       if (g->type == GeomType::Line) c.type = ConstraintType::Distance;
       else if (g->type == GeomType::Circle) c.type = ConstraintType::Diameter;
-      else c.type = ConstraintType::Radius;
+      else if (g->isElliptical()) c.type = ellipseRadiusFor(*g, label);
+      else if (g->type == GeomType::Arc) c.type = ConstraintType::Radius;
+      else return c;  // splines / text: no single-entity dimension
       c.ok = true;
       return c;
     }
@@ -1100,8 +1156,8 @@ class DimensionTool : public SketchTool {
     if (!g1 || !g2) return c;
     auto p1 = asPoint(r1), p2 = asPoint(r2);
     // circles/arcs paired with anything act through their centre
-    if (!p1 && g1->isCircular()) p1 = GeoRef{r1.geo, PointPos::Center};
-    if (!p2 && g2->isCircular()) p2 = GeoRef{r2.geo, PointPos::Center};
+    if (!p1 && (g1->isCircular() || g1->isElliptical())) p1 = GeoRef{r1.geo, PointPos::Center};
+    if (!p2 && (g2->isCircular() || g2->isElliptical())) p2 = GeoRef{r2.geo, PointPos::Center};
     if (p1 && p2) {
       c.a = *p1;
       c.b = *p2;
@@ -1134,6 +1190,16 @@ class DimensionTool : public SketchTool {
     return c;
   }
 
+  /// Major or minor radius of an ellipse, from where the label is: nearer the major axis
+  /// direction measures the major radius.
+  static ConstraintType ellipseRadiusFor(const Geometry& g, Pt2 label) {
+    EllipseFrame f = g.ellipse();
+    Pt2 v = label - f.center;
+    double u = std::abs(v.dot(f.major)) / std::max(f.a, 1e-9);
+    double w = std::abs(v.dot(f.minor)) / std::max(f.b, 1e-9);
+    return u >= w ? ConstraintType::MajorRadius : ConstraintType::MinorRadius;
+  }
+
   std::optional<Pt2> anchor(const DimCandidate& cand) const {
     const Sketch* sk = sketch();
     if (cand.a.isPoint()) return sk->pointOf(cand.a);
@@ -1149,12 +1215,13 @@ class DimensionTool : public SketchTool {
     auto m = sk->measure(c);
     if (!m) {
       ctx.showMessage("Cannot measure that combination", true);
+      dropHelperEdit();
       reset();
       return;
     }
     c.value = *m;
-    if (c.type == ConstraintType::Angle && c.value < 0) {
-      std::swap(c.a, c.b);
+    if ((c.type == ConstraintType::Angle || (c.isRelativeOffset() && c.a.isPoint() && c.b.isPoint())) && c.value < 0) {
+      std::swap(c.a, c.b);  // positive value, same geometry (SK-02)
       c.value = -c.value;
     }
     c.labelPos = p;
@@ -1213,6 +1280,7 @@ class DimensionTool : public SketchTool {
   Pt2 cursor_;
   QPointer<QLineEdit> edit_;
   std::string typed_;  ///< value keys typed while the field had no focus
+  bool helperEdit_ = false;  ///< an origin helper was created for the current picks (edit open)
 };
 
 // ---------------------------------------------------------------------------

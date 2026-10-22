@@ -128,6 +128,8 @@ const char* constraintTypeName(ConstraintType t) {
     case ConstraintType::Radius: return "Radius";
     case ConstraintType::Diameter: return "Diameter";
     case ConstraintType::Angle: return "Angle";
+    case ConstraintType::MajorRadius: return "MajorRadius";
+    case ConstraintType::MinorRadius: return "MinorRadius";
   }
   return "Coincident";
 }
@@ -138,7 +140,8 @@ std::optional<ConstraintType> constraintTypeFromName(const std::string& s) {
       ConstraintType::Parallel,   ConstraintType::Perpendicular, ConstraintType::Tangent,  ConstraintType::Equal,
       ConstraintType::Concentric, ConstraintType::Collinear,    ConstraintType::Midpoint,   ConstraintType::Fix,
       ConstraintType::Symmetric,  ConstraintType::Distance,     ConstraintType::DistanceX,  ConstraintType::DistanceY,
-      ConstraintType::Radius,     ConstraintType::Diameter,     ConstraintType::Angle};
+      ConstraintType::Radius,     ConstraintType::Diameter,     ConstraintType::Angle,      ConstraintType::MajorRadius,
+      ConstraintType::MinorRadius};
   for (ConstraintType t : all)
     if (s == constraintTypeName(t)) return t;
   return std::nullopt;
@@ -151,6 +154,8 @@ bool isDimensional(ConstraintType t) {
     case ConstraintType::DistanceY:
     case ConstraintType::Radius:
     case ConstraintType::Diameter:
+    case ConstraintType::MajorRadius:
+    case ConstraintType::MinorRadius:
     case ConstraintType::Angle: return true;
     default: return false;
   }

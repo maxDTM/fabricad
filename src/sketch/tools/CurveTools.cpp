@@ -108,7 +108,7 @@ class ClickTool : public SketchTool {
   virtual void create(ToolContext& ctx) = 0;
   virtual bool typedNumber(ToolContext&, double) { return false; }
 
-  InferenceResult inferAt(Pt2 c, const ViewerMouseEvent& e) {
+  virtual InferenceResult inferAt(Pt2 c, const ViewerMouseEvent& e) {
     InferenceInput in;
     in.cursor = c;
     if (!pts_.empty()) in.from = pts_.back().point;
@@ -359,6 +359,22 @@ class SplineTool : public ClickTool {
   }
 
   void create(ToolContext& ctx) override { finishSpline(ctx); }
+
+  /// The first point of the spline being drawn is not sketch geometry yet, so ordinary snapping
+  /// does not see it: with 3+ points, a cursor within snap tolerance of it lands exactly on it,
+  /// and that click closes the spline (SK-04).
+  InferenceResult inferAt(Pt2 c, const ViewerMouseEvent& e) override {
+    InferenceResult r = ClickTool::inferAt(c, e);
+    if (pts_.size() >= 3 && !snapSuppressed(e)) {
+      Pt2 first = pts_.front().point;
+      if (c.distance(first) <= tol(c) || r.point.distance(first) <= tol(c)) {
+        r = InferenceResult{};
+        r.point = first;
+        r.glyph = InferenceGlyph::Coincident;
+      }
+    }
+    return r;
+  }
 
  private:
   void finishSpline(ToolContext& ctx) {
