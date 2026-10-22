@@ -12,6 +12,11 @@
 #include "core/ShapeUtils.h"
 #include "core/UndoStack.h"
 
+#include <BRepBndLib.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <BRepGProp.hxx>
+#include <Bnd_Box.hxx>
+#include <GProp_GProps.hxx>
 #include <QtCore/Qt>
 
 #include <algorithm>
@@ -37,6 +42,29 @@ std::string upper(std::string s) {
 
 bool isPlaneRef(const ShapeRef& r) { return core::hasKind(core::kPlaneKinds, r.kind); }
 
+/// The plane of a new sketch on a body face: the normal points out of the material (the face
+/// as resolved may come with its surface's inward normal) and the axes are right-handed, so
+/// the sketch is looked at from outside and never mirrored (SK-04).
+gp_Ax3 outwardFacePlane(const core::Document& doc, const ShapeRef& ref, const gp_Ax3& pl) {
+  gp_Dir n = pl.Direction();
+  const TopoDS_Shape face = core::resolveShape(doc, ref);
+  const TopoDS_Shape body = core::resolveShape(doc, ShapeRef::body(ref.owner));
+  if (!face.IsNull() && !body.IsNull()) {
+    GProp_GProps props;
+    BRepGProp::SurfaceProperties(face, props);
+    const gp_Pnt c = props.CentreOfMass();
+    Bnd_Box box;
+    BRepBndLib::Add(body, box);
+    const double eps = box.IsVoid() ? 1e-3 : std::max(1e-3, 1e-4 * std::sqrt(box.SquareExtent()));
+    auto state = [&](double side) {
+      BRepClass3d_SolidClassifier cls(body, c.Translated(gp_Vec(n) * (side * eps)), 1e-7);
+      return cls.State();
+    };
+    if (state(1.0) == TopAbs_IN && state(-1.0) == TopAbs_OUT) n.Reverse();
+  }
+  return gp_Ax3(pl.Location(), n, pl.XDirection());
+}
+
 /// Static prompt of the idle select tool (the DOF count is shown by the status bar label).
 constexpr const char* kSelectHint = "Select sketch geometry; drag to move";
 
@@ -56,9 +84,10 @@ core::ObjectId createSketch(ToolContext& ctx, const ShapeRef& plane) {
   }
   auto feature = std::make_unique<SketchFeature>();
   feature->prop("plane").setRef(plane);
-  feature->setPlane(*resolved);
-  // a face plane keeps the axes seen now on every later recompute (SK-04)
-  if (plane.kind == core::ShapeKind::Face) feature->storePlaneAxes(*resolved);
+  // a face plane: outward and right-handed, kept on every later recompute (SK-04)
+  const gp_Ax3 start = plane.kind == core::ShapeKind::Face ? outwardFacePlane(doc, plane, *resolved) : *resolved;
+  feature->setPlane(start);
+  if (plane.kind == core::ShapeKind::Face) feature->storePlaneAxes(start);
   core::ObjectId id = core::kInvalidId;
   if (ctx.undo) {
     auto cmd = std::make_unique<core::AddFeatureCommand>(doc, std::move(feature));

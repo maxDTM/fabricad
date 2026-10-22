@@ -207,6 +207,18 @@ class FeatureTest : public QObject {
     QVERIFY(g.hasStoredPlaneAxes());
     a = g.alignToStoredAxes(flipped);
     QVERIFY(a.Direction().IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    // a mirrored (left-handed) frame from an older file keeps its handedness
+    SketchFeature m;
+    gp_Ax3 left(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0));
+    left.YReverse();
+    QVERIFY(!left.Direct());
+    m.alignToStoredAxes(left);
+    SketchFeature m2;
+    m2.fromJson(m.toJson());
+    a = m2.alignToStoredAxes(gp_Ax3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, -1), gp_Dir(1, 0, 0)));
+    QVERIFY(!a.Direct());
+    QVERIFY(a.Direction().IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    QVERIFY(a.YDirection().IsEqual(gp_Dir(0, -1, 0), 1e-12));
     // another face (not parallel): the axes start over
     const gp_Ax3 side(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0), gp_Dir(0, 1, 0));
     a = g.alignToStoredAxes(side);

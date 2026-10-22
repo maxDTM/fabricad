@@ -99,6 +99,7 @@ class SketchFeature : public core::Feature, public core::IProfileSource {
   struct PlaneAxes {
     gp_Dir normal;
     gp_Dir x;
+    bool direct = true;  ///< right-handed (older files may hold a mirrored face frame: kept as is)
   };
   std::optional<PlaneAxes> planeAxes_;
   mutable std::vector<ProfileRegion> regions_;

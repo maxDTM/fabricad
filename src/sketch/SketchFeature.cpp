@@ -350,7 +350,7 @@ std::string SketchFeature::statusText() const {
 // JSON
 // ---------------------------------------------------------------------------
 
-void SketchFeature::storePlaneAxes(const gp_Ax3& p) { planeAxes_ = PlaneAxes{p.Direction(), p.XDirection()}; }
+void SketchFeature::storePlaneAxes(const gp_Ax3& p) { planeAxes_ = PlaneAxes{p.Direction(), p.XDirection(), p.Direct()}; }
 
 gp_Ax3 SketchFeature::alignToStoredAxes(const gp_Ax3& p) {
   if (!planeAxes_) {
@@ -369,7 +369,9 @@ gp_Ax3 SketchFeature::alignToStoredAxes(const gp_Ax3& p) {
   x -= gp_Vec(n) * x.Dot(gp_Vec(n));
   gp_Dir xd = p.XDirection();
   if (x.Magnitude() > 1e-6) xd = gp_Dir(x);  // else the plane's X (perpendicular to +-n)
-  return gp_Ax3(p.Location(), n, xd);
+  gp_Ax3 out(p.Location(), n, xd);
+  if (!planeAxes_->direct) out.YReverse();  // same handedness as stored
+  return out;
 }
 
 QJsonObject SketchFeature::toJson() const {
@@ -378,6 +380,7 @@ QJsonObject SketchFeature::toJson() const {
     const gp_Dir& n = planeAxes_->normal;
     const gp_Dir& x = planeAxes_->x;
     o["planeAxes"] = QJsonArray{n.X(), n.Y(), n.Z(), x.X(), x.Y(), x.Z()};
+    if (!planeAxes_->direct) o["planeAxesMirrored"] = true;
   }
   QJsonObject sk = sketch_.toJson();
   o["geometry"] = sk["geometry"];
@@ -396,7 +399,7 @@ void SketchFeature::fromJson(const QJsonObject& o) {
     gp_Vec x(a[3].toDouble(), a[4].toDouble(), a[5].toDouble());
     if (n.Magnitude() > 1e-9) {
       x -= n.Normalized() * x.Dot(n.Normalized());
-      if (x.Magnitude() > 1e-9) planeAxes_ = PlaneAxes{gp_Dir(n), gp_Dir(x)};
+      if (x.Magnitude() > 1e-9) planeAxes_ = PlaneAxes{gp_Dir(n), gp_Dir(x), !o["planeAxesMirrored"].toBool()};
     }
   }
   invalidateProfiles();
