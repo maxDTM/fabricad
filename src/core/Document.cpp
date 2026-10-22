@@ -312,6 +312,11 @@ std::vector<ObjectId> Document::dependenciesOf(ObjectId featureId) const {
     if (feature(dep)) push(dep);
     else if (bodies_.count(dep))
       for (ObjectId t : featuresTouchingBody(dep, idx)) push(t);
+    else if (dep != kRootComponentId && components_.count(dep))
+      // a component record (New Component, joints...) needs the features that made the
+      // bodies the component owns: it cannot move before them (DOC-06)
+      for (ObjectId b : bodiesOf(dep))
+        for (ObjectId t : featuresTouchingBody(b, idx)) push(t);
   }
   return out;
 }

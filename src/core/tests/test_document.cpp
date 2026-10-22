@@ -341,6 +341,28 @@ class DocumentTest : public QObject {
     QVERIFY(!doc.removeComponent(kRootComponentId));
   }
 
+  void componentRecordDependsOnBodyProducers() {
+    // DOC-06: a record of a component (New Component) cannot move before the feature that
+    // made the component's body
+    Document doc;
+    Component& c = doc.addComponent("C");
+    doc.setActiveComponent(c.id);
+    Feature* box = doc.addFeature(std::make_unique<BoxFeature>());
+    doc.setActiveComponent(kRootComponentId);
+    auto rec = std::make_unique<ConsumerFeature>();
+    rec->prop("src").setRef(ShapeRef::component(c.id));
+    Feature* record = doc.addFeature(std::move(rec));
+    doc.recompute();
+    const auto deps = doc.dependenciesOf(record->id());
+    QCOMPARE(deps.size(), size_t(1));
+    QCOMPARE(deps[0], box->id());
+    std::string why;
+    QVERIFY(!doc.canMoveFeature(record->id(), 0, &why));
+    QVERIFY(why.find(box->name()) != std::string::npos);
+    QVERIFY(!doc.moveFeature(record->id(), 0));
+    QCOMPARE(doc.indexOf(record->id()), 1);
+  }
+
   void moveFeature() {
     Document doc;
     Feature* b1 = doc.addFeature(std::make_unique<BoxFeature>());
