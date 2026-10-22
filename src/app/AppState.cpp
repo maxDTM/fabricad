@@ -135,6 +135,10 @@ std::string ownerName(const core::Document& doc, const core::ShapeRef& r) {
     case ShapeKind::Component:
       if (const core::Component* c = doc.component(r.owner)) return c->name;
       return "Component";
+    case ShapeKind::DrawingView:
+    case ShapeKind::DrawingEntity:
+      // drawing ids are not feature ids; the canvas puts a readable label into the name
+      return r.name.empty() ? kindLabel(r.kind) : r.name;
     default:
       if (const core::Feature* f = doc.feature(r.owner)) return f->name();
       return kindLabel(r.kind);
@@ -156,6 +160,8 @@ std::string describeSelection(const core::Document& doc, const std::vector<core:
       case ShapeKind::ConstructionAxis:
       case ShapeKind::ConstructionPoint:
       case ShapeKind::Joint:
+      case ShapeKind::DrawingView:
+      case ShapeKind::DrawingEntity:
       case ShapeKind::Feature: return ownerName(doc, r);
       default: return kindLabel(r.kind) + " of " + ownerName(doc, r);
     }

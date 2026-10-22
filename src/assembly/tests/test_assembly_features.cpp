@@ -520,7 +520,7 @@ class AssemblyFeaturesTest : public QObject {
     QVERIFY(deleteComponent(doc, &doc.undoStack(), nc));
     QVERIFY(!doc.component(nc));
     QCOMPARE(doc.body(t.bodyA)->component, core::kRootComponentId);  // bodies move to the parent
-    doc.undoStack().undo();  // re-created (fresh id, see integration notes), body back inside
+    doc.undoStack().undo();  // re-created with its original id, body back inside
     const core::Component* restored = nullptr;
     for (const core::Component* c : doc.components())
       if (c->name == "FromBody") restored = c;

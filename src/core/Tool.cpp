@@ -362,14 +362,16 @@ void ToolManager::finishActive(bool accepted) {
     viewer_->clearManipulators();
     viewer_->setHighlighted({});
     viewer_->setCursor(CursorShape::Arrow);
-    if (document_) viewer_->setSelectionFilter(kAllKinds);
   }
   if (document_) document_->selection().setFilter(kAllKinds);
+  // idle: the user's selection filters apply again
+  if (viewer_ && document_) viewer_->setSelectionFilter(document_->selection().effectiveFilter());
   if (host_) host_->setPrompt({});
   active_ = nullptr;
   if (tool->info().repeatable) {
     lastToolId_ = id;
     lastArgs_ = context_.args;
+    if (tool->info().tab != "SKETCH") lastModelToolId_ = id;
   }
   finishing_ = false;
   emit toolFinished(id, accepted);

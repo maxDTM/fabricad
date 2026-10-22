@@ -82,7 +82,7 @@ struct NewComponentSpec {
   std::string externalPath;
 };
 /// Create a component (undoable through the stack when given; direct edit otherwise). Returns its id.
-/// Note: core has no insert-with-id, so a component re-created by redo (after an undo) gets a fresh id.
+/// A component re-created by redo (after an undo) keeps its original id.
 core::ObjectId createComponent(core::Document& doc, core::UndoStack* undo, const NewComponentSpec& spec);
 /// Create an occurrence of `definition` under `parent` with the given local placement. Returns its id.
 core::ObjectId createOccurrence(core::Document& doc, core::UndoStack* undo, core::ObjectId definition,

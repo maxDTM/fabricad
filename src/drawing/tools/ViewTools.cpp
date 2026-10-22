@@ -668,7 +668,7 @@ void ProjectedViewTool::accept(core::ToolContext& ctx) {
     for (const auto& p : pending_)
       if (DrawingView* v = m->addProjectedView(*sh, parent_, p.dir, p.pos)) created.push_back(v->id);
   });
-  if (DrawingCanvas* c = canvas(ctx)) c->setSelection(created);
+  if (DrawingCanvas* c = canvas(ctx)) c->clearSelection();  // UX-43: no lingering selected (cyan) views
   ctx.finish();
 }
 
@@ -930,7 +930,7 @@ void SectionViewTool::commit(core::ToolContext& ctx) {
   });
   step_ = Step::Done;
   if (created != core::kInvalidId)
-    if (DrawingCanvas* c = canvas(ctx)) c->setSelection({created});
+    if (DrawingCanvas* c = canvas(ctx)) c->clearSelection();  // UX-43: no lingering selected (cyan) views
   ctx.finish();
 }
 
@@ -1102,7 +1102,7 @@ void DetailViewTool::commit(core::ToolContext& ctx) {
   });
   step_ = Step::Done;
   if (created != core::kInvalidId)
-    if (DrawingCanvas* c = canvas(ctx)) c->setSelection({created});
+    if (DrawingCanvas* c = canvas(ctx)) c->clearSelection();  // UX-43: no lingering selected (cyan) views
   ctx.finish();
 }
 

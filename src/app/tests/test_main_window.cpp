@@ -14,6 +14,9 @@
 #include "app/Ribbon.h"
 #include "app/TimelineWidget.h"
 #include "app/AppActions.h"
+#include "app/Selectors.h"
+#include "assembly/ComponentOps.h"
+#include "sketch/SketchFeature.h"
 #include "core/Commands.h"
 #include "core/Selection.h"
 #include "core/UndoStack.h"
@@ -357,6 +360,66 @@ class TestMainWindow : public QObject {
     QVERIFY(w_->commandDialog()->body()->findChildren<QLineEdit*>().size() >= 3);
     QVERIFY(key(Qt::Key_Escape));
     QVERIFY(!w_->toolManager().isActive());
+  }
+
+  // UX-36 / UX-38: browser labels, root Bodies folder, double-click on a sketch, Isolate.
+  void browserAssemblyRows() {
+    QVERIFY(w_->newDocument());
+    core::Document& doc = w_->document();
+    const core::ObjectId f1 = addBox(doc);
+    const core::ObjectId f2 = addBox(doc, 4);
+    const core::ObjectId b1 = doc.feature(f1)->createdBodies().front();
+    const core::ObjectId b2 = doc.feature(f2)->createdBodies().front();
+    settle();
+    const QString rootBodies = QString("folder:%1:Bodies").arg(core::kRootComponentId);
+    QVERIFY(w_->browser()->itemForKey(rootBodies));
+    assembly::NewComponentSpec spec;
+    spec.name = "Leg";
+    spec.bodies = {b1};
+    spec.activate = false;
+    const core::ObjectId leg = assembly::createComponent(doc, &doc.undoStack(), spec);
+    spec.name = "Seat";
+    spec.bodies = {b2};
+    const core::ObjectId seat = assembly::createComponent(doc, &doc.undoStack(), spec);
+    settle();
+    w_->browser()->rebuildNow();
+    QTreeWidgetItem* legItem = w_->browser()->itemForKey(QString("comp:%1").arg(leg));
+    QVERIFY(legItem);
+    QCOMPARE(legItem->text(0), QString("Leg:1"));     // Fusion occurrence label
+    QVERIFY(!w_->browser()->itemForKey(rootBodies));  // empty root Bodies folder is gone
+    QCOMPARE(doc.component(leg)->name, std::string("Leg"));
+    // the scripting selector accepts the label too
+    QVERIFY(app::resolveSelector(doc, "component:Leg:1").ok());
+    // Isolate hides the other component, Show All brings it back
+    auto iso = app::isolate(doc, {ShapeRef::component(leg)});
+    QVERIFY(iso);
+    doc.undoStack().push(std::move(iso));
+    QVERIFY(doc.component(leg)->visible);
+    QVERIFY(!doc.component(seat)->visible);
+    doc.undoStack().undo();
+    QVERIFY(doc.component(seat)->visible);
+
+    // a double-click on a sketch row edits the sketch and never opens the inline editor
+    auto sk = std::make_unique<sketch::SketchFeature>();
+    sk->prop("plane").setRef(ShapeRef::originPlane("XY"));
+    auto add = std::make_unique<core::AddFeatureCommand>(doc, std::move(sk));
+    core::AddFeatureCommand* raw = add.get();
+    doc.undoStack().push(std::move(add));
+    settle();
+    w_->browser()->rebuildNow();
+    QTreeWidgetItem* skItem = w_->browser()->itemForKey(QString("feat:%1").arg(raw->featureId()));
+    QVERIFY(skItem);
+    for (QTreeWidgetItem* p = skItem->parent(); p; p = p->parent()) p->setExpanded(true);
+    w_->browser()->scrollToItem(skItem);
+    settle();
+    const QRect r = w_->browser()->visualItemRect(skItem);
+    QVERIFY(r.isValid());
+    QTest::mouseDClick(w_->browser()->viewport(), Qt::LeftButton, {}, r.center());
+    settle();
+    const QLineEdit* editor = w_->browser()->viewport()->findChild<QLineEdit*>();
+    QVERIFY(!editor || !editor->isVisible());
+    if (w_->toolManager().isActive()) w_->toolManager().cancel();
+    settle();
   }
 
   void saveOpenRoundTrip() {

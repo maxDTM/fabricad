@@ -84,6 +84,11 @@ struct ToolInfo {
   /// Instant tools with this flag (camera/display commands: Fit, Home, Look At, Shaded...)
   /// run without cancelling the active tool (ux.md 5: view commands never interrupt).
   bool keepsActiveTool = false;
+  /// Checkable command (selection priority, selection filters): current state for menus and
+  /// toolbars. Empty = not checkable. Commands sharing a non-empty `exclusiveGroup` behave
+  /// like radio items (the ribbon renders them as an exclusive action group).
+  std::function<bool()> checked;
+  std::string exclusiveGroup;
 };
 
 /// What a tool may use while active. Created by ToolManager for each activation.
@@ -203,6 +208,9 @@ class ToolManager : public QObject {
   ITool* activeTool() const { return active_; }
   const std::string& activeToolId() const;
   const std::string& lastToolId() const { return lastToolId_; }
+  /// Last repeatable tool outside the contextual SKETCH tab (the "last solid command" that the
+  /// marking menu offers to repeat outside a sketch).
+  const std::string& lastModelToolId() const { return lastModelToolId_; }
   bool isActive() const { return active_ != nullptr; }
   ToolContext* activeContext() { return active_ ? &context_ : nullptr; }
 
@@ -241,6 +249,7 @@ class ToolManager : public QObject {
   ITool* active_ = nullptr;
   ToolContext context_;
   std::string lastToolId_;
+  std::string lastModelToolId_;
   std::vector<std::string> lastArgs_;
   bool finishing_ = false;
   std::vector<QMetaObject::Connection> docConnections_;

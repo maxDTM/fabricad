@@ -467,7 +467,33 @@ bool DrawingModel::removeEntity(ObjectId id) {
 bool DrawingModel::removeObject(ObjectId id) { return view(id) ? removeView(id) : removeEntity(id); }
 
 std::vector<BomRow> DrawingModel::bom(const DrawingView* v) const {
-  return buildBom(doc_, v ? v->sources : std::vector<core::ShapeRef>{});
+  // A parts list lists the whole design (Fusion: the top-level assembly of the referenced
+  // design). Only a view made of explicit components narrows it to those sub-assemblies; a
+  // base view that took a body preselection does not (UX-37).
+  std::vector<core::ShapeRef> comps;
+  if (v)
+    for (const core::ShapeRef& r : v->sources)
+      if (r.kind == core::ShapeKind::Component && r.owner != core::kRootComponentId) comps.push_back(r);
+  return buildBom(doc_, comps);
+}
+
+void fitPartsListInFrame(const Sheet& sheet, PartsList& pl) {
+  const BBox2 f = sheet.frameRect();
+  if (!f.isValid()) return;
+  const double margin = 0.0;  // the frame line itself is the limit
+  const double avail = f.width() - 2 * margin;
+  double w = pl.width();
+  if (w > avail && w > 0) {
+    const double k = avail / w;
+    for (double& c : pl.columnWidths) c *= k;
+    pl.textHeight = std::max(1.8, pl.textHeight * k);
+    w = pl.width();
+  }
+  const double h = pl.height();
+  if (pl.position.x + w > f.max.x - margin) pl.position.x = f.max.x - margin - w;
+  if (pl.position.x < f.min.x + margin) pl.position.x = f.min.x + margin;
+  if (pl.position.y + h > f.max.y - margin) pl.position.y = f.max.y - margin - h;
+  if (pl.position.y < f.min.y + margin) pl.position.y = f.min.y + margin;
 }
 
 void DrawingModel::refreshAnnotations(Sheet& sheet) {
@@ -480,6 +506,7 @@ void DrawingModel::refreshAnnotations(Sheet& sheet) {
   bool haveRows = false;
   for (auto& pl : sheet.partsLists) {
     pl.rows = bom(sheet.view(pl.viewId));
+    fitPartsListInFrame(sheet, pl);
     if (!haveRows) {
       rows = pl.rows;
       haveRows = true;

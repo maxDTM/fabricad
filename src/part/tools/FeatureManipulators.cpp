@@ -33,6 +33,7 @@
 #include <TopoDS_Face.hxx>
 #include <gp_Vec.hxx>
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <mutex>
@@ -426,6 +427,40 @@ std::vector<ManipulatorBinding> ribManipulators(PartFeature& f, core::RecomputeC
   return out;
 }
 
+/// Move/Copy (Free Move / Translate): one triad at the pivot, moved along with the bodies by the
+/// current dx/dy/dz (Fusion's move triad). FeatureTool maps each handle to dx..rz itself; the
+/// binding key is "dx" (the primary numeric, so the value box anchors on the triad).
+std::vector<ManipulatorBinding> moveBodyManipulators(PartFeature& f, core::RecomputeContext& ctx, const PixelSizeFn& pixelSize) {
+  std::vector<ManipulatorBinding> out;
+  auto* mf = dynamic_cast<MoveBodyFeature*>(&f);
+  if (!mf) return out;
+  const int type = f.enumIndex("moveType");
+  if (type != MoveBodyFeature::Translate && type != MoveBodyFeature::Free) return out;
+  std::vector<TopoDS_Shape> sel;
+  for (const auto& r : f.prop("bodies").refs())
+    if (r.kind == core::ShapeKind::Body && !ctx.bodyShape(r.owner).IsNull()) sel.push_back(ctx.bodyShape(r.owner));
+  if (sel.empty()) return out;
+  gp_Pnt pivot = mf->pivot(ctx);
+  if (type == MoveBodyFeature::Translate) {
+    // translate has no pivot input: the triad sits at the selection centre
+    core::Vec3 mn, mx;
+    if (core::bbox(compoundOf(sel), mn, mx)) pivot = gp_Pnt((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, (mn.z + mx.z) / 2);
+  }
+  const gp_Pnt at = pivot.Translated(gp_Vec(f.length("dx"), f.length("dy"), f.length("dz")));
+  ManipulatorSpec s;
+  s.kind = ManipulatorKind::Triad;
+  s.frame = gp_Ax3(at, gp_Dir(0, 0, 1), gp_Dir(1, 0, 0));
+  // same sizing as the assembly Move Component triad
+  double size = std::clamp(core::bboxDiagonal(compoundOf(sel)) * 0.35, 5.0, 500.0);
+  size = std::max(size, 60.0 * px(pixelSize, at));
+  s.size = size;
+  s.handles = core::kHandleMoves | core::kHandlePlanes;
+  if (type == MoveBodyFeature::Free) s.handles |= core::kHandleRotations;
+  s.label = "Move";
+  out.push_back({"dx", s, 1.0});
+  return out;
+}
+
 void installBuiltins() {
   static std::once_flag once;
   std::call_once(once, [] {
@@ -445,6 +480,7 @@ void installBuiltins() {
     m.emplace(OffsetFaceFeature::kType, offsetFaceManipulators);
     m.emplace(OffsetPlaneFeature::kType, offsetPlaneManipulators);
     m.emplace(HoleFeature::kType, holeManipulators);
+    m.emplace(MoveBodyFeature::kType, moveBodyManipulators);
   });
 }
 

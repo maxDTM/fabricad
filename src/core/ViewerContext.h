@@ -30,6 +30,7 @@
 
 #include <array>
 #include <map>
+#include <set>
 #include <optional>
 #include <string>
 #include <vector>
@@ -153,12 +154,20 @@ class IViewerContext {
   virtual bool worldToScreen(const gp_Pnt& p, double& x, double& y) const = 0;
   /// World size of one pixel at `at` (for snap tolerances: 8 px -> 8*pixelSize mm).
   virtual double pixelSize(const gp_Pnt& at) const = 0;
+  /// Pixel size the viewer draws and hit-tests gizmos with (it may scale them up). Use it when
+  /// placing UI on a gizmo handle so it lines up with what is drawn.
+  virtual double gizmoPixelSize(const gp_Pnt& at) const { return pixelSize(at); }
 
   // --- misc -----------------------------------------------------------------------------
   /// In-context editing: components not in the list are drawn ghosted (30% opacity). Empty = none ghosted.
   virtual void setGhostedComponents(const std::vector<ObjectId>& componentIds) = 0;
   /// Per-feature display override (hide a sketch while editing it, etc.). nullopt = follow the document.
   virtual void setFeatureVisibilityOverride(ObjectId featureId, std::optional<bool> visible) = 0;
+  /// Persistent display state of a sketch/construction feature (the browser eye). Unlike the
+  /// override above, the user can show it again from the browser. ViewerWidget implements both
+  /// (same signatures); the defaults do nothing.
+  virtual void setFeatureHidden(ObjectId featureId, bool hidden) { (void)featureId; (void)hidden; }
+  virtual bool isFeatureHidden(ObjectId featureId) const { (void)featureId; return false; }
   virtual void setCursor(CursorShape shape) = 0;
   virtual void requestRedraw() = 0;
   /// Host widget (nullptr in headless contexts). Use as dialog parent.
@@ -224,6 +233,11 @@ class NullViewerContext : public IViewerContext {
   double pixelSize(const gp_Pnt&) const override { return pixelSize_; }
   void setGhostedComponents(const std::vector<ObjectId>& ids) override { ghosted_ = ids; }
   void setFeatureVisibilityOverride(ObjectId id, std::optional<bool> v) override;
+  void setFeatureHidden(ObjectId id, bool hidden) override {
+    if (hidden) hiddenFeatures_.insert(id);
+    else hiddenFeatures_.erase(id);
+  }
+  bool isFeatureHidden(ObjectId id) const override { return hiddenFeatures_.count(id) > 0; }
   void setCursor(CursorShape c) override { cursor_ = c; }
   void requestRedraw() override { ++redrawCount_; }
 
@@ -255,6 +269,7 @@ class NullViewerContext : public IViewerContext {
   double pixelSize_ = 1.0;
   std::vector<ObjectId> ghosted_;
   std::map<ObjectId, std::optional<bool>> overrides_;
+  std::set<ObjectId> hiddenFeatures_;
   CursorShape cursor_ = CursorShape::Arrow;
   int redrawCount_ = 0;
   int fitCount_ = 0;

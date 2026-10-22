@@ -61,7 +61,12 @@ class MoveBodyFeature : public PartFeature {
   static gp_Trsf freeMoveTransform(const gp_Pnt& pivot, double rxDeg, double ryDeg, double rzDeg, const gp_Vec& translation);
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   void updatePropertyFlags() override;
+  /// New Move features start as Free Move (Fusion's default), so the triad's rings work.
+  /// Loaded files and features built in code keep the constructor default (Translate).
+  void applyDefaultsForNewFeature(const core::Document&) override;
   std::string primaryInput() const override { return "bodies"; }
+  /// Rotation pivot (world) for the given input state: bbox centre of the bodies, origin or px/py/pz.
+  gp_Pnt pivot(core::RecomputeContext& ctx);
 };
 
 /// Split Body with a plane / planar face / body.

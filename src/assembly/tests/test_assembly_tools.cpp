@@ -605,6 +605,87 @@ class AssemblyToolsTest : public QObject {
     QCOMPARE(h.doc.featureAt(featuresBefore - 1)->status(), core::FeatureStatus::Ok);
   }
 
+  // UX-35: CFB x2, Move, Ground undo and redo as single steps; Move adds a Position timeline
+  // record; a redone component keeps its id so the redone Move still applies.
+  void assemblyUndoRedoChain() {
+    Harness h;
+    Document& doc = h.doc;
+    // two bodies in the root
+    const TwoBoxes& b = h.boxes;
+    doc.body(b.bodyA)->component = core::kRootComponentId;
+    doc.body(b.bodyB)->component = core::kRootComponentId;
+    const int comps0 = static_cast<int>(doc.components().size());
+    const int feats0 = doc.featureCount();
+    h.select({ShapeRef::body(b.bodyA)});
+    QVERIFY(h.manager.run("assembly.components-from-bodies"));
+    h.select({ShapeRef::body(b.bodyB)});
+    QVERIFY(h.manager.run("assembly.components-from-bodies"));
+    const ObjectId cA = doc.body(b.bodyA)->component, cB = doc.body(b.bodyB)->component;
+    QVERIFY(cA != core::kRootComponentId && cB != core::kRootComponentId);
+    QCOMPARE(static_cast<int>(doc.components().size()), comps0 + 2);
+    QCOMPARE(doc.featureCount(), feats0 + 2);  // two NewComponent markers
+    const gp_Pnt start = worldOrigin(doc, cB);
+    h.select({ShapeRef::component(cB)});
+    QVERIFY(h.manager.run("assembly.move"));
+    auto* mt = h.tool<MoveComponentTool>("assembly.move");
+    mt->setTransform(h.ctx(), 20, 0, 0, 0, 0, 0);
+    h.manager.accept();
+    QVERIFY(near(worldOrigin(doc, cB), start.Translated(gp_Vec(20, 0, 0))));
+    QCOMPARE(doc.featureCount(), feats0 + 3);
+    const core::Feature* pos = doc.featureAt(doc.featureCount() - 1);
+    QCOMPARE(pos->type(), std::string(PositionFeature::kType));
+    h.select({ShapeRef::component(cB)});
+    QVERIFY(h.manager.run("assembly.ground"));
+    QVERIFY(doc.component(cB)->grounded);
+    // a full replay keeps the moved position
+    doc.markDirty(doc.featureAt(0)->id());
+    doc.recompute();
+    QVERIFY(near(worldOrigin(doc, cB), start.Translated(gp_Vec(20, 0, 0))));
+    // undo x3: ground, move (placement + timeline record), second CFB
+    doc.undoStack().undo();
+    QVERIFY(!doc.component(cB)->grounded);
+    doc.undoStack().undo();
+    QVERIFY(near(worldOrigin(doc, cB), start));
+    QCOMPARE(doc.featureCount(), feats0 + 2);
+    doc.undoStack().undo();
+    QVERIFY(!doc.component(cB));
+    QCOMPARE(static_cast<int>(doc.components().size()), comps0 + 1);
+    QCOMPARE(doc.featureCount(), feats0 + 1);
+    // redo x3: the component comes back with the same id, so Move and Ground apply again
+    doc.undoStack().redo();
+    QVERIFY(doc.component(cB));
+    QCOMPARE(doc.body(b.bodyB)->component, cB);
+    doc.undoStack().redo();
+    QVERIFY(near(worldOrigin(doc, cB), start.Translated(gp_Vec(20, 0, 0))));
+    QCOMPARE(doc.featureCount(), feats0 + 3);
+    doc.undoStack().redo();
+    QVERIFY(doc.component(cB)->grounded);
+    // deleting the moved component removes its Position record (and undo restores both)
+    const int feats = doc.featureCount();
+    h.select({ShapeRef::component(cB)});
+    QVERIFY(h.manager.run("assembly.delete-component"));
+    QCOMPARE(doc.featureCount(), feats - 2);  // its NewComponent marker and its Position record
+    doc.undoStack().undo();
+    QCOMPARE(doc.featureCount(), feats);
+    QVERIFY(doc.component(cB));
+    QVERIFY(near(worldOrigin(doc, cB), start.Translated(gp_Vec(20, 0, 0))));
+    // the Position feature survives a save / load round trip
+    QTemporaryDir dir;
+    const std::string path = (dir.path() + "/pos.fcad").toStdString();
+    std::string err;
+    QVERIFY2(doc.save(path, &err), err.c_str());
+    Document loaded;
+    QVERIFY2(loaded.load(path, &err), err.c_str());
+    bool found = false;
+    for (int i = 0; i < loaded.featureCount(); ++i)
+      if (const auto* p = dynamic_cast<const PositionFeature*>(loaded.featureAt(i))) {
+        found = true;
+        QCOMPARE(p->placements().size(), size_t(1));
+        QVERIFY(p->placements().count(cB));
+      }
+    QVERIFY(found);
+  }
+
   void interferenceToolReportsAndPreviews() {
     Harness h;
     const TwoBoxes& b = h.boxes;

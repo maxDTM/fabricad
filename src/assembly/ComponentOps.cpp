@@ -299,9 +299,8 @@ void copyComponentFields(core::Component& dst, const core::Component& src) {
   dst.description = src.description;
   dst.material = src.material;
 }
-
-/// New component (optionally with bodies and a timeline marker). Core cannot insert a component with a
-/// given id, so a redo after an undo allocates a fresh id (see docs/integration-notes/assembly.md).
+/// New component (optionally with bodies and a timeline marker). A redo after an undo re-creates it
+/// with its original id (addComponent(Component) keeps a free id).
 class CreateComponentCommand : public core::UndoCommand {
  public:
   CreateComponentCommand(Document& doc, NewComponentSpec spec, std::string text)
@@ -312,8 +311,15 @@ class CreateComponentCommand : public core::UndoCommand {
   ObjectId created() const { return created_; }
 
   void redo() override {
-    core::Component& c = doc_.addComponent(spec_.name, parent_);
+    // a redo after an undo re-creates the component with its original id, so later commands
+    // (Move placements, Ground) that refer to it by id still apply (UX-35)
+    core::Component nc;
+    nc.id = created_;
+    nc.name = spec_.name;
+    nc.parent = parent_;
+    core::Component& c = doc_.addComponent(std::move(nc));
     created_ = c.id;
+    spec_.name = c.name;
     c.grounded = spec_.ground;
     c.externalPath = spec_.externalPath;
     bodiesBefore_.clear();
@@ -373,8 +379,12 @@ class CreateOccurrenceCommand : public core::UndoCommand {
   void redo() override {
     const core::Component* def = doc_.component(definition_);
     if (!def) return;
-    core::Component& c = doc_.addComponent(def->name, parent_ == kInvalidId ? kRootComponentId : parent_);
-    created_ = c.id;
+    core::Component nc;
+    nc.id = lastId_;  // same id on redo
+    nc.name = def->name;
+    nc.parent = parent_ == kInvalidId ? kRootComponentId : parent_;
+    core::Component& c = doc_.addComponent(std::move(nc));
+    created_ = lastId_ = c.id;
     c.definition = definition_;
     c.placement = placement_;
     c.partNumber = def->partNumber;
@@ -392,12 +402,13 @@ class CreateOccurrenceCommand : public core::UndoCommand {
   ObjectId definition_, parent_;
   gp_Trsf placement_;
   ObjectId created_ = kInvalidId;
+  ObjectId lastId_ = kInvalidId;
 };
 
 /// Delete one component: its bodies and child components move to its parent (the children keep
 /// their world placement), the features referencing it (joints, its timeline marker) are removed
 /// and the features made inside it are re-homed to the parent. Undo re-creates the component
-/// (fresh id) and puts everything back.
+/// (with its original id) and puts everything back.
 class DeleteComponentCommand : public core::UndoCommand {
  public:
   DeleteComponentCommand(Document& doc, ObjectId comp) : UndoCommand("Delete component"), doc_(doc), comp_(comp) {}
@@ -439,7 +450,11 @@ class DeleteComponentCommand : public core::UndoCommand {
   void undo() override {
     const core::Component& n = node_.comp;
     ObjectId parent = doc_.component(n.parent) ? n.parent : kRootComponentId;
-    core::Component& c = doc_.addComponent(n.name, parent);
+    core::Component nc;
+    nc.id = comp_;  // back with its original id (kept when free)
+    nc.name = n.name;
+    nc.parent = parent;
+    core::Component& c = doc_.addComponent(std::move(nc));
     copyComponentFields(c, n);
     c.definition = doc_.component(n.definition) ? n.definition : kInvalidId;
     std::map<ObjectId, ObjectId> map{{comp_, c.id}};

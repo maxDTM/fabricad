@@ -56,7 +56,9 @@ BrowserTree::BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWid
   header()->resizeSection(1, 24);
   setIconSize(QSize(16, 16));
   setSelectionMode(QAbstractItemView::ExtendedSelection);
-  setEditTriggers(QAbstractItemView::EditKeyPressed);
+  // UX-38: no implicit edit triggers. Rename only through F2 / the context menu / double-click on
+  // bodies and components (startRename); a double-click on a sketch or feature only edits it.
+  setEditTriggers(QAbstractItemView::NoEditTriggers);
   setMouseTracking(true);
   setUniformRowHeights(true);
   setIndentation(14);
@@ -68,8 +70,13 @@ BrowserTree::BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWid
   connect(this, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int column) {
     if (column == 1 || !item) return;
     const int kind = item->data(0, RoleKind).toInt();
-    if (kind == KindFeature) emit editFeatureRequested(item->data(0, RoleId).toULongLong());
-    else if (kind == KindBody || kind == KindComponent || kind == KindRoot) editItem(item, 0);
+    if (kind == KindFeature) {
+      // the edit runs in the canvas: drop the keyboard focus, so the row shows no focus frame
+      // that reads as an inline rename (UX-38)
+      clearFocus();
+      emit editFeatureRequested(item->data(0, RoleId).toULongLong());
+    }
+    else if (kind == KindBody || kind == KindComponent || kind == KindRoot) startRename(item);
   });
   connect(this, &QTreeWidget::itemEntered, this, [this](QTreeWidgetItem* item, int) {
     const QString k = item ? item->data(0, RoleKey).toString() : QString();
@@ -173,7 +180,8 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
   std::vector<ObjectId> live;
   for (ObjectId b : bodies)
     if (!doc_.bodyShape(b).IsNull()) live.push_back(b);
-  if (!live.empty() || root) {
+  // the root shows an (empty) Bodies folder only while it has no child components (Fusion)
+  if (!live.empty() || (root && comp->children.empty())) {
     QTreeWidgetItem* bf = addFolder(node, compId, "Bodies", !live.empty(), folderVisible(compId, "Bodies"));
     for (ObjectId id : live) {
       const core::Body* b = doc_.body(id);
@@ -237,9 +245,12 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
     const core::Component* c = doc_.component(childId);
     if (!c) continue;
     auto* it = new QTreeWidgetItem(node);
-    const QString name = core::qs(assembly::componentLabel(doc_, childId));  // "Bracket:2" for occurrences
-    it->setText(0, name);
-    it->setIcon(0, resourceIcon("component"));
+    // Fusion labels every occurrence: "Bracket:1", "Bracket:2" (componentLabel adds the suffix
+    // for occurrences; a plain component is its first occurrence)
+    std::string label = assembly::componentLabel(doc_, childId);
+    if (!c->isOccurrence()) label += ":1";
+    it->setText(0, core::qs(label));
+    it->setIcon(0, resourceIcon(c->grounded ? "assembly-ground" : "component"));  // pin on grounded components
     it->setData(0, RoleKind, KindComponent);
     it->setData(0, RoleId, QVariant::fromValue<qulonglong>(childId));
     it->setData(0, RoleKey, key("comp", childId));
@@ -414,6 +425,7 @@ void BrowserTree::onItemRenamed(QTreeWidgetItem* item, int column) {
       cmd = makeRenameComponent(doc_, id, name);
       break;
     case KindComponent:
+      if (const core::Component* c = doc_.component(id); c && name == assembly::componentLabel(doc_, id)) break;
       if (name.size() > 2 && name.ends_with(":1")) name.resize(name.size() - 2);
       cmd = makeRenameComponent(doc_, id, name);
       break;
@@ -459,11 +471,12 @@ void BrowserTree::contextMenuEvent(QContextMenuEvent* e) {
     menu.addAction(resourceIcon("component"), "Activate Component", this, [this, id] { doc_.setActiveComponent(id); });
     if (kind == KindComponent) {
       const core::Component* c = doc_.component(id);
+      // through the tools, so the status message and the joint recompute run as from the toolbar
       if (c)
-        menu.addAction(c->grounded ? "Unground" : "Ground", this, [this, id, g = !c->grounded] {
-          doc_.undoStack().push(core::makeComponentEditCommand(doc_, id, [g](core::Component& comp) { comp.grounded = g; },
-                                                               g ? "Ground" : "Unground"));
-        });
+        menu.addAction(resourceIcon(c->grounded ? "assembly-unground" : "assembly-ground"),
+                       c->grounded ? "Unground" : "Ground", this,
+                       [this, g = !c->grounded] { emit runToolRequested(g ? "assembly.ground" : "assembly.unground"); });
+      menu.addAction(resourceIcon("visibility"), "Isolate", this, [this] { emit runToolRequested("app.isolate"); });
       menu.addAction("Copy\tCtrl+C", this, [this] { emit runToolRequested("assembly.copy"); });
     }
     bool canPaste = false;
@@ -482,11 +495,14 @@ void BrowserTree::contextMenuEvent(QContextMenuEvent* e) {
     menu.addAction("Properties...", this, [this, id] { editComponentProperties(id); });
   }
   if (kind == KindBody) {
+    menu.addAction(resourceIcon("component"), "Create Components from Bodies", this,
+                   [this] { emit runToolRequested("assembly.components-from-bodies"); });
+    menu.addAction(resourceIcon("visibility"), "Isolate", this, [this] { emit runToolRequested("app.isolate"); });
     addMaterialMenu(menu, id);
     menu.addAction("Appearance...", this, [this, id] { pickBodyAppearance(id); });
   }
   if (kind == KindFeature || kind == KindBody || kind == KindComponent || kind == KindRoot)
-    menu.addAction("Rename\tF2", this, [this, item] { editItem(item, 0); });
+    menu.addAction("Rename\tF2", this, [this, item] { startRename(item); });
   if (kind == KindFeature || kind == KindBody || kind == KindComponent) {
     menu.addSeparator();
     menu.addAction(resourceIcon("delete"), "Delete\tDel", this, [this] {
@@ -580,10 +596,27 @@ void BrowserTree::editComponentProperties(ObjectId componentId) {
 
 void BrowserTree::keyPressEvent(QKeyEvent* e) {
   if (e->key() == Qt::Key_F2 && currentItem() && (currentItem()->flags() & Qt::ItemIsEditable)) {
-    editItem(currentItem(), 0);
+    startRename(currentItem());
     return;
   }
   QTreeWidget::keyPressEvent(e);
+}
+
+void BrowserTree::startRename(QTreeWidgetItem* item) {
+  if (!item || !(item->flags() & Qt::ItemIsEditable)) return;
+  if (item->data(0, RoleKind).toInt() == KindComponent) {
+    // edit the bare name, not the "Name:1" label
+    if (const core::Component* c = doc_.component(item->data(0, RoleId).toULongLong())) {
+      const QSignalBlocker block(this);
+      item->setText(0, core::qs(c->name));
+    }
+  }
+  editItem(item, 0);
+}
+
+void BrowserTree::closeEditor(QWidget* editor, QAbstractItemDelegate::EndEditHint hint) {
+  QTreeWidget::closeEditor(editor, hint);
+  scheduleRebuild();  // restore the "Name:1" label after a cancelled rename
 }
 
 void BrowserTree::leaveEvent(QEvent* e) {

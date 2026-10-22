@@ -249,7 +249,27 @@ class TestAppLogic : public QObject {
     m = app::buildMarkingMenu(reg, ctx);
     QCOMPARE(m.radial[app::N].command, std::string(app::kCmdOk));
     QCOMPARE(m.radial[app::S].command, std::string(app::kCmdCancel));
+    QVERIFY(m.radial[app::NE].command.empty());  // UX-41: no repeat while a command runs
     QVERIFY(!m.isEmpty());
+
+    // UX-41: outside a sketch, Repeat never offers a sketch tool; it names the last model command.
+    addTool(reg, ti("sketch.rectangle-2pt", "SKETCH", "CREATE"));
+    ctx = {};
+    ctx.lastToolId = "sketch.rectangle-2pt";
+    m = app::buildMarkingMenu(reg, ctx);
+    QVERIFY(m.radial[app::N].command.empty());
+    ctx.lastModelToolId = "part.extrude";
+    m = app::buildMarkingMenu(reg, ctx);
+    QCOMPARE(m.radial[app::N].command, std::string("part.extrude"));
+    QCOMPARE(m.radial[app::N].label, std::string("Repeat extrude"));
+    ctx.lastToolId = "part.extrude";
+    m = app::buildMarkingMenu(reg, ctx);
+    QCOMPARE(m.radial[app::N].command, std::string(app::kCmdRepeat));
+    ctx.lastToolId = "sketch.rectangle-2pt";
+    ctx.inSketch = true;
+    m = app::buildMarkingMenu(reg, ctx);
+    QCOMPARE(m.radial[app::N].command, std::string(app::kCmdRepeat));
+    QCOMPARE(m.radial[app::N].label, std::string("Repeat rectangle-2pt"));
   }
 
   // --- command search ----------------------------------------------------------------------

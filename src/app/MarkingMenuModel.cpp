@@ -42,16 +42,25 @@ MarkingMenuModel buildMarkingMenu(const core::ToolRegistry& reg, const MarkingCo
         std::none_of(m.overflow.begin(), m.overflow.end(), [&](const MarkingEntry& o) { return o.command == e.command; }))
       m.overflow.push_back(e);
   };
+  // Repeat: inside a sketch the last command; outside a sketch the last non-sketch command
+  // (a sketch tool such as 2-Point Rectangle makes no sense on a solid). While a command runs
+  // the menu shows that command's context (OK / Cancel / Undo) and no repeat.
   MarkingEntry repeat;
-  if (const core::ITool* last = ctx.lastToolId.empty() ? nullptr : reg.tool(ctx.lastToolId);
-      last && last->info().repeatable)
-    repeat = {kCmdRepeat, "Repeat " + last->info().name};
+  auto repeatable = [&](const std::string& id) -> const core::ITool* {
+    const core::ITool* t = id.empty() ? nullptr : reg.tool(id);
+    return t && t->info().repeatable ? t : nullptr;
+  };
+  if (ctx.inSketch) {
+    if (const core::ITool* last = repeatable(ctx.lastToolId)) repeat = {kCmdRepeat, "Repeat " + last->info().name};
+  } else {
+    const std::string& id = ctx.lastModelToolId.empty() ? ctx.lastToolId : ctx.lastModelToolId;
+    if (const core::ITool* last = repeatable(id); last && last->info().tab != "SKETCH")
+      repeat = {id == ctx.lastToolId ? std::string(kCmdRepeat) : id, "Repeat " + last->info().name};
+  }
 
   if (ctx.toolActive) {
-    const std::string name = ctx.activeToolName.empty() ? std::string("Command") : ctx.activeToolName;
     s[N] = {kCmdOk, "OK"};
     s[S] = {kCmdCancel, "Cancel"};
-    s[NE] = repeat;
     s[NW] = firstTool(reg, {"app.undo"});
     overflow({"view.fit"});
     overflow({"view.look-at"});

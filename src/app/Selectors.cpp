@@ -3,6 +3,7 @@
 #include "app/Selectors.h"
 
 #include "app/AppActions.h"
+#include "assembly/ComponentOps.h"
 #include "core/Document.h"
 #include "core/Feature.h"
 #include "core/GeometryRefs.h"
@@ -709,7 +710,14 @@ const core::Component* findComponent(const core::Document& doc, const std::strin
     if (c->name == spec) return c;
     if (!ci && lower(c->name) == lower(spec)) ci = c;
   }
-  return ci;
+  if (ci) return ci;
+  // browser labels: "Name:1" for a plain component, "Bracket:2" for an occurrence
+  for (const core::Component* c : doc.components()) {
+    if (c->isRoot()) continue;
+    const std::string label = assembly::componentLabel(doc, c->id);
+    if (label == spec || (!c->isOccurrence() && c->name + ":1" == spec)) return c;
+  }
+  return nullptr;
 }
 
 TopoDS_Shape worldBodyShape(const core::Document& doc, ObjectId bodyId) {

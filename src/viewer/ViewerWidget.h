@@ -84,8 +84,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   fabricad::core::ShapeKindMask effectiveFilter() const;
 
   // persistent visibility of non-body document objects (stored by the app in extension data)
-  void setFeatureHidden(fabricad::core::ObjectId id, bool hidden);
-  bool isFeatureHidden(fabricad::core::ObjectId id) const { return sceneOptions_.hiddenFeatures.count(id) > 0; }
+  void setFeatureHidden(fabricad::core::ObjectId id, bool hidden) override;
+  bool isFeatureHidden(fabricad::core::ObjectId id) const override { return sceneOptions_.hiddenFeatures.count(id) > 0; }
   const std::set<fabricad::core::ObjectId>& hiddenFeatures() const { return sceneOptions_.hiddenFeatures; }
   void setHiddenFeatures(std::set<fabricad::core::ObjectId> ids);
   void setOriginVisible(bool v);
@@ -148,6 +148,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   bool screenRay(int x, int y, gp_Pnt& origin, gp_Dir& dir) const override;
   bool worldToScreen(const gp_Pnt& p, double& x, double& y) const override;
   double pixelSize(const gp_Pnt& at) const override;
+  /// Gizmo drawing/hit-test pixel size (scaled so the Move triad is large enough).
+  double gizmoPixelSize(const gp_Pnt& at) const override;
   void setGhostedComponents(const std::vector<core::ObjectId>& componentIds) override;
   void setFeatureVisibilityOverride(core::ObjectId featureId, std::optional<bool> visible) override;
   void setCursor(core::CursorShape shape) override;
@@ -228,8 +230,6 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void syncManipulatorPrs();
   /// Auto-sized gizmos follow the zoom level: rebuild those whose pixel size changed.
   void refreshManipulatorSizes();
-  /// Gizmo drawing/hit-test pixel size (scaled so the Move triad is large enough).
-  double gizmoPixelSize(const gp_Pnt& at) const;
   bool gizmoRay(int x, int y, gp_Pnt& o, gp_Dir& d) const;
   bool gizmoPress(int x, int y, int modifiers);
   bool gizmoMove(int x, int y, int modifiers);

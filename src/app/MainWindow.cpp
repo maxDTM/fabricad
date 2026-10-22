@@ -1417,6 +1417,7 @@ MarkingContext markingContext(core::ToolManager& m, core::Document& doc, bool id
   c.toolActive = m.isActive() && !idle;
   if (c.toolActive) c.activeToolName = m.activeTool()->info().name;
   c.lastToolId = m.lastToolId();
+  c.lastModelToolId = m.lastModelToolId();
   c.inSketch = inSketch;
   for (const ShapeRef& r : doc.selection().items()) c.selectionKinds.push_back(r.kind);
   return c;
@@ -1540,8 +1541,12 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
     if (w && w->window() == this && !(k == lastKeyEvent_ && k->timestamp() == lastKeyTimestamp_)) {
       lastKeyEvent_ = k;
       lastKeyTimestamp_ = k->timestamp();
-      if (handleKeyPress(k->key(), static_cast<int>(k->modifiers()), k->text(), k->isAutoRepeat(),
-                         QApplication::focusWidget())) {
+      // No active window (e.g. no window manager): focusWidget() is null although the key is
+      // aimed at a field. Use the receiver then, so a key typed into a dialog field never
+      // counts as a canvas key (UX-33).
+      QWidget* focus = QApplication::focusWidget();
+      if (!focus) focus = w->focusWidget() ? w->focusWidget() : w;
+      if (handleKeyPress(k->key(), static_cast<int>(k->modifiers()), k->text(), k->isAutoRepeat(), focus)) {
         k->accept();
         return true;
       }

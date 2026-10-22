@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/AppTools.h"
 
+#include "app/AppActions.h"
+
 #include "app/MainWindow.h"
 #include "app/PropertyEditor.h"
 #include "core/AppHost.h"
@@ -128,6 +130,21 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
   add(info("app.show-all", "Show All", "Show all bodies, components, sketches and construction geometry", "",
            {"SHOWALL"}, "eye"),
       [win](ToolContext&) { win->showAllObjects(); });
+  add(info("app.isolate", "Isolate", "Hide everything except the selected bodies and components", "", {"ISOLATE"},
+           "visibility"),
+      [](ToolContext& c) {
+        if (!c.document) return;
+        std::vector<core::ShapeRef> items = c.preselection;
+        if (items.empty() && c.selection) items = c.selection->items();
+        if (auto cmd = isolate(*c.document, items)) {
+          if (c.undo) c.undo->push(std::move(cmd));
+          else cmd->redo();
+          c.showMessage("Isolated: Show All restores the other objects");
+        } else {
+          c.showMessage("Select bodies or components to isolate", true);
+        }
+      },
+      [](const ToolContext& c) { return c.selection && !c.selection->isEmpty(); });
   add(info("app.compute-all", "Compute All", "Recompute the whole timeline", "Ctrl+B", {"REGEN", "COMPUTE"}, "compute"),
       [](ToolContext& c) {
         if (c.document) c.document->recomputeAll();
@@ -291,7 +308,64 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     i.group = "SELECT";
     i.order = p.order;
     i.promoted = p.p == viewer::SelectionPriority::Default;
+    // UX-39: the active priority shows as checked (radio group)
+    i.checked = [win, prio = p.p] { return win->viewer() && win->viewer()->selectionPriority() == prio; };
+    i.exclusiveGroup = "select-priority";
     view(i, [p](viewer::ViewerWidget& v) { v.setSelectionPriority(p.p); });
+  }
+
+  // --- selection filters (SELECT > Selection Filters, ux.md 2.1) ---------------------------------
+  // Toggles of a user mask in the SelectionModel; ignored while a command sets its own filter.
+  struct Filt {
+    const char* id;
+    const char* name;
+    core::ShapeKindMask kinds;
+    int order;
+  };
+  using core::ShapeKind;
+  for (const Filt& f :
+       {Filt{"select.filter-bodies", "Bodies", core::mask(ShapeKind::Body), 40},
+        Filt{"select.filter-faces", "Faces", core::mask(ShapeKind::Face), 41},
+        Filt{"select.filter-edges", "Edges", core::mask(ShapeKind::Edge), 42},
+        Filt{"select.filter-vertices", "Vertices", core::mask(ShapeKind::Vertex), 43},
+        Filt{"select.filter-sketches", "Sketch Geometry",
+             ShapeKind::Sketch | ShapeKind::Profile | ShapeKind::SketchCurve | ShapeKind::SketchPoint, 44},
+        Filt{"select.filter-construction", "Construction Geometry",
+             ShapeKind::ConstructionPlane | ShapeKind::ConstructionAxis | ShapeKind::ConstructionPoint |
+                 ShapeKind::OriginPlane | ShapeKind::OriginAxis | ShapeKind::OriginPoint,
+             45},
+        Filt{"select.filter-components", "Components", core::mask(ShapeKind::Component), 46}}) {
+    ToolInfo i = info(f.id, std::string("Filter: ") + f.name,
+                      std::string("Selection filter: allow picking ") + f.name, "", {}, "select");
+    i.tab = "SOLID";
+    i.group = "SELECT";
+    i.order = f.order;
+    i.keepsActiveTool = true;
+    i.checked = [win, kinds = f.kinds] { return (win->document().selection().userFilter() & kinds) == kinds; };
+    const std::string id = i.id;
+    auto toggle = [win, kinds = f.kinds, name = std::string(f.name)] {
+      core::SelectionModel& sel = win->document().selection();
+      const bool on = (sel.userFilter() & kinds) == kinds;
+      sel.setUserFilter(on ? sel.userFilter() & ~kinds : sel.userFilter() | kinds);
+      if (win->viewer() && !win->toolManager().isActive()) win->viewer()->setSelectionFilter(sel.effectiveFilter());
+      win->showMessage(std::format("Selection filter: {} {}", name, on ? "off" : "on"), core::MessageLevel::Info);
+    };
+    add(std::move(i), [toggle](ToolContext&) { toggle(); });
+    win->addDirectAction(id, toggle);
+  }
+  {
+    ToolInfo i = info("select.filter-all", "Filter: Select All", "Selection filter: allow every kind again", "", {},
+                      "select");
+    i.tab = "SOLID";
+    i.group = "SELECT";
+    i.order = 49;
+    i.keepsActiveTool = true;
+    auto all = [win] {
+      win->document().selection().setUserFilter(core::kAllKinds);
+      if (win->viewer() && !win->toolManager().isActive()) win->viewer()->setSelectionFilter(core::kAllKinds);
+    };
+    add(std::move(i), [all](ToolContext&) { all(); });
+    win->addDirectAction("select.filter-all", all);
   }
 }
 

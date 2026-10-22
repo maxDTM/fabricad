@@ -26,7 +26,10 @@ std::optional<core::Vec3> anchorFor(const FeatureTool& tool, core::ToolContext& 
   if (ctx.viewer) {
     if (const FeatureTool::ManipulatorLink* link = tool.manipulatorFor(prop); link && ctx.viewer->manipulators().has(link->id)) {
       if (const core::ManipulatorModel* m = ctx.viewer->manipulators().model(link->id)) {
-        const gp_Pnt tip = m->handlePoint(core::ManipulatorHandle::None, ctx.viewer->pixelSize(m->spec().frame.Location()));
+        // a triad's centre is its free-move handle: anchor the box at the X arrow tip instead
+        const core::ManipulatorHandle h =
+            m->spec().kind == core::ManipulatorKind::Triad ? core::ManipulatorHandle::MoveX : core::ManipulatorHandle::None;
+        const gp_Pnt tip = m->handlePoint(h, ctx.viewer->gizmoPixelSize(m->spec().frame.Location()));
         return core::Vec3{tip.X(), tip.Y(), tip.Z()};
       }
     }

@@ -68,6 +68,12 @@ void SelectionModel::removeOwner(ObjectId owner) {
   if (items_.size() != before) emit changed();
 }
 
+void SelectionModel::setUserFilter(ShapeKindMask m) {
+  if (m == userFilter_) return;
+  userFilter_ = m;
+  emit filterChanged(filter_);
+}
+
 void SelectionModel::setFilter(ShapeKindMask m) {
   if (m == filter_) return;
   filter_ = m;
