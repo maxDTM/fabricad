@@ -485,7 +485,7 @@ class TestIcons : public QObject {
         }
       }
     }
-    QSvgRenderer logo(":/icons/fabricad.svg");
+    QSvgRenderer logo(QStringLiteral(":/icons/fabricad.svg"));
     QVERIFY2(logo.isValid(), "logo does not parse");
     QVERIFY2(bad.empty(), qPrintable("rendering problems:\n  " + joinSorted(bad)));
   }

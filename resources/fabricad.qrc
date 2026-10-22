@@ -29,6 +29,7 @@
   <file>icons/dark/app-help.svg</file>
   <file>icons/dark/app-info.svg</file>
   <file>icons/dark/app-input.svg</file>
+  <file>icons/dark/app-isolate.svg</file>
   <file>icons/dark/app-list.svg</file>
   <file>icons/dark/app-ok.svg</file>
   <file>icons/dark/app-options.svg</file>
@@ -51,6 +52,7 @@
   <file>icons/dark/assembly-drive-joint.svg</file>
   <file>icons/dark/assembly-export-bom.svg</file>
   <file>icons/dark/assembly-export-step.svg</file>
+  <file>icons/dark/assembly-ground-toggle.svg</file>
   <file>icons/dark/assembly-ground.svg</file>
   <file>icons/dark/assembly-insert-design.svg</file>
   <file>icons/dark/assembly-interference.svg</file>
@@ -226,6 +228,14 @@
   <file>icons/dark/select-component.svg</file>
   <file>icons/dark/select-edge.svg</file>
   <file>icons/dark/select-face.svg</file>
+  <file>icons/dark/select-filter-all.svg</file>
+  <file>icons/dark/select-filter-bodies.svg</file>
+  <file>icons/dark/select-filter-components.svg</file>
+  <file>icons/dark/select-filter-construction.svg</file>
+  <file>icons/dark/select-filter-edges.svg</file>
+  <file>icons/dark/select-filter-faces.svg</file>
+  <file>icons/dark/select-filter-sketches.svg</file>
+  <file>icons/dark/select-filter-vertices.svg</file>
   <file>icons/dark/select-vertex.svg</file>
   <file>icons/dark/select.svg</file>
   <file>icons/dark/settings.svg</file>
@@ -276,6 +286,7 @@
   <file>icons/dark/sketch-rectangle.svg</file>
   <file>icons/dark/sketch-rotate.svg</file>
   <file>icons/dark/sketch-scale.svg</file>
+  <file>icons/dark/sketch-select-all.svg</file>
   <file>icons/dark/sketch-select.svg</file>
   <file>icons/dark/sketch-slot-center.svg</file>
   <file>icons/dark/sketch-slot-overall.svg</file>
@@ -331,6 +342,7 @@
   <file>icons/light/app-help.svg</file>
   <file>icons/light/app-info.svg</file>
   <file>icons/light/app-input.svg</file>
+  <file>icons/light/app-isolate.svg</file>
   <file>icons/light/app-list.svg</file>
   <file>icons/light/app-ok.svg</file>
   <file>icons/light/app-options.svg</file>
@@ -353,6 +365,7 @@
   <file>icons/light/assembly-drive-joint.svg</file>
   <file>icons/light/assembly-export-bom.svg</file>
   <file>icons/light/assembly-export-step.svg</file>
+  <file>icons/light/assembly-ground-toggle.svg</file>
   <file>icons/light/assembly-ground.svg</file>
   <file>icons/light/assembly-insert-design.svg</file>
   <file>icons/light/assembly-interference.svg</file>
@@ -528,6 +541,14 @@
   <file>icons/light/select-component.svg</file>
   <file>icons/light/select-edge.svg</file>
   <file>icons/light/select-face.svg</file>
+  <file>icons/light/select-filter-all.svg</file>
+  <file>icons/light/select-filter-bodies.svg</file>
+  <file>icons/light/select-filter-components.svg</file>
+  <file>icons/light/select-filter-construction.svg</file>
+  <file>icons/light/select-filter-edges.svg</file>
+  <file>icons/light/select-filter-faces.svg</file>
+  <file>icons/light/select-filter-sketches.svg</file>
+  <file>icons/light/select-filter-vertices.svg</file>
   <file>icons/light/select-vertex.svg</file>
   <file>icons/light/select.svg</file>
   <file>icons/light/settings.svg</file>
@@ -578,6 +599,7 @@
   <file>icons/light/sketch-rectangle.svg</file>
   <file>icons/light/sketch-rotate.svg</file>
   <file>icons/light/sketch-scale.svg</file>
+  <file>icons/light/sketch-select-all.svg</file>
   <file>icons/light/sketch-select.svg</file>
   <file>icons/light/sketch-slot-center.svg</file>
   <file>icons/light/sketch-slot-overall.svg</file>

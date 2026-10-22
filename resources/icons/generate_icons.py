@@ -731,6 +731,24 @@ I["app-tab"] = (R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=UI, f
                 P("M11 8.5 V5.5 H17 V8.5", s=INK))
 I["app-close"] = R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=INK) + cross(12, 14.5, RED, 3)
 
+
+# ===== hand-drawn icons, kept as literal SVG bodies; {NAME} placeholders take the theme palette =====
+LITERAL = {
+    'app-isolate': '<path d="M2 12 s4 -6.5 10 -6.5 10 6.5 10 6.5 -4 6.5 -10 6.5 S2 12 2 12 z" stroke="{GREY}"/><circle cx="12" cy="12" r="3.5" fill="{UI}" stroke="{UI}"/>',
+    'assembly-ground-toggle': '<path d="M4.4 5.8 L10 3 L15.6 5.8 L15.6 12.2 L10 15 L4.4 12.2 Z" fill="{WH}" stroke="{AS}"/><path d="M4.4 5.8 L10 8.6 L15.6 5.8 M10 8.6 L10 15" stroke="{AS}"/><path d="M2 18.5 H18 M5 21.5 H15" stroke="{AS}"/><path d="M10 15 V18.5" stroke="{AS}"/><path d="M20 4 V11 M18.2 6 L20 4 L21.8 6 M18.2 9 L20 11 L21.8 9" stroke="{INK}"/>',
+    'select-filter-all': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M13 16 L15.5 18.5 L21 12.5" stroke="{UI}"/>',
+    'select-filter-bodies': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M13 13 L17 11 L21 13 V18 L17 20 L13 18 Z" stroke="{UI}"/><path d="M13 13 L17 15 L21 13 M17 15 V20" stroke="{UI}"/>',
+    'select-filter-components': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><rect x="12.5" y="11.5" width="8.5" height="8.5" rx="1.5" stroke="{UI}"/><path d="M15 15 H18.5 M15 17.5 H18.5" stroke="{UI}"/>',
+    'select-filter-construction': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M12 18 L15 12 H22 L19 18 Z" stroke="{CO}"/>',
+    'select-filter-edges': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M12.5 20 L21 11.5" stroke="{UI}"/>',
+    'select-filter-faces': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M13 12 H21 V20 H13 Z" fill="{BODY}" stroke="{UI}"/>',
+    'select-filter-sketches': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M12.5 19.5 H21 M12.5 19.5 L16.5 12 L21 19.5" stroke="{UI}"/>',
+    'select-filter-vertices': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><circle cx="17" cy="16" r="2.6" fill="{UI}" stroke="{UI}"/>',
+    'sketch-select-all': '<rect x="2.5" y="2.5" width="19" height="19" rx="1.5" stroke-dasharray="2.5 2.5"/><path d="M6 17 L11 7 L18 15" stroke="{UI}"/><circle cx="6" cy="17" r="1.3" fill="{UI}" stroke="{UI}"/><circle cx="11" cy="7" r="1.3" fill="{UI}" stroke="{UI}"/><circle cx="18" cy="15" r="1.3" fill="{UI}" stroke="{UI}"/>',
+}
+for _n, _body in LITERAL.items():
+    I[_n] = _body.format(INK=INK, GREY=GREY, WH=WH, BODY=BODY, SK=SK, OR=OR, AS=AS, CO=CO, IN=IN, UI=UI, DR=DR, RED=RED)
+
 # ===== feature types (browser / timeline items) ==============================================
 FEATURES = {
     "extrude": EXTRUDE, "revolve": REVOLVE, "sweep": SWEEP, "loft": LOFT, "hole": HOLE, "fillet": FILLET,
