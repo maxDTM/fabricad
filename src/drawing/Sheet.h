@@ -45,6 +45,9 @@ struct TitleBlock {
   double height = 56;   ///< mm
   bool visible = true;
 
+  /// Fields that differ per sheet (Scale, Sheet, Size); the others describe the whole drawing
+  /// and are shared between its sheets (DRW-ASM-OUTPUT-6).
+  static bool isSheetField(const std::string& name);
   std::string field(const std::string& name) const;
   void setField(const std::string& name, const std::string& value);
   QJsonObject toJson() const;

@@ -75,11 +75,18 @@ struct ProjectionOutput {
   gp_Ax2 frame;           ///< the frame actually used (with origin)
   int visibleCount = 0, hiddenCount = 0, tangentCount = 0;
   double millis = 0;      ///< wall time of the HLR
+  /// Hidden curves (whole, with their 3D identity) that were dropped because they lie under a
+  /// visible curve. Not drawn; dimensions made on them before still resolve (DimRef).
+  std::vector<Curve2D> covered;
 };
 
 /// Run HLR on the sources and convert the result to 2D curves. Thread-safe with respect to
 /// everything except the input shapes (which it only reads; the poly algorithm meshes a copy).
 ProjectionOutput projectShapes(const ProjectionInput& in);
+/// Drop the parts of hidden curves that lie on a visible curve (same line / same circle, within
+/// `tol`): HLR reports a back edge seen edge-on behind a front edge as hidden, which plots twice
+/// and makes outlines look dashed (DRW-ASM-OUTPUT-4). Returns the number of curves changed.
+int removeHiddenUnderVisible(std::vector<Curve2D>& curves, double tol, std::vector<Curve2D>* removed = nullptr);
 
 /// Convert one HLR output edge (lying in the projection plane, Z = 0) to a curve.
 /// Returns false for degenerate ("crazy") edges.

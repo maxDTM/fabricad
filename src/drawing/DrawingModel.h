@@ -76,6 +76,9 @@ class DrawingModel : public QObject {
   void setActiveSheet(core::ObjectId id);
   Sheet& addSheet(const SheetFormat& format, ProjectionStandard standard, const std::string& name = {});
   bool removeSheet(core::ObjectId id);
+  /// Set a title block field. Drawing-level fields (not TitleBlock::isSheetField) also change
+  /// on the other sheets that showed the same value, so the sheets stay in step.
+  void setTitleBlockField(Sheet& sheet, const std::string& name, const std::string& value);
   /// Sheet that contains the view/entity with this id.
   Sheet* sheetOf(core::ObjectId entityId);
   DrawingView* view(core::ObjectId id, Sheet** sheetOut = nullptr);
@@ -100,6 +103,13 @@ class DrawingModel : public QObject {
   void viewDefinitionChanged(core::ObjectId id);
   /// Projected view frame for a would-be child of `parent` dragged to `sheetPos`.
   gp_Ax2 frameForProjection(const DrawingView& parent, const Sheet& sheet, ProjectionDirection dir) const;
+
+  /// Switch first/third angle: projected views move to the mirrored side of their parent (they
+  /// keep the direction they are seen from). False when nothing changed.
+  bool changeSheetStandard(Sheet& sheet, ProjectionStandard standard);
+  /// New paper size/orientation: views, notes and tables are carried over into the new frame
+  /// (tables re-anchored to their corner, the parts list re-snapped above the title block).
+  bool changeSheetFormat(Sheet& sheet, const SheetFormat& format);
 
   // --- entities ------------------------------------------------------------------------
   Dimension& addDimension(Sheet& sheet, Dimension dim);
@@ -165,6 +175,7 @@ class DrawingModel : public QObject {
     QJsonObject key;
     int docGeneration = 0;
     std::vector<Curve2D> curves;
+    std::vector<Curve2D> covered;
     std::vector<Vertex2D> vertices;
     BBox2 bbox;
     core::Vec3 origin3d;
@@ -183,6 +194,16 @@ class DrawingModel : public QObject {
   void applyResult(const ViewJobResult& r);
   /// Automatic placement of a freshly projected view (see DrawingView::autoPlace).
   void autoArrange(Sheet& sheet, DrawingView& v);
+  /// Shift that brings box `cb` of view `v` inside the frame and clear of the title block.
+  Point2 frameShift(const Sheet& sheet, const DrawingView& v, const BBox2& cb) const;
+  /// A view's scale went from oldScale to its current one: rescale following children and
+  /// their offsets, then let the automatic layout re-flow them.
+  void rescaleLayout(Sheet& s, core::ObjectId id, double oldScale);
+  /// Move a top-level view with all its descendants so that they fit inside the frame (and clear
+  /// the title block) when they can.
+  void fitFamilyInFrame(Sheet& s, core::ObjectId rootId);
+  /// Move the annotations attached to a view by `delta`.
+  void shiftAttached(Sheet& s, core::ObjectId viewId, const Point2& delta);
   void finishView(Sheet& sheet, DrawingView& v);
   void updateDetailViews(Sheet& sheet, const DrawingView& parent);
   void computeDetail(DrawingView& detail, const DrawingView& parent);

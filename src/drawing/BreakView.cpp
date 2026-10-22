@@ -193,21 +193,70 @@ std::vector<Curve2D> brokenCurves(const Curve2D& c, const DrawingView& view) {
   return out;
 }
 
+bool breakCutExtent(const DrawingView& view, BreakOrientation o, double at, double& lo, double& hi) {
+  const bool horiz = o == BreakOrientation::Horizontal;  // band along x: the cut is the line x = at
+  lo = 1e300;
+  hi = -1e300;
+  auto along = [&](const Point2& p) { return horiz ? p.x : p.y; };
+  auto across = [&](const Point2& p) { return horiz ? p.y : p.x; };
+  auto addPiece = [&](const Point2& a, const Point2& b) {
+    double ta = along(a) - at, tb = along(b) - at;
+    if ((ta > 0 && tb > 0) || (ta < 0 && tb < 0)) return;
+    double v;
+    if (std::abs(ta - tb) < 1e-12) {
+      v = std::min(across(a), across(b));
+      lo = std::min(lo, v);
+      hi = std::max(hi, std::max(across(a), across(b)));
+      return;
+    }
+    double t = ta / (ta - tb);
+    v = across(a) + (across(b) - across(a)) * t;
+    lo = std::min(lo, v);
+    hi = std::max(hi, v);
+  };
+  for (const auto& c : view.curves) {
+    if (c.cls == LineClass::Hatch || c.cls == LineClass::Center || c.cls == LineClass::Detail) continue;
+    BBox2 bb = c.bbox();
+    if (!bb.isValid()) continue;
+    double bLo = horiz ? bb.min.x : bb.min.y, bHi = horiz ? bb.max.x : bb.max.y;
+    if (at < bLo - 1e-9 || at > bHi + 1e-9) continue;
+    if (c.type == CurveType::Segment) {
+      addPiece(c.a, c.b);
+      continue;
+    }
+    std::vector<Point2> pts = c.sample(0.02);
+    for (size_t i = 0; i + 1 < pts.size(); ++i) addPiece(pts[i], pts[i + 1]);
+  }
+  return lo <= hi;
+}
+
 void addBreakLines(DisplayList& out, const DrawingView& view) {
   if (view.breaks.empty() || !view.bbox.isValid()) return;
   const double over = 3.0;  // sheet mm beyond the geometry
   const double a = 2.5;     // zig-zag / wave amplitude
   for (const auto& br : view.breaks) {
     bool horiz = br.orientation == BreakOrientation::Horizontal;
-    // extent across the break (sheet), from the mapped bbox
-    BBox2 sb = view.sheetBBox();
-    double lo = horiz ? sb.min.y - over : sb.min.x - over;
-    double hi = horiz ? sb.max.y + over : sb.max.x + over;
     Point2 edge = view.toSheet(horiz ? Point2{br.from, view.bbox.center().y} : Point2{view.bbox.center().x, br.from});
     double e0 = horiz ? edge.x : edge.y;
     // sheet y grows downwards: a vertical break band [from, to] maps to [e0 - gap, e0]
     double e1 = horiz ? e0 + view.breakGap : e0 - view.breakGap;
-    for (double e : {e0, e1}) {
+    for (int side = 0; side < 2; ++side) {
+      const double e = side == 0 ? e0 : e1;
+      // DRW-VIEWS-ANNOT-15: the break line spans the material cut at this side of the band, not
+      // the whole view box (which also covers empty space beside a narrow part of the outline)
+      double lo = 0, hi = 0;
+      double cutLo = 0, cutHi = 0;
+      if (breakCutExtent(view, br.orientation, side == 0 ? br.from : br.to, cutLo, cutHi)) {
+        Point2 sLo = view.toSheet(horiz ? Point2{side == 0 ? br.from : br.to, cutLo} : Point2{cutLo, side == 0 ? br.from : br.to});
+        Point2 sHi = view.toSheet(horiz ? Point2{side == 0 ? br.from : br.to, cutHi} : Point2{cutHi, side == 0 ? br.from : br.to});
+        double a0 = horiz ? sLo.y : sLo.x, a1 = horiz ? sHi.y : sHi.x;
+        lo = std::min(a0, a1) - over;
+        hi = std::max(a0, a1) + over;
+      } else {
+        BBox2 sb = view.sheetBBox();
+        lo = horiz ? sb.min.y - over : sb.min.x - over;
+        hi = horiz ? sb.max.y + over : sb.max.x + over;
+      }
       std::vector<Point2> pts;
       auto P = [&](double along, double across) { return horiz ? Point2{e + across, along} : Point2{along, e + across}; };
       double mid = 0.5 * (lo + hi);

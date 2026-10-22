@@ -241,12 +241,16 @@ void SheetRenderer::addDetailCircle(DisplayList& out, const DrawingView& parent,
   Point2 c = parent.toSheet(det.detail.center);
   double r = det.detail.radius * parent.scale;
   out.curves.push_back(Curve2D::circle(c, r, LineClass::Detail));
-  // leader to the label at 45 degrees
+  // DRW-VIEWS-ANNOT-10: the label sits right next to the circle, on the diagonal that points
+  // away from the middle of the parent view (out of the geometry, not into it)
+  Point2 away = c - parent.sheetBBox().center();
   Point2 dir = Point2::polar(-45.0, 1.0);  // upper right in sheet space (y down)
+  if (away.length() > 1e-6) dir = Point2{away.x >= 0 ? 1.0 : -1.0, away.y > 0 ? 1.0 : -1.0}.normalized();
   Point2 start = c + dir * r;
-  Point2 end = start + dir * 6.0;
+  Point2 end = start + dir * 2.0;
   out.curves.push_back(Curve2D::segment(start, end, LineClass::Dimension));
-  out.texts.push_back({end + dir * (style_.dimTextHeight), det.detail.label, style_.dimTextHeight * 1.4, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, true});
+  const double h = style_.dimTextHeight * 1.4;
+  out.texts.push_back({end + dir * (h * 0.75), det.detail.label, h, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, true});
 }
 
 void SheetRenderer::addViewDecorations(DisplayList& out, const Sheet& sheet, const DrawingView& view) const {
@@ -546,7 +550,15 @@ std::map<std::string, std::string> titleBlockValues(const DrawingModel& model, c
   };
   def("Title", doc.name());
   def("Date", QDate::currentDate().toString(Qt::ISODate).toStdString());
-  def("Scale", scaleLabel(sheet.scale));
+  // the scale of the main (first base) view, which is what the drawing is read at; the sheet's
+  // default scale only until a view exists (DRW-ASM-OUTPUT-7)
+  double mainScale = sheet.scale;
+  for (const auto& view : sheet.views)
+    if (view.type == ViewType::Base) {
+      mainScale = view.scale;
+      break;
+    }
+  def("Scale", scaleLabel(mainScale));
   def("Size", sheet.format.name);
   int index = 0, count = static_cast<int>(model.sheets().size());
   for (size_t i = 0; i < model.sheets().size(); ++i)

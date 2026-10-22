@@ -55,6 +55,9 @@ struct DimTarget {
 /// any curve at the fallback position within `tol`. `ok == false` means the dimension is
 /// orphaned: nothing in the view can be identified as the referenced edge.
 DimTarget resolveDimRef(const DimRef& ref, const DrawingView& view, double tol = 0.5);
+/// Base name of a split edge piece ("{A|B}#2" -> "{A|B}"); a whole edge name ("{A|B}") is its
+/// own base; anything else -> "".
+std::string splitEdgeBaseName(const std::string& name);
 
 struct Dimension {
   core::ObjectId id = core::kInvalidId;
@@ -111,6 +114,8 @@ struct DimLayout {
 DimLayout layoutDimension(const Dimension& dim, const DrawingView& view, const DrawingStyle& style,
                           const core::UnitSystem& units);
 
+/// Normalise a CCW text angle (degrees) so the text is never upside down: result in (-90, 90].
+double readableTextAngle(double ccwDeg);
 /// Dimension text: value in display units with precision; Ø / R prefix; ° suffix.
 std::string formatDimensionText(const Dimension& dim, const core::UnitSystem& units);
 /// Arrow head triangle at `tip` pointing along `dir` (unit, pointing *into* the tip).

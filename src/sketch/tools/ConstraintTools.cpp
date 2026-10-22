@@ -111,6 +111,9 @@ class ConstraintTool : public SketchTool {
     if (auto hit = pickAt(*c)) {
       addPick(ctx, *hit, true);
       tryApply(ctx, false);
+      // the picks were used: drop their highlight now, else the old orange curve stays drawn next
+      // to the solved one until the mouse moves (functional retest SK-02)
+      if (picks_.empty()) clearTemp();
       ctx.setPrompt(prompt());
     }
     return true;
@@ -119,7 +122,10 @@ class ConstraintTool : public SketchTool {
   /// Enter applies what has been collected so far (Equal/Concentric with 2+ picks).
   void accept(ToolContext& ctx) override {
     if (!tryApply(ctx, true)) ctx.finish();
-    else ctx.setPrompt(prompt());
+    else {
+      clearTemp();
+      ctx.setPrompt(prompt());
+    }
   }
 
  private:

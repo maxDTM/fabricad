@@ -752,6 +752,33 @@ class ToolsTest : public QObject {
     QVERIFY(!r.sk().dimensionByName("d1"));
   }
 
+  // functional retest SK-02: after a constraint is applied the tool's orange pick highlight
+  // (drawn at the old, unsolved position) is removed at once, not on the next mouse move
+  void constraintPickHighlightClearedAfterApply() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.sk().addGeometry(Geometry::makeLine({0, 0}, {10, 1}));
+    r.sk().addGeometry(Geometry::makeLine({0, 5}, {10, 9}));
+    r.session()->refresh();
+    auto orange = [&] {
+      int n = 0;
+      for (const auto& [h, item] : r.viewer.previews())
+        if (item.style.lineWidth == 3.0f && std::abs(item.style.color[0] - 0.95f) < 1e-6f && std::abs(item.style.color[1] - 0.55f) < 1e-6f &&
+            std::abs(item.style.color[2] - 0.1f) < 1e-6f)
+          ++n;
+      return n;
+    };
+    r.mgr.run("sketch.constraint.perpendicular");
+    r.click(5, 0.5);
+    r.move(5, 7);  // hover the second line: first pick + hover highlighted
+    QVERIFY(orange() >= 2);
+    r.click(5, 7);
+    QCOMPARE(r.countType(ConstraintType::Perpendicular), 1);
+    QCOMPARE(orange(), 0);
+    QVERIFY(r.mgr.isActive());
+  }
+
   void constraintToolsAndStatus() {
     Rig r;
     r.mgr.run("sketch.create", {"XY"});

@@ -74,7 +74,8 @@ parts lists; PDF/SVG/DXF export).
   colour; custom name + density), appearance colour and component part number / description /
   material from the browser context menu, all undoable. Parts lists, the BOM CSV and Measure read
   them back (mass = volume x density).
-* STEP / STL import (as a timeline feature) and export; the STL export dialog sets the linear and
+* STEP / STL import (as a timeline feature) and export; an assembly STEP keeps its structure
+  (components, shared parts as occurrences, product names; "Keep assembly structure"); the STL export dialog sets the linear and
   angular deflection and the format (binary / ASCII) and remembers them.
 * Booleans are scoped like Fusion: a Join / Cut without an explicit target list only touches bodies
   of the active component's tree, a Hole cuts the body it is placed on, and the first feature of an

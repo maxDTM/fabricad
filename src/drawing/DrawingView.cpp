@@ -89,6 +89,18 @@ Point2 DrawingView::labelPosition() const {
   return {b.center().x, b.max.y + 6.0};
 }
 
+BBox2 DrawingView::layoutBBox(double h) const {
+  BBox2 b = sheetBBox();
+  if (showLabel && !label.empty()) {
+    // view label text (e.g. "A-A (1:1)"), anchored top-centre at labelPosition()
+    const Point2 lp = labelPosition();
+    const double w = 0.7 * h * static_cast<double>(label.size() + 6);
+    b.add({lp.x - w * 0.5, lp.y + h});
+    b.add({lp.x + w * 0.5, lp.y + h});
+  }
+  return b;
+}
+
 const Curve2D* DrawingView::pickCurve(const Point2& p, double tol, size_t* index) const {
   const Curve2D* best = nullptr;
   double bestD = tol;
@@ -205,6 +217,7 @@ DrawingView DrawingView::fromJson(const QJsonObject& o) {
   for (const auto& b : o["breaks"].toArray()) v.breaks.push_back(ViewBreak::fromJson(b.toObject()));
   v.breakGap = o["breakGap"].toDouble(6.0);
   v.breakStyle = breakStyleFromName(ss(o["breakStyle"].toString()));
+  v.layoutScale = v.scale;
   return v;
 }
 

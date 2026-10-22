@@ -85,9 +85,15 @@ void SelectionModel::setFilter(ShapeKindMask m) {
 }
 
 void SelectionModel::setPreselection(std::optional<ShapeRef> r) {
-  if (r && !isAllowed(*r)) r.reset();
-  if (r == preselection_) return;
-  preselection_ = std::move(r);
+  // No r.reset() followed by an optional compare/assign: GCC 16 -O2 reports the reset payload as
+  // -Wmaybe-uninitialized through the inlined optional operators.
+  if (!r || !isAllowed(*r)) {
+    if (!preselection_) return;
+    preselection_.reset();
+  } else {
+    if (preselection_ && *preselection_ == *r) return;
+    preselection_.emplace(std::move(*r));
+  }
   emit preselectionChanged();
 }
 
