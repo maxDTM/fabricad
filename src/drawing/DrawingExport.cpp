@@ -59,7 +59,7 @@ void paintSheet(QPainter& painter, DrawingModel& model, const Sheet& sheet, bool
   SheetRenderer r(model.style(), model.document().units());
   DisplayList list;
   r.addSheet(list, sheet, titleBlockValues(model, sheet), frame);
-  SheetRenderer::paint(painter, list, Qt::black, model.style().fontFamily);
+  SheetRenderer::paint(painter, list, SheetRenderer::ink(), model.style().fontFamily);
 }
 
 bool exportPdf(DrawingModel& model, const std::string& path, const ExportOptions& opts, std::string* error) {

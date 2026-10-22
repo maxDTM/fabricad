@@ -3,6 +3,7 @@
 #include "app/SegmentedControl.h"
 
 #include "app/ThemeManager.h"
+#include "theme/Hairline.h"
 #include "theme/Tokens.h"
 
 #include <QComboBox>
@@ -108,22 +109,16 @@ void SegmentedControl::paintEvent(QPaintEvent*) {
     p.setPen(!on ? theme::color(Tok::TextDisabled) : i == cur ? theme::color(Tok::TextPrimary) : theme::color(Tok::TextSecondary));
     p.drawText(c.adjusted(2, 0, -2, 0), Qt::AlignCenter, labels_[i]);
   }
-  // outline and dividers (border.control), then the checked cell's indicator border on top
-  p.setPen(QPen(theme::color(on ? Tok::BorderControl : Tok::BorderSubtle), 1));
-  p.setBrush(Qt::NoBrush);
-  p.drawRect(r.adjusted(0, 0, -1, -1));
-  for (int i = 1; i < count(); ++i) {
-    const int x = cellRect(i).left();
-    p.drawLine(x, 0, x, height() - 1);
-  }
-  if (cur >= 0 && cur < count() && on) {
-    p.setPen(QPen(theme::color(Tok::AccentIndicator), 1));
-    p.drawRect(cellRect(cur).adjusted(0, 0, -1, -1));
-  }
+  // outline and dividers (border.control), then the checked cell's indicator border on top. One device
+  // pixel, aligned to device pixels (7.4): a plain 1 px pen lost the top and left edges at scale 1.25.
+  const QColor line = theme::color(on ? Tok::BorderControl : Tok::BorderSubtle);
+  theme::hairlineFrame(p, r, line);
+  for (int i = 1; i < count(); ++i) theme::hairlineV(p, cellRect(i).left(), 0, height(), line);
+  if (cur >= 0 && cur < count() && on) theme::hairlineFrame(p, cellRect(cur), theme::color(Tok::AccentIndicator));
   if (hasFocus()) {  // 2 px focus ring (inside: the control has no outer margin)
-    p.setPen(QPen(theme::color(Tok::AccentFocus), 2));
     const QRect c = cur >= 0 ? cellRect(cur) : r;
-    p.drawRect(c.adjusted(1, 1, -1, -1));
+    const int px = std::max(2, qRound(2 * devicePixelRatioF()));  // thick strokes scale with dpr (7.4)
+    theme::hairlineFrame(p, c, theme::color(Tok::AccentFocus), px);
   }
 }
 

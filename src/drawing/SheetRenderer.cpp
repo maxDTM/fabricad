@@ -8,6 +8,7 @@
 #include "drawing/DrawingModel.h"
 #include "drawing/CalloutRenderer.h"
 #include "drawing/Symbols.h"
+#include "theme/Tokens.h"
 
 #include <QDate>
 #include <QFont>
@@ -434,6 +435,9 @@ void SheetRenderer::addSheet(DisplayList& out, const Sheet& sheet, const std::ma
 // Painting
 // ---------------------------------------------------------------------------------------
 
+QColor SheetRenderer::ink() { return theme::color(theme::Tok::DrawingInk, theme::Theme::Light); }
+QColor SheetRenderer::errorInk() { return theme::color(theme::Tok::StatusError, theme::Theme::Light); }
+
 QPen SheetRenderer::pen(LineClass cls, const QColor& color, double widthScale) {
   const double w = lineClassWidth(cls) * widthScale;
   QPen p(color, w, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
@@ -507,7 +511,7 @@ void SheetRenderer::paintText(QPainter& p, const DisplayText& t, const std::stri
   double y = 0;  // baseline
   if (t.valign == VAlign::Middle) y = cap * 0.5;
   else if (t.valign == VAlign::Top) y = cap;
-  p.setPen(QPen(t.error ? QColor(0xD0, 0x30, 0x30) : p.pen().color()));
+  p.setPen(QPen(t.error ? errorInk() : p.pen().color()));
   p.drawText(QPointF(x, y), text);
   p.restore();
 }

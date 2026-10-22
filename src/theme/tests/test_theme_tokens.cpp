@@ -3,11 +3,14 @@
 // and the QSS template renders in both themes with no unresolved placeholders.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "theme/ColorMath.h"
+#include "theme/Hairline.h"
 #include "theme/QssTemplate.h"
 #include "theme/Tokens.h"
 
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
+#include <QPainter>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QtTest>
@@ -143,6 +146,39 @@ class TestThemeTokens : public QObject {
     renderQss("a { color: @{nope}; }", Theme::Dark, &errors);
     QCOMPARE(errors.size(), 2);  // the unknown name, and the placeholder left behind
     QCOMPARE(renderQss("@{accent.solid/50}", Theme::Dark), QString("rgba(124, 77, 235, 128)"));
+  }
+
+  // 7.4: a hairline frame is exactly one device pixel on every side at fractional scales, also when the
+  // painter's origin sits half-way into a device pixel (a widget at an odd logical x at 125 %).
+  void hairlineFrameIsOneDevicePixel_data() {
+    QTest::addColumn<double>("dpr");
+    QTest::addColumn<double>("offset");
+    for (double dpr : {1.0, 1.25, 1.5, 2.0})
+      for (double off : {0.0, 0.4, 1.0, 3.0}) QTest::addRow("dpr %.2f origin %.1f", dpr, off) << dpr << off;
+  }
+  void hairlineFrameIsOneDevicePixel() {
+    QFETCH(double, dpr);
+    QFETCH(double, offset);
+    QImage img(QSize(200, 120), QImage::Format_ARGB32_Premultiplied);
+    img.setDevicePixelRatio(dpr);
+    img.fill(Qt::transparent);
+    {
+      QPainter p(&img);
+      p.translate(offset, offset);
+      fabricad::theme::hairlineFrame(p, QRectF(0, 0, 60, 30), QColor(255, 0, 0));
+    }
+    const auto lit = [&](int x, int y) { return qAlpha(img.pixel(x, y)) > 0; };
+    const int midY = int((offset + 15) * dpr), midX = int((offset + 30) * dpr);
+    int cols = 0, rows = 0;
+    for (int x = 0; x < img.width(); ++x) cols += lit(x, midY);
+    for (int y = 0; y < img.height(); ++y) rows += lit(midX, y);
+    QCOMPARE(cols, 2);  // left and right edge, one device pixel each
+    QCOMPARE(rows, 2);  // top and bottom
+    // the frame stays inside the logical rectangle
+    const QRectF dev(offset * dpr, offset * dpr, 60 * dpr, 30 * dpr);
+    for (int y = 0; y < img.height(); ++y)
+      for (int x = 0; x < img.width(); ++x)
+        if (lit(x, y)) QVERIFY2(dev.contains(QPointF(x + 0.5, y + 0.5)), qPrintable(QString("%1,%2").arg(x).arg(y)));
   }
 };
 

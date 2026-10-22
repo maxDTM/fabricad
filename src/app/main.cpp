@@ -16,6 +16,9 @@
 //   --batch <file.fcs>    the same as --script <file.fcs> --offscreen
 //   --log <file>          write the script log there (default: stdout); --quiet: no stdout copy
 //   --step-delay <ms>     pause (repaint + fit the view) after every command, to watch a run
+//
+// Developer aids (environment): FABRICAD_WINDOW_SIZE=WxH, FABRICAD_SCREENSHOT=out.png (+ _DELAY ms),
+// FABRICAD_GEOMETRY_DUMP=geo.json (widget rectangles for tools/uitest/compare.py).
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/HeadlessHost.h"
 #include "app/MainWindow.h"
@@ -31,7 +34,12 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTimer>
+#include <QWidget>
 
 #include <algorithm>
 #include <cstdio>
@@ -104,6 +112,39 @@ void printUsage() {
              "  --stay      keep the window open after the script (interactive inspection)\n"
              "  --step-delay ms  pause (with repaint and view fit) after each command, to watch a run\n",
              stdout);
+}
+
+/// Developer aid for tools/uitest/compare.py: every visible widget with an objectName (or one of the
+/// tutorial/test properties) and its rectangle in window coordinates (logical px), as JSON.
+void dumpGeometry(QWidget& window, const QString& path) {
+  QJsonArray items;
+  const auto add = [&](QWidget* w) {
+    if (!w->isVisible()) return;
+    QJsonObject o;
+    o["name"] = w->objectName();
+    o["class"] = QString::fromLatin1(w->metaObject()->className());
+    for (const char* prop : {"toolbarTab", "toolbarGroup", "section", "overlay", "toolId"}) {
+      const QVariant v = w->property(prop);
+      if (v.isValid() && !v.toString().isEmpty()) o[QString::fromLatin1(prop)] = v.toString();
+    }
+    const QRect r(w->mapTo(&window, QPoint(0, 0)), w->size());
+    o["x"] = r.x();
+    o["y"] = r.y();
+    o["w"] = r.width();
+    o["h"] = r.height();
+    items.append(o);
+  };
+  for (QWidget* w : window.findChildren<QWidget*>()) {
+    if (!w->objectName().isEmpty() || w->property("overlay").isValid() || w->property("toolbarGroup").isValid() ||
+        w->inherits("QStatusBar") || w->inherits("fabricad::viewer::ViewerWidget"))
+      add(w);
+  }
+  QJsonObject root;
+  root["window"] = QJsonObject{{"w", window.width()}, {"h", window.height()}};
+  root["dpr"] = window.devicePixelRatioF();
+  root["widgets"] = items;
+  QFile f(path);
+  if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
 }
 
 }  // namespace
@@ -253,10 +294,18 @@ int main(int argc, char** argv) {
                           : 3000;
     QTimer::singleShot(delay, &app, [&, shot] {
       window.grab().save(shot);
+      if (const QString geo = qEnvironmentVariable("FABRICAD_GEOMETRY_DUMP"); !geo.isEmpty()) dumpGeometry(window, geo);
       mark("screenshot saved");
       window.setInteractive(false);
       app.quit();
     });
+  }
+  // Developer aid: FABRICAD_GEOMETRY_DUMP=geo.json without FABRICAD_SCREENSHOT rewrites the widget
+  // geometry every second (tools/uitest/ui.sh runs: `ui.sh geom <N>` copies it for compare.py)
+  else if (const QString geo = qEnvironmentVariable("FABRICAD_GEOMETRY_DUMP"); !geo.isEmpty()) {
+    auto* t = new QTimer(&app);
+    QObject::connect(t, &QTimer::timeout, &window, [&window, geo] { dumpGeometry(window, geo); });
+    t->start(1000);
   }
   if (qEnvironmentVariableIntValue("FABRICAD_QUIT_AFTER_STARTUP") != 0)
     QTimer::singleShot(500, &app, [&] {

@@ -208,6 +208,7 @@ class DrawingCanvas : public QGraphicsView {
   void keyPressEvent(QKeyEvent* e) override;
   void resizeEvent(QResizeEvent* e) override;
   void drawBackground(QPainter* painter, const QRectF& rect) override;
+  void changeEvent(QEvent* e) override;
 
  private:
   struct DragState {
