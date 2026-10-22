@@ -971,6 +971,8 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
   connect(&d->selection(), &core::SelectionModel::changed, this, whenActive([this] {
             updateSelectionStatus();
             scheduleStateRefresh();
+            // the feature being edited keeps its frame until the command ends
+            if (timelineFrameFollowsSelection_ && !(manager_->isActive() && !isIdleTool())) clearTimelineFrameUnlessSelected();
           }));
   // a rename (or a recompute) changes what the status bar says about the selection
   connect(d, &core::Document::bodyChanged, this, whenActive([this](core::ObjectId) { scheduleSelectionStatus(); }));
@@ -988,6 +990,7 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     connect(browser, &BrowserTree::deleteRequested, this, &MainWindow::deleteRefs);
     connect(browser, &BrowserTree::runToolRequested, this, [this](const std::string& id) { runCommand(id); });
     connect(browser, &BrowserTree::findInTimelineRequested, this, [this](ObjectId id) {
+      timelineFrameFollowsSelection_ = false;  // a "find" frame stays until something else happens
       if (timeline_) timeline_->scrollToFeature(id);
     });
     connect(browser, &BrowserTree::suppressRequested, this, [this](ObjectId id, bool s) {
@@ -1038,6 +1041,7 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
       if (add) document_->selection().toggle(r);
       else document_->selection().set(r);
       if (timeline_) timeline_->strip()->setHighlightedFeature(id);
+      timelineFrameFollowsSelection_ = true;
     });
   }
   if (viewer::ViewerWidget* viewer = tab->viewer()) {
@@ -1120,8 +1124,19 @@ void MainWindow::layoutOverlays() {
   if (palette_ && palette_->isVisible()) palette_->reposition(dialog_);
 }
 
+void MainWindow::clearTimelineFrameUnlessSelected() {
+  // the timeline frame marks the feature picked or being edited; it goes with it (DOC-12)
+  if (!timeline_ || !document_) return;
+  const ObjectId framed = timeline_->strip()->highlightedFeature();
+  if (framed == core::kInvalidId) return;
+  for (const ShapeRef& r : document_->selection().items())
+    if (r.owner == framed) return;
+  timeline_->strip()->setHighlightedFeature(core::kInvalidId);
+}
+
 void MainWindow::onToolFinished(const std::string& id, bool accepted) {
   ++activation_;  // invalidate a pending dialog build
+  clearTimelineFrameUnlessSelected();
   dialog_->dismiss();
   layoutOverlays();
   acceptEnabled_ = true;

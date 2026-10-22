@@ -234,6 +234,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void clearRecoveryFile(DocumentTab& tab);
   void clearStatusMessage();
   void scheduleTabBarRefresh();
+  void clearTimelineFrameUnlessSelected();
   bool tabDragging() const;
   void closeOneTab(DocumentTab* tab);  ///< close one tab without prompting
   void onToolActivated(const std::string& id);
@@ -293,6 +294,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   bool tabDragActive_ = false;          ///< left button down on the tab bar (a tab may be dragged)
   bool tabBarRefreshDeferred_ = false;  ///< a tab bar refresh waits for the release
   bool tabBarRefreshPending_ = false;
+  bool timelineFrameFollowsSelection_ = true;  ///< false while a "Find in Timeline" frame shows
   QLabel* selectionLabel_ = nullptr;
   QLabel* sketchLabel_ = nullptr;
   QLabel* unitsLabel_ = nullptr;

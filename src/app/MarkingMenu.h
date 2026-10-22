@@ -21,6 +21,7 @@ class MarkingMenu : public QWidget {
   explicit MarkingMenu(QWidget* parent = nullptr);
   void popup(const MarkingMenuModel& model, const QPoint& globalCentre);
   int hoveredSlot() const { return hover_; }
+  int slotWidth() const { return slotW_; }
 
  signals:
   void commandChosen(const std::string& command);
@@ -42,6 +43,8 @@ class MarkingMenu : public QWidget {
   int hover_ = -1;
   int hoverRow_ = -1;
   bool opening_ = false;
+  int size_ = 320;   ///< widget square (grows with the slot width)
+  int slotW_ = 120;  ///< radial slot width, from the longest label
 };
 
 }  // namespace fabricad::app

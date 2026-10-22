@@ -916,6 +916,38 @@ class TestMainWindow : public QObject {
     b->document().setModified(false);
   }
 
+  void markingLabelsAndTimelineFrame() {
+    // DOC-12: long marking menu labels get wider slots, within limits
+    app::MarkingMenu menu;
+    app::MarkingMenuModel m;
+    m.radial[0] = {"test.dialog", "OK"};
+    menu.popup(m, QPoint(400, 400));
+    QCOMPARE(menu.slotWidth(), 120);
+    menu.hide();
+    m.radial[2] = {"test.dialog", "Repeat Rectangle"};
+    m.radial[6] = {"test.dialog", "A label that is much too long to ever fit in a slot"};
+    menu.popup(m, QPoint(400, 400));
+    QVERIFY(menu.slotWidth() > 120);
+    QVERIFY(menu.slotWidth() <= 170);
+    QVERIFY(menu.width() >= 2 * (112 + menu.slotWidth() / 2));
+    menu.hide();
+    // the timeline frame of a picked feature goes when the pick goes / the command ends
+    QVERIFY(w_->newDocument());
+    core::Document& doc = w_->document();
+    const core::ObjectId f = addBox(doc, 6);
+    settle();
+    emit w_->timeline()->strip()->selectRequested(f, false);
+    QCOMPARE(w_->timeline()->strip()->highlightedFeature(), f);
+    QVERIFY(w_->runCommand("test.dialog"));
+    w_->toolManager().cancel();
+    settle();
+    QCOMPARE(w_->timeline()->strip()->highlightedFeature(), f);  // still selected
+    doc.selection().clear();
+    settle();
+    QCOMPARE(w_->timeline()->strip()->highlightedFeature(), core::kInvalidId);
+    doc.setModified(false);
+  }
+
   void tabsOwnTheirState() {
     // every tab has its own document, undo stack, selection, tool manager and camera
     app::DocumentTab* a = w_->activeTab();
