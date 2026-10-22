@@ -262,6 +262,7 @@
   <file>icons/sketch-pattern-circular.svg</file>
   <file>icons/sketch-pattern-rectangular.svg</file>
   <file>icons/sketch-point.svg</file>
+  <file>icons/sketch-polygon-edge.svg</file>
   <file>icons/sketch-polygon-inscribed.svg</file>
   <file>icons/sketch-polygon.svg</file>
   <file>icons/sketch-project.svg</file>
@@ -272,6 +273,8 @@
   <file>icons/sketch-scale.svg</file>
   <file>icons/sketch-select.svg</file>
   <file>icons/sketch-select-all.svg</file>
+  <file>icons/sketch-slot-center.svg</file>
+  <file>icons/sketch-slot-overall.svg</file>
   <file>icons/sketch-slot.svg</file>
   <file>icons/sketch-spline-control.svg</file>
   <file>icons/sketch-spline-fit.svg</file>

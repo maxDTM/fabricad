@@ -267,6 +267,13 @@ I["sketch-polygon-inscribed"] = (C(12, 12, 8.5, s=GREY, da=DASH) +
                                  dot(12, 12, INK, 1.4))
 I["sketch-slot"] = (P("M8 7.5 H16 A4.5 4.5 0 0 1 16 16.5 H8 A4.5 4.5 0 0 1 8 7.5 Z", s=SK) +
                     P("M8 12 H16", s=GREY, da=DASH) + dot(8, 12) + dot(16, 12))
+I["sketch-slot-overall"] = (P("M8 7.5 H16 A4.5 4.5 0 0 1 16 16.5 H8 A4.5 4.5 0 0 1 8 7.5 Z", s=SK) +
+                            P("M3.5 12 H20.5", s=GREY, da=DASH) + dot(3.5, 12) + dot(20.5, 12))
+I["sketch-slot-center"] = (P("M8 7.5 H16 A4.5 4.5 0 0 1 16 16.5 H8 A4.5 4.5 0 0 1 8 7.5 Z", s=SK) +
+                           P("M8 12 H16", s=GREY, da=DASH) + dot(12, 12) + dot(16, 12))
+I["sketch-polygon-edge"] = (C(12, 12, 8, s=GREY, da=DASH) +
+                            P("M8 18.93 L4 12 L8 5.07 L16 5.07 L20 12", s=SK) + P("M20 12 L16 18.93 L8 18.93", s=INK) +
+                            dot(16, 18.93) + dot(8, 18.93))
 I["sketch-point"] = P("M12 4 V8 M12 16 V20 M4 12 H8 M16 12 H20", s=GREY) + C(12, 12, 2.75, s=SK, f=WH)
 I["sketch-project"] = (cube(12, 7.5, 0.6, fill=BODY) + P("M12 13 V17.5", s=INK) + arrow_head(12, 17.5, "down", INK, 2) +
                        P("M3 21 H21", s=SK) + dot(3, 21, SK, 1.2) + dot(21, 21, SK, 1.2))

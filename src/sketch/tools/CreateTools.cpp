@@ -1569,15 +1569,15 @@ void registerCreateTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<PolygonTool>(
       false,
       ToolInfo{.id = "sketch.polygon-edge", .name = "Edge Polygon", .tooltip = "Regular polygon from the two endpoints of one edge (argument: number of sides)",
-               .icon = "sketch-polygon", .aliases = {"POLE"}, .tab = "SKETCH", .group = "CREATE", .order = 11},
+               .icon = "sketch-polygon-edge", .aliases = {"POLE"}, .tab = "SKETCH", .group = "CREATE", .order = 11},
       true));
   reg.registerTool(std::make_unique<SlotTool>());
   reg.registerTool(std::make_unique<SlotTool>(
       SlotMode::Overall, ToolInfo{.id = "sketch.slot-overall", .name = "Overall Slot", .tooltip = "Slot from its two ends and a width (type the overall length, then the width)",
-                                  .icon = "sketch-slot", .aliases = {"SLOTO"}, .tab = "SKETCH", .group = "CREATE", .order = 12}));
+                                  .icon = "sketch-slot-overall", .aliases = {"SLOTO"}, .tab = "SKETCH", .group = "CREATE", .order = 12}));
   reg.registerTool(std::make_unique<SlotTool>(
       SlotMode::CenterPoint, ToolInfo{.id = "sketch.slot-center", .name = "Center Point Slot", .tooltip = "Slot from its center, one arc center and a width",
-                                      .icon = "sketch-slot", .aliases = {"SLOTC"}, .tab = "SKETCH", .group = "CREATE", .order = 12}));
+                                      .icon = "sketch-slot-center", .aliases = {"SLOTC"}, .tab = "SKETCH", .group = "CREATE", .order = 12}));
   reg.registerTool(std::make_unique<PointTool>());
 }
 
