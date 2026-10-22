@@ -102,13 +102,10 @@ std::unique_ptr<core::UndoCommand> makeDeleteCommand(core::Document& doc, const 
   // last first, so every RemoveFeatureCommand records a stable index for its undo
   for (auto it = plan.features.rbegin(); it != plan.features.rend(); ++it)
     macro->add(std::make_unique<core::RemoveFeatureCommand>(doc, *it));
-  if (!plan.components.empty()) {
-    std::vector<ObjectId> comps = plan.components;
-    macro->add(std::make_unique<core::DocumentSnapshotCommand>(doc, "Delete component", [&doc, comps] {
-      for (ObjectId c : comps)
-        if (doc.component(c)) doc.removeComponent(c);
-    }));
-  }
+  // components go through the assembly delete (ASM-02): joints / rigid groups referencing them
+  // or their bodies are removed with them, children and bodies move to the parent
+  for (ObjectId c : plan.components)
+    if (auto cmd = assembly::makeDeleteComponentCommand(doc, c)) macro->add(std::move(cmd));
   return macro;
 }
 

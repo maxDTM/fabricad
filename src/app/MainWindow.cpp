@@ -1294,10 +1294,20 @@ void MainWindow::deleteRefs(const std::vector<ShapeRef>& refs) {
     if (!askYesNo("Delete", q, true)) return;
   }
   for (ObjectId id : plan.features) document_->selection().removeOwner(id);
+  // ASM-02: a deleted component's bodies are kept (moved to the parent): say so
+  int keptBodies = 0;
+  for (ObjectId c : plan.components)
+    for (ObjectId b : document_->bodiesOf(c))
+      if (!document_->bodyShape(b).IsNull()) ++keptBodies;
   if (auto cmd = makeDeleteCommand(*document_, plan)) {
-    cmd->setText("Delete " + plan.summary(*document_));
+    const std::string summary = plan.summary(*document_);
+    cmd->setText("Delete " + summary);
     document_->selection().clear();
     document_->undoStack().push(std::move(cmd));
+    if (keptBodies > 0)
+      showMessage(std::format("Deleted {}; kept {} bod{} (moved to the parent component)", summary, keptBodies,
+                              keptBodies == 1 ? "y" : "ies"),
+                  core::MessageLevel::Warning);
   }
 }
 

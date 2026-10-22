@@ -535,6 +535,11 @@ ObjectId createOccurrence(Document& doc, core::UndoStack* undo, ObjectId definit
   return runCommand(undo, keep, doc, definition, parent, placement)->created();
 }
 
+std::unique_ptr<core::UndoCommand> makeDeleteComponentCommand(Document& doc, ObjectId comp) {
+  if (comp == kRootComponentId || !doc.component(comp)) return nullptr;
+  return std::make_unique<DeleteComponentCommand>(doc, comp);
+}
+
 bool deleteComponent(Document& doc, core::UndoStack* undo, ObjectId comp, DeleteComponentResult* result) {
   if (comp == kRootComponentId || !doc.component(comp)) return false;
   std::unique_ptr<DeleteComponentCommand> keep;
