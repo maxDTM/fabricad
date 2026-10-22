@@ -421,7 +421,11 @@ class ManipulatorsTest : public QObject {
     QVERIFY(near(tool->feature()->length("distance"), 15.0));
     QVERIFY(near(core::volume(rig.doc.bodyShape(body)), 1500.0, 1e-6));  // the document recomputed live
     QCOMPARE(rig.doc.undoStack().index(), undoBefore);                  // ... without an undo step yet
+    // UX-34: the edited body is shown as a live preview that follows the value
+    QCOMPARE(rig.viewer.previews().size(), size_t(1));
+    QVERIFY(near(core::volume(rig.viewer.previews().begin()->second.shape), 1500.0, 1e-6));
     rig.manager.accept();
+    QVERIFY(rig.viewer.previews().empty());
     QCOMPARE(rig.doc.undoStack().index(), undoBefore + 1);
     QVERIFY(near(core::volume(rig.doc.bodyShape(body)), 1500.0, 1e-6));
     rig.doc.undoStack().undo();

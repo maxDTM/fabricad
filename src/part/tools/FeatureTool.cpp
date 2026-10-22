@@ -19,6 +19,7 @@
 #include "part/tools/PropertyPanel.h"
 
 #include <BRepAlgoAPI_Common.hxx>
+#include <TopLoc_Location.hxx>
 #include <QApplication>
 #include <QWidget>
 #include <Standard_Failure.hxx>
@@ -476,6 +477,23 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
     doc.recompute();
     valid_ = editing_->status() != core::FeatureStatus::Error;
     message_ = editing_->statusMessage();
+    if (ctx.viewer && valid_) {
+      // UX-34: live preview of the bodies the edited feature produces with the current values
+      // (the recompute changed them in place; draw them as a preview so the result follows the
+      // dialog / arrow even before the viewer resyncs its body presentations)
+      const int idx = doc.indexOf(editing_->id());
+      const auto& before = doc.bodyStatesAfter(idx - 1);
+      const core::PreviewStyle style = styleFor(Operation::Join);
+      for (const auto& [id, shape] : doc.bodyStates()) {
+        if (shape.IsNull()) continue;
+        auto it = before.find(id);
+        if (it != before.end() && it->second.IsEqual(shape)) continue;  // untouched by this feature
+        const core::Body* b = doc.body(id);
+        const gp_Trsf world = b ? doc.worldPlacement(b->component) : gp_Trsf();
+        const TopoDS_Shape shown = world.Form() == gp_Identity ? shape : shape.Moved(TopLoc_Location(world));
+        previews_.push_back(ctx.viewer->showPreviewShape(shown, style));
+      }
+    }
     if (ctx.viewer) {
       // anchor the gizmos on the state before the edited feature (what its inputs refer to)
       const int idx = doc.indexOf(editing_->id());
