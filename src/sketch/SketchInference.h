@@ -15,6 +15,14 @@ namespace fabricad::sketch {
 enum class InferenceGlyph { None, Coincident, Midpoint, Center, OnCurve, Horizontal, Vertical, Parallel, Perpendicular, Tangent };
 const char* inferenceGlyphText(InferenceGlyph g);
 
+/// Constraint / inference glyphs drawn from line primitives (no font needed, UX-28).
+enum class GlyphShape { None, Horizontal, Vertical, Parallel, Perpendicular, Tangent, Equal, Concentric, Collinear, Midpoint, Fix, Symmetric, Coincident, Center, OnCurve };
+/// Segment end points (pairs) of a glyph in a unit box [-1,1] x [-1,1] (y up), with a square frame
+/// around it when `frame`. Scale by the glyph's half size in sketch units and translate.
+std::vector<Pt2> glyphSegments(GlyphShape g, bool frame = true);
+/// The glyph shape for an inference glyph.
+GlyphShape glyphShapeFor(InferenceGlyph g);
+
 struct InferenceInput {
   Pt2 cursor;
   double tolerance = 1.0;                 ///< mm (pixels * pixelSize)

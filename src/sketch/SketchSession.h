@@ -14,6 +14,7 @@
 #include <QObject>
 
 #include <optional>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -164,6 +165,7 @@ class SketchSession : public QObject {
   bool showPoints_ = true;
   bool showProfiles_ = false;
   std::set<int> selectedConstraints_;
+  std::map<int, Pt2> textPos_;  ///< where each dimension's text was drawn (beside its line), for picking
   std::set<core::PreviewHandle> handles_;
   std::vector<QMetaObject::Connection> connections_;
   bool rendering_ = false;

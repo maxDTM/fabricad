@@ -1125,12 +1125,23 @@ class ToolsTest : public QObject {
     size_t n = r.viewer.previews().size();
     QVERIFY(n > 0);
     int texts = 0, polylines = 0;
+    size_t glyphSegs = 0;
+    bool textOffLine = false;
     for (const auto& [h, item] : r.viewer.previews()) {
-      if (item.kind == "text") ++texts;
+      if (item.kind == "text") {
+        ++texts;
+        // UX-28: the label of the bottom line's dimension sits beside the dimension line
+        Pt2 at = r.session()->toSketch(item.points.front());
+        Pt2 label = r.sk().constraint(r.sk().dimensionByName("d1")->id)->labelPos;
+        textOffLine = std::abs(at.y - label.y) > 1e-6;
+      }
       if (item.kind == "polyline") ++polylines;
+      if (item.kind == "lines") glyphSegs += item.points.size() / 2;
     }
     QVERIFY(polylines >= 4);  // geometry
-    QVERIFY(texts >= 5);      // 4 H/V glyphs + dimension label
+    QCOMPARE(texts, 1);       // the dimension label; constraint glyphs are line primitives (UX-28)
+    QVERIFY(textOffLine);
+    QVERIFY(glyphSegs >= 4 * 5);  // 4 H/V glyphs: a stroke and a 4-segment frame each
     r.mgr.run("sketch.toggle-constraints");
     QVERIFY(!r.session()->showConstraints());
     r.mgr.run("sketch.toggle-profiles");

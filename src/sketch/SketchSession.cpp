@@ -336,6 +336,7 @@ std::optional<int> SketchSession::dimensionAt(Pt2 p, double tol) const {
     if (!c.isDimensional()) continue;
     Pt2 lp = c.hasLabelPos ? c.labelPos : sk->defaultLabelPos(c);
     double d = lp.distance(p);
+    if (auto it = textPos_.find(c.id); it != textPos_.end()) d = std::min(d, it->second.distance(p));  // the drawn text
     if (d < bestD) {
       bestD = d;
       best = c.id;
@@ -452,10 +453,13 @@ void SketchSession::renderGeometry() {
 void SketchSession::renderConstraints() {
   const Sketch* sk = sketch();
   if (!sk) return;
-  const double off = tolerance({0, 0}, 10.0);
-  auto glyphAt = [&](Pt2 p, const char* text, int cid) {
-    PreviewStyle st = textStyle(selectedConstraints_.count(cid) ? colors::kSelected : colors::kGlyph, 11.0f);
-    addText(toWorld(p), text, st);
+  const double off = tolerance({0, 0}, 14.0);
+  const double half = tolerance({0, 0}, 6.0);  // glyph box: 12 px
+  // glyphs are drawn from line primitives (UX-28), batched per colour
+  std::vector<Vec3> glyphSegs, selectedSegs, fixSegs;
+  auto glyphAt = [&](Pt2 p, GlyphShape shape, int cid) {
+    std::vector<Vec3>& out = selectedConstraints_.count(cid) ? selectedSegs : (shape == GlyphShape::Fix ? fixSegs : glyphSegs);
+    for (const Pt2& q : glyphSegments(shape)) out.push_back(toWorld(p + q * half));
   };
   auto curveLabelPos = [&](int geo, double along) -> Pt2 {
     const Geometry* g = sk->geometry(geo);
@@ -473,7 +477,7 @@ void SketchSession::renderConstraints() {
   std::vector<Vec3> coincidentPts;
   for (const Constraint& c : sk->constraints()) {
     if (c.isDimensional()) continue;
-    const char* text = nullptr;
+    GlyphShape shape = GlyphShape::None;
     switch (c.type) {
       case ConstraintType::Coincident:
       case ConstraintType::PointOnCurve: {
@@ -482,41 +486,44 @@ void SketchSession::renderConstraints() {
         if (p) coincidentPts.push_back(toWorld(*p));
         break;
       }
-      case ConstraintType::Horizontal: text = "H"; break;
-      case ConstraintType::Vertical: text = "V"; break;
-      case ConstraintType::Parallel: text = "∥"; break;
-      case ConstraintType::Perpendicular: text = "⊥"; break;
-      case ConstraintType::Tangent: text = "T"; break;
-      case ConstraintType::Equal: text = "="; break;
-      case ConstraintType::Concentric: text = "◎"; break;
-      case ConstraintType::Collinear: text = "‖"; break;
-      case ConstraintType::Midpoint: text = "△"; break;
+      case ConstraintType::Horizontal: shape = GlyphShape::Horizontal; break;
+      case ConstraintType::Vertical: shape = GlyphShape::Vertical; break;
+      case ConstraintType::Parallel: shape = GlyphShape::Parallel; break;
+      case ConstraintType::Perpendicular: shape = GlyphShape::Perpendicular; break;
+      case ConstraintType::Tangent: shape = GlyphShape::Tangent; break;
+      case ConstraintType::Equal: shape = GlyphShape::Equal; break;
+      case ConstraintType::Concentric: shape = GlyphShape::Concentric; break;
+      case ConstraintType::Collinear: shape = GlyphShape::Collinear; break;
+      case ConstraintType::Midpoint: shape = GlyphShape::Midpoint; break;
       case ConstraintType::Fix:
         if (isOriginFix(c)) {
           if (auto p = sk->pointOf(c.a)) coincidentPts.push_back(toWorld(*p));
           break;
         }
-        text = "\U0001F512";
+        shape = GlyphShape::Fix;
         break;
-      case ConstraintType::Symmetric: text = "⇄"; break;
+      case ConstraintType::Symmetric: shape = GlyphShape::Symmetric; break;
       default: break;
     }
-    if (!text || c.internal) continue;
+    if (shape == GlyphShape::None || c.internal) continue;
     if (c.a.isPoint() && c.b.isPoint()) {
       auto pa = sk->pointOf(c.a), pb = sk->pointOf(c.b);
-      if (pa && pb) glyphAt((*pa + *pb) * 0.5 + Pt2{off, off}, text, c.id);
-      else if (pa) glyphAt(*pa + Pt2{off, off}, text, c.id);
+      if (pa && pb) glyphAt((*pa + *pb) * 0.5 + Pt2{off, off}, shape, c.id);
+      else if (pa) glyphAt(*pa + Pt2{off, off}, shape, c.id);
       continue;
     }
     if (c.a.isPoint()) {
       auto pa = sk->pointOf(c.a);
-      if (pa) glyphAt(*pa + Pt2{off, off}, text, c.id);
-      if (c.b.isValid() && !c.b.isPoint() && c.type != ConstraintType::Midpoint) glyphAt(curveLabelPos(c.b.geo, 0.5), text, c.id);
+      if (pa) glyphAt(*pa + Pt2{off, off}, shape, c.id);
+      if (c.b.isValid() && !c.b.isPoint() && c.type != ConstraintType::Midpoint) glyphAt(curveLabelPos(c.b.geo, 0.5), shape, c.id);
       continue;
     }
-    glyphAt(curveLabelPos(c.a.geo, 0.35), text, c.id);
-    if (c.b.isValid() && !c.b.isPoint()) glyphAt(curveLabelPos(c.b.geo, 0.35), text, c.id);
+    glyphAt(curveLabelPos(c.a.geo, 0.35), shape, c.id);
+    if (c.b.isValid() && !c.b.isPoint()) glyphAt(curveLabelPos(c.b.geo, 0.35), shape, c.id);
   }
+  addLines(glyphSegs, lineStyle(colors::kGlyph, 1.0f, false));
+  addLines(fixSegs, lineStyle(colors::kFixed, 1.5f, false));
+  addLines(selectedSegs, lineStyle(colors::kSelected, 1.5f, false));
   addPoints(coincidentPts, pointStyle(colors::kGlyph, 4.0f));
 }
 
@@ -563,6 +570,9 @@ void SketchSession::drawDimension(const Constraint& c) {
     segs.push_back(toWorld(b));
   };
   const double tick = tolerance(label, 4.0);
+  // the text sits beside its dimension line, not on it (the line would strike it through, UX-28)
+  const double textGap = tolerance(label, 9.0);
+  Pt2 textShift{0, textGap};
   auto arrow = [&](Pt2 tip, Pt2 dir) {
     Pt2 d = dir.normalized();
     Pt2 n = d.perp();
@@ -577,6 +587,7 @@ void SketchSession::drawDimension(const Constraint& c) {
       if (dir.length() < 1e-9) dir = {1, 0};
       dir = dir.normalized();
       Pt2 onCircle = cen + dir * ga->radius();
+      textShift = dir.perp() * (dir.perp().y >= 0 ? textGap : -textGap);
       if (c.type == ConstraintType::Radius) {
         seg(cen, label);
         arrow(onCircle, label.distance(cen) > ga->radius() ? -dir : dir);
@@ -593,6 +604,7 @@ void SketchSession::drawDimension(const Constraint& c) {
         auto x = intersectLines(ga->start(), ga->direction(), gb->start(), gb->direction());
         if (!x) break;
         double r = label.distance(*x);
+        if (r > 1e-12) textShift = (label - *x).normalized() * textGap;  // outside the arc
         double a0 = (ga->midpoint() - *x).angle();
         double a1 = (gb->midpoint() - *x).angle();
         double sweep = angleDelta(a0, a1);
@@ -659,11 +671,14 @@ void SketchSession::drawDimension(const Constraint& c) {
       seg(a2, b2);
       arrow(a2, a2 - b2);
       arrow(b2, b2 - a2);
+      // away from the measured geometry
+      textShift = n * (offset >= 0 ? textGap : -textGap);
       break;
     }
   }
   addLines(segs, ls);
-  addText(toWorld(label), dimensionText(c), ts);
+  textPos_[c.id] = label + textShift;
+  addText(toWorld(label + textShift), dimensionText(c), ts);
 }
 
 void SketchSession::renderProfiles() {
