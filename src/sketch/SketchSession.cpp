@@ -11,7 +11,9 @@
 #include "core/Units.h"
 #include "sketch/SketchInference.h"
 
+#include <QEvent>
 #include <QTimer>
+#include <QWidget>
 
 #include <algorithm>
 #include <cmath>
@@ -123,12 +125,38 @@ void SketchSession::enter() {
       QTimer::singleShot(0, [] { SketchSession::end(); });
     }));
   }
+  // glyphs, dimension arrows and text gaps are sized in pixels but drawn in sketch units:
+  // re-render after zooming so they keep their size (UX-28)
+  if (viewer_ && viewer_->widget()) viewer_->widget()->installEventFilter(this);
   render();
   ensureIdleTool();
 }
 
+bool SketchSession::eventFilter(QObject* watched, QEvent* event) {
+  if (viewer_ && watched == viewer_->widget() && !ending_) {
+    switch (event->type()) {
+      case QEvent::Wheel:
+      case QEvent::MouseButtonRelease:
+      case QEvent::Resize:
+        if (!zoomCheckPending_) {
+          zoomCheckPending_ = true;
+          QTimer::singleShot(120, this, [this] {
+            zoomCheckPending_ = false;
+            if (ending_ || rendering_ || !viewer_) return;
+            const double px = tolerance({0, 0}, 1.0);
+            if (renderedPixelSize_ > 0 && std::abs(px - renderedPixelSize_) > 0.05 * renderedPixelSize_) render();
+          });
+        }
+        break;
+      default: break;
+    }
+  }
+  return QObject::eventFilter(watched, event);
+}
+
 void SketchSession::leave() {
   ending_ = true;
+  if (viewer_ && viewer_->widget()) viewer_->widget()->removeEventFilter(this);
   for (auto& c : connections_) QObject::disconnect(c);
   connections_.clear();
   if (manager_ && manager_->isActive()) manager_->cancel();
@@ -375,6 +403,7 @@ void SketchSession::render() {
   rendering_ = true;
   for (core::PreviewHandle h : handles_) viewer_->removePreview(h);
   handles_.clear();
+  renderedPixelSize_ = tolerance({0, 0}, 1.0);
   if (feature()) {
     plane_ = feature()->plane();
     if (showProfiles_) renderProfiles();
