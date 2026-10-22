@@ -117,6 +117,7 @@ void SketchSession::enter() {
   if (doc_) {
     connections_.push_back(QObject::connect(doc_, &core::Document::recomputeFinished, this, [this] {
       if (!rendering_) render();
+      emit changed();  // undo/redo: keep the DOF label current (SK-09)
     }));
     connections_.push_back(QObject::connect(doc_, &core::Document::featureRemoved, this, [this](core::ObjectId id, int) {
       if (id == sketchId_) QTimer::singleShot(0, [] { SketchSession::end(); });
@@ -246,7 +247,7 @@ bool SketchSession::commitEdit(const std::string& text) {
   auto cmd = std::make_unique<core::ModifyFeatureCommand>(*doc_, sketchId_, before_, after, text);
   if (undo_) undo_->push(std::move(cmd));
   else cmd->redo();
-  if (host_) host_->showMessage(statusText());
+  // the DOF count is shown by the status bar label (changed()), not as a message (SK-09)
   render();
   emit changed();
   return true;

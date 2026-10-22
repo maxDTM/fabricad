@@ -103,6 +103,16 @@ class TestAppLogic : public QObject {
     QCOMPARE(app::routeKey(Qt::Key_Space, 0, tool).action, app::KeyAction::ForwardOnly);
     QCOMPARE(app::routeKey(Qt::Key_Tab, 0, tool).action, app::KeyAction::ForwardOnly);
     QCOMPARE(app::routeKey(Qt::Key_Tab, 0, canvas).action, app::KeyAction::None);
+    // SK-01: Ctrl+Return / Ctrl+keypad Enter is a shortcut before the tool, and both are "Ctrl+Return"
+    for (int k : {int(Qt::Key_Return), int(Qt::Key_Enter)}) {
+      const app::KeyRoute r = app::routeKey(k, Qt::ControlModifier | Qt::KeypadModifier, tool);
+      QCOMPARE(r.action, app::KeyAction::Shortcut);
+      QVERIFY(!r.toolFirst);
+      QCOMPARE(r.sequence, app::normalizeShortcut("Ctrl+Return"));
+    }
+    QVERIFY(app::routeKey(Qt::Key_Enter, 0, tool).toolFirst);
+    app::KeyContext field{false, true, true};
+    QCOMPARE(app::routeKey(Qt::Key_Enter, Qt::ControlModifier, field).sequence, app::normalizeShortcut("Ctrl+Return"));
   }
 
   void routeTextFieldKeys() {

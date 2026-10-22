@@ -57,7 +57,9 @@ KeyRoute routeKey(int key, int modifiers, const KeyContext& ctx) {
   if (isModifierKey(key)) return r;
   const int mods = modifiers & kModMask;
   const bool combo = (mods & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) != 0;
-  r.sequence = keySequenceText(key, mods);
+  // Keypad Enter and Return are the same key for shortcuts ("Ctrl+Enter" -> "Ctrl+Return", SK-01)
+  const int seqKey = key == Qt::Key_Enter ? Qt::Key_Return : key;
+  r.sequence = keySequenceText(seqKey, mods);
 
   if (!ctx.canvasFocus) {
     // text fields and other widgets keep their keys; global combos still work
@@ -74,8 +76,9 @@ KeyRoute routeKey(int key, int modifiers, const KeyContext& ctx) {
     case Qt::Key_Escape: r.action = KeyAction::Cancel; return r;
     case Qt::Key_Return:
     case Qt::Key_Enter:
-      if (mods == Qt::ControlModifier) {  // Ctrl+Enter: a shortcut (Finish Sketch)
+      if (mods == Qt::ControlModifier) {  // Ctrl+Enter: a shortcut (Finish Sketch), never the tool's Enter
         r.action = KeyAction::Shortcut;
+        r.toolFirst = false;
         return r;
       }
       r.action = KeyAction::AcceptOrRepeat;

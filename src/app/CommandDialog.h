@@ -59,6 +59,8 @@ class CommandDialog : public QFrame {
   void relayout();
   /// Default dock position or the user's position, kept inside the viewport.
   void place();
+  void clearBody();
+  int dockTop() const;
   QWidget* viewport_;
   QWidget* title_ = nullptr;
   QLabel* titleIcon_ = nullptr;

@@ -299,7 +299,7 @@ class TrimTool : public SketchTool {
     session()->beginEdit();
     sk->trim(id, at);
     session()->commitEdit("Trim");
-    ctx.setPrompt(session()->statusText());
+    ctx.setPrompt("Select the piece of a curve to remove");
   }
   bool pressed_ = false;
 };
@@ -1132,6 +1132,13 @@ class DimensionTool : public SketchTool {
       }
       sk->constraint(id)->driven = true;
       sk->solve();
+      // a driven dimension only reports its value: add it now, no value prompt (SK-07)
+      session()->commitEdit("Dimension");
+      ctx.showMessage("Driven dimension added");
+      reset();
+      ctx.setPrompt(prompt());
+      if (ctx.host) ctx.host->refreshToolDialog();
+      return;
     }
     session()->refresh();
     pendingId_ = id;
@@ -1145,7 +1152,7 @@ class DimensionTool : public SketchTool {
     if (phase_ != Phase::Value) return;
     if (session()) {
       session()->commitEdit("Dimension");
-      ctx.showMessage(session()->statusText());
+      ctx.showMessage("Dimension added");
     }
     reset();
     ctx.setPrompt(prompt());
@@ -1228,7 +1235,7 @@ class DimensionEditTool : public SketchTool {
       return true;
     }
     session()->commitEdit("Edit dimension");
-    ctx.showMessage(session()->statusText());
+    ctx.showMessage("Dimension changed");
     ctx.finish();
     return true;
   }
