@@ -21,6 +21,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <functional>
+#include <set>
 #include <sstream>
 
 namespace fabricad::drawing {
@@ -175,6 +177,7 @@ void NewDrawingTool::accept(core::ToolContext& ctx) {
     Sheet& s = m->addSheet(format_, standard_);
     s.scale = scale_;
     sheetId = s.id;
+    m->notifyChanged(s.id);  // repaint the title block with the chosen scale (DRW-ASM-OUTPUT-7)
   });
   m->setActiveSheet(sheetId);
   if (ctx.host) ctx.host->setWorkspace(core::Workspace::Drawing);
@@ -215,6 +218,7 @@ void NewSheetTool::activate(core::ToolContext& ctx) {
     Sheet& s = m->addSheet(fmt, std);
     s.scale = scale;
     id = s.id;
+    m->notifyChanged(s.id);
   });
   m->setActiveSheet(id);
   if (DrawingCanvas* c = canvas(ctx)) c->setSheet(id);
@@ -1324,10 +1328,10 @@ bool EditSheetTool::applySetting(core::ToolContext& ctx, const std::string& key,
   if (key == "name" && !value.empty()) { s->name = value; ok = true; }
   else if ((key == "size" || key == "format")) {
     if (auto f = sheetFormatByName(value)) {
-      bool landscape = s->format.landscape;
-      s->format = *f;
-      s->format.landscape = landscape;
-      if (!landscape) std::swap(s->format.width, s->format.height);
+      SheetFormat nf = *f;
+      nf.landscape = s->format.landscape;
+      if (!nf.landscape) std::swap(nf.width, nf.height);
+      m->changeSheetFormat(*s, nf);  // carries views and tables over (DRW-ASM-OUTPUT-2)
       ok = true;
     }
   } else if (key == "orientation") {
@@ -1335,12 +1339,17 @@ bool EditSheetTool::applySetting(core::ToolContext& ctx, const std::string& key,
     if (v == "portrait" || v == "landscape") {
       bool landscape = v == "landscape";
       if (landscape != s->format.landscape) {
-        s->format.landscape = landscape;
-        std::swap(s->format.width, s->format.height);
+        SheetFormat nf = s->format;
+        nf.landscape = landscape;
+        std::swap(nf.width, nf.height);
+        m->changeSheetFormat(*s, nf);
       }
       ok = true;
     }
-  } else if (key == "standard" && parseStandard(value, st)) { s->standard = st; ok = true; }
+  } else if (key == "standard" && parseStandard(value, st)) {
+    m->changeSheetStandard(*s, st);  // re-arranges projected views (DRW-VIEWS-ANNOT-7)
+    ok = true;
+  }
   else if (key == "scale" && parseScale(value, d)) { s->scale = d; ok = true; }
   else if (key == "zones" && parseBool(value, b)) { s->showZones = b; ok = true; }
   else if (key == "titleblock" && parseBool(value, b)) { s->titleBlock.visible = b; ok = true; }
@@ -1446,7 +1455,7 @@ void EditTitleBlockTool::activate(core::ToolContext& ctx) {
       // match field names case-insensitively
       for (const auto& name : TitleBlock::fieldNames())
         if (lower(name) == k) {
-          s->titleBlock.setField(name, v);
+          m->setTitleBlockField(*s, name, v);
           any = true;
         }
     }
@@ -1464,8 +1473,7 @@ bool EditTitleBlockTool::commandLineInput(core::ToolContext& ctx, const std::str
   if (!parseKeyValue(text, k, v)) return false;
   for (const auto& name : TitleBlock::fieldNames())
     if (lower(name) == k) {
-      s->titleBlock.setField(name, v);
-      m->notifyChanged(sheetId_);
+      m->setTitleBlockField(*s, name, v);
       if (auto it = edits_.find(name); it != edits_.end() && it->second) it->second->setText(QString::fromStdString(v));
       return true;
     }
@@ -1500,7 +1508,7 @@ void EditTitleBlockTool::applyDialog() {
     if (!edit) continue;
     std::string v = edit->text().toStdString();
     if (s->titleBlock.field(name) != v) {
-      s->titleBlock.setField(name, v);
+      m->setTitleBlockField(*s, name, v);
       changed = true;
     }
   }
@@ -1675,7 +1683,9 @@ void MoveTool::commit(core::ToolContext& ctx, const Point2& delta) {
 
 DeleteTool::DeleteTool()
     : DrawingToolBase(drawingToolInfo("drawing.delete", "Delete", "Delete the selected views and annotations", "CREATE",
-                                      60, false, {}, {"DELETE", "ERASE", "DEL"})) {}
+                                      60, false, "Del", {"DELETE", "ERASE", "DEL"})) {}
+// "Del" (DRW-VIEWS-ANNOT-5): the window routes Delete as a shortcut before the canvas sees it;
+// in the Drawing workspace this tool outranks the design's app.delete (same key).
 
 void DeleteTool::activate(core::ToolContext& ctx) {
   DrawingModel* m = model(ctx);
@@ -1685,6 +1695,40 @@ void DeleteTool::activate(core::ToolContext& ctx) {
   if (ids.empty()) {
     ctx.showMessage("Nothing selected", true);
     return;
+  }
+  // DRW-VIEWS-ANNOT-17: deleting a parent view also removes its projected/section/detail views
+  // and everything attached to them. Say so (and ask) instead of cascading silently.
+  std::set<ObjectId> doomedViews, doomedEntities;
+  std::function<void(ObjectId)> collect = [&](ObjectId vid) {
+    if (!doomedViews.insert(vid).second) return;
+    for (ObjectId e : s->entitiesOf(vid)) doomedEntities.insert(e);
+    for (ObjectId c : s->childrenOf(vid)) collect(c);
+  };
+  std::string firstLabel;
+  for (ObjectId id : ids)
+    if (const DrawingView* v = s->view(id)) {
+      if (firstLabel.empty()) firstLabel = v->label;
+      collect(id);
+    }
+  size_t dependentViews = 0;
+  for (ObjectId v : doomedViews)
+    if (std::find(ids.begin(), ids.end(), v) == ids.end()) ++dependentViews;
+  size_t dependentEntities = 0;
+  for (ObjectId e : doomedEntities)
+    if (std::find(ids.begin(), ids.end(), e) == ids.end()) ++dependentEntities;
+  if (dependentViews > 0 || dependentEntities > 0) {
+    std::string what;
+    if (dependentViews) what += std::to_string(dependentViews) + (dependentViews == 1 ? " dependent view" : " dependent views");
+    if (dependentEntities) {
+      if (!what.empty()) what += " and ";
+      what += std::to_string(dependentEntities) + (dependentEntities == 1 ? " annotation" : " annotations");
+    }
+    const std::string subject = firstLabel.empty() ? std::string("the selection") : firstLabel;
+    if (ctx.host && !ctx.host->askYesNo("Delete", "Deleting " + subject + " also deletes " + what + ". Continue?", true)) {
+      ctx.showMessage("Delete cancelled");
+      return;
+    }
+    ctx.showMessage("Deleted " + subject + " with " + what + " (Ctrl+Z restores)");
   }
   if (DrawingCanvas* c = canvas(ctx)) c->clearSelection();
   m->edit(ids.size() == 1 ? "Delete" : "Delete objects", ctx.undo, [&]() {

@@ -1176,6 +1176,8 @@ bool BalloonTool::attachAt(core::ToolContext& ctx, const Point2& sheet) {
       }
     }
   }
+  attachRef_ = DimRef::toCurve(h.curve);
+  attachT_ = nearestCurveParam(h.curve, attachLocal_);
   haveAttach_ = true;
   setCanvasHighlights({viewId_});
   ctx.setPrompt("Click the balloon position");
@@ -1190,6 +1192,9 @@ bool BalloonTool::placeAt(core::ToolContext& ctx, const Point2& sheet) {
   b.viewId = viewId_;
   b.itemKey = itemKey_;
   b.attach = attachLocal_;
+  b.hasRef = true;
+  b.ref = attachRef_;
+  b.refT = attachT_;
   b.position = sheet;
   ObjectId sheetId = s->id;
   m->edit("Balloon", ctx.undo, [&]() {
@@ -1231,6 +1236,9 @@ int BalloonTool::balloonAll(core::ToolContext& ctx, ObjectId viewId) {
     b.viewId = viewId;
     b.itemKey = bomKeyForBody(*ctx.document, pick->sourceBody, perBody);
     b.attach = pick->midpoint();
+    b.hasRef = true;
+    b.ref = DimRef::toCurve(*pick);
+    b.refT = nearestCurveParam(*pick, b.attach);
     Point2 tipSheet = v->toSheet(b.attach);
     Point2 dir = (tipSheet - centre).normalized();
     if (dir.length() < 0.5) dir = Point2::polar(-90.0 + 30.0 * static_cast<double>(balloons.size()), 1.0);

@@ -19,6 +19,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 
 #include <algorithm>
+#include <functional>
 #include <set>
 
 namespace fabricad::drawing {
@@ -135,12 +136,30 @@ Sheet& DrawingModel::addSheet(const SheetFormat& format, ProjectionStandard stan
   s.name = name.empty() ? nextSheetName() : name;
   s.format = format;
   s.standard = standard;
+  // a new sheet of the same drawing starts with the drawing-level title block fields
+  // (title, company, drawn by, part number, material...) of the active sheet (DRW-ASM-OUTPUT-6)
+  if (const Sheet* from = sheet(activeSheet_) ? sheet(activeSheet_) : (sheets_.empty() ? nullptr : &sheets_.front()))
+    for (const auto& [k, v] : from->titleBlock.fields)
+      if (!TitleBlock::isSheetField(k)) s.titleBlock.fields[k] = v;
   sheets_.push_back(std::move(s));
   Sheet& ref = sheets_.back();
   if (activeSheet_ == core::kInvalidId) activeSheet_ = ref.id;
   doc_.setModified(true);
   emit sheetsChanged();
   return ref;
+}
+
+void DrawingModel::setTitleBlockField(Sheet& target, const std::string& name, const std::string& value) {
+  const std::string old = target.titleBlock.field(name);
+  if (old == value) return;
+  target.titleBlock.setField(name, value);
+  if (!TitleBlock::isSheetField(name))
+    for (auto& s : sheets_)
+      if (s.id != target.id && s.titleBlock.field(name) == old) {
+        s.titleBlock.setField(name, value);
+        emit sheetChanged(s.id);
+      }
+  notifyChanged(target.id);
 }
 
 bool DrawingModel::removeSheet(ObjectId id) {
@@ -196,6 +215,7 @@ DrawingView& DrawingModel::addBaseView(Sheet& sheet, std::vector<core::ShapeRef>
   v.position = position;
   sheet.views.push_back(std::move(v));
   DrawingView& ref = sheet.views.back();
+  ref.layoutScale = ref.scale;
   invalidateView(ref.id);
   notifyChanged(sheet.id);
   return ref;
@@ -234,6 +254,7 @@ DrawingView* DrawingModel::addProjectedView(Sheet& sheet, ObjectId parentId, Pro
   v.autoDir = projectionDirectionVector(direction);
   sheet.views.push_back(std::move(v));
   DrawingView& ref = sheet.views.back();
+  ref.layoutScale = ref.scale;
   invalidateView(ref.id);
   notifyChanged(sheet.id);
   return &ref;
@@ -272,6 +293,7 @@ DrawingView* DrawingModel::addSectionView(Sheet& sheet, ObjectId parentId, const
   v.autoPlace = true;
   sheet.views.push_back(std::move(v));
   DrawingView& ref = sheet.views.back();
+  ref.layoutScale = ref.scale;
   ref.position = alignedPosition(ref, position);
   invalidateView(ref.id);
   notifyChanged(sheet.id);
@@ -299,6 +321,7 @@ DrawingView* DrawingModel::addDetailView(Sheet& sheet, ObjectId parentId, const 
   v.position = position;
   sheet.views.push_back(std::move(v));
   DrawingView& ref = sheet.views.back();
+  ref.layoutScale = ref.scale;
   parent = sheet.view(parentId);  // push_back may have reallocated
   if (parent && parent->geometryValid) {
     computeDetail(ref, *parent);
@@ -346,11 +369,7 @@ void DrawingModel::moveView(ObjectId id, const Point2& position) {
   if (delta.length() < 1e-12) return;
   v->position = target;
   // entities attached to this view move with it (text anchors are sheet-space)
-  for (auto& d : s->dimensions)
-    if (d.viewId == id) d.textPos += delta;
-  for (auto& b : s->balloons)
-    if (b.viewId == id) b.position += delta;
-  s->callouts.followView(id, delta);
+  shiftAttached(*s, id, delta);
   for (ObjectId child : s->childrenOf(id)) {
     DrawingView* c = s->view(child);
     if (!c) continue;
@@ -374,24 +393,62 @@ void DrawingModel::viewDefinitionChanged(ObjectId id) {
   if (v->type == ViewType::Detail) v->label = "DETAIL " + v->detail.label;
   // children of a base view inherit style changes only when explicitly re-projected; scale
   // changes propagate to aligned children (Fusion keeps projected views at the parent scale)
-  if (v->type == ViewType::Base || v->type == ViewType::Projected) {
-    for (ObjectId child : s->childrenOf(id)) {
-      DrawingView* c = s->view(child);
-      if (c && c->type == ViewType::Projected && std::abs(c->scale - v->scale) > 1e-12) {
-        c->scale = v->scale;
-        invalidateView(c->id);
-      }
-    }
-  }
+  // and to sections drawn at the parent scale, and the layout re-flows (DRW-VIEWS-ANNOT-8)
+  const double oldScale = v->layoutScale > 0 ? v->layoutScale : v->scale;
+  if (std::abs(oldScale - v->scale) > 1e-12) rescaleLayout(*s, id, oldScale);
+  v = s->view(id);
+  if (!v) return;
   auto it = cache_.find(id);
   if (it != cache_.end() && it->second.key == v->geometryKey() && it->second.docGeneration == docGeneration_ &&
       v->geometryValid) {
     // geometry unaffected (e.g. scale/label): dependants still need re-measuring
+    if (v->autoPlace) autoArrange(*s, *v);
     finishView(*s, *v);
   } else {
     invalidateView(id);
   }
   notifyChanged(s->id);
+}
+
+void DrawingModel::rescaleLayout(Sheet& s, ObjectId id, double oldScale) {
+  DrawingView* v = s.view(id);
+  if (!v || oldScale <= 0) return;
+  const double k = v->scale / oldScale;
+  v->layoutScale = v->scale;
+  // the view itself: keep it inside the frame once its new size is known
+  if (v->type == ViewType::Base) {
+    v->autoPlace = true;
+    v->autoDir = {};
+  }
+  for (ObjectId child : s.childrenOf(id)) {
+    DrawingView* c = s.view(child);
+    if (!c) continue;
+    const bool follows = c->type == ViewType::Projected ||
+                         (c->type == ViewType::Section && std::abs(c->scale - oldScale) < 1e-9);
+    if (!follows) continue;
+    const double childOld = c->layoutScale > 0 ? c->layoutScale : c->scale;
+    Point2 off = c->position - v->position;
+    // offsets grow with the scale; the automatic layout then restores the gap, clears other views
+    // and keeps the view inside the frame
+    Point2 delta = off * (k - 1.0);
+    c->position += delta;
+    shiftAttached(s, c->id, delta);
+    c->scale = v->scale;
+    c->autoPlace = true;
+    c->autoDir = c->type == ViewType::Projected && !isDiagonal(c->direction) ? projectionDirectionVector(c->direction)
+                                                                             : off.normalized();
+    invalidateView(c->id);
+    rescaleLayout(s, c->id, childOld);
+  }
+}
+
+void DrawingModel::shiftAttached(Sheet& s, ObjectId viewId, const Point2& delta) {
+  if (delta.length() < 1e-12) return;
+  for (auto& d : s.dimensions)
+    if (d.viewId == viewId) d.textPos += delta;
+  for (auto& b : s.balloons)
+    if (b.viewId == viewId) b.position += delta;
+  s.callouts.followView(viewId, delta);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -514,7 +571,15 @@ void DrawingModel::refreshAnnotations(Sheet& sheet) {
   }
   if (!sheet.balloons.empty()) {
     if (!haveRows) rows = bom(nullptr);
-    for (auto& b : sheet.balloons) b.itemNumber = bomItemFor(rows, b.itemKey);
+    for (auto& b : sheet.balloons) {
+      b.itemNumber = bomItemFor(rows, b.itemKey);
+      // the tip follows its edge (DRW-ASM-OUTPUT-3)
+      if (const DrawingView* v = sheet.view(b.viewId); v && v->geometryValid && b.hasRef) {
+        Point2 tip;
+        b.orphaned = !resolveBalloonTip(b, *v, tip);
+        if (!b.orphaned) b.attach = tip;
+      }
+    }
   }
   refreshCallouts(doc_, sheet);
 }
@@ -708,6 +773,7 @@ void DrawingModel::updateGeometry() {
         v.geometryPending = false;
         v.geometryValid = false;
         v.curves.clear();
+        v.coveredCurves.clear();
         v.vertices.clear();
         v.bbox = BBox2{};
         v.error = "no geometry";
@@ -760,12 +826,14 @@ void DrawingModel::applyResult(const ViewJobResult& r) {
     v->geometryValid = false;
     v->error = r.error;
     v->curves.clear();
+    v->coveredCurves.clear();
     v->vertices.clear();
     v->bbox = BBox2{};
     FC_WARN("drawing: view {} failed: {}", v->label, r.error);
   } else {
     v->error.clear();
     v->curves = r.projection.curves;
+    v->coveredCurves = r.projection.covered;
     v->vertices = collectVertices(v->curves, 1e-3);
     v->bbox = r.projection.bbox;
     v->origin3d = r.projection.origin;
@@ -802,55 +870,256 @@ bool boxesOverlap(const BBox2& a, const BBox2& b, double gap) {
 
 void DrawingModel::autoArrange(Sheet& sheet, DrawingView& v) {
   v.autoPlace = false;
-  if (!v.geometryValid || v.autoDir.length() < 0.5) return;
-  const Point2 d = v.autoDir.normalized();
-  const DrawingView* parent = sheet.view(v.parent);
-  // 1. at least parent half-size + gap + own half-size from the parent along d (never closer)
-  if (parent && parent != &v && parent->geometryValid) {
+  if (!v.geometryValid) return;
+  const bool directed = v.autoDir.length() >= 0.5;
+  const Point2 d = directed ? v.autoDir.normalized() : Point2{};
+  DrawingView* parent = v.parent != core::kInvalidId ? sheet.view(v.parent) : nullptr;
+  if (parent == &v || (parent && !parent->geometryValid)) parent = nullptr;
+  // required distance from the parent along d (parent half-size + gap + own half-size)
+  auto needAlong = [&]() {
     double pLo, pHi, cLo, cHi;
-    extentAlong(parent->sheetBBox(), parent->position, d, pLo, pHi);
-    extentAlong(v.sheetBBox(), v.position, d, cLo, cHi);
+    extentAlong(parent->layoutBBox(), parent->position, d, pLo, pHi);
+    extentAlong(v.layoutBBox(), v.position, d, cLo, cHi);
+    return pHi + kViewGap - cLo;
+  };
+  // 1. at least parent half-size + gap + own half-size from the parent along d (never closer)
+  if (directed && parent) {
     double cur = (v.position - parent->position).dot(d);
-    double need = pHi + kViewGap - cLo;
+    double need = needAlong();
     if (cur < need) v.position += d * (need - cur);
   }
   // 2. push clear of every other view, moving along one axis of d (keeps aligned views aligned)
-  for (int iter = 0; iter < 16; ++iter) {
-    BBox2 cb = v.sheetBBox();
-    bool moved = false;
-    for (const auto& o : sheet.views) {
-      if (o.id == v.id || !o.geometryValid) continue;
-      BBox2 ob = o.sheetBBox();
-      if (!boxesOverlap(cb, ob, kViewGap * 0.5)) continue;
-      double dx = 0, dy = 0;
-      if (std::abs(d.x) > 1e-9) dx = d.x > 0 ? (ob.max.x + kViewGap - cb.min.x) : (ob.min.x - kViewGap - cb.max.x);
-      if (std::abs(d.y) > 1e-9) dy = d.y > 0 ? (ob.max.y + kViewGap - cb.min.y) : (ob.min.y - kViewGap - cb.max.y);
-      Point2 shift;
-      if (dx != 0 && (dy == 0 || std::abs(dx) <= std::abs(dy))) shift = {dx, 0};
-      else shift = {0, dy};
-      if (shift.length() < 1e-9) continue;
-      v.position += shift;
-      moved = true;
-      break;
+  if (directed) {
+    for (int iter = 0; iter < 16; ++iter) {
+      BBox2 cb = v.layoutBBox();
+      bool moved = false;
+      for (const auto& o : sheet.views) {
+        if (o.id == v.id || !o.geometryValid) continue;
+        BBox2 ob = o.layoutBBox();
+        if (!boxesOverlap(cb, ob, kViewGap * 0.5)) continue;
+        double dx = 0, dy = 0;
+        if (std::abs(d.x) > 1e-9) dx = d.x > 0 ? (ob.max.x + kViewGap - cb.min.x) : (ob.min.x - kViewGap - cb.max.x);
+        if (std::abs(d.y) > 1e-9) dy = d.y > 0 ? (ob.max.y + kViewGap - cb.min.y) : (ob.min.y - kViewGap - cb.max.y);
+        Point2 shift;
+        if (dx != 0 && (dy == 0 || std::abs(dx) <= std::abs(dy))) shift = {dx, 0};
+        else shift = {0, dy};
+        if (shift.length() < 1e-9) continue;
+        v.position += shift;
+        moved = true;
+        break;
+      }
+      if (!moved) break;
     }
-    if (!moved) break;
   }
-  // 3. inside the frame (aligned views keep their alignment axis), above the title block
+  // 3. inside the frame (aligned views keep their alignment axis), clear of the title block
+  const BBox2 f = sheet.frameRect().expanded(-kFrameInset);
+  const Point2 sh = frameShift(sheet, v, v.layoutBBox());
+  if (sh.length() < 1e-9) return;
+  if (!parent || !directed) {
+    // a base view takes its children along
+    if (v.type == ViewType::Base) moveView(v.id, v.position + sh);
+    else v.position += sh;
+    v.autoPlace = false;
+    return;
+  }
+  // DRW-VIEWS-ANNOT-1: never buy the frame clearance by moving into the parent. When the shift
+  // would eat the gap, move the whole family (a base parent and its children) instead, if the
+  // family still fits in the frame that way; otherwise keep the gap (the view may stick out of
+  // the frame, which is visible and fixable, unlike two views drawn over each other).
+  const double cur = (v.position - parent->position).dot(d);
+  const double need = needAlong();
+  const double along = sh.dot(d);
+  if (cur + along >= need - 1e-6) {
+    v.position += sh;
+    return;
+  }
+  if (parent->type == ViewType::Base && parent->parent == core::kInvalidId) {
+    BBox2 fam = parent->layoutBBox();
+    std::function<void(ObjectId)> addFamily = [&](ObjectId pid) {
+      for (ObjectId c : sheet.childrenOf(pid))
+        if (const DrawingView* cv = sheet.view(c); cv && cv->geometryValid) {
+          fam.add(cv->id == v.id ? v.layoutBBox() : cv->layoutBBox());
+          addFamily(c);
+        }
+    };
+    addFamily(parent->id);
+    BBox2 moved = fam;
+    moved.min += sh;
+    moved.max += sh;
+    if (moved.min.x >= f.min.x - 1e-6 && moved.max.x <= f.max.x + 1e-6 && moved.min.y >= f.min.y - 1e-6 &&
+        moved.max.y <= f.max.y + 1e-6) {
+      moveView(parent->id, parent->position + sh);  // children (this view included) follow
+      v.autoPlace = false;
+      return;
+    }
+  }
+  // keep the gap: drop the part of the shift that pulls towards the parent
+  Point2 keep = sh - d * along + d * std::max(along, need - cur);
+  v.position += keep;
+}
+
+Point2 DrawingModel::frameShift(const Sheet& sheet, const DrawingView& v, const BBox2& cb) const {
+  Point2 sh;
   BBox2 f = sheet.frameRect().expanded(-kFrameInset);
-  if (sheet.titleBlock.visible) {
-    BBox2 tb = sheet.titleBlockRect();
-    BBox2 cb = v.sheetBBox();
-    if (boxesOverlap(cb, tb, 0.0) && cb.height() < tb.min.y - f.min.y) f.max.y = std::min(f.max.y, tb.min.y - kFrameInset);
-  }
-  BBox2 cb = v.sheetBBox();
+  if (!cb.isValid() || !f.isValid()) return sh;
   if (v.alignment != ViewAlignment::Vertical && cb.width() <= f.width()) {
-    if (cb.min.x < f.min.x) v.position.x += f.min.x - cb.min.x;
-    else if (cb.max.x > f.max.x) v.position.x -= cb.max.x - f.max.x;
+    if (cb.min.x < f.min.x) sh.x = f.min.x - cb.min.x;
+    else if (cb.max.x > f.max.x) sh.x = f.max.x - cb.max.x;
   }
   if (v.alignment != ViewAlignment::Horizontal && cb.height() <= f.height()) {
-    if (cb.min.y < f.min.y) v.position.y += f.min.y - cb.min.y;
-    else if (cb.max.y > f.max.y) v.position.y -= cb.max.y - f.max.y;
+    if (cb.min.y < f.min.y) sh.y = f.min.y - cb.min.y;
+    else if (cb.max.y > f.max.y) sh.y = f.max.y - cb.max.y;
   }
+  // title block (DRW-VIEWS-ANNOT-9): the smallest move that clears it (up, or left), honouring
+  // the alignment axis and staying inside the frame
+  if (sheet.titleBlock.visible) {
+    const BBox2 tb = sheet.titleBlockRect();
+    BBox2 b = cb;
+    b.min += sh;
+    b.max += sh;
+    if (boxesOverlap(b, tb, 0.0)) {
+      double best = 1e300;
+      Point2 add;
+      if (v.alignment != ViewAlignment::Horizontal) {
+        double dy = tb.min.y - kFrameInset - b.max.y;  // move up
+        if (b.min.y + dy >= f.min.y - 1e-6 && std::abs(dy) < best) {
+          best = std::abs(dy);
+          add = {0, dy};
+        }
+      }
+      if (v.alignment != ViewAlignment::Vertical) {
+        double dx = tb.min.x - kFrameInset - b.max.x;  // move left
+        if (b.min.x + dx >= f.min.x - 1e-6 && std::abs(dx) < best) {
+          best = std::abs(dx);
+          add = {dx, 0};
+        }
+      }
+      if (best < 1e300) sh += add;
+    }
+  }
+  return sh;
+}
+
+namespace {
+ProjectionDirection oppositeDirection(ProjectionDirection d) {
+  switch (d) {
+    case ProjectionDirection::Left: return ProjectionDirection::Right;
+    case ProjectionDirection::Right: return ProjectionDirection::Left;
+    case ProjectionDirection::Above: return ProjectionDirection::Below;
+    case ProjectionDirection::Below: return ProjectionDirection::Above;
+    case ProjectionDirection::AboveLeft: return ProjectionDirection::BelowRight;
+    case ProjectionDirection::AboveRight: return ProjectionDirection::BelowLeft;
+    case ProjectionDirection::BelowLeft: return ProjectionDirection::AboveRight;
+    case ProjectionDirection::BelowRight: return ProjectionDirection::AboveLeft;
+  }
+  return d;
+}
+}  // namespace
+
+bool DrawingModel::changeSheetStandard(Sheet& s, ProjectionStandard standard) {
+  if (s.standard == standard) return false;
+  s.standard = standard;
+  // DRW-VIEWS-ANNOT-7: a projected view keeps what it shows (its frame) and moves to the side
+  // of its parent where the new standard puts that view: first and third angle are mirror
+  // images of each other. Section and detail views keep their offset from the parent.
+  std::function<void(ObjectId, const Point2&)> relayout = [&](ObjectId parentId, const Point2& parentDelta) {
+    const DrawingView* parent = s.view(parentId);
+    if (!parent) return;
+    const Point2 parentPos = parent->position;  // already moved
+    for (ObjectId cid : s.childrenOf(parentId)) {
+      DrawingView* c = s.view(cid);
+      if (!c) continue;
+      const Point2 oldParentPos = parentPos - parentDelta;
+      const Point2 off = c->position - oldParentPos;
+      Point2 target = parentPos + off;
+      if (c->type == ViewType::Projected) {
+        target = parentPos - off;
+        c->direction = oppositeDirection(c->direction);
+      }
+      const Point2 delta = target - c->position;
+      c->position = target;
+      shiftAttached(s, cid, delta);
+      relayout(cid, delta);
+    }
+  };
+  for (const DrawingView& v : std::vector<DrawingView>(s.views))
+    if (v.parent == core::kInvalidId) relayout(v.id, {});
+  notifyChanged(s.id);
+  return true;
+}
+
+bool DrawingModel::changeSheetFormat(Sheet& s, const SheetFormat& format) {
+  if (s.format == format) return false;
+  Sheet before;  // frame / title block of the old format
+  before.format = s.format;
+  before.margin = s.margin;
+  before.bindingMargin = s.bindingMargin;
+  before.titleBlock = s.titleBlock;
+  const BBox2 of = before.frameRect(), otb = before.titleBlockRect();
+  s.format = format;
+  const BBox2 nf = s.frameRect(), ntb = s.titleBlockRect();
+  if (!of.isValid() || !nf.isValid()) {
+    notifyChanged(s.id);
+    return true;
+  }
+  // DRW-ASM-OUTPUT-2: map positions from the old frame onto the new one (per axis, so aligned
+  // views stay aligned), then keep everything inside the new frame.
+  auto map = [&](const Point2& p) {
+    return Point2{nf.min.x + (p.x - of.min.x) * nf.width() / of.width(), nf.min.y + (p.y - of.min.y) * nf.height() / of.height()};
+  };
+  for (DrawingView& v : s.views) {
+    if (v.parent != core::kInvalidId) continue;
+    moveView(v.id, map(v.position));  // children follow, keeping their gaps
+  }
+  // views: inside the frame and clear of the title block (families move together)
+  for (DrawingView& v : s.views) {
+    if (!v.geometryValid) continue;
+    if (v.parent == core::kInvalidId) {
+      v.autoDir = {};
+      autoArrange(s, v);
+    }
+  }
+  for (DrawingView& v : s.views) {
+    if (!v.geometryValid || v.parent == core::kInvalidId) continue;
+    const DrawingView* p = s.view(v.parent);
+    if (!p) continue;
+    Point2 off = v.position - p->position;
+    v.autoDir = v.type == ViewType::Projected && !isDiagonal(v.direction) ? projectionDirectionVector(v.direction) : off.normalized();
+    autoArrange(s, v);
+  }
+  // free notes follow the proportional map; tables re-anchor to their corner
+  for (auto& n : s.notes) {
+    Point2 np = map(n.position);
+    if (n.leader) n.leaderTo += np - n.position;
+    n.position = np;
+  }
+  auto reanchor = [&](Point2& pos, double w, double h, const Point2& oldDefault, const Point2& newDefault) {
+    if (pos.distance(oldDefault) < 0.5) {
+      pos = newDefault;
+      return;
+    }
+    // keep the offset from the nearest frame corner
+    const bool right = pos.x + w * 0.5 > of.center().x, bottom = pos.y + h * 0.5 > of.center().y;
+    Point2 oc{right ? of.max.x : of.min.x, bottom ? of.max.y : of.min.y};
+    Point2 nc{right ? nf.max.x : nf.min.x, bottom ? nf.max.y : nf.min.y};
+    pos = nc + (pos - oc);
+  };
+  for (auto& pl : s.partsLists) {
+    const double w = pl.width(), h = pl.height();
+    Point2 od{of.max.x - w, (s.titleBlock.visible ? otb.min.y : of.max.y) - h};
+    Point2 nd{nf.max.x - w, (s.titleBlock.visible ? ntb.min.y : nf.max.y) - h};
+    reanchor(pl.position, w, h, od, nd);
+    fitPartsListInFrame(s, pl);
+  }
+  for (auto& rt : s.callouts.revisionTables) {
+    const double w = rt.width(), h = rt.height();
+    reanchor(rt.position, w, h, {of.max.x - w, of.min.y}, {nf.max.x - w, nf.min.y});
+    rt.position.x = std::clamp(rt.position.x, nf.min.x, std::max(nf.min.x, nf.max.x - w));
+    rt.position.y = std::clamp(rt.position.y, nf.min.y, std::max(nf.min.y, nf.max.y - h));
+  }
+  refreshAnnotations(s);
+  notifyChanged(s.id);
+  return true;
 }
 
 void DrawingModel::finishView(Sheet& sheet, DrawingView& v) {
@@ -900,6 +1169,7 @@ void DrawingModel::cacheGeometry(const DrawingView& v) {
   g.key = v.geometryKey();
   g.docGeneration = docGeneration_;
   g.curves = v.curves;
+  g.covered = v.coveredCurves;
   g.vertices = v.vertices;
   g.bbox = v.bbox;
   g.origin3d = v.origin3d;
@@ -919,6 +1189,7 @@ void DrawingModel::restoreCachedGeometry() {
       }
       const CachedGeometry& g = it->second;
       v.curves = g.curves;
+      v.coveredCurves = g.covered;
       v.vertices = g.vertices;
       v.bbox = g.bbox;
       v.origin3d = g.origin3d;

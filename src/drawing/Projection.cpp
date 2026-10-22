@@ -359,6 +359,151 @@ void appendCompound(const TopoDS_Shape& compound, LineClass cls, double deflecti
 }
 }  // namespace
 
+namespace {
+struct Interval {
+  double a, b;
+};
+
+/// [0,1] minus the union of `cov` (each clamped to [0,1]); pieces shorter than minLen dropped.
+std::vector<Interval> subtract(std::vector<Interval> cov, double minLen) {
+  std::vector<Interval> out;
+  for (auto& c : cov) {
+    if (c.a > c.b) std::swap(c.a, c.b);
+    c.a = std::clamp(c.a, 0.0, 1.0);
+    c.b = std::clamp(c.b, 0.0, 1.0);
+  }
+  std::sort(cov.begin(), cov.end(), [](const Interval& x, const Interval& y) { return x.a < y.a; });
+  double cur = 0.0;
+  for (const auto& c : cov) {
+    if (c.b <= c.a) continue;
+    if (c.a > cur + minLen) out.push_back({cur, c.a});
+    cur = std::max(cur, c.b);
+  }
+  if (1.0 > cur + minLen) out.push_back({cur, 1.0});
+  return out;
+}
+
+bool nearArc(const Curve2D& v, const Point2& p, const Point2& tangent, double tol) {
+  Point2 r = p - v.center;
+  double d = r.length();
+  if (std::abs(d - v.radius) > tol || d < 1e-12) return false;
+  if (!v.isCircle()) {
+    // allow tol of slack at the arc ends
+    double slack = rad2deg(tol / std::max(v.radius, 1e-9));
+    double ang = r.angleDeg();
+    if (!angleInArc(ang, v.startAngle - (v.sweep >= 0 ? slack : -slack), v.sweep + (v.sweep >= 0 ? 2 * slack : -2 * slack)))
+      return false;
+  }
+  Point2 tv = r.perp() / d;
+  return std::abs(tv.cross(tangent)) < 0.02;
+}
+
+bool nearSegment(const Point2& a, const Point2& b, const Point2& p, const Point2& tangent, double tol) {
+  Point2 d = b - a;
+  double len = d.length();
+  if (len < 1e-12) return false;
+  Point2 u = d / len;
+  if (std::abs(u.cross(tangent)) > 0.02) return false;
+  double t = (p - a).dot(u);
+  if (t < -tol || t > len + tol) return false;
+  return std::abs((p - a).cross(u)) <= tol;
+}
+
+/// Parameter intervals of the hidden curve `h` covered by `v` (tangentially, within tol).
+void coveredBy(const Curve2D& h, const Curve2D& v, double tol, std::vector<Interval>& out) {
+  if (h.type == CurveType::Segment && v.type == CurveType::Segment) {
+    // exact: collinear overlap
+    Point2 d = h.b - h.a;
+    double len2 = d.dot(d);
+    if (len2 < 1e-18) return;
+    Point2 u = d / std::sqrt(len2);
+    Point2 vd = (v.b - v.a).normalized();
+    if (std::abs(u.cross(vd)) > 1e-3) return;
+    if (std::abs((v.a - h.a).cross(u)) > tol || std::abs((v.b - h.a).cross(u)) > tol) return;
+    double ta = (v.a - h.a).dot(d) / len2, tb = (v.b - h.a).dot(d) / len2;
+    out.push_back({std::min(ta, tb), std::max(ta, tb)});
+    return;
+  }
+  // sampled: mid-points of small parameter steps
+  int n = 64;
+  if (h.type == CurveType::Arc) n = std::clamp(static_cast<int>(std::abs(h.sweep)), 16, 720);
+  else n = std::clamp(static_cast<int>(h.length() / std::max(tol * 4, 1e-3)), 16, 800);
+  double runStart = -1;
+  for (int i = 0; i < n; ++i) {
+    double t0 = double(i) / n, t1 = double(i + 1) / n, tm = 0.5 * (t0 + t1);
+    Point2 p = h.pointAt(tm);
+    Point2 tan = h.direction(tm);
+    bool cov = false;
+    if (v.type == CurveType::Arc) cov = nearArc(v, p, tan, tol);
+    else if (v.type == CurveType::Segment) cov = nearSegment(v.a, v.b, p, tan, tol);
+    else
+      for (size_t k = 0; k + 1 < v.pts.size() && !cov; ++k) cov = nearSegment(v.pts[k], v.pts[k + 1], p, tan, tol * 2);
+    if (cov && runStart < 0) runStart = t0;
+    if (!cov && runStart >= 0) {
+      out.push_back({runStart, t0});
+      runStart = -1;
+    }
+  }
+  if (runStart >= 0) out.push_back({runStart, 1.0});
+}
+
+Curve2D subCurve(const Curve2D& h, double ta, double tb) {
+  Curve2D c;
+  switch (h.type) {
+    case CurveType::Segment: c = Curve2D::segment(h.pointAt(ta), h.pointAt(tb), h.cls); break;
+    case CurveType::Arc: c = Curve2D::arc(h.center, h.radius, h.startAngle + h.sweep * ta, h.sweep * (tb - ta), h.cls); break;
+    case CurveType::Polyline: {
+      std::vector<Point2> pts;
+      const int n = std::max(2, static_cast<int>(std::ceil((tb - ta) * std::max<size_t>(h.pts.size(), 8) * 2)));
+      for (int i = 0; i <= n; ++i) pts.push_back(h.pointAt(ta + (tb - ta) * i / n));
+      c = Curve2D::polyline(std::move(pts), h.cls);
+      break;
+    }
+  }
+  c.sourceBody = h.sourceBody;
+  c.sourceEdge = h.sourceEdge;
+  c.sourceName = h.sourceName;
+  c.sourceSig = h.sourceSig;
+  return c;
+}
+}  // namespace
+
+int removeHiddenUnderVisible(std::vector<Curve2D>& curves, double tol, std::vector<Curve2D>* removed) {
+  std::vector<size_t> visible;
+  for (size_t i = 0; i < curves.size(); ++i)
+    if (curves[i].cls == LineClass::Visible) visible.push_back(i);
+  if (visible.empty()) return 0;
+  std::vector<BBox2> vbox;
+  for (size_t i : visible) vbox.push_back(curves[i].bbox().expanded(tol));
+  std::vector<Curve2D> out;
+  out.reserve(curves.size());
+  int changed = 0;
+  for (const Curve2D& c : curves) {
+    if (c.cls != LineClass::Hidden) {
+      out.push_back(c);
+      continue;
+    }
+    const BBox2 hb = c.bbox().expanded(tol);
+    std::vector<Interval> cov;
+    for (size_t k = 0; k < visible.size(); ++k) {
+      const BBox2& vb = vbox[k];
+      if (vb.max.x < hb.min.x || hb.max.x < vb.min.x || vb.max.y < hb.min.y || hb.max.y < vb.min.y) continue;
+      coveredBy(c, curves[visible[k]], tol, cov);
+    }
+    if (cov.empty()) {
+      out.push_back(c);
+      continue;
+    }
+    const double len = std::max(c.length(), 1e-9);
+    std::vector<Interval> keep = subtract(cov, tol * 2 / len);
+    ++changed;
+    if (removed) removed->push_back(c);
+    for (const auto& k : keep) out.push_back(subCurve(c, k.a, k.b));
+  }
+  curves = std::move(out);
+  return changed;
+}
+
 ProjectionOutput projectShapes(const ProjectionInput& in) {
   ProjectionOutput out;
   const auto t0 = std::chrono::steady_clock::now();
@@ -438,6 +583,13 @@ ProjectionOutput projectShapes(const ProjectionInput& in) {
   if (in.exact) {
     std::vector<Candidate> cands = buildCandidates(sources, frame);
     associate(out.curves, cands, std::max(0.05, diagonal * 1e-3));
+  }
+  // hidden edges lying under visible ones (DRW-ASM-OUTPUT-4); after the association so the
+  // dropped ones keep their identity for dimensions that reference them
+  if (in.hiddenLines) {
+    const int before = static_cast<int>(out.curves.size());
+    removeHiddenUnderVisible(out.curves, std::max(1e-4, diagonal * 2e-6), &out.covered);
+    out.hiddenCount += static_cast<int>(out.curves.size()) - before;
   }
   for (const auto& c : in.extraCurves) out.curves.push_back(c);
 

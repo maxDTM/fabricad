@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+class QComboBox;
 class QLineEdit;
 
 namespace fabricad::core {
@@ -184,10 +185,14 @@ class OrdinateTool : public ClickSequenceTool {
   void preview(DisplayList& out) const override;
   std::string prompt() const override;
   bool expectsMore() const override { return step_ != 0; }
+  void onDone(core::ToolContext& ctx) override;
 
  private:
   int step_ = 0;  ///< 0 origin, 1 origin label, 2 members
   core::ObjectId viewId_ = core::kInvalidId, ordinateId_ = core::kInvalidId;
+  /// The origin label is only committed together with the first member (DRW-VIEWS-ANNOT-14).
+  OrdinateDimension pending_;
+  bool committed_ = false;
   DimRef origin_;
   Point2 originSheet_;
   int forcedAxis_ = -1;
@@ -218,6 +223,9 @@ class BaselineChainTool : public ClickSequenceTool {
   Point2 line_;
   double spacing_ = 8.0;
   int index_ = 1;
+  /// Chain: spans (sheet mm along the measured axis) already taken on the current dimension
+  /// line; a segment that would overlap one moves to the next line out (DRW-VIEWS-ANNOT-4).
+  std::vector<std::pair<double, double>> occupied_;
 };
 
 /// Break view: select a view, click the two edges of the band to remove. Options:
@@ -312,9 +320,16 @@ class EditCalloutTool : public DrawingToolBase {
   bool applySetting(core::ToolContext& ctx, const std::string& key, const std::string& value);
 
  private:
+  /// Revision tables (DRW-ASM-OUTPUT-5): a form per row instead of the key=value field.
+  QWidget* createRevisionForm(QWidget* parent, const RevisionTable& t);
+  void loadRevisionRow();
+  void storeRevisionRow();
   core::ObjectId id_ = core::kInvalidId;
   QJsonObject before_;
   QPointer<QLineEdit> edit_;
+  int revRow_ = -1;  ///< revision row edited by the settings (-1 = last)
+  QPointer<QComboBox> rowCombo_;
+  QPointer<QLineEdit> revEdit_, descEdit_, dateEdit_, approvedEdit_;
 };
 
 }  // namespace fabricad::drawing

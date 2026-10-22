@@ -55,5 +55,8 @@ std::vector<ViewBreak> normalizedBreaks(const std::vector<ViewBreak>& breaks);
 std::vector<Curve2D> brokenCurves(const Curve2D& c, const DrawingView& view);
 /// Break symbols (both edges of every gap) in sheet space.
 void addBreakLines(DisplayList& out, const DrawingView& view);
+/// Across-extent (view-local) of the view's geometry on the cut line at `at` (x = at for a
+/// horizontal break, y = at for a vertical one). False when no curve crosses it.
+bool breakCutExtent(const DrawingView& view, BreakOrientation o, double at, double& lo, double& hi);
 
 }  // namespace fabricad::drawing

@@ -36,9 +36,14 @@ struct SectionOutput {
   std::string error;
   std::vector<SourceShape> cutSources;              ///< remaining material, same body ids
   std::vector<std::vector<Point2>> loops;           ///< cut-face boundaries (view-local)
+  std::vector<int> loopSource;                      ///< index of the source each loop belongs to
   std::vector<Curve2D> hatch;                       ///< hatch segments (view-local, LineClass::Hatch)
   std::vector<Curve2D> outlines;                    ///< cut-face boundaries as curves (LineClass::Section)
 };
+
+/// Hatch angle and spacing for the k-th part of a section (ISO 128-50: adjacent parts are told
+/// apart by alternating direction, then by a different pitch). k = 0 gives (angle, spacing).
+void hatchVariant(int k, double angle, double spacing, double& angleOut, double& spacingOut);
 
 /// Cut the sources with the half-space in front of the frame's plane and compute hatch loops.
 /// With a path of >= 3 points: stepped (offset) section, or aligned section (the arm after the

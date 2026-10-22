@@ -15,6 +15,8 @@ class DxfWriter {
  public:
   /// sheetHeight is used to flip Y (DXF y = sheetHeight - sheet y).
   explicit DxfWriter(double sheetHeight) : height_(sheetHeight) {}
+  /// Sheet size for $EXTMAX / $LIMMAX (DRW-ASM-OUTPUT-9); 0 = unknown (not written).
+  DxfWriter(double sheetWidth, double sheetHeight) : height_(sheetHeight), width_(sheetWidth) {}
 
   void addDisplayList(const DisplayList& list);
   void addCurve(const Curve2D& c);
@@ -37,6 +39,7 @@ class DxfWriter {
   double fy(double y) const { return height_ - y; }
 
   double height_;
+  double width_ = 0;
   std::string entities_;
 };
 

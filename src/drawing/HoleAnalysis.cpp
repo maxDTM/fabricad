@@ -295,6 +295,15 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
       threaded = tappedHole = (t == "Tapped");
       if (!threaded) info.thread.clear();
     }
+    // DRW-VIEWS-ANNOT-2: the counterbore depth is the feature's, measured from the placement
+    // face. The cylinder face can be taller: the hole tool reaches above the face and notches
+    // material standing next to the hole (a boss), which makes the face 1 mm too long.
+    if (info.type == HoleInfo::Counterbore)
+      if (const core::Property* p = f->property("cboreDepth"); p && p->type() == core::PropertyType::Length && p->toDouble() > 0) {
+        const double geom = info.cboreDepth, want = p->toDouble();
+        if (geom > want + 1e-6 && !info.through) info.depth = std::max(0.0, info.depth - (geom - want));
+        info.cboreDepth = want;
+      }
     if (threaded && info.thread.empty()) info.thread = metricThreadForHole(info.diameter);
     if (threaded) {
       info.threadClass = stringProp(*f, {"threadClass", "threadFit"});
