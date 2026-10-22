@@ -320,6 +320,9 @@ class TrimTool : public SketchTool {
     auto hit = sk->hitCurve(*c, tol(*c));
     if (!hit) return true;
     if (pressed_ && (e.buttons & 1)) {
+      // power trim: once per crossing. A piece cut next to the cursor (a refitted spline end)
+      // must not be trimmed again by the next mouse move.
+      if (lastTrim_ && lastTrim_->distance(*c) < 2 * tol(*c)) return true;
       trim(ctx, hit->ref.geo, *c);
       return true;
     }
@@ -333,6 +336,7 @@ class TrimTool : public SketchTool {
     Sketch* sk = sketch();
     if (!c || !sk) return true;
     pressed_ = true;
+    lastTrim_.reset();
     if (auto hit = sk->hitCurve(*c, tol(*c))) trim(ctx, hit->ref.geo, *c);
     return true;
   }
@@ -340,6 +344,7 @@ class TrimTool : public SketchTool {
   bool mouseRelease(ToolContext&, const ViewerMouseEvent& e) override {
     if (e.button != core::MouseButton::Left) return false;
     pressed_ = false;
+    lastTrim_.reset();
     return true;
   }
 
@@ -350,10 +355,12 @@ class TrimTool : public SketchTool {
     clearTemp();
     session()->beginEdit();
     sk->trim(id, at);
-    session()->commitEdit("Trim");
+    lastTrim_ = at;
+    if (!session()->commitEdit("Trim")) ctx.showMessage("Cannot trim this curve", true);
     ctx.setPrompt("Select the piece of a curve to remove");
   }
   bool pressed_ = false;
+  std::optional<Pt2> lastTrim_;  ///< where the current drag last trimmed
 };
 
 // ---------------------------------------------------------------------------

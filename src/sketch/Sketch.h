@@ -165,6 +165,9 @@ class Sketch {
   std::vector<std::string> takeModifyNotes();
   /// Split a curve at a point into two (returns the new second piece id).
   std::optional<int> split(int curveId, Pt2 at);
+  /// split() for splines: two exact (control) / near-identical (fit) pieces; on a closed spline
+  /// the seam moves to the break point.
+  std::optional<int> splitSpline(int curveId, Pt2 at);
 
   // --- expressions ------------------------------------------------------------------
   /// Evaluate dimension expressions. `lookup` resolves external parameter names and

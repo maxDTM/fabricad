@@ -514,7 +514,12 @@ EllipseFrame Geometry::ellipse() const {
 }
 
 BSpline2 Geometry::bspline() const {
-  if (type == GeomType::Spline) return controlPointSpline(vertexList(*this), degree);
+  if (type == GeomType::Spline) {
+    BSpline2 s = controlPointSpline(vertexList(*this), degree);
+    // a piece of a trimmed / broken spline keeps its exact (non-uniform) knot vector
+    if (s.isValid() && knots.size() == s.poles.size() + static_cast<size_t>(s.degree) + 1) s.knots = knots;
+    return s;
+  }
   if (type == GeomType::FitSpline) {
     std::vector<Pt2> fit = vertexList(*this);
     std::vector<double> t = knots.size() == fit.size() ? knots : chordLengthParams(fit);
@@ -1227,7 +1232,14 @@ QJsonObject Geometry::toJson() const {
   if (projected) o["projected"] = true;
   if (blocked) o["blocked"] = true;
   if (source.isValid()) o["source"] = source.toJson();
-  if (type == GeomType::Spline) o["degree"] = degree;
+  if (type == GeomType::Spline) {
+    o["degree"] = degree;
+    if (!knots.empty()) {
+      QJsonArray k;
+      for (double v : knots) k.append(v);
+      o["knots"] = k;
+    }
+  }
   if (type == GeomType::FitSpline) {
     QJsonArray k;
     for (double v : knots) k.append(v);
@@ -1258,6 +1270,8 @@ Geometry Geometry::fromJson(const QJsonObject& o) {
   if (o.contains("source")) g.source = core::ShapeRef::fromJson(o["source"].toObject());
   g.degree = o["degree"].toInt(3);
   for (const auto& v : o["params"].toArray()) g.knots.push_back(v.toDouble());
+  if (g.type == GeomType::Spline)
+    for (const auto& v : o["knots"].toArray()) g.knots.push_back(v.toDouble());
   if (g.type == GeomType::FitSpline && g.knots.size() != static_cast<size_t>(g.vertexCount()))
     g.knots = chordLengthParams(vertexList(g));
   g.text = ss(o["text"].toString());

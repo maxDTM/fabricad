@@ -90,7 +90,7 @@ struct Geometry {
   bool blocked = false;       ///< user "Fix" on the whole entity
   core::ShapeRef source;      ///< for projected geometry
   int degree = 3;             ///< Spline: requested degree
-  std::vector<double> knots;  ///< FitSpline: parameter per fit point
+  std::vector<double> knots;  ///< FitSpline: parameter per fit point; Spline: optional full knot vector (pieces)
   std::string text;           ///< Text: the string
   std::string font;           ///< Text: font family (empty = defaultTextFont())
   bool bold = false, italic = false, mirrored = false;  ///< Text style
