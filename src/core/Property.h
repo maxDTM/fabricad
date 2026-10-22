@@ -44,6 +44,10 @@ struct PropertyFlags {
   bool readOnly = false;    ///< shown but not editable (outputs, measured values)
   bool output = false;      ///< produced by recompute, not an input (not part of inputHash)
   bool allowNegative = true;
+  /// Allowed range for Int properties (UI spinbox limits; compute validates too).
+  /// Not serialised: set by the feature constructor.
+  int intMin = -1000000;
+  int intMax = 1000000;
   bool operator==(const PropertyFlags&) const = default;
 };
 

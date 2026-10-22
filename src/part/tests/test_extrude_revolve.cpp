@@ -161,6 +161,35 @@ class ExtrudeRevolveTest : public QObject {
     QVERIFY(doc.liveBodies().empty());
   }
 
+  // PART-04: a cut that only touches the body (profile on the top face, extruded outward) removes
+  // nothing and must be an error, not a silent no-op.
+  void extrudeCutTouchingOnlyIsError() {
+    core::Document doc;
+    TestSketch* sk = addRectSketch(doc, "XY", 0, 0, 10, 10);
+    auto a = std::make_unique<ExtrudeFeature>();
+    a->prop("profiles").addRef(sk->rectProfile(0));
+    a->prop("distance").setDouble(-10);
+    a->prop("operation").setEnum("New Body");
+    core::Feature* af = doc.addFeature(std::move(a));
+    doc.recompute();
+    core::ObjectId body = af->createdBodies().front();
+    TestSketch* s2 = addRectSketch(doc, "XY", 2, 2, 4, 4);
+    auto c = std::make_unique<ExtrudeFeature>();
+    c->prop("profiles").addRef(s2->rectProfile(0));
+    c->prop("distance").setDouble(5);
+    c->prop("operation").setEnum("Cut");
+    core::Feature* cf = doc.addFeature(std::move(c));
+    doc.recompute();
+    QCOMPARE(cf->status(), core::FeatureStatus::Error);
+    QVERIFY2(cf->statusMessage().find("does not remove material") != std::string::npos, cf->statusMessage().c_str());
+    QVERIFY(std::abs(core::volume(doc.bodyShape(body)) - 1000) < 1e-6);
+    cf->prop("flip").setBool(true);
+    doc.notifyFeatureChanged(cf->id());
+    doc.recompute();
+    QCOMPARE(cf->status(), core::FeatureStatus::Ok);
+    QVERIFY(std::abs(core::volume(doc.bodyShape(body)) - (1000 - 20)) < 1e-6);
+  }
+
   void extrudeTwoSidesTaperAllAndToObject() {
     core::Document doc;
     TestSketch* sk = addRectSketch(doc, "XY", 0, 0, 10, 10);

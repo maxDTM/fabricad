@@ -12,6 +12,7 @@
 #include "part/Naming.h"
 #include "part/features/Extrude.h"
 #include "part/features/Fillet.h"
+#include "part/features/Primitives.h"
 #include "part/features/Shell.h"
 #include "part/PartUtils.h"
 #include "part/tools/FeatureManipulators.h"
@@ -103,6 +104,8 @@ void FeatureTool::activate(core::ToolContext& ctx) {
   manipulators_.clear();
   manipulatorDragging_ = false;
   operationAuto_ = true;
+  flipAuto_ = false;
+  flipUser_ = false;
   outcome_ = {};
   valid_ = false;
   message_.clear();
@@ -440,26 +443,87 @@ void FeatureTool::autoOperation(core::ToolContext& ctx) {
   if (cur != Operation::Join && cur != Operation::Cut) return;
   if (outcome_.tool.IsNull()) return;
   // "Into material" = more than half of the tool solid lies inside existing bodies.
-  const double total = core::volume(outcome_.tool);
-  if (!(total > 1e-9)) return;
-  double inside = 0.0;
-  for (core::ObjectId id : bodiesInComponentTree(*ctx.document, f->component(), ctx.document->liveBodies(true))) {
-    const TopoDS_Shape& body = ctx.document->bodyShape(id);
-    if (body.IsNull() || !shapesTouch(outcome_.tool, body)) continue;
-    try {
-      BRepAlgoAPI_Common common(outcome_.tool, body);
-      if (common.IsDone()) inside += core::volume(common.Shape());
-    } catch (const Standard_Failure&) {
-      // ignore: the body simply does not count as material
-    }
-  }
-  const bool intoMaterial = inside > 0.5 * total;
+  const double fraction = materialFraction(ctx, outcome_.tool);
+  if (fraction < 0) return;
+  const bool intoMaterial = fraction > 0.5;
   if (intoMaterial && cur == Operation::Join) {
     op->setEnum("Cut");
     if (panel_) panel_->rebuild();
   } else if (!intoMaterial && cur == Operation::Cut) {
     op->setEnum("Join");
     if (panel_) panel_->rebuild();
+  }
+}
+
+double FeatureTool::materialFraction(core::ToolContext& ctx, const TopoDS_Shape& tool) const {
+  const PartFeature* f = feature();
+  if (!f || !ctx.document || tool.IsNull()) return -1.0;
+  const double total = core::volume(tool);
+  if (!(total > 1e-9)) return -1.0;
+  double inside = 0.0;
+  for (core::ObjectId id : bodiesInComponentTree(*ctx.document, f->component(), ctx.document->liveBodies(true))) {
+    const TopoDS_Shape& body = ctx.document->bodyShape(id);
+    if (body.IsNull() || !shapesTouch(tool, body)) continue;
+    try {
+      BRepAlgoAPI_Common common(tool, body);
+      if (common.IsDone()) inside += core::volume(common.Shape());
+    } catch (const Standard_Failure&) {
+      // ignore: the body simply does not count as material
+    }
+  }
+  return inside / total;
+}
+
+bool FeatureTool::autoPrimitiveOperation(core::RecomputeContext& rctx) {
+  PartFeature* f = feature();
+  if (!f || editing_ || !operationAuto_ || !dynamic_cast<PrimitiveFeature*>(f)) return false;
+  core::Property* op = f->property("operation");
+  if (!op || op->type() != core::PropertyType::Enum) return false;
+  const Operation cur = operationFromIndex(op->toInt());
+  if (cur != Operation::Join && cur != Operation::NewBody) return false;
+  if (const core::Property* t = f->property("targets"); t && !t->refs().empty()) return false;
+  if (outcome_.tool.IsNull()) return false;
+  bool touches = false;
+  for (core::ObjectId id : bodiesInScope(rctx)) {
+    const TopoDS_Shape& body = rctx.bodyShape(id);
+    if (!body.IsNull() && shapesTouch(body, outcome_.tool)) {
+      touches = true;
+      break;
+    }
+  }
+  const Operation want = touches ? Operation::Join : Operation::NewBody;
+  if (want == cur) return false;
+  op->setEnum(static_cast<int>(want));
+  return true;
+}
+
+void FeatureTool::autoFlipForCut(core::ToolContext& ctx) {
+  PartFeature* f = feature();
+  if (!f || editing_ || flipUser_ || f->type() != ExtrudeFeature::kType) return;
+  if (f->operation() != Operation::Cut) return;
+  if (f->enumIndex("direction") != ExtrudeFeature::OneSide || f->enumIndex("extentType") != ExtrudeFeature::Distance) return;
+  core::Property* flip = f->property("flip");
+  if (!flip || flip->toBool()) return;
+  const double before = materialFraction(ctx, outcome_.tool);
+  if (before < 0 || before > 0.01) return;  // already (partly) in material, or no tool yet
+  flip->setBool(true);
+  updatePreview(ctx);
+  const double after = materialFraction(ctx, outcome_.tool);
+  if (after > 0.01) {
+    flipAuto_ = true;
+    return;
+  }
+  flip->setBool(false);  // flipping does not help either: keep the user's direction
+  updatePreview(ctx);
+}
+
+void FeatureTool::undoAutoFlip(core::ToolContext& ctx) {
+  PartFeature* f = feature();
+  if (!f || !flipAuto_ || flipUser_ || f->operation() == Operation::Cut) return;
+  flipAuto_ = false;
+  if (core::Property* flip = f->property("flip"); flip && flip->toBool()) {
+    flip->setBool(false);
+    updatePreview(ctx);
   }
 }
 
@@ -501,14 +565,24 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
       syncManipulators(ctx, rctx);
     }
   } else {
-    core::RecomputeContext rctx(doc, *working_, doc.bodyStatesAfter(doc.rollbackIndex() - 1));
-    try {
-      working_->compute(rctx, outcome_);
-    } catch (const Standard_Failure& e) {
-      rctx.setError(std::format("OCCT: {}", e.GetMessageString() ? e.GetMessageString() : "failure"));
-    } catch (const std::exception& e) {
-      rctx.setError(e.what());
+    auto run = [&]() {
+      auto c = std::make_unique<core::RecomputeContext>(doc, *working_, doc.bodyStatesAfter(doc.rollbackIndex() - 1));
+      try {
+        working_->compute(*c, outcome_);
+      } catch (const Standard_Failure& e) {
+        c->setError(std::format("OCCT: {}", e.GetMessageString() ? e.GetMessageString() : "failure"));
+      } catch (const std::exception& e) {
+        c->setError(e.what());
+      }
+      return c;
+    };
+    std::unique_ptr<core::RecomputeContext> rc = run();
+    if (autoPrimitiveOperation(*rc)) {
+      // ASM-CORE-13: New Body <-> Join switched: recompute with the new operation
+      outcome_ = {};
+      rc = run();
     }
+    core::RecomputeContext& rctx = *rc;
     valid_ = !rctx.hasError();
     message_ = rctx.hasError() ? rctx.errorMessage() : (rctx.hasWarning() ? rctx.warnings().front() : std::string());
     if (valid_ && ctx.viewer) {
@@ -645,7 +719,15 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     const core::Property* p = ff->property(name);
     bool structural = p && p->type() == core::PropertyType::Enum;
     if (name == "operation") operationAuto_ = false;  // the user chose: stop switching Join/Cut automatically
+    if (name == "flip") {
+      flipUser_ = true;  // a manual Flip wins over the automatic one
+      flipAuto_ = false;
+    }
     updatePreview(*pctx);
+    if (name == "operation") {
+      autoFlipForCut(*pctx);  // PART-04: Cut on a face sketch goes into the body
+      undoAutoFlip(*pctx);
+    }
     if (structural && panel_) panel_->rebuild();
   });
   QObject::connect(panel, &PropertyPanel::activeInputChanged, panel, [this, pctx](const std::string& name) {

@@ -13,6 +13,7 @@
 #include "part/features/SweepLoft.h"
 #include "support/TestSketch.h"
 
+#include <QElapsedTimer>
 #include <QtTest/QtTest>
 
 using namespace fabricad;
@@ -209,6 +210,55 @@ class ConstructionPatternTest : public QObject {
     QCOMPARE(bf->status(), core::FeatureStatus::Ok);
     QCOMPARE(bf->createdBodies().size(), size_t(2));
     QCOMPARE(doc.liveBodies().size(), size_t(3));
+  }
+
+  // PART-01: huge quantities are rejected instead of freezing the UI.
+  void patternQuantityIsCapped() {
+    core::Document doc;
+    core::Feature* base = addBox(doc, 0, 0, 10, 10, 10);
+    core::ObjectId body = base->createdBodies()[0];
+    auto bp = std::make_unique<RectangularPatternFeature>();
+    bp->prop("patternType").setEnum("Bodies");
+    bp->prop("objects").addRef(core::ShapeRef::body(body));
+    bp->prop("direction1").setRef(core::ShapeRef::originAxis("X"));
+    QCOMPARE(bp->prop("quantity1").flags().intMax, 1000);
+    QCOMPARE(bp->prop("quantity1").flags().intMin, 1);
+    bp->prop("quantity1").setInt(100000);
+    bp->prop("distance1").setDouble(20);
+    bp->prop("distribution").setEnum("Spacing");
+    core::Feature* bf = doc.addFeature(std::move(bp));
+    QElapsedTimer timer;
+    timer.start();
+    doc.recompute();
+    QVERIFY(timer.elapsed() < 2000);
+    QCOMPARE(bf->status(), core::FeatureStatus::Error);
+    QVERIFY2(bf->statusMessage().find("too large") != std::string::npos, bf->statusMessage().c_str());
+    QCOMPARE(doc.liveBodies().size(), size_t(1));
+    // the product of both directions counts too
+    bf->prop("quantity1").setInt(40);
+    bf->prop("direction2").setRef(core::ShapeRef::originAxis("Y"));
+    bf->prop("quantity2").setInt(40);
+    doc.notifyFeatureChanged(bf->id());
+    doc.recompute();
+    QCOMPARE(bf->status(), core::FeatureStatus::Error);
+    // a sane quantity works
+    bf->prop("quantity1").setInt(3);
+    bf->prop("quantity2").setInt(2);
+    doc.notifyFeatureChanged(bf->id());
+    doc.recompute();
+    QVERIFY2(bf->status() == core::FeatureStatus::Ok, bf->statusMessage().c_str());
+    QCOMPARE(doc.liveBodies().size(), size_t(6));
+    // circular
+    auto cp = std::make_unique<CircularPatternFeature>();
+    QCOMPARE(cp->prop("quantity").flags().intMin, 2);
+    cp->prop("patternType").setEnum("Bodies");
+    cp->prop("objects").addRef(core::ShapeRef::body(body));
+    cp->prop("axis").setRef(core::ShapeRef::originAxis("Z"));
+    cp->prop("quantity").setInt(5000);
+    core::Feature* cf = doc.addFeature(std::move(cp));
+    doc.recompute();
+    QCOMPARE(cf->status(), core::FeatureStatus::Error);
+    QVERIFY(cf->statusMessage().find("too large") != std::string::npos);
   }
 
   void circularPatternAndMirror() {

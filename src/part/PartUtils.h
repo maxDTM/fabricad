@@ -36,6 +36,14 @@ std::vector<TopoDS_Shape> solidsOf(const TopoDS_Shape& s);
 std::vector<TopoDS_Shape> facesOf(const TopoDS_Shape& s);
 std::vector<TopoDS_Shape> edgesOf(const TopoDS_Shape& s);
 bool hasSolid(const TopoDS_Shape& s);
+/// Sanity check for a result that should be "the same kind of solid" as `before` (fillet,
+/// chamfer, shell): as many solids as before, every shell closed (each non-degenerate edge
+/// shared by exactly two face uses) and each solid with positive volume. A ShapeFix'ed or even
+/// BRepCheck-valid result can still have missing or inverted faces; this catches those.
+/// On failure returns false and, when given, sets `why`.
+bool sameKindSolid(const TopoDS_Shape& before, const TopoDS_Shape& after, std::string* why = nullptr);
+/// Volumes differ by more than a small relative tolerance (numerical noise of GProp).
+bool volumeChanged(double v0, double v1, double relTol = 1e-7);
 /// A single solid stays a solid; several become a compound; none -> null.
 TopoDS_Shape solidsToShape(const std::vector<TopoDS_Shape>& solids);
 /// Compound of shapes (null skipped), null when empty.

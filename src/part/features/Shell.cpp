@@ -14,6 +14,8 @@
 #include <BRepOffset_Mode.hxx>
 #include <GeomAbs_JoinType.hxx>
 #include <Standard_Failure.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopoDS.hxx>
 #include <gp_Pln.hxx>
@@ -63,6 +65,20 @@ void ShellFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     ctx.setError("select faces to remove or bodies to hollow");
     return;
   }
+  // MakeThickSolid / MakeOffsetShape can report IsDone() for a thickness larger than the body and
+  // return an unchanged or degenerate shape; check the result really is a thinner solid.
+  const bool inside = enumIndex("direction") == Inside;
+  auto plausible = [&](const ResolvedGroup& g, const TopoDS_Shape& result) {
+    if (result.IsNull() || !core::isValidShape(result) || !sameKindSolid(g.bodyShape, result)) return false;
+    const double v0 = core::volume(g.bodyShape), v1 = core::volume(result);
+    if (v1 <= 1e-9 || !volumeChanged(v0, v1, 1e-6)) return false;
+    if (inside && v1 >= v0) return false;
+    TopTools_IndexedMapOfShape faces;
+    TopExp::MapShapes(result, TopAbs_FACE, faces);
+    for (const auto& f : g.shapes)
+      if (faces.Contains(f)) return false;  // the opening was not made
+    return true;
+  };
   for (const ResolvedGroup& g : groups) {
     try {
       TopoDS_Shape result;
@@ -77,6 +93,10 @@ void ShellFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
           return;
         }
         result = mk.Shape();
+        if (!plausible(g, result)) {
+          ctx.setError("thickness too large for the geometry");
+          return;
+        }
         hist = History::of(mk);
         if (!replaceBody(ctx, g.body, result, hist, {}, out)) return;
       } else {
@@ -92,6 +112,10 @@ void ShellFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
                                   : booleanOp(Operation::Cut, off, {g.bodyShape}, false);
         if (!r) {
           ctx.setError("hollowing failed: " + r.error);
+          return;
+        }
+        if (!plausible(g, r.shape)) {
+          ctx.setError("thickness too large for the geometry");
           return;
         }
         if (!replaceBody(ctx, g.body, r.shape, History::of(r.history), {}, out)) return;
