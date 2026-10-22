@@ -1467,6 +1467,70 @@ class ToolsTest : public QObject {
       if (g.type == GeomType::Text && g.text == "TL") found = true;
     QVERIFY(found);
   }
+
+  // SK-11: Delete reports, a new tool clears the old message, the polygon Sides box follows.
+  void staleSketchStatus() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.sk().addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    r.sk().addGeometry(Geometry::makeLine({0, 5}, {10, 5}));
+    r.session()->refresh();
+    r.mgr.run("sketch.select-all");
+    QVERIFY(r.host.messages().back().second.find("2 sketch entities selected") != std::string::npos);
+    r.mgr.run("sketch.select");
+    r.key(Qt::Key_Delete);
+    QCOMPARE(r.sk().geometryCount(), 0);
+    QCOMPARE(r.host.messages().back().second, std::string("Deleted 2 sketch entities"));
+    r.mgr.run("sketch.line");
+    QVERIFY(r.host.messages().back().second.empty());  // cleared by the new tool
+    r.mgr.cancel();
+    r.mgr.run("sketch.polygon");
+    r.move(30, 20);
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    const ValueField* sides = tool->values().field("sides");
+    QVERIFY(sides && sides->hasAnchor);
+    QVERIFY(sides->anchor.distance(r.session()->toWorld({30, 20})) < 1e-9);
+    r.click(30, 20);
+    r.move(50, 20);
+    sides = tool->values().field("sides");
+    QVERIFY(sides->anchor.distance(r.session()->toWorld({30, 20})) < 1e-9);  // at the centre
+  }
+
+  // SK-07: the construction circle of a polygon never splits it into extra profiles, while
+  // drawing, after Finish Sketch, and after a save / load round trip.
+  void polygonConstructionCircleKeepsOneProfile() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    for (const char* tool : {"sketch.polygon", "sketch.polygon-inscribed"}) {
+      r.mgr.run(tool);
+      double x = std::string(tool) == "sketch.polygon" ? 0 : 60;
+      r.click(x, 0);
+      r.click(x + 20, 0);
+      r.mgr.cancel();
+    }
+    int circles = 0;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Circle) {
+        ++circles;
+        QVERIFY(g.construction);
+      }
+    QCOMPARE(circles, 2);
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(2));
+    core::ObjectId id = r.session()->sketchId();
+    r.mgr.run("sketch.finish");
+    auto* f = dynamic_cast<SketchFeature*>(r.doc.feature(id));
+    QVERIFY(f);
+    QCOMPARE(f->regions().size(), size_t(2));
+    QCOMPARE(f->profiles().size(), size_t(2));
+    core::Document copy;
+    QVERIFY(copy.fromJson(r.doc.toJson()));
+    auto* g = dynamic_cast<SketchFeature*>(copy.feature(id));
+    QVERIFY(g);
+    QCOMPARE(g->regions().size(), size_t(2));
+  }
 };
 
 QTEST_GUILESS_MAIN(ToolsTest)

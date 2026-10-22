@@ -304,7 +304,14 @@ bool SketchSession::deleteSelection() {
   for (int id : geos) sk->removeGeometry(id);
   selectedConstraints_.clear();
   if (selection_) selection_->clear();
-  return commitEdit("Delete");
+  bool done = commitEdit("Delete");
+  // replaces a stale "N entities selected" message (SK-11)
+  if (done && host_) {
+    size_t n = geos.size() + cons.size();
+    if (n == 0) n = refs.size();
+    host_->showMessage(std::format("Deleted {} sketch {}", n, n == 1 ? "entity" : "entities"));
+  }
+  return done;
 }
 
 // ---------------------------------------------------------------------------

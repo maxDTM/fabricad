@@ -1171,8 +1171,10 @@ class PolygonTool : public PointsTool {
     // after the centre click the size is what the user types next (Fusion); the sides box stays
     // reachable with Shift+Tab
     if (pts_.size() == 1) values().setActive("radius");
-    // the sides box is anchored at the cursor / centre; before the first click it sits at the origin
-    if (pts_.empty() && session()) values().setAnchor("sides", session()->toWorld({0, 0}));
+    // the sides box is anchored at the cursor, then the centre (preview()); until the mouse moves
+    // it starts at the last cursor position
+    if (pts_.empty() && session() && hasCursor_) values().setAnchor("sides", session()->toWorld(lastCursor_));
+    else if (pts_.empty() && session()) values().setAnchor("sides", session()->toWorld({0, 0}));
   }
 
   Pt2 applyLocks(Pt2 p) const override {
@@ -1205,12 +1207,17 @@ class PolygonTool : public PointsTool {
   }
 
   void preview(ToolContext&, Pt2 c) override {
-    if (pts_.empty()) return;
+    // the sides box follows the cursor until the centre is placed, then stays at the centre
+    // (the radius box follows the cursor) (SK-11)
+    if (pts_.empty()) {
+      setValue("sides", effectiveSides(), c);
+      return;
+    }
+    setValue("sides", effectiveSides(), pts_[0].point);
     auto vs = vertices(pts_[0].point, c, nullptr);
     if (vs.empty()) return;
     vs.push_back(vs.front());
     previewPolyline(vs, rubberStyle());
-    setValue("sides", effectiveSides(), c);
     setValue("radius", pts_[0].point.distance(c), c);
   }
 
