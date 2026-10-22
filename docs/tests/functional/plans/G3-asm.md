@@ -130,3 +130,91 @@ Shared files:
 - The undo/dirty interplay with G1 DOC-05 is covered under ASM-02.
 
 Run the full ctest (headless) after each step, building with -j2.
+
+## Done (fn/G3-asm, 2026-10-22)
+
+Build: Release, -j2. Full headless ctest (QT_QPA_PLATFORM=offscreen): 56/56 pass. GUI checks ran on
+display :43 with the worktree binary, using real xdotool input. Screenshots are in
+docs/tests/functional/fixes/G3-asm/ (main tree).
+
+- **ASM-01:** ViewerWidget::connectDocument now listens to `activeComponentChanged`, `documentReset`
+  and component add/remove, and setDocument does the same. Each one calls the new
+  `syncGhostingToActiveComponent()`, which keeps the active component and its descendants
+  (walking `children`) and clears ghosting for the root. Ghosted bodies get selection modes and
+  overlays when the tool filter includes Component (`ghostedPickable()`, used in modesFor,
+  applySelectionModes and ownerItem). Tools still call setGhostedComponents. Files:
+  viewer/ViewerWidget.{h,cpp}. Test: test_viewer_smoke `ghostingFollowsActiveComponent`.
+  GUI: browser Activate on Top ghosts Base, browser Activate on root clears it, and the Joint tool
+  picked a face on the ghosted Base (asm01-*.png).
+- **ASM-02:** referencesComponents also counts joints and rigid groups that hold a B-rep ref on
+  the deleted component's bodies, or a JointOrigin whose component or ref points into it.
+  DeleteComponentResult has a new `removedFeatures`. Drive Joints skips joints in error.
+  **Deviation (body handling):** option (b). Bodies still move to the parent, and the user is now
+  warned about it (Delete Component tool message, and a warning on the browser/Del path). Option
+  (a) was not done: the creating feature can be a root feature shared by other bodies, and an
+  undo would lose the component assignment of re-created bodies. **Real root cause found in the
+  GUI:** browser Delete / Del used `app::makeDeleteCommand`, which called
+  `Document::removeComponent` directly and never ran the assembly delete. It now adds
+  `assembly::makeDeleteComponentCommand` (a new factory in ComponentOps.h). That is a deviation
+  into app/AppActions.cpp and a few lines of MainWindow::deleteRefs for the warning. Files:
+  assembly/ComponentOps.{h,cpp}, assembly/tools/ComponentTools.cpp,
+  assembly/tools/DriveJointTool.{h,cpp} (`candidates` is now public), app/AppActions.cpp,
+  app/MainWindow.cpp. Tests: `deleteComponentRemovesJointsOnItsBodies`, test_app_logic
+  `deleteComponent` (now with a joint). GUI: deleting Top removed the joint and undo restored it
+  (asm02-*.png).
+- **ASM-03:** a new non-parametric feature, `BaseBody` (assembly/BaseBodyFeature.{h,cpp}). It is
+  registered in AssemblyModule, stores the shape as BRep text and uses the body icon. Paste New
+  adds one BaseBody per body of the copied tree whose creating feature is not copied. Paste New
+  warns when the copy shows no bodies. The browser lists an occurrence's displayed bodies under a
+  read-only "Bodies" folder: kind `KindOccurrenceBody`, key `occbody:<occ>:<body>`, and a click
+  selects the occurrence. The Joint tool rejects empty components (no bodies, no children), both
+  as-built and in snap mode. Files: assembly/PasteNew.cpp, app/BrowserTree.{h,cpp} (fillComponent
+  and refForItem only), assembly/tools/JointTool.cpp. Tests:
+  `pasteNewCopiesBodiesMadeOutsideTheComponent` (Create Components from Bodies, then Paste New;
+  covers volume, independence, save/load and single-step undo), `jointPickErrorsAndEmptyComponents`.
+  GUI: "Body3 (1):1" has Body3, and Base:2 lists Body1 (asm03-*.png).
+  Known limit: a feature inside the copied tree that modifies a frozen body is applied again on
+  the frozen (already final) shape.
+- **ASM-04:** applyDelta takes an optional `fields` array. setTransform passes the typed values,
+  so nothing is read back. A triad drag now shows t = TranslationPart − (p − R·p), relative to the
+  pivot. Added `fieldValue(i)`. Files: assembly/tools/MoveComponentTool.{h,cpp}. Test:
+  `moveComponentTypedFieldsAreKept`, which re-types the read-back fields and gets the same
+  placement. GUI: X 10, Y 20, Z angle 30 all stay as typed (asm04-*.png).
+- **ASM-05:** added `typedValue_` and `stopAnimation()`, which restores the typed value. It runs on
+  Animate off, accept, cancel, deactivate and joint-type change. While animating, the edit field
+  keeps showing the typed value. Rotations wrap to (-180, 180] with `wrapAngle180` (a new helper in
+  JointTypes) when limits are off. Files: assembly/tools/JointTool.{h,cpp},
+  assembly/JointTypes.{h,cpp}. Test: `jointAnimateThenOkKeepsTypedValue`. GUI: typed 45, animated,
+  pressed OK, and editing the joint showed 45 (asm05-*.png).
+- **ASM-06:** the Joint tool gives the viewer a filter without origin kinds. The selection filter
+  keeps them, so the browser Origin folder still works. File: JointTool.cpp. GUI: no origin
+  planes appear during Joint (asm06-*.png).
+- **ASM-07:** Drive Joints clamps to the limits when they are set (setPrimaryValue already did).
+  Without limits, a rotation wraps to (-180, 180]. A distance without limits is accepted, and the
+  range label reads "slider ±100 mm (no limits)". Test: `driveJointWrapsUnlimitedRotation`. GUI:
+  typing 500 gave 140 (asm07-*.png).
+- **ASM-08:** Move/Copy (`part.move`) is now a thin `MoveCopyTool` subclass in PartTools.cpp. With
+  only components preselected, it runs `assembly.move`, which takes them as its preselection.
+  FeatureTool.cpp is untouched. Headless check: MoveComponentTool already used ctx.preselection,
+  so the "cleared selection" came from the Move/Copy path. Test (test_paste_new_pattern):
+  `moveCopyHandsComponentsToMoveComponent`. GUI: selecting Top and pressing M opened Move
+  Component on Top with the selection kept (asm08-*.png).
+- **ASM-09:** **Deviation:** the toolbar button is a new tool, `assembly.ground-toggle` ("Ground",
+  with a new icon resources/icons/assembly-ground-toggle.svg). When everything selected is
+  grounded, it ungrounds. `assembly.ground` (the GROUND alias) is now hidden and stays idempotent
+  as the scripting tests expect. The label does not change dynamically, because the ribbon has no
+  hook for that. Move Component on a grounded component asks "Move it anyway?" (default Yes, so
+  scripts like chair.fcs, which rotates the grounded Seat, keep working) and shows a warning. "No"
+  leaves it out. The plan said "refuse"; it now asks first, because otherwise the chair spec
+  breaks. "Ground disabled for a grounded component" did not reproduce with this build (the
+  button is enabled; asm09-ground-enabled-on-grounded.png). It was probably the ASM-01
+  ghosting/selection state. Test: `groundToolbarButtonToggles`, plus the grounded part of
+  `moveComponentTypedFieldsAreKept`.
+- **ASM-10:** in JointTool.cpp, the Select-row labels use an Ignored size policy and are elided in
+  the middle with a tooltip, and the Select buttons have a fixed size. A valid pick after a red
+  pick error replaces the error with an info line ("Component 2: …"). setStage resets the hover
+  state, and mousePress uses the hover snap only in snap stages (not as-built PickA/PickB). A
+  regular joint no longer prefills from a preselected component (as-built still does), and a
+  component-origin snap is labelled "Component origin of X". GUI: on as-built component 2, a
+  viewport click on the ghosted Base worked without pressing Select, and the red message was
+  replaced (asm10-*.png).
