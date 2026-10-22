@@ -81,8 +81,10 @@ const IsoThread* isoThreadForDiameter(double diameter, bool internal);
 /// diameter D (cutter reaches 0.25 P outside D). Internal: removes the groove from a hole of
 /// diameter D1 (cutter reaches 0.25 P inside D1). The helix starts one pitch below z = 0 and
 /// ends one pitch above `length` when `runOut` is set (thread through an end face); profile
-/// truncations follow the ISO basic profile (crest P/8, root P/4). Null + error on failure.
+/// truncations follow the ISO basic profile (crest P/8, root P/4). `surfaceRadius` (the real
+/// cylinder radius, 0 = unknown) keeps the cutter's flank kink 0.05 P off the body surface.
+/// Null + error on failure.
 TopoDS_Shape makeThreadCutter(const IsoThread& t, double length, bool internal, bool leftHanded, bool runOutStart,
-                              bool runOutEnd, std::string* error);
+                              bool runOutEnd, std::string* error, double surfaceRadius = 0);
 
 }  // namespace fabricad::part

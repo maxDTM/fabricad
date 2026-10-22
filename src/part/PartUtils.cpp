@@ -21,6 +21,7 @@
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <ShapeFix_Shape.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
@@ -165,8 +166,26 @@ TopoDS_Shape unifyWithHistory(const TopoDS_Shape& s, Handle(BRepTools_History)& 
 
 namespace {
 
+/// ShapeFix pass on an invalid boolean result; merges the fix history. Null when still invalid.
+TopoDS_Shape healResult(const TopoDS_Shape& s, Handle(BRepTools_History)& history) {
+  try {
+    ShapeFix_Shape fix(s);
+    fix.Perform();
+    TopoDS_Shape r = fix.Shape();
+    if (r.IsNull() || !core::isValidShape(r)) return {};
+    Handle(BRepTools_History) h = fix.Context().IsNull() ? Handle(BRepTools_History)() : fix.Context()->History();
+    if (!h.IsNull()) {
+      if (history.IsNull()) history = h;
+      else history->Merge(h);
+    }
+    return r;
+  } catch (const Standard_Failure&) {
+    return {};
+  }
+}
+
 BoolResult runBoolean(BRepAlgoAPI_BooleanOperation& op, const TopoDS_Shape& target, const std::vector<TopoDS_Shape>& tools,
-                      bool unify) {
+                      bool unify, bool heal) {
   BoolResult r;
   TopTools_ListOfShape args, tl;
   args.Append(target);
@@ -203,8 +222,12 @@ BoolResult runBoolean(BRepAlgoAPI_BooleanOperation& op, const TopoDS_Shape& targ
     s = solidsToShape(solids);
     if (unify) s = unifyWithHistory(s, r.history);
     if (!core::isValidShape(s)) {
-      r.error = "boolean result is not a valid shape";
-      return r;
+      TopoDS_Shape fixed = heal ? healResult(s, r.history) : TopoDS_Shape();
+      if (fixed.IsNull()) {
+        r.error = "boolean result is not a valid shape";
+        return r;
+      }
+      s = fixed;
     }
     r.shape = s;
   } catch (const Standard_Failure& e) {
@@ -215,19 +238,20 @@ BoolResult runBoolean(BRepAlgoAPI_BooleanOperation& op, const TopoDS_Shape& targ
 
 }  // namespace
 
-BoolResult booleanOp(Operation op, const TopoDS_Shape& target, const std::vector<TopoDS_Shape>& tools, bool unify) {
+BoolResult booleanOp(Operation op, const TopoDS_Shape& target, const std::vector<TopoDS_Shape>& tools, bool unify,
+                     bool heal) {
   switch (op) {
     case Operation::Join: {
       BRepAlgoAPI_Fuse f;
-      return runBoolean(f, target, tools, unify);
+      return runBoolean(f, target, tools, unify, heal);
     }
     case Operation::Cut: {
       BRepAlgoAPI_Cut c;
-      return runBoolean(c, target, tools, unify);
+      return runBoolean(c, target, tools, unify, heal);
     }
     case Operation::Intersect: {
       BRepAlgoAPI_Common c;
-      return runBoolean(c, target, tools, unify);
+      return runBoolean(c, target, tools, unify, heal);
     }
     default: {
       BoolResult r;

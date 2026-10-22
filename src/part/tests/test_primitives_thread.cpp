@@ -289,6 +289,33 @@ class PrimitivesThreadTest : public QObject {
     QCOMPARE(tf->status(), core::FeatureStatus::Warning);
   }
 
+  // PART-01: Auto size on a D10 rod gives M10 (nominal == cylinder radius); a full-length
+  // modelled thread through both end faces must cut a valid groove.
+  void modelledThreadFullLengthAutoSize() {
+    for (double d : {10.0, 6.0, 9.95}) {
+      core::Document doc;
+      auto rod = std::make_unique<CylinderFeature>();
+      rod->prop("diameter").setDouble(d);
+      rod->prop("height").setDouble(20);
+      rod->prop("operation").setEnum("New Body");
+      core::Feature* rf = add(doc, std::move(rod));
+      core::ObjectId b = rf->createdBodies().front();
+      const double rodVolume = M_PI * d * d / 4 * 20;
+      auto th = std::make_unique<ThreadFeature>();
+      th->prop("faces").addRef(cylinderFace(doc, b, d / 2));
+      th->prop("modeled").setBool(true);
+      ThreadFeature* tf = static_cast<ThreadFeature*>(add(doc, std::move(th)));
+      QVERIFY2(tf->status() == core::FeatureStatus::Ok, tf->statusMessage().c_str());
+      QVERIFY(core::isValidShape(doc.bodyShape(b)));
+      const double P = tf->threads().front().pitch, H = 0.8660254 * P, depth = 5 * H / 8;
+      const double perTurn = (P / 4 + 7 * P / 8) / 2 * depth * 2 * M_PI * (d / 2 - depth / 2);
+      double removed = rodVolume - core::volume(doc.bodyShape(b));
+      const double turns = 20 / P;
+      QVERIFY2(removed > perTurn * turns * 0.8 && removed < perTurn * turns * 1.25,
+               qPrintable(QString("d=%1 removed=%2 expected~%3").arg(d).arg(removed).arg(perTurn * turns)));
+    }
+  }
+
   void tappedHoleOnFace() {
     core::Document doc;
     auto plate = std::make_unique<BoxFeature>();

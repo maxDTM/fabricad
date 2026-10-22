@@ -7,6 +7,7 @@
 
 #include "part/ExtraUtils.h"
 #include "part/PartFeature.h"
+#include "part/PartUtils.h"
 
 #include <TopoDS_Face.hxx>
 #include <gp_Ax1.hxx>
@@ -38,6 +39,7 @@ struct ThreadInfo {
   bool leftHanded = false;
   gp_Ax1 axis;               ///< start point of the thread, direction into the thread
   double length = 0;
+  std::string threadClass;    ///< tolerance class; empty = ISO default (6H internal, 6g external)
   std::string callout() const;  ///< "M10x1.5 - 6H" (internal) / "M10x1.5 - 6g" (external), "LH" appended
 };
 
@@ -46,12 +48,16 @@ struct ThreadInfo {
 bool placeThread(const ThreadCylinder& cyl, const IsoThread& iso, bool fullLength, double offset, double length, bool flip,
                  bool leftHanded, bool modeled, ThreadInfo& info, TopoDS_Shape* cutter, std::string* error);
 
+/// Cut thread cutters from a body (no unify, ShapeFix fallback); shared by Thread and Hole.
+BoolResult threadCut(const TopoDS_Shape& body, const std::vector<TopoDS_Shape>& cutters);
+
 class ThreadFeature : public PartFeature {
  public:
   static constexpr const char* kType = "Thread";
   ThreadFeature();
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   void updatePropertyFlags() override;
+  void fromJson(const QJsonObject& o) override;
   std::string primaryInput() const override { return "faces"; }
   Operation operation() const override { return Operation::Cut; }
   /// Modelled threads pattern their cutters; cosmetic threads have nothing to pattern.
@@ -61,7 +67,10 @@ class ThreadFeature : public PartFeature {
   const std::vector<ThreadInfo>& threads() const { return threads_; }
 
  private:
+  /// Keep designation (stored) and size / sizeDesignation (dialog) consistent.
+  void syncDesignation();
   std::vector<ThreadInfo> threads_;
+  std::string lastDesignation_;
 };
 
 }  // namespace fabricad::part

@@ -114,9 +114,45 @@ std::optional<ThreadCylinder> analyseThreadCylinder(const TopoDS_Shape& body, co
   }
 }
 
-std::string ThreadInfo::callout() const {
-  return std::format("{} - {}{}", designation, internal ? "6H" : "6g", leftHanded ? " LH" : "");
+BoolResult threadCut(const TopoDS_Shape& body, const std::vector<TopoDS_Shape>& cutters) {
+  // No unify: merging same-domain faces on helical surfaces is slow and a known source of
+  // invalid results; heal before giving up.
+  return booleanOp(Operation::Cut, body, cutters, /*unify=*/false, /*heal=*/true);
 }
+
+std::string ThreadInfo::callout() const {
+  const std::string cls = threadClass.empty() ? std::string(internal ? "6H" : "6g") : threadClass;
+  return std::format("{} - {}{}", designation, cls, leftHanded ? " LH" : "");
+}
+
+namespace {
+
+std::string sizeName(double nominal) { return std::format("M{}", nominal); }
+
+const std::vector<std::string>& isoSizeNames() {
+  static const std::vector<std::string> kNames = [] {
+    std::vector<std::string> out;
+    for (const auto& t : isoMetricThreads())
+      if (out.empty() || out.back() != sizeName(t.nominal)) out.push_back(sizeName(t.nominal));
+    return out;
+  }();
+  return kNames;
+}
+
+std::vector<std::string> designationsOfSize(const std::string& size) {
+  std::vector<std::string> out;
+  for (const auto& t : isoMetricThreads())
+    if (sizeName(t.nominal) == size) out.push_back(t.designation);
+  return out;
+}
+
+/// Thread class options: index 0 = ISO default for the side (6g rod, 6H hole).
+const std::vector<std::string>& threadClassOptions() {
+  static const std::vector<std::string> k{"6g / 6H", "4g6g", "6e", "5H"};
+  return k;
+}
+
+}  // namespace
 
 bool placeThread(const ThreadCylinder& cyl, const IsoThread& iso, bool fullLength, double offset, double length, bool flip,
                  bool leftHanded, bool modeled, ThreadInfo& info, TopoDS_Shape* cutter, std::string* error) {
@@ -148,8 +184,9 @@ bool placeThread(const ThreadCylinder& cyl, const IsoThread& iso, bool fullLengt
   const bool openEnd = flip ? cyl.openAt0 : cyl.openAt1;
   const bool runOutStart = from < 1e-6 && openStart;
   const bool runOutEnd = to > avail - 1e-6 && openEnd;
-  TopoDS_Shape c = makeThreadCutter(iso, info.length, cyl.internal, leftHanded, runOutStart, runOutEnd, error);
+  TopoDS_Shape c = makeThreadCutter(iso, info.length, cyl.internal, leftHanded, runOutStart, runOutEnd, error, cyl.radius);
   if (c.IsNull()) return false;
+  if (!core::isValidShape(c)) return fail("thread cutter invalid (helical sweep failed)");
   if (cyl.internal) {
     // Cutting a hole wall with the bare helical cutter can silently do nothing in OCCT's
     // boolean (the flanks crossing the wall cylinder). Adding the hole's own core (air) to
@@ -177,7 +214,15 @@ ThreadFeature::ThreadFeature() : PartFeature(kType) {
   addRefs("faces", core::mask(core::ShapeKind::Face)).setLabel("Faces").setTooltip("Cylindrical faces (rods or holes)");
   addEnum("threadType", {"ISO Metric profile"}, 0).setLabel("Thread type");
   addBool("autoSize", true).setLabel("Auto size").setTooltip("Pick the ISO size from the cylinder diameter");
-  addEnum("designation", isoMetricDesignations(), 0).setLabel("Designation").setEnum("M10x1.5");
+  // Size + Designation (pitches of that size) + Class, as in Fusion. "designation" is the stored
+  // truth (full ISO list, files and command line "designation=M8x1.25"); "size" and
+  // "sizeDesignation" are the dialog's view of it, kept in sync by updatePropertyFlags().
+  addEnum("size", isoSizeNames(), 0).setLabel("Size").setEnum("M10");
+  addEnum("designation", isoMetricDesignations(), 0).setLabel("Designation (ISO)").setEnum("M10x1.5");
+  addEnum("sizeDesignation", designationsOfSize("M10"), 0).setLabel("Designation");
+  addEnum("threadClass", threadClassOptions(), 0)
+      .setLabel("Class")
+      .setTooltip("Tolerance class; the first entry is the ISO default (6g rods, 6H holes)");
   addBool("fullLength", true).setLabel("Full length");
   addLength("length", 10.0).setLabel("Thread length");
   addLength("offset", 0.0).setLabel("Offset").setTooltip("Distance of the thread start from the face end");
@@ -187,8 +232,41 @@ ThreadFeature::ThreadFeature() : PartFeature(kType) {
   updatePropertyFlags();
 }
 
+void ThreadFeature::syncDesignation() {
+  core::Property& des = prop("designation");
+  core::Property& size = prop("size");
+  core::Property& sub = prop("sizeDesignation");
+  std::string d = enumName("designation");
+  if (d != lastDesignation_) {
+    // the stored designation changed (file, script, command line): the dialog fields follow
+    if (const IsoThread* t = findIsoThread(d)) size.setEnum(sizeName(t->nominal));
+  } else {
+    // the dialog changed: Size (keeps the pitch if that size has it, else coarse) or Designation
+    const std::string sz = enumName("size");
+    std::vector<std::string> list = designationsOfSize(sz);
+    const std::string picked = enumName("sizeDesignation");
+    if (std::find(list.begin(), list.end(), picked) != list.end()) d = picked;
+    else if (!list.empty() && std::find(list.begin(), list.end(), d) == list.end()) d = list.front();
+    des.setEnum(d);
+  }
+  std::vector<std::string> list = designationsOfSize(enumName("size"));
+  if (sub.options() != list) sub.setOptions(list);
+  sub.setEnum(d);
+  lastDesignation_ = enumName("designation");
+}
+
+void ThreadFeature::fromJson(const QJsonObject& o) {
+  PartFeature::fromJson(o);
+  lastDesignation_.clear();  // the loaded designation wins over size / sizeDesignation
+  updatePropertyFlags();
+}
+
 void ThreadFeature::updatePropertyFlags() {
-  prop("designation").flags().hidden = flag("autoSize");
+  syncDesignation();
+  const bool autoSize = flag("autoSize");
+  prop("designation").flags().hidden = true;
+  prop("size").flags().hidden = autoSize;
+  prop("sizeDesignation").flags().hidden = autoSize;
   bool full = flag("fullLength");
   prop("length").flags().hidden = full;
   prop("offset").flags().hidden = full;
@@ -240,11 +318,17 @@ void ThreadFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         ctx.setError(err);
         return;
       }
+      if (int ci = enumIndex("threadClass"); ci > 0) {
+        info.threadClass = threadClassOptions()[static_cast<size_t>(ci)];
+        const bool holeClass = info.threadClass.back() == 'H';
+        if (holeClass != info.internal)
+          ctx.setWarning(std::format("class {} is for {}", info.threadClass, holeClass ? "holes" : "rods"));
+      }
       threads_.push_back(info);
       if (!cutter.IsNull()) cutters.push_back(cutter);
     }
     if (cutters.empty()) continue;
-    BoolResult r = booleanOp(Operation::Cut, g.bodyShape, cutters);
+    BoolResult r = threadCut(g.bodyShape, cutters);
     if (!r) {
       ctx.setError("modelled thread failed: " + (r.error.empty() ? std::string("empty result") : r.error));
       return;

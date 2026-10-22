@@ -110,6 +110,8 @@ class FeatureTool : public core::ToolBase {
   void rollbackToFeature(core::ToolContext& ctx);
   void restoreRollback(core::ToolContext& ctx);
   std::string primaryNumeric() const;
+  /// The dialog's rows no longer match the visible properties: rebuild, keeping the focus (PART-06).
+  void rebuildPanelIfNeeded();
 
   std::string featureType_;
   Creator creator_;
@@ -125,6 +127,7 @@ class FeatureTool : public core::ToolBase {
   bool valid_ = false;
   std::string message_;
   bool inSelectionUpdate_ = false;
+  bool inPreview_ = false;
   std::vector<ManipulatorLink> manipulators_;
   bool manipulatorDragging_ = false;
   bool operationAuto_ = true;  ///< the user has not chosen an operation explicitly yet

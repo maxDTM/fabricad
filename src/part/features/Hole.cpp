@@ -305,7 +305,7 @@ void HoleFeature::applyThreads(core::RecomputeContext& ctx, const IsoThread& iso
       }
     }
     if (cutters.empty()) continue;
-    BoolResult r = booleanOp(Operation::Cut, change.shape, cutters);
+    BoolResult r = threadCut(change.shape, cutters);
     if (!r) {
       ctx.setError("modelled thread failed: " + (r.error.empty() ? std::string("empty result") : r.error));
       return;
