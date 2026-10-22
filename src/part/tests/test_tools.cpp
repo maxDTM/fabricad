@@ -22,7 +22,9 @@
 #include "part/tools/PropertyPanel.h"
 #include "support/TestSketch.h"
 
+#include <QCheckBox>
 #include <QComboBox>
+#include <QSpinBox>
 #include <QFileInfo>
 #include <QLineEdit>
 #include <QPushButton>
@@ -228,6 +230,121 @@ class ToolsTest : public QObject {
     rig.manager.accept();
     QCOMPARE(rig.doc.featureCount(), 2);
     QVERIFY(near(core::volume(rig.doc.bodyShape(rig.doc.featureAt(1)->createdBodies()[0])), 10 * 10 * 28));
+    delete w;
+  }
+
+  // PART-04: a Cut on a sketch lying on the body's top face defaults into the body (Flip is set
+  // automatically when the user picks Cut); a cut that removes nothing is an error.
+  void cutOnTopFaceFlipsIntoBody() {
+    Rig rig;
+    TestSketch* base = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(base->rectProfile(0));
+    ex->prop("distance").setDouble(-10);  // body below z = 0: XY is its top face
+    ex->prop("operation").setEnum("New Body");
+    core::Feature* exf = rig.doc.addFeature(std::move(ex));
+    rig.doc.recompute();
+    core::ObjectId body = exf->createdBodies().front();
+    QVERIFY(near(core::volume(rig.doc.bodyShape(body)), 1000));
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 2, 2, 4, 4);
+
+    // scripted "operation=Cut": no automatic flip, the cut touches only the face -> error
+    rig.doc.selection().set(sk->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool);
+    QVERIFY(rig.manager.runCommandLine("operation=Cut"));
+    QVERIFY(!tool->feature()->flag("flip"));
+    QVERIFY(!tool->isValid());
+    QVERIFY2(tool->message().find("does not remove material") != std::string::npos, tool->message().c_str());
+    rig.manager.cancel();
+
+    // dialog: picking Cut flips into the body
+    rig.doc.selection().set(sk->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    core::ToolContext* ctx = rig.manager.activeContext();
+    QWidget* w = tool->createDialog(*ctx, nullptr);
+    auto* panel = qobject_cast<PropertyPanel*>(w);
+    QVERIFY(panel);
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("Join"));
+    panel->findChild<QComboBox*>("prop_operation")->setCurrentIndex(1);  // Cut
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("Cut"));
+    QVERIFY(tool->feature()->flag("flip"));
+    QVERIFY2(tool->isValid(), tool->message().c_str());
+    auto* flip = panel->findChild<QCheckBox*>("prop_flip");
+    QVERIFY(flip);
+    QVERIFY(flip->isChecked());  // the dialog shows the automatic flip
+    // back to Join: the automatic flip is undone
+    panel->findChild<QComboBox*>("prop_operation")->setCurrentIndex(0);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!tool->feature()->flag("flip"));
+    panel->findChild<QComboBox*>("prop_operation")->setCurrentIndex(1);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(tool->feature()->flag("flip"));
+    rig.manager.accept();
+    QVERIFY2(near(core::volume(rig.doc.bodyShape(body)), 1000 - 2 * 2 * 10, 1e-3),
+             qPrintable(QString::number(core::volume(rig.doc.bodyShape(body)))));
+    delete w;
+  }
+
+  // ASM-CORE-13: Box is New Body while it touches nothing, Join when it touches a body.
+  void boxOperationFollowsContact() {
+    Rig rig;
+    TestSketch* base = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(base->rectProfile(0));
+    ex->prop("distance").setDouble(10);
+    ex->prop("operation").setEnum("New Body");
+    rig.doc.addFeature(std::move(ex));
+    rig.doc.recompute();
+    QVERIFY(rig.manager.run("part.box"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool);
+    core::ToolContext* ctx = rig.manager.activeContext();
+    QWidget* w = tool->createDialog(*ctx, nullptr);
+    auto* panel = qobject_cast<PropertyPanel*>(w);
+    QVERIFY(panel);
+    QVERIFY(rig.manager.runCommandLine("x=0"));
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("Join"));  // overlaps the block
+    QVERIFY(rig.manager.runCommandLine("x=100"));
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("New Body"));
+    QCOMPARE(panel->findChild<QComboBox*>("prop_operation")->currentText(), QString("New Body"));
+    QVERIFY(rig.manager.runCommandLine("x=20"));  // box x 10..30: touches the face x = 10
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("Join"));
+    QVERIFY(rig.manager.runCommandLine("x=100"));
+    rig.manager.accept();
+    QCOMPARE(rig.doc.liveBodies().size(), size_t(2));
+    // a chosen operation is kept
+    QVERIFY(rig.manager.run("part.box"));
+    tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(rig.manager.runCommandLine("operation=New Body"));
+    QVERIFY(rig.manager.runCommandLine("x=0"));
+    QCOMPARE(tool->feature()->enumName("operation"), std::string("New Body"));
+    rig.manager.cancel();
+    delete w;
+  }
+
+  // PART-01: the pattern quantity spinbox is bounded and does not apply every keystroke.
+  void patternQuantitySpinboxBounded() {
+    Rig rig;
+    TestSketch* base = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(base->rectProfile(0));
+    ex->prop("operation").setEnum("New Body");
+    rig.doc.addFeature(std::move(ex));
+    rig.doc.recompute();
+    QVERIFY(rig.manager.run("part.rectangular-pattern"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool);
+    QWidget* w = tool->createDialog(*rig.manager.activeContext(), nullptr);
+    auto* spin = w->findChild<QSpinBox*>("prop_quantity1");
+    QVERIFY(spin);
+    QCOMPARE(spin->maximum(), 1000);
+    QCOMPARE(spin->minimum(), 1);
+    QVERIFY(!spin->keyboardTracking());
+    rig.manager.cancel();
     delete w;
   }
 

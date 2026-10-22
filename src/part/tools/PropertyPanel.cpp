@@ -90,6 +90,8 @@ void PropertyPanel::rebuild() {
   retireFormRows(form_);
   refButtons_.clear();
   numericEdits_.clear();
+  enumCombos_.clear();
+  boolChecks_.clear();
   for (auto& p : feature_.properties()) {
     if (p.flags().hidden || p.flags().output) continue;
     if (p.type() == core::PropertyType::Json) continue;
@@ -119,6 +121,18 @@ void PropertyPanel::refresh() {
   }
   for (auto& [name, edit] : numericEdits_) {
     if (const core::Property* p = feature_.property(name); p && !edit->hasFocus()) edit->setText(qs(p->displayText(doc_.units())));
+  }
+  for (auto& [name, combo] : enumCombos_) {
+    const core::Property* p = feature_.property(name);
+    if (!p || combo->currentIndex() == p->enumIndex()) continue;
+    QSignalBlocker block(combo);
+    combo->setCurrentIndex(p->enumIndex());
+  }
+  for (auto& [name, box] : boolChecks_) {
+    const core::Property* p = feature_.property(name);
+    if (!p || box->isChecked() == p->toBool()) continue;
+    QSignalBlocker block(box);
+    box->setChecked(p->toBool());
   }
 }
 
@@ -191,7 +205,9 @@ void PropertyPanel::addRow(core::Property& p) {
     }
     case core::PropertyType::Int: {
       auto* spin = new QSpinBox(this);
-      spin->setRange(p.flags().allowNegative ? -100000 : 0, 100000);
+      spin->setRange(p.flags().allowNegative ? p.flags().intMin : std::max(0, p.flags().intMin), p.flags().intMax);
+      // Apply on Enter / focus-out / arrows only: typing "1000" must not recompute at 1, 10, 100.
+      spin->setKeyboardTracking(false);
       spin->setValue(static_cast<int>(p.toInt()));
       spin->setObjectName(qs("prop_" + name));
       connect(spin, &QSpinBox::valueChanged, this, [this, name](int v) {
@@ -207,6 +223,7 @@ void PropertyPanel::addRow(core::Property& p) {
       auto* box = new QCheckBox(this);
       box->setChecked(p.toBool());
       box->setObjectName(qs("prop_" + name));
+      boolChecks_[name] = box;
       connect(box, &QCheckBox::toggled, this, [this, name](bool v) {
         if (auto* prop = feature_.property(name)) {
           prop->setBool(v);
@@ -221,6 +238,7 @@ void PropertyPanel::addRow(core::Property& p) {
       for (const auto& o : p.options()) combo->addItem(qs(o));
       combo->setCurrentIndex(p.enumIndex());
       combo->setObjectName(qs("prop_" + name));
+      enumCombos_[name] = combo;
       connect(combo, &QComboBox::currentIndexChanged, this, [this, name](int idx) {
         if (rebuilding_) return;
         if (auto* prop = feature_.property(name)) {

@@ -12,11 +12,18 @@
 #include "part/features/Fillet.h"
 #include "part/features/Hole.h"
 #include "part/features/Shell.h"
+#include "part/PartUtils.h"
 #include "support/TestSketch.h"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <BRep_Builder.hxx>
+#include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
 
 #include <QtTest/QtTest>
 
@@ -212,6 +219,112 @@ class DressUpTest : public QObject {
     doc3.recompute();
     QCOMPARE(of->status(), core::FeatureStatus::Ok);
     QVERIFY(near(core::volume(doc3.bodyShape(b3)), 24 * 24 * 12 - 4000, 1e-3));
+  }
+
+  // PART-02: a shell thicker than the body must fail instead of leaving the body unchanged.
+  void shellTooThickIsError() {
+    core::Document doc;
+    core::ObjectId body = makeBox(doc);
+    auto sh = std::make_unique<ShellFeature>();
+    sh->prop("faces").addRef(faceWithNormal(doc, body, 1, 10));
+    sh->prop("thickness").setDouble(50);
+    core::Feature* sf = doc.addFeature(std::move(sh));
+    doc.recompute();
+    QCOMPARE(sf->status(), core::FeatureStatus::Error);
+    QVERIFY2(sf->statusMessage().find("too large") != std::string::npos, sf->statusMessage().c_str());
+    QVERIFY(near(core::volume(doc.bodyShape(body)), 4000));
+    // hollowing a closed body by more than half its height
+    core::Document doc2;
+    core::ObjectId b2 = makeBox(doc2);
+    auto hol = std::make_unique<ShellFeature>();
+    hol->prop("bodies").addRef(core::ShapeRef::body(b2));
+    hol->prop("thickness").setDouble(50);
+    core::Feature* hf = doc2.addFeature(std::move(hol));
+    doc2.recompute();
+    QCOMPARE(hf->status(), core::FeatureStatus::Error);
+    QVERIFY(near(core::volume(doc2.bodyShape(b2)), 4000));
+    // a thin wall close to the limit still works
+    sf->prop("thickness").setDouble(4.5);
+    doc.notifyFeatureChanged(sf->id());
+    doc.recompute();
+    QVERIFY2(sf->status() == core::FeatureStatus::Ok, sf->statusMessage().c_str());
+    QVERIFY(near(core::volume(doc.bodyShape(body)), 4000 - 11 * 11 * 5.5, 1e-3));
+  }
+
+  // PART-03: results with open shells, inverted or missing solids are rejected.
+  void sameKindSolidRejectsBrokenResults() {
+    TopoDS_Shape box = BRepPrimAPI_MakeBox(10, 10, 10).Shape();
+    std::string why;
+    QVERIFY(sameKindSolid(box, box, &why));
+    QVERIFY(!sameKindSolid(box, box.Reversed(), &why));  // inverted: negative volume
+    // open shell: a solid made of five of the six faces
+    BRep_Builder bb;
+    TopoDS_Shell shell;
+    bb.MakeShell(shell);
+    int k = 0;
+    for (TopExp_Explorer ex(box, TopAbs_FACE); ex.More(); ex.Next())
+      if (k++ < 5) bb.Add(shell, ex.Current());
+    TopoDS_Solid open;
+    bb.MakeSolid(open);
+    bb.Add(open, shell);
+    QVERIFY(!sameKindSolid(box, open, &why));
+    QVERIFY2(why.find("open") != std::string::npos, why.c_str());
+    // two solids where there was one
+    TopoDS_Compound two;
+    bb.MakeCompound(two);
+    bb.Add(two, box);
+    bb.Add(two, BRepPrimAPI_MakeBox(gp_Pnt(20, 0, 0), 5, 5, 5).Shape());
+    QVERIFY(!sameKindSolid(box, two, &why));
+    QVERIFY(!sameKindSolid(box, TopoDS_Shape(), &why));
+  }
+
+  // PART-03 repro: box 30 high, fillet one top edge 5, two-distance chamfer 3 / 8 on another top
+  // edge. Either a valid closed solid that lost a little material, or an error.
+  void twoDistanceChamferNextToFillet() {
+    core::Document doc;
+    core::ObjectId body = makeBox(doc, nullptr, 20, 30);
+    // top edges: along X at y = v (alongX) or along Y at x = v
+    auto topEdges = [&](double v, bool alongX = true) {
+      const TopoDS_Shape& s = doc.bodyShape(body);
+      for (const auto& e : core::subShapes(s, TopAbs_EDGE)) {
+        core::Vec3 m = core::centroid(e);
+        if (std::abs(m.z - 30) < 1e-6 && std::abs((alongX ? m.y : m.x) - v) < 1e-6) {
+          core::ShapeRef r = core::ShapeRef::subShape(body, s, e);
+          annotateRef(doc, r);
+          return r;
+        }
+      }
+      return core::ShapeRef();
+    };
+    auto fil = std::make_unique<FilletFeature>();
+    fil->prop("edges").addRef(topEdges(0));
+    fil->prop("radius").setDouble(5);
+    core::Feature* ff = doc.addFeature(std::move(fil));
+    doc.recompute();
+    QCOMPARE(ff->status(), core::FeatureStatus::Ok);
+    const double v0 = core::volume(doc.bodyShape(body));
+    auto ch = std::make_unique<ChamferFeature>();
+    ch->prop("edges").addRef(topEdges(20, false));  // shares a corner with the fillet (as in the report)
+    ch->prop("chamferType").setEnum("Two Distances");
+    ch->prop("distance").setDouble(3);
+    ch->prop("distance2").setDouble(8);
+    core::Feature* cf = doc.addFeature(std::move(ch));
+    doc.recompute();
+    const TopoDS_Shape& r = doc.bodyShape(body);
+    if (cf->status() == core::FeatureStatus::Ok) {
+      QVERIFY(sameKindSolid(r, r));
+      QVERIFY(!hasSelfIntersection(r));
+      const double v1 = core::volume(r);
+      QVERIFY2(v1 < v0 && v1 > 0.5 * v0, qPrintable(QString::number(v1)));
+    } else {
+      QVERIFY(near(core::volume(r), v0, 1e-6));  // previous state kept
+    }
+    // the same chamfer on the opposite edge (no tangent chain into the fillet) works
+    cf->prop("edges").setRefs({topEdges(20)});
+    doc.notifyFeatureChanged(cf->id());
+    doc.recompute();
+    QVERIFY2(cf->status() == core::FeatureStatus::Ok, cf->statusMessage().c_str());
+    QVERIFY(near(core::volume(doc.bodyShape(body)), v0 - 0.5 * 3 * 8 * 20, 1e-3));
   }
 
   void draftFaces() {

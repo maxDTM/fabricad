@@ -198,9 +198,17 @@ void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         return;
       }
       TopoDS_Shape r = healed(mk.Shape());
-      if (r.IsNull()) {
-        ctx.setError("fillet produced an invalid shape");
+      if (r.IsNull() || !sameKindSolid(g.bodyShape, r) || hasSelfIntersection(r)) {
+        ctx.setError("fillet produced an invalid shape (radius too large for the geometry?)");
         return;
+      }
+      {
+        // fillets add or remove material along the edges; a large jump means broken geometry
+        const double v0 = core::volume(g.bodyShape), v1 = core::volume(r);
+        if (std::abs(v1 - v0) >= 0.5 * v0) {
+          ctx.setError("fillet produced an invalid shape (radius too large for the geometry?)");
+          return;
+        }
       }
       NameMap extra;
       for (size_t i = 0; i < g.shapes.size(); ++i) {
@@ -289,9 +297,17 @@ void ChamferFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         return;
       }
       TopoDS_Shape r = healed(mk.Shape());
-      if (r.IsNull()) {
-        ctx.setError("chamfer produced an invalid shape");
+      if (r.IsNull() || !sameKindSolid(g.bodyShape, r) || hasSelfIntersection(r)) {
+        ctx.setError("chamfer produced an invalid shape (distance too large for the geometry?)");
         return;
+      }
+      {
+        // a chamfer only removes material, and not most of the body
+        const double v0 = core::volume(g.bodyShape), v1 = core::volume(r);
+        if (!(v1 < v0 && v1 > 0.5 * v0)) {
+          ctx.setError("chamfer produced an invalid shape (distance too large for the geometry?)");
+          return;
+        }
       }
       NameMap extra;
       for (size_t i = 0; i < g.shapes.size(); ++i) {

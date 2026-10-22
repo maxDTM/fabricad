@@ -5,6 +5,7 @@
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
 
+#include <BOPAlgo_ArgumentAnalyzer.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
@@ -18,11 +19,13 @@
 #include <BRepTools.hxx>
 #include <BRepTools_History.hxx>
 #include <BRep_Builder.hxx>
+#include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopoDS.hxx>
@@ -287,6 +290,49 @@ std::vector<core::ObjectId> bodiesInComponentTree(const core::Document& doc, cor
   return out;
 }
 
+bool sameKindSolid(const TopoDS_Shape& before, const TopoDS_Shape& after, std::string* why) {
+  auto fail = [&](const char* msg) {
+    if (why) *why = msg;
+    return false;
+  };
+  if (after.IsNull()) return fail("no geometry");
+  std::vector<TopoDS_Shape> s0 = solidsOf(before), s1 = solidsOf(after);
+  if (s1.empty()) return fail("no solid");
+  if (s0.size() != s1.size()) return fail("the number of solids changed");
+  for (const TopoDS_Shape& solid : s1) {
+    for (TopExp_Explorer sh(solid, TopAbs_SHELL); sh.More(); sh.Next()) {
+      TopTools_IndexedDataMapOfShapeListOfShape edgeFaces;
+      TopExp::MapShapesAndAncestors(sh.Current(), TopAbs_EDGE, TopAbs_FACE, edgeFaces);
+      for (int i = 1; i <= edgeFaces.Extent(); ++i) {
+        const TopoDS_Edge& e = TopoDS::Edge(edgeFaces.FindKey(i));
+        if (BRep_Tool::Degenerated(e)) continue;
+        if (edgeFaces(i).Extent() != 2) return fail("open or non-manifold shell");
+      }
+    }
+    if (core::volume(solid) <= 1e-9) return fail("a solid has no or negative volume");
+  }
+  return true;
+}
+
+bool hasSelfIntersection(const TopoDS_Shape& s) {
+  if (s.IsNull()) return false;
+  try {
+    BOPAlgo_ArgumentAnalyzer an;
+    an.SetShape1(s);
+    an.ArgumentTypeMode() = Standard_False;
+    an.SelfInterMode() = Standard_True;
+    an.SetFuzzyValue(kFuzzy);
+    an.Perform();
+    return an.HasFaulty();
+  } catch (const Standard_Failure&) {
+    return true;
+  }
+}
+
+bool volumeChanged(double v0, double v1, double relTol) {
+  return std::abs(v1 - v0) > std::max(relTol * std::max(std::abs(v0), std::abs(v1)), 1e-9);
+}
+
 std::vector<core::ObjectId> bodiesInScope(core::RecomputeContext& ctx) {
   return bodiesInComponentTree(ctx.document(), ctx.self().component(), ctx.bodies());
 }
@@ -373,6 +419,7 @@ bool applyTool(core::RecomputeContext& ctx, const TopoDS_Shape& tool, Operation 
   }
 
   // Cut / Intersect: each participant separately
+  int changed = 0;
   for (core::ObjectId id : parts) {
     const TopoDS_Shape& base = ctx.bodyShape(id);
     NameMap names = upstreamNames(ctx, id);
@@ -385,12 +432,21 @@ bool applyTool(core::RecomputeContext& ctx, const TopoDS_Shape& tool, Operation 
     if (r.shape.IsNull()) {
       ctx.setWarning(std::format("body {} was removed completely", id));
       out.addModified(id, TopoDS_Shape());
+      ++changed;
       continue;
     }
+    // A tool that only touches the body (e.g. a profile on the top face extruded outward) passes
+    // shapesTouch() but removes nothing: leave such bodies alone (only Cut pays for the volumes).
+    if (op == Operation::Cut && !volumeChanged(core::volume(base), core::volume(r.shape))) continue;
+    ++changed;
     out.addModified(id, r.shape);
     NameMap mapped = mapNames(names, History::of(r.history), r.shape);
     addEdgeNames(mapped, r.shape);
     out.names.insert(mapped.begin(), mapped.end());
+  }
+  if (op == Operation::Cut && changed == 0) {
+    ctx.setError("the cut does not remove material from any body");
+    return false;
   }
   return true;
 }

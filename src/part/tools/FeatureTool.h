@@ -85,6 +85,17 @@ class FeatureTool : public core::ToolBase {
   void clearManipulators(core::ToolContext& ctx);
   /// Fusion: a Join extrusion dragged into existing material becomes a Cut (until the user picks an operation).
   void autoOperation(core::ToolContext& ctx);
+  /// Share of `tool`'s volume that lies inside the bodies of the feature's component tree (0..1),
+  /// -1 when the tool has no volume.
+  double materialFraction(core::ToolContext& ctx, const TopoDS_Shape& tool) const;
+  /// Fusion: a primitive is New Body when it touches no body in scope, else Join (while the
+  /// operation is automatic). Returns true when the operation changed.
+  bool autoPrimitiveOperation(core::RecomputeContext& rctx);
+  /// The user picked Cut on a new one-side distance Extrude that points away from the material:
+  /// flip it into the body when that makes the tool enter material (PART-04).
+  void autoFlipForCut(core::ToolContext& ctx);
+  /// The operation left Cut: undo an automatic flip.
+  void undoAutoFlip(core::ToolContext& ctx);
   /// Hook for subclasses that decide the feature type lazily (Press Pull).
   virtual std::unique_ptr<PartFeature> createFeature(core::ToolContext& ctx);
   void startWith(core::ToolContext& ctx, std::unique_ptr<PartFeature> f);
@@ -117,6 +128,8 @@ class FeatureTool : public core::ToolBase {
   std::vector<ManipulatorLink> manipulators_;
   bool manipulatorDragging_ = false;
   bool operationAuto_ = true;  ///< the user has not chosen an operation explicitly yet
+  bool flipAuto_ = false;      ///< "flip" was set by autoFlipForCut (not by the user)
+  bool flipUser_ = false;      ///< the user toggled "flip": never flip automatically again
   std::array<double, 6> triadStart_{};  ///< dx dy dz rx ry rz when a triad drag began
 };
 

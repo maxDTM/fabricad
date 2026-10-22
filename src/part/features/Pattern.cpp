@@ -356,6 +356,20 @@ void TransformFeature::applyTransforms(core::RecomputeContext& ctx, const std::v
 // RectangularPattern
 // ---------------------------------------------------------------------------
 
+namespace {
+/// Upper bound on pattern instances (incl. the original). The recompute is synchronous,
+/// so an unbounded quantity (e.g. 100000) froze the UI and used gigabytes of RAM.
+constexpr int kMaxPatternInstances = 1000;
+std::string tooLargeMessage() {
+  return "pattern too large (max " + std::to_string(kMaxPatternInstances) + " instances)";
+}
+void limitQuantity(core::Property& p, int min) {
+  p.flags().allowNegative = false;
+  p.flags().intMin = min;
+  p.flags().intMax = kMaxPatternInstances;
+}
+}  // namespace
+
 RectangularPatternFeature::RectangularPatternFeature() : TransformFeature(kType) {
   addObjectProperties();
   addRef("direction1", core::kAxisKinds).setLabel("Direction 1");
@@ -368,6 +382,8 @@ RectangularPatternFeature::RectangularPatternFeature() : TransformFeature(kType)
   addBool("symmetric2", false).setLabel("Symmetric 2");
   addEnum("distribution", {"Extent", "Spacing"}, Extent).setLabel("Distribution")
       .setTooltip("Extent: distance is the total length; Spacing: distance between instances");
+  limitQuantity(prop("quantity1"), 1);
+  limitQuantity(prop("quantity2"), 1);
   updatePropertyFlags();
 }
 
@@ -385,6 +401,10 @@ std::vector<double> linearOffsets(int quantity, double distance, bool extent, bo
   std::vector<double> out{0.0};
   if (quantity < 1) {
     *err = "quantity must be at least 1";
+    return {};
+  }
+  if (quantity > kMaxPatternInstances) {
+    *err = tooLargeMessage();
     return {};
   }
   if (quantity == 1) return out;
@@ -431,6 +451,10 @@ void RectangularPatternFeature::compute(core::RecomputeContext& ctx, Outcome& ou
       return;
     }
   }
+  if (off1.size() * off2.size() > static_cast<std::size_t>(kMaxPatternInstances)) {
+    ctx.setError(tooLargeMessage());
+    return;
+  }
   std::vector<int> suppressed = suppressedInstances();
   std::vector<gp_Trsf> transforms;
   transformIndices_.clear();
@@ -461,6 +485,7 @@ CircularPatternFeature::CircularPatternFeature() : TransformFeature(kType) {
   addInt("quantity", 6).setLabel("Quantity");
   addEnum("type", {"Full", "Angle", "Symmetric"}, Full).setLabel("Type");
   addAngle("angle", 360.0).setLabel("Total angle");
+  limitQuantity(prop("quantity"), 2);
   updatePropertyFlags();
 }
 
@@ -478,7 +503,15 @@ void CircularPatternFeature::compute(core::RecomputeContext& ctx, Outcome& out) 
     ctx.setError("quantity must be at least 2");
     return;
   }
+  if (n > kMaxPatternInstances) {
+    ctx.setError(tooLargeMessage());
+    return;
+  }
   int type = enumIndex("type");
+  if (type == Symmetric && 2 * n - 1 > kMaxPatternInstances) {
+    ctx.setError(tooLargeMessage());
+    return;
+  }
   double total = type == Full ? 360.0 : ctx.angle("angle");
   if (std::abs(total) < 1e-9) {
     ctx.setError("angle must not be zero");

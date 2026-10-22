@@ -22,6 +22,7 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
 #include <charconv>
 #include <cstdlib>
 #include <format>
@@ -170,7 +171,8 @@ void PropertyEditor::addRow(Property& p) {
     }
     case PropertyType::Int: {
       auto* s = new QSpinBox(this);
-      s->setRange(p.flags().allowNegative ? -1000000 : 0, 1000000);
+      s->setRange(p.flags().allowNegative ? p.flags().intMin : std::max(0, p.flags().intMin), p.flags().intMax);
+      s->setKeyboardTracking(false);
       s->setValue(static_cast<int>(p.toInt()));
       connect(s, &QSpinBox::valueChanged, this, [this, name](int v) {
         if (updating_) return;

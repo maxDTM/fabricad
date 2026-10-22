@@ -12,6 +12,8 @@
 #include <map>
 #include <string>
 
+class QCheckBox;
+class QComboBox;
 class QFormLayout;
 class QLabel;
 class QLineEdit;
@@ -33,7 +35,7 @@ class PropertyPanel : public QWidget {
 
   /// Recreate all rows (after PropertyFlags::hidden changed).
   void rebuild();
-  /// Refresh displayed values from the feature (after refs changed programmatically).
+  /// Refresh displayed values from the feature (after refs, enums or bools changed programmatically).
   void refresh();
   const std::string& activeInput() const { return active_; }
   void setActiveInput(const std::string& propName);
@@ -66,6 +68,8 @@ class PropertyPanel : public QWidget {
   std::string active_;
   std::map<std::string, QPushButton*> refButtons_;
   std::map<std::string, QLineEdit*> numericEdits_;
+  std::map<std::string, QComboBox*> enumCombos_;  ///< synced by refresh() (automatic operation)
+  std::map<std::string, QCheckBox*> boolChecks_;  ///< synced by refresh() (automatic flip)
   bool rebuilding_ = false;
   int delayMs_ = 0;
   QTimer debounce_;
