@@ -700,8 +700,24 @@ class RectangleTool : public PointsTool {
       return;
     }
     previewPolyline({(*cs)[0], (*cs)[1], (*cs)[2], (*cs)[3], (*cs)[0]}, rubberStyle());
-    setValue("width", (*cs)[1].distance((*cs)[0]), c);
-    setValue("height", (*cs)[2].distance((*cs)[1]), c);
+    if (mode_ == RectMode::ThreePoint) {
+      setValue("width", (*cs)[1].distance((*cs)[0]), c);
+      setValue("height", (*cs)[2].distance((*cs)[1]), c);
+      return;
+    }
+    // Fusion style: Width at the middle of a horizontal edge and Height at the middle of a
+    // vertical edge, just outside the shape; not stacked at the cursor, where the second click
+    // would land on the (lagging) boxes instead of the viewer and focus Height (UX-31)
+    const std::array<Pt2, 4>& q = *cs;
+    const Pt2 mid = (q[0] + q[2]) * 0.5;
+    auto outside = [&](Pt2 a, Pt2 b) {
+      Pt2 m = (a + b) * 0.5;
+      Pt2 n = (m - mid).normalized();
+      return m + n * tol(m, 12.0);
+    };
+    // the edges through the first corner: away from the cursor at the opposite corner
+    setValue("width", q[1].distance(q[0]), outside(q[0], q[1]));
+    setValue("height", q[2].distance(q[1]), outside(q[0], q[3]));
   }
 
   void create(ToolContext& ctx) override {

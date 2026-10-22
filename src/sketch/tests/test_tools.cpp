@@ -761,6 +761,40 @@ class ToolsTest : public QObject {
     QVERIFY(r.doc.undoStack().count() >= 5);
   }
 
+  /// UX-31: the 2-point rectangle makes Width active first and anchors Width / Height on the
+  /// first corner's edges (away from the cursor), so the second click reaches the viewer.
+  void rectangleValueBoxesOrderAndAnchors() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.mgr.run("sketch.rectangle");
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    r.click(10, 10);
+    r.move(40, 30);
+    const ValueInputModel& v = tool->values();
+    QCOMPARE(v.field(v.activeIndex()).id, std::string("width"));
+    const ValueField* w = v.field("width");
+    const ValueField* h = v.field("height");
+    QVERIFY(w && h && w->hasAnchor && h->hasAnchor);
+    Pt2 wa = r.session()->toSketch(w->anchor), ha = r.session()->toSketch(h->anchor);
+    QVERIFY(near(wa.x, 25.0, 1e-6) && wa.y < 10);  // below the bottom edge's middle
+    QVERIFY(near(ha.y, 20.0, 1e-6) && ha.x < 10);  // left of the left edge's middle
+    // the second click commits the rectangle
+    r.click(40, 30);
+    QCOMPARE(r.sk().geometryCount(), 4);
+    // typed: the first box takes the width, Tab moves to the height
+    r.click(100, 0);
+    r.move(130, 20);
+    typeKeys(r, "30");
+    r.key(Qt::Key_Tab);
+    typeKeys(r, "15");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 8);
+    QVERIFY(near(r.sk().geometry(5)->length(), 30.0, 1e-9));
+    QVERIFY(near(r.sk().geometry(6)->length(), 15.0, 1e-9));
+  }
+
   /// UX-25: typing right after placing a dimension (keys reaching the viewer) sets its value,
   /// Enter commits; the same for Edit Dimension.
   void dimensionValueTypedWithKeys() {
