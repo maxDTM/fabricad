@@ -163,7 +163,7 @@ class SketchSession : public QObject {
   bool showConstraints_ = true;
   bool showDimensions_ = true;
   bool showPoints_ = true;
-  bool showProfiles_ = false;
+  bool showProfiles_ = true;  // Fusion shows profiles by default (UX-26)
   std::set<int> selectedConstraints_;
   std::map<int, Pt2> textPos_;  ///< where each dimension's text was drawn (beside its line), for picking
   std::set<core::PreviewHandle> handles_;

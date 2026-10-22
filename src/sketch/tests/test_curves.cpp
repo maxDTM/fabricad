@@ -330,6 +330,38 @@ class CurvesTest : public QObject {
     QVERIFY(std::abs(rd[0].area - std::abs(polygonArea(fs.bspline().sample(2000)))) < 1e-3);
   }
 
+  /// UX-26: construction curves never bound or split profiles.
+  void profilesIgnoreConstruction() {
+    Sketch sk;
+    auto addC = [&](Geometry g) {
+      g.construction = true;
+      return sk.addGeometry(g);
+    };
+    // rectangle 20 x 10 with a construction diagonal and a construction circle crossing it
+    sk.addGeometry(Geometry::makeLine({0, 0}, {20, 0}));
+    sk.addGeometry(Geometry::makeLine({20, 0}, {20, 10}));
+    sk.addGeometry(Geometry::makeLine({20, 10}, {0, 10}));
+    sk.addGeometry(Geometry::makeLine({0, 10}, {0, 0}));
+    addC(Geometry::makeLine({0, 0}, {20, 10}));
+    addC(Geometry::makeCircle({10, 5}, 8));
+    auto r1 = computeProfiles(sk, kXY);
+    QCOMPARE(r1.size(), size_t(1));
+    QVERIFY(std::abs(r1[0].area - 200.0) < 1e-6);
+    // a pentagon with its construction circumcircle, apart from the rectangle
+    const int n = 5;
+    const double R = 10;
+    std::vector<Pt2> vs;
+    for (int i = 0; i < n; ++i) vs.push_back(Pt2{60, 5} + Pt2::polar(R, kPi / 2 + 2 * kPi * i / n));
+    for (int i = 0; i < n; ++i) sk.addGeometry(Geometry::makeLine(vs[i], vs[(i + 1) % n]));
+    addC(Geometry::makeCircle({60, 5}, R));
+    auto r2 = computeProfiles(sk, kXY);
+    QCOMPARE(r2.size(), size_t(2));
+    const double pentagon = 0.5 * n * R * R * std::sin(2 * kPi / n);
+    bool found = false;
+    for (const auto& r : r2) found = found || std::abs(r.area - pentagon) < 1e-6;
+    QVERIFY(found);
+  }
+
   // --- text ---------------------------------------------------------------------------------------
   void textOutline() {
     Geometry h = Geometry::makeText({5, 7}, "H", 10.0);

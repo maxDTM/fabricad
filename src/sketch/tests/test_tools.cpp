@@ -1142,15 +1142,21 @@ class ToolsTest : public QObject {
     QCOMPARE(texts, 1);       // the dimension label; constraint glyphs are line primitives (UX-28)
     QVERIFY(textOffLine);
     QVERIFY(glyphSegs >= 4 * 5);  // 4 H/V glyphs: a stroke and a 4-segment frame each
-    r.mgr.run("sketch.toggle-constraints");
-    QVERIFY(!r.session()->showConstraints());
-    r.mgr.run("sketch.toggle-profiles");
+    // profiles are shown by default (UX-26)
     QVERIFY(r.session()->showProfiles());
-    Rig::pump();
     int shapes = 0;
     for (const auto& [h, item] : r.viewer.previews())
       if (item.kind == "shape") ++shapes;
     QCOMPARE(shapes, 1);  // one profile face
+    r.mgr.run("sketch.toggle-constraints");
+    QVERIFY(!r.session()->showConstraints());
+    r.mgr.run("sketch.toggle-profiles");
+    QVERIFY(!r.session()->showProfiles());
+    Rig::pump();
+    shapes = 0;
+    for (const auto& [h, item] : r.viewer.previews())
+      if (item.kind == "shape") ++shapes;
+    QCOMPARE(shapes, 0);
     QVERIFY(r.session()->statusText().find("DOF") != std::string::npos);
     QVERIFY(r.viewer.visibilityOverrides().count(r.session()->sketchId()));
     r.mgr.run("sketch.finish");
