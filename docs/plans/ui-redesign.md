@@ -131,7 +131,7 @@ The theme work counts as done when the allow-list holds only the drawing paper a
 | `caption` | 9 | 700 | +1.0 px | CAPS | toolbar section captions, step labels `01 PROFILE`, table keys (`TYPE`, `AREA`) |
 | `label.sm` | 10.5 | 700 | +0.3 | CAPS | toolbar button labels, segmented labels, status cells |
 | `body` | 12 | 700 | 0 | CAPS | tree rows, form labels, menus, buttons, tabs |
-| `header` | 11 | 800 | +1.2 | CAPS | panel headers `FEATURES 13`, `MODEL`, `SELECTION` |
+| `header` | 12 | 800 | +1.5 | CAPS | panel headers `FEATURES 13`, `MODEL`, `SELECTION` (one size above row text for clear hierarchy) |
 | `title` | 13 | 800 | +0.6 | CAPS | card title, dialog titles |
 | `value` | 12.5 | 500 | 0 | as typed | numbers and units, expressions, command line, value boxes, user-entered names (open question 3) |
 | `keycap` | 9.5 | 700 | +0.5 | CAPS | `Ctrl K`, `Esc`, `Enter`, `E` chips |
@@ -367,7 +367,7 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 
 | Component | Size / padding | States | Notes |
 |---|---|---|---|
-| Panel header | 32 h, `surface.header`, 3 px left `accent.indicator` tick, `header` style, count chip | collapsible (click) | FEATURES has search and filter icons. MODEL has a master eye. |
+| Panel header | 36 h, full-width band in `surface.header` (one step lighter/darker than the panel rows) with a 1 px `border.strong` line above and below, a 3 px left `accent.indicator` tick, a section glyph, `header` style one size up from row text (12 px, weight 800, +1.5 tracking) in `text.primary`, count chip, and 6 px of space before the first row. Rows below are indented and use `text.secondary` for metadata, so the header always reads as a separate level (user feedback 2026-10-22: FEATURES must stand out more from its items). | collapsible (click); chevron at the right | FEATURES has search and filter icons. MODEL has a master eye. |
 | Feature row | 28 h, indent 18 px per level, icon 16, name, right value column (`value`, `text.tertiary`) | hover, selected, live, error, warning, suppressed, rolled back (4.6) | `FeatureListWidget` (feature-list plan) |
 | Group row | 28 h, chevron, folder icon, count, tri-state checkbox 14 × 14 at the right | collapsed or expanded; tri-state | |
 | Suppress checkbox | 14 × 14, 1 px `border.control`, checked = `accent.solid` + white check | hover border `accent.text`; focus ring | |
