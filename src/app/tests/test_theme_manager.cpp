@@ -7,6 +7,13 @@
 #include "theme/Tokens.h"
 
 #include <QApplication>
+#include <QComboBox>
+#include <QCompleter>
+#include <QElapsedTimer>
+#include <QFileDialog>
+#include <QHeaderView>
+#include <QStatusBar>
+#include <QTreeView>
 #include <QFontDatabase>
 #include <QLabel>
 #include <QLineEdit>
@@ -155,6 +162,68 @@ class TestThemeManager : public QObject {
     }
     ThemeManager::instance().setMode(ThemeManager::Mode::Dark, false);
     w.toolManager().cancel();
+  }
+
+  // phase 1 milestone: a live switch of the whole shell stays under 150 ms
+  void themeSwitchIsFast() {
+    app::MainWindow w;
+    w.setInteractive(false);
+    w.resize(1920, 1080);
+    w.show();
+    QCoreApplication::processEvents();
+    qint64 worst = 0;
+    for (auto m : {ThemeManager::Mode::Light, ThemeManager::Mode::Dark, ThemeManager::Mode::Light, ThemeManager::Mode::Dark}) {
+      QElapsedTimer t;
+      t.start();
+      ThemeManager::instance().setMode(m, false);
+      QCoreApplication::processEvents();
+      worst = std::max(worst, t.elapsed());
+    }
+    qInfo("theme switch: worst %lld ms", static_cast<long long>(worst));
+    QVERIFY2(worst < 150, qPrintable(QString("theme switch took %1 ms").arg(worst)));
+  }
+
+  // p0-check 2 and 3: caps are for chrome only; file names, completions and messages keep their case
+  void userDataKeepsCase() {
+    QFileDialog dlg(nullptr, "Open", QDir::tempPath());
+    dlg.setOption(QFileDialog::DontUseNativeDialog);
+    dlg.show();
+    QCoreApplication::processEvents();
+    auto* tree = dlg.findChild<QTreeView*>("treeView");
+    QVERIFY(tree);
+    QCOMPARE(tree->font().capitalization(), QFont::MixedCase);
+    QCOMPARE(tree->header()->font().capitalization(), QFont::AllUppercase);  // column captions are chrome
+    auto* lookIn = dlg.findChild<QComboBox*>("lookInCombo");
+    QVERIFY(lookIn);
+    QCOMPARE(lookIn->font().capitalization(), QFont::MixedCase);
+    auto* sidebar = dlg.findChild<QAbstractItemView*>("sidebar");
+    QVERIFY(sidebar);
+    QCOMPARE(sidebar->font().capitalization(), QFont::MixedCase);
+    auto* name = dlg.findChild<QLineEdit*>("fileNameEdit");
+    QVERIFY(name && name->completer() && name->completer()->popup());
+    QAbstractItemView* popup = name->completer()->popup();
+    popup->ensurePolished();
+    QCOMPARE(popup->font().capitalization(), QFont::MixedCase);
+    QVERIFY(dlg.width() >= 1000);  // p0-check 8: room for the columns
+    // labels of the dialog stay chrome
+    for (QLabel* l : dlg.findChildren<QLabel*>())
+      if (l->objectName() == QLatin1StringView("lookInLabel")) QCOMPARE(l->font().capitalization(), QFont::AllUppercase);
+    dlg.close();
+
+    app::MainWindow w;
+    w.setInteractive(false);
+    w.show();
+    QCoreApplication::processEvents();
+    w.showMessage("Saved /tmp/MixedCase/part.fcad", core::MessageLevel::Info);
+    QCoreApplication::processEvents();
+    auto* msg = w.statusBar()->findChild<QLabel*>("StatusMessage");
+    QVERIFY(msg && msg->isVisibleTo(&w));
+    QCOMPARE(msg->font().capitalization(), QFont::MixedCase);
+    auto* prompt = w.statusBar()->findChild<QLabel*>("StatusPrompt");
+    QVERIFY(prompt);
+    QCOMPARE(prompt->font().capitalization(), QFont::AllUppercase);
+    // the document tab names are user data too (decision 3)
+    QCOMPARE(w.tabBar()->font().capitalization(), QFont::MixedCase);
   }
 };
 

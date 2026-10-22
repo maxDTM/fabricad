@@ -11,6 +11,9 @@
 #include "app/ShortcutRouter.h"
 #include "app/TimelineLayout.h"
 #include "app/ToolbarModel.h"
+#include "app/UiSettings.h"
+#include "app/StatusCells.h"
+#include "app/TitleBar.h"
 #include "core/AppHost.h"
 #include "core/Commands.h"
 #include "core/Document.h"
@@ -28,6 +31,7 @@
 #include <QComboBox>
 #include <QLineEdit>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -163,6 +167,172 @@ class TestAppLogic : public QObject {
     QCOMPARE(modify.promoted[0]->info().id, std::string("part.fillet"));
     QVERIFY(app::buildToolbarModel(reg, core::Workspace::Drawing).empty());
     QCOMPARE(app::toolTooltip(reg.tool("part.extrude")->info()), std::string("extrude  (E)"));
+  }
+
+  // --- main toolbar sections (redesign phase 1) -------------------------------------------
+  void toolbarSections() {
+    core::ToolRegistry reg;
+    addTool(reg, ti("sketch.create", "SOLID", "CREATE", 1, true));
+    addTool(reg, ti("part.extrude", "SOLID", "CREATE", 10, true, "E"));
+    addTool(reg, ti("part.revolve", "SOLID", "CREATE", 20, true));
+    addTool(reg, ti("part.hole", "SOLID", "CREATE", 30));
+    addTool(reg, ti("part.fillet", "SOLID", "MODIFY", 20, true));
+    addTool(reg, ti("assembly.joint", "SOLID", "ASSEMBLE", 10, true));
+    addTool(reg, ti("assembly.ground", "SOLID", "ASSEMBLE", 20));
+    addTool(reg, ti("assembly.rigid-group", "SOLID", "ASSEMBLE", 30));
+    addTool(reg, ti("inspect.measure", "SOLID", "INSPECT", 10, true));
+    addTool(reg, ti("select.default", "SOLID", "SELECT", 10));
+    addTool(reg, ti("part.export-stl", "TOOLS", "EXPORT", 10, true));
+    addTool(reg, ti("x.surface", "SURFACE", "CREATE", 10, true));
+    addTool(reg, ti("sketch.line", "SKETCH", "CREATE", 10, true, "L"));
+    addTool(reg, ti("sketch.constraint.equal", "SKETCH", "CONSTRAINTS", 10));
+    addTool(reg, ti("sketch.constraint.fix", "SKETCH", "CONSTRAINTS", 20));
+    addTool(reg, ti("sketch.toggle-grid", "SKETCH", "OPTIONS", 10));
+    addTool(reg, ti("sketch.finish", "SKETCH", "FINISH SKETCH", 10, true));
+    core::ToolInfo params = ti("app.parameters", "SOLID", "MODIFY", 90);
+    addTool(reg, params);
+    addTool(reg, ti("app.preferences", "TOOLS", "UTILITIES", 20));
+
+    auto names = [](const std::vector<app::ToolbarSection>& v) {
+      std::vector<std::string> n;
+      for (const auto& s : v) n.push_back(s.name);
+      return n;
+    };
+    // default page: SKETCH CREATE MODIFY ASSEMBLE INSPECT, MORE (SELECT, TOOLS, SURFACE), DOCUMENT
+    const auto page = app::buildToolbarSections(reg, core::Workspace::Design);
+    QCOMPARE(names(page), (std::vector<std::string>{"SKETCH", "CREATE", "MODIFY", "ASSEMBLE", "INSPECT", "MORE", "DOCUMENT"}));
+    QCOMPARE(page[0].toolbarTab, std::string("SOLID"));
+    QCOMPARE(page[0].all.size(), size_t(1));  // sketch.create moved out of CREATE
+    QCOMPARE(page[1].toolbarGroup, std::string("CREATE"));
+    QCOMPARE(page[1].promoted.size(), size_t(2));  // extrude, revolve
+    QCOMPARE(page[1].all.size(), size_t(3));
+    const app::ToolbarSection& more = page[5];
+    QCOMPARE(more.kind, app::SectionKind::More);
+    std::vector<std::string> entries;
+    for (const auto& e : more.more) entries.push_back(e.label);
+    QVERIFY(std::find(entries.begin(), entries.end(), "TOOLS") != entries.end());
+    QVERIFY(std::find(entries.begin(), entries.end(), "SURFACE") != entries.end());
+    QVERIFY(std::find(entries.begin(), entries.end(), "SELECT") != entries.end());
+    QCOMPARE(page.back().kind, app::SectionKind::Document);
+    QCOMPARE(page.back().all.size(), size_t(2));
+    QCOMPARE(page.back().all[0]->info().id, std::string("app.parameters"));
+    for (const auto& s : page)
+      if (s.kind == app::SectionKind::Tools) QVERIFY2(!s.toolbarTab.empty() && !s.toolbarGroup.empty(), s.name.c_str());
+
+    // contextual SKETCH page: the sketch sections first, INSPECT kept, MORE, FINISH, DOCUMENT
+    const auto sk = app::buildToolbarSections(reg, core::Workspace::Design, app::DesignFilter::Part, true);
+    QCOMPARE(names(sk), (std::vector<std::string>{"CREATE", "CONSTRAINTS", "INSPECT", "MORE", "FINISH SKETCH", "DOCUMENT"}));
+    QCOMPARE(sk[0].toolbarTab, std::string("SKETCH"));
+    QVERIFY(sk[1].flat);
+    QCOMPARE(sk[1].promoted.size(), size_t(2));  // flat: every constraint
+    QCOMPARE(sk[4].kind, app::SectionKind::Finish);
+    QCOMPARE(sk[4].all.front()->info().id, std::string("sketch.finish"));
+
+    // Assembly filter: ASSEMBLE first with more tools, modelling sections caption-only
+    const auto asmb = app::buildToolbarSections(reg, core::Workspace::Design, app::DesignFilter::Assembly);
+    QCOMPARE(asmb.front().name, std::string("ASSEMBLE"));
+    QCOMPARE(asmb.front().promoted.size(), size_t(3));
+    for (const auto& s : asmb)
+      if (s.name == "CREATE" || s.name == "MODIFY" || s.name == "SKETCH") QVERIFY(s.startCollapsed);
+      else QVERIFY2(!s.startCollapsed, s.name.c_str());
+
+    app::DesignFilter f;
+    QVERIFY(app::parseDesignFilter("Assembly", &f) && f == app::DesignFilter::Assembly);
+    QVERIFY(!app::parseDesignFilter("weird", &f));
+    core::ToolInfo nc = ti("assembly.new-component", "SOLID", "ASSEMBLE");
+    nc.name = "New Component";
+    QCOMPARE(app::shortToolLabel(nc), std::string("New comp"));
+    core::ToolInfo imp = ti("x.import", "SOLID", "INSERT");
+    imp.name = "Import File...";
+    QCOMPARE(app::shortToolLabel(imp), std::string("Import File"));
+  }
+
+  void toolbarFit() {
+    // three sections of 3 x 60 px buttons, captions 50, padding 10, spacing 2
+    std::vector<app::FitSection> in(3);
+    for (int i = 0; i < 3; ++i) {
+      in[size_t(i)].buttonWidths = {60, 60, 60};
+      in[size_t(i)].captionWidth = 50;
+      in[size_t(i)].collapsedWidth = 56;
+      in[size_t(i)].collapsePriority = i * 10;  // the last collapses first
+    }
+    const int full = 3 * (184 + 10);
+    int used = 0;
+    auto r = app::fitToolbar(in, full, 2, 10, &used);
+    QCOMPARE(used, full);
+    for (const auto& x : r) QVERIFY(x.visibleButtons == 3 && !x.collapsed);
+    // 70 px short: the right-most fullest section folds one button
+    r = app::fitToolbar(in, full - 50, 2, 10, &used);
+    QCOMPARE(r[2].visibleButtons, 2);
+    QCOMPARE(r[1].visibleButtons, 3);
+    QVERIFY(used <= full - 50);
+    // much narrower: every section down to one button, then collapses by priority
+    r = app::fitToolbar(in, 3 * 70 - 1, 2, 10, &used);  // one button each is 3 x 70: one more px short
+    QVERIFY(r[2].collapsed);
+    QVERIFY(!r[0].collapsed);
+    QVERIFY(used <= 3 * 70 - 1);
+    QCOMPARE(r[0].visibleButtons, 1);
+    // nothing fits: everything caption-only, never negative
+    r = app::fitToolbar(in, 10, 2, 10, &used);
+    for (const auto& x : r) QVERIFY(x.collapsed && x.visibleButtons == 0);
+    // fixed sections (FINISH SKETCH) never fold; startCollapsed sections start caption-only
+    in[0].fixed = true;
+    in[1].startCollapsed = true;
+    r = app::fitToolbar(in, 10, 2, 10, &used);
+    QVERIFY(!r[0].collapsed && r[0].visibleButtons == 3);
+    r = app::fitToolbar(in, 5000, 2, 10, &used);
+    QVERIFY(r[1].collapsed);
+  }
+
+  void uiSettings() {
+    QSettings().remove("ui");
+    app::UiSettings& ui = app::UiSettings::instance();
+    // defaults (section 6.1)
+    QCOMPARE(ui.string("ui/theme"), QString("dark"));
+    QCOMPARE(ui.string("ui/toolbarArea"), QString("top"));
+    QCOMPARE(ui.string("ui/sidebarSide"), QString("left"));
+    QCOMPARE(ui.string("ui/cardPlacement"), QString("floatRight"));
+    QCOMPARE(ui.string("ui/quickToolbar"), QString("off"));
+    QCOMPARE(ui.string("ui/orientation"), QString("hexDial"));
+    QCOMPARE(ui.string("ui/timelineStyle"), QString("featureList"));
+    QCOMPARE(ui.number("ui/fontScale"), 100);
+    QVERIFY(ui.flag("ui/glow"));
+    QVERIFY(!ui.flag("ui/scanlines"));
+    QCOMPARE(ui.string("ui/designFilter"), QString("part"));
+    // live signal, validation, normalisation, round trip through QSettings
+    QSignalSpy spy(&ui, &app::UiSettings::changed);
+    QVERIFY(ui.set("ui/sidebarSide", "RIGHT"));
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.takeFirst().at(0).toString(), QString("ui/sidebarSide"));
+    QCOMPARE(QSettings().value("ui/sidebarSide").toString(), QString("right"));
+    QVERIFY(!ui.set("ui/sidebarSide", "top"));
+    QVERIFY(!ui.set("ui/fontScale", 200));
+    QVERIFY(!ui.set("ui/nope", 1));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(ui.set("ui/sidebarSide", "right"));  // unchanged: no signal
+    QCOMPARE(spy.count(), 0);
+    QSettings().setValue("ui/toolbarArea", "diagonal");  // garbage in the file reads as the default
+    QCOMPARE(ui.string("ui/toolbarArea"), QString("top"));
+    for (const auto& k : app::UiSettings::keys()) {
+      QVERIFY2(k.key.startsWith("ui/"), qPrintable(k.key));
+      ui.reset(k.key);
+      QCOMPARE(ui.value(k.key), k.defaultValue);
+    }
+  }
+
+  void statusCells() {
+    QCOMPARE(app::RebuildMeter::barsFor(-1), 0);
+    QCOMPARE(app::RebuildMeter::barsFor(0), 1);
+    QCOMPARE(app::RebuildMeter::barsFor(14), 3);
+    QCOMPARE(app::RebuildMeter::barsFor(5000), 8);
+    QCOMPARE(app::keycapText("Alt+1"), QString("Alt 1"));
+    bool mod = false;
+    QCOMPARE(app::DocumentTabBar::plainText("bracket *", &mod), QString("bracket"));
+    QVERIFY(mod);
+    QCOMPARE(app::DocumentTabBar::plainText("bracket", &mod), QString("bracket"));
+    QVERIFY(!mod);
+    // the workspace shortcuts are defined once and do not take the standard views' Ctrl+1..7
+    for (const auto& w : app::kWorkspaceShortcuts) QVERIFY(!QString(w.shortcut).startsWith("Ctrl"));
   }
 
   // --- timeline --------------------------------------------------------------------------

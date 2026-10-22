@@ -29,7 +29,9 @@ const WorkspaceShortcut& workspaceShortcut(WorkspaceChoice c) {
 QString keycapText(const QString& keySequence) {
   QString t = QKeySequence(keySequence).toString(QKeySequence::NativeText);
   if (t.isEmpty()) t = keySequence;
-  t.replace('+', ' ');
+  t.replace(QLatin1StringView("Return"), QLatin1StringView("Enter"));
+  t.replace(QLatin1StringView("Escape"), QLatin1StringView("Esc"));
+  if (t != QLatin1StringView("+")) t.replace('+', ' ');
   return t;
 }
 
