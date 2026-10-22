@@ -283,7 +283,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | `preview.newBody` | fill `#3CC8F0` 30 % | `#0A6F91` | | |
 | `manip.handle` | `#F5B700` diamond, `#1A1400` 1 px outline | same | | drag handle. `live.bright` on hover and drag, plus a 6 px glow. |
 | `manip.axisArrow` | axis colours | axis colours | | triad (Move), shown with letter labels |
-| `sk.free` | `#6FA8FF` | `#1E6FD9` | 5.98/7.47 · 4.72/3.48 | under-constrained curves |
+| `sk.free` | `#4775FF` | `#00248F` | 3.61/4.50 · 12.40/9.14 | under-constrained curves. Chosen in phase 0 (decision 8; was `#6FA8FF`/`#1E6FD9`): a darker azure keeps a lightness gap to the lavender selection under protan/deutan simulation. |
 | `sk.constrained` | `#E8ECF2` | `#171A20` | 12.15/15.16 · 16.97/12.51 | fully constrained (it inverts the usual "black" rule in dark) |
 | `sk.construction` | `#9AA2AE` dashed 6/4 | `#5E6675` dashed 6/4 | 5.59/6.98 · 5.63/4.15 | the dash is the cue (orange is no longer used, so it cannot be confused with gold or warning) |
 | `sk.projected` | `#3CC8F0` dash-dot | `#0A6F91` dash-dot | 7.35/9.17 · 5.53/4.08 | as in the mockup |
@@ -321,7 +321,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | live vs error | 52.5 / 38.0 / 22.2 / 18.8 | 61.1 / 55.2 / 34.4 / 29.5 | pass |
 | warning vs error | 22.8 / 28.4 / 16.2 / **6.8** | 23.7 / 31.1 / 15.3 / **2.4** | tritan relies on shape (octagon vs triangle) |
 | light-theme thin ochre stroke `#8A5F00` vs warning | — | 23.6 / 5.8 / **2.0** / 13.2 | **fail**. Rule: gold in the light theme is always the bright `#F5B700` fill or halo with dark ink, never a thin ochre line alone. |
-| selection (`#B49CFF`) vs `sk.free` (`#6FA8FF`) | 16.9 / **0.7** / **2.9** / 21.9 | 19.1 / 7.4 / 4.6 / 16.7 | selection always adds a halo, endpoint grips and a profile tint. Open question 8. |
+| selection (`#B49CFF`) vs `sk.free` (`#4775FF` dark / `#00248F` light; was `#6FA8FF`: 16.9 / **0.7** / **2.9** / 21.9) | 19.0 / 12.3 / 16.2 / 22.3 | 17.5 / 16.8 / 17.9 / 15.7 | pass (decision 8, phase 0). Selection still adds a halo, endpoint grips and a profile tint. |
 | selection vs preselect | 17.1 / 16.1 / 16.4 / 13.0 | width + halo | pass |
 
 **Decision test (gate G, phase 5)**. Gold stays unless one of these fails:
