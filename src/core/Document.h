@@ -285,6 +285,8 @@ class Document : public QObject {
 
  private:
   void resetToEmpty();
+  /// Timeline index (after the removal) from which removing features_[idx] needs a replay.
+  int replayStartWithout(int idx) const;
   void applyState(const std::map<ObjectId, TopoDS_Shape>& newState);
   void touchModified();
   // timeline groups (DocumentGroups.cpp)

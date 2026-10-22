@@ -1,0 +1,972 @@
+{
+ "date": "2026-10-22",
+ "note": "interleaved runs, same machine and load (loadavg 4.5-4.9 of 8 threads, other builds running); base = main @ 9ac3d78, new = be/perf",
+ "runs": {
+  "base:chair.fcs": {
+   "wall_s": [
+    4.998,
+    5.235,
+    4.643
+   ],
+   "in_app_s": [
+    4.6375,
+    4.9212,
+    4.339
+   ],
+   "median_wall_s": 4.998,
+   "median_in_app_s": 4.6375,
+   "verbs_median_run": {
+    "CHECK": [
+     118,
+     699.1
+    ],
+    "OK": [
+     24,
+     661.4
+    ],
+    "name=value": [
+     15,
+     531.3
+    ],
+    "EXTRUDE": [
+     7,
+     493.7
+    ],
+    "FILLET": [
+     2,
+     284.6
+    ],
+    "DELETECOMPONENT": [
+     1,
+     277.0
+    ],
+    "SELECT": [
+     39,
+     179.3
+    ],
+    "DELETE": [
+     1,
+     162.7
+    ],
+    "SKETCH": [
+     7,
+     121.5
+    ],
+    "CHAMFER": [
+     1,
+     108.6
+    ],
+    "IMPORT": [
+     1,
+     103.4
+    ],
+    "INFO": [
+     7,
+     98.8
+    ],
+    "40,40": [
+     4,
+     85.6
+    ],
+    "RECT": [
+     7,
+     85.4
+    ],
+    "EXPORTSTL": [
+     5,
+     78.6
+    ],
+    "PICK": [
+     5,
+     70.7
+    ],
+    "INPUT": [
+     2,
+     63.6
+    ],
+    "OFFSETPLANE": [
+     5,
+     58.5
+    ],
+    "280,40": [
+     2,
+     40.3
+    ],
+    "ASSEMBLY.EXPORT-STEP": [
+     1,
+     37.6
+    ],
+    "SAVE": [
+     1,
+     35.1
+    ],
+    "FINISH": [
+     7,
+     35.0
+    ],
+    "RENAME": [
+     4,
+     33.4
+    ],
+    "MOVECOMPONENT": [
+     3,
+     26.2
+    ],
+    "420,400": [
+     1,
+     24.9
+    ],
+    "HOLE": [
+     1,
+     19.0
+    ],
+    "300,40": [
+     1,
+     18.8
+    ],
+    "300,60": [
+     1,
+     18.3
+    ],
+    "420,410": [
+     1,
+     17.9
+    ],
+    "NEW": [
+     1,
+     15.9
+    ],
+    "GROUND": [
+     2,
+     15.8
+    ],
+    "NEWCOMPONENT": [
+     2,
+     15.2
+    ],
+    "ACTIVATE": [
+     2,
+     14.0
+    ],
+    "ASBUILTJOINT": [
+     1,
+     13.6
+    ],
+    "LIST": [
+     3,
+     10.2
+    ],
+    "SPLIT": [
+     1,
+     9.8
+    ],
+    "CFB": [
+     1,
+     8.6
+    ],
+    "SFILLET": [
+     1,
+     8.4
+    ],
+    "-140,130": [
+     2,
+     6.9
+    ],
+    "CANCEL": [
+     1,
+     6.8
+    ],
+    "-210,-200": [
+     1,
+     3.9
+    ],
+    "-15,0,0": [
+     1,
+     3.9
+    ],
+    "15,0,0": [
+     1,
+     3.9
+    ],
+    "-190,140": [
+     1,
+     3.7
+    ],
+    "-190,-180": [
+     1,
+     3.5
+    ],
+    "OPEN": [
+     1,
+     3.5
+    ],
+    "150,-180": [
+     1,
+     3.4
+    ],
+    "150,140": [
+     1,
+     3.4
+    ],
+    "-150,680": [
+     1,
+     3.3
+    ],
+    "-210,430": [
+     1,
+     3.2
+    ],
+    "-150,130": [
+     1,
+     3.0
+    ],
+    "OPTIONS": [
+     2,
+     2.5
+    ]
+   }
+  },
+  "new:chair.fcs": {
+   "wall_s": [
+    3.438,
+    2.985,
+    3.073
+   ],
+   "in_app_s": [
+    3.0893,
+    2.6868000000000003,
+    2.7733000000000003
+   ],
+   "median_wall_s": 3.073,
+   "median_in_app_s": 2.7733000000000003,
+   "verbs_median_run": {
+    "OK": [
+     24,
+     681.8
+    ],
+    "CHECK": [
+     118,
+     619.5
+    ],
+    "SELECT": [
+     39,
+     172.7
+    ],
+    "SKETCH": [
+     7,
+     113.3
+    ],
+    "EXTRUDE": [
+     7,
+     106.0
+    ],
+    "OPTIONS": [
+     2,
+     102.4
+    ],
+    "INFO": [
+     7,
+     88.3
+    ],
+    "40,40": [
+     4,
+     86.4
+    ],
+    "RECT": [
+     7,
+     79.2
+    ],
+    "EXPORTSTL": [
+     5,
+     72.4
+    ],
+    "280,40": [
+     2,
+     43.2
+    ],
+    "INPUT": [
+     2,
+     42.9
+    ],
+    "OFFSETPLANE": [
+     5,
+     41.4
+    ],
+    "PICK": [
+     5,
+     39.3
+    ],
+    "ASSEMBLY.EXPORT-STEP": [
+     1,
+     36.2
+    ],
+    "RENAME": [
+     4,
+     35.9
+    ],
+    "FINISH": [
+     7,
+     34.2
+    ],
+    "SAVE": [
+     1,
+     30.7
+    ],
+    "MOVECOMPONENT": [
+     3,
+     27.6
+    ],
+    "300,40": [
+     1,
+     22.5
+    ],
+    "420,400": [
+     1,
+     22.0
+    ],
+    "420,410": [
+     1,
+     21.6
+    ],
+    "FILLET": [
+     2,
+     19.2
+    ],
+    "300,60": [
+     1,
+     16.9
+    ],
+    "HOLE": [
+     1,
+     14.2
+    ],
+    "GROUND": [
+     2,
+     13.8
+    ],
+    "ASBUILTJOINT": [
+     1,
+     13.6
+    ],
+    "NEW": [
+     1,
+     13.5
+    ],
+    "ACTIVATE": [
+     2,
+     13.4
+    ],
+    "CHAMFER": [
+     1,
+     12.4
+    ],
+    "NEWCOMPONENT": [
+     2,
+     11.0
+    ],
+    "DELETECOMPONENT": [
+     1,
+     10.0
+    ],
+    "SPLIT": [
+     1,
+     9.8
+    ],
+    "DELETE": [
+     1,
+     9.7
+    ],
+    "SFILLET": [
+     1,
+     9.1
+    ],
+    "name=value": [
+     15,
+     9.0
+    ],
+    "LIST": [
+     3,
+     9.0
+    ],
+    "CFB": [
+     1,
+     7.5
+    ],
+    "CANCEL": [
+     1,
+     6.9
+    ],
+    "IMPORT": [
+     1,
+     6.9
+    ],
+    "-140,130": [
+     2,
+     6.1
+    ],
+    "-190,-180": [
+     1,
+     4.9
+    ],
+    "-210,430": [
+     1,
+     4.5
+    ],
+    "15,0,0": [
+     1,
+     4.4
+    ],
+    "-15,0,0": [
+     1,
+     3.8
+    ],
+    "-150,130": [
+     1,
+     3.7
+    ],
+    "150,-180": [
+     1,
+     3.6
+    ],
+    "-190,140": [
+     1,
+     3.5
+    ],
+    "150,140": [
+     1,
+     3.4
+    ],
+    "OPEN": [
+     1,
+     3.3
+    ],
+    "-210,-200": [
+     1,
+     3.1
+    ],
+    "-150,680": [
+     1,
+     3.1
+    ]
+   }
+  },
+  "base:chair_min.fcs": {
+   "wall_s": [
+    3.986,
+    3.948,
+    4.095
+   ],
+   "in_app_s": [
+    3.6623,
+    3.6576,
+    3.7897
+   ],
+   "median_wall_s": 3.986,
+   "median_in_app_s": 3.6623,
+   "verbs_median_run": {
+    "OK": [
+     23,
+     639.1
+    ],
+    "name=value": [
+     15,
+     552.1
+    ],
+    "EXTRUDE": [
+     7,
+     480.6
+    ],
+    "FILLET": [
+     2,
+     295.9
+    ],
+    "DELETECOMPONENT": [
+     1,
+     265.9
+    ],
+    "SELECT": [
+     39,
+     175.1
+    ],
+    "DELETE": [
+     1,
+     167.0
+    ],
+    "SKETCH": [
+     7,
+     120.4
+    ],
+    "CHAMFER": [
+     1,
+     100.3
+    ],
+    "40,40": [
+     4,
+     85.5
+    ],
+    "RECT": [
+     7,
+     84.1
+    ],
+    "EXPORTSTL": [
+     5,
+     81.1
+    ],
+    "PICK": [
+     5,
+     67.1
+    ],
+    "INPUT": [
+     2,
+     60.5
+    ],
+    "OFFSETPLANE": [
+     5,
+     54.9
+    ],
+    "280,40": [
+     2,
+     40.2
+    ],
+    "FINISH": [
+     7,
+     38.6
+    ],
+    "ASSEMBLY.EXPORT-STEP": [
+     1,
+     36.5
+    ],
+    "SAVE": [
+     1,
+     31.3
+    ],
+    "RENAME": [
+     4,
+     30.9
+    ],
+    "300,60": [
+     1,
+     28.7
+    ],
+    "MOVECOMPONENT": [
+     3,
+     25.2
+    ],
+    "420,400": [
+     1,
+     22.1
+    ],
+    "300,40": [
+     1,
+     19.2
+    ],
+    "420,410": [
+     1,
+     17.0
+    ],
+    "HOLE": [
+     1,
+     15.4
+    ],
+    "ACTIVATE": [
+     2,
+     14.5
+    ],
+    "GROUND": [
+     2,
+     13.4
+    ],
+    "NEWCOMPONENT": [
+     2,
+     13.1
+    ],
+    "ASBUILTJOINT": [
+     1,
+     12.2
+    ],
+    "SPLIT": [
+     1,
+     9.1
+    ],
+    "SFILLET": [
+     1,
+     8.3
+    ],
+    "CANCEL": [
+     1,
+     7.5
+    ],
+    "CFB": [
+     1,
+     6.7
+    ],
+    "-140,130": [
+     2,
+     6.6
+    ],
+    "15,0,0": [
+     1,
+     4.0
+    ],
+    "-150,130": [
+     1,
+     3.8
+    ],
+    "-15,0,0": [
+     1,
+     3.8
+    ],
+    "-190,-180": [
+     1,
+     3.6
+    ],
+    "150,140": [
+     1,
+     3.6
+    ],
+    "-210,430": [
+     1,
+     3.5
+    ],
+    "-150,680": [
+     1,
+     3.5
+    ],
+    "150,-180": [
+     1,
+     3.5
+    ],
+    "-190,140": [
+     1,
+     3.5
+    ],
+    "-210,-200": [
+     1,
+     3.4
+    ]
+   }
+  },
+  "new:chair_min.fcs": {
+   "wall_s": [
+    2.243,
+    2.2,
+    2.153
+   ],
+   "in_app_s": [
+    1.9506,
+    1.8957,
+    1.8407
+   ],
+   "median_wall_s": 2.2,
+   "median_in_app_s": 1.8957,
+   "verbs_median_run": {
+    "OK": [
+     23,
+     693.9
+    ],
+    "SELECT": [
+     39,
+     175.3
+    ],
+    "SKETCH": [
+     7,
+     104.0
+    ],
+    "EXTRUDE": [
+     7,
+     103.7
+    ],
+    "RECT": [
+     7,
+     78.1
+    ],
+    "40,40": [
+     4,
+     75.4
+    ],
+    "EXPORTSTL": [
+     5,
+     75.3
+    ],
+    "INPUT": [
+     2,
+     44.8
+    ],
+    "ASSEMBLY.EXPORT-STEP": [
+     1,
+     43.1
+    ],
+    "OFFSETPLANE": [
+     5,
+     38.9
+    ],
+    "PICK": [
+     5,
+     37.4
+    ],
+    "280,40": [
+     2,
+     35.6
+    ],
+    "FINISH": [
+     7,
+     33.3
+    ],
+    "RENAME": [
+     4,
+     30.3
+    ],
+    "FILLET": [
+     2,
+     26.6
+    ],
+    "MOVECOMPONENT": [
+     3,
+     26.4
+    ],
+    "SAVE": [
+     1,
+     20.5
+    ],
+    "420,400": [
+     1,
+     19.2
+    ],
+    "300,40": [
+     1,
+     19.2
+    ],
+    "300,60": [
+     1,
+     17.8
+    ],
+    "420,410": [
+     1,
+     16.1
+    ],
+    "DELETECOMPONENT": [
+     1,
+     15.2
+    ],
+    "ACTIVATE": [
+     2,
+     15.1
+    ],
+    "HOLE": [
+     1,
+     15.0
+    ],
+    "ASBUILTJOINT": [
+     1,
+     13.6
+    ],
+    "GROUND": [
+     2,
+     12.9
+    ],
+    "CHAMFER": [
+     1,
+     12.7
+    ],
+    "NEWCOMPONENT": [
+     2,
+     11.1
+    ],
+    "SPLIT": [
+     1,
+     9.4
+    ],
+    "DELETE": [
+     1,
+     9.4
+    ],
+    "name=value": [
+     15,
+     8.2
+    ],
+    "SFILLET": [
+     1,
+     7.3
+    ],
+    "CFB": [
+     1,
+     6.8
+    ],
+    "CANCEL": [
+     1,
+     6.1
+    ],
+    "-140,130": [
+     2,
+     6.1
+    ],
+    "-15,0,0": [
+     1,
+     4.0
+    ],
+    "15,0,0": [
+     1,
+     3.8
+    ],
+    "150,-180": [
+     1,
+     3.4
+    ],
+    "-150,680": [
+     1,
+     3.2
+    ],
+    "-210,430": [
+     1,
+     3.1
+    ],
+    "-190,140": [
+     1,
+     3.0
+    ],
+    "-210,-200": [
+     1,
+     2.9
+    ],
+    "-190,-180": [
+     1,
+     2.9
+    ],
+    "150,140": [
+     1,
+     2.9
+    ],
+    "-150,130": [
+     1,
+     2.9
+    ]
+   }
+  }
+ },
+ "stages_chair_fcs": {
+  "base": {
+   "Stage A: component Seat": {
+    "commands": 61,
+    "ms": 1052.3,
+    "modelling_commands": 51,
+    "modelling_ms": 1027.6
+   },
+   "Stage A: component LegFrame": {
+    "commands": 72,
+    "ms": 1197.6,
+    "modelling_commands": 60,
+    "modelling_ms": 1157.3
+   },
+   "Stage A: assembly": {
+    "commands": 11,
+    "ms": 87.5,
+    "modelling_commands": 7,
+    "modelling_ms": 80.5
+   },
+   "Stage B: split LegFrame with the YZ plane": {
+    "commands": 18,
+    "ms": 128.3,
+    "modelling_commands": 8,
+    "modelling_ms": 114.6
+   },
+   "Stage C: different leg features": {
+    "commands": 26,
+    "ms": 650.5,
+    "modelling_commands": 13,
+    "modelling_ms": 607.8
+   },
+   "Stage D: transforms": {
+    "commands": 33,
+    "ms": 587.0,
+    "modelling_commands": 19,
+    "modelling_ms": 538.0
+   },
+   "final checks: volumes (B-rep) and world bounding boxes": {
+    "commands": 21,
+    "ms": 169.0,
+    "modelling_commands": 0,
+    "modelling_ms": 0.0
+   },
+   "exports": {
+    "commands": 21,
+    "ms": 182.1,
+    "modelling_commands": 12,
+    "modelling_ms": 169.6
+   },
+   "reopen the saved document in a new tab: round trip": {
+    "commands": 10,
+    "ms": 61.4,
+    "modelling_commands": 1,
+    "modelling_ms": 3.5
+   },
+   "read the STEP back: B-rep volumes and boxes of the exported assembly": {
+    "commands": 31,
+    "ms": 521.0,
+    "modelling_commands": 3,
+    "modelling_ms": 127.2
+   }
+  },
+  "new": {
+   "Stage A: component Seat": {
+    "commands": 61,
+    "ms": 539.9,
+    "modelling_commands": 51,
+    "modelling_ms": 520.0
+   },
+   "Stage A: component LegFrame": {
+    "commands": 72,
+    "ms": 728.3,
+    "modelling_commands": 60,
+    "modelling_ms": 663.8
+   },
+   "Stage A: assembly": {
+    "commands": 11,
+    "ms": 82.8,
+    "modelling_commands": 7,
+    "modelling_ms": 75.6
+   },
+   "Stage B: split LegFrame with the YZ plane": {
+    "commands": 18,
+    "ms": 109.2,
+    "modelling_commands": 8,
+    "modelling_ms": 96.0
+   },
+   "Stage C: different leg features": {
+    "commands": 26,
+    "ms": 325.1,
+    "modelling_commands": 13,
+    "modelling_ms": 283.2
+   },
+   "Stage D: transforms": {
+    "commands": 33,
+    "ms": 170.8,
+    "modelling_commands": 19,
+    "modelling_ms": 127.7
+   },
+   "final checks: volumes (B-rep) and world bounding boxes": {
+    "commands": 21,
+    "ms": 160.1,
+    "modelling_commands": 0,
+    "modelling_ms": 0.0
+   },
+   "exports": {
+    "commands": 21,
+    "ms": 167.3,
+    "modelling_commands": 12,
+    "modelling_ms": 156.4
+   },
+   "reopen the saved document in a new tab: round trip": {
+    "commands": 10,
+    "ms": 60.5,
+    "modelling_commands": 1,
+    "modelling_ms": 3.3
+   },
+   "read the STEP back: B-rep volumes and boxes of the exported assembly": {
+    "commands": 31,
+    "ms": 428.8,
+    "modelling_commands": 3,
+    "modelling_ms": 27.6
+   }
+  }
+ }
+}

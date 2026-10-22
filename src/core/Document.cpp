@@ -124,13 +124,40 @@ Feature* Document::addFeature(std::unique_ptr<Feature> f, int index) {
   return raw;
 }
 
+int Document::replayStartWithout(int idx) const {
+  const Feature& f = *features_[static_cast<size_t>(idx)];
+  // Inactive, already dirty, or it made / changed bodies: replay from its position (the rule
+  // before this shortcut; the features after it may read what it produced).
+  if (idx >= rollback_ || firstDirty_ <= idx || f.status_ == FeatureStatus::Stale) return idx;
+  if (!f.createdBodies_.empty() || !f.touchedBodies_.empty()) return idx;
+  const auto& before = bodyStatesAfter(idx - 1);
+  const auto& after = f.bodyStatesAfter_;
+  if (before.size() != after.size()) return idx;
+  for (auto a = after.begin(), b = before.begin(); a != after.end(); ++a, ++b)
+    if (a->first != b->first || !a->second.IsEqual(b->second)) return idx;
+  // No body effect: the features after it see the same input states. Replay only from the
+  // first one that references it, or that solves from placements it may have moved (indices
+  // after the removal).
+  const bool placements = f.affectsPlacements();
+  for (int j = idx + 1; j < rollback_; ++j) {
+    const Feature& g = *features_[static_cast<size_t>(j)];
+    if (placements && g.readsPlacements()) return j - 1;
+    const std::vector<ObjectId> deps = g.dependencies();
+    if (std::find(deps.begin(), deps.end(), f.id_) != deps.end()) return j - 1;
+  }
+  return rollback_ - 1;  // nothing to replay
+}
+
 std::unique_ptr<Feature> Document::takeFeature(ObjectId id) {
   int idx = indexOf(id);
   if (idx < 0) return nullptr;
+  const int replayFrom = replayStartWithout(idx);
   std::unique_ptr<Feature> f = std::move(features_[static_cast<size_t>(idx)]);
   features_.erase(features_.begin() + idx);
   if (idx < rollback_) --rollback_;
-  firstDirty_ = std::min(firstDirty_, idx);
+  // firstDirty_ counts in the old indices: a dirty index after the removed feature shifts down
+  if (firstDirty_ > idx) --firstDirty_;
+  firstDirty_ = std::min(firstDirty_, replayFrom);
   for (ObjectId b : f->createdBodies_) removeBody(b);
   selection_->removeOwner(id);
   const bool grouped = featureGroup_.count(id) > 0;
@@ -377,6 +404,7 @@ void Document::recompute() {
   for (int i = start; i < rollback_; ++i) {
     Feature& f = *features_[static_cast<size_t>(i)];
     f.touchedBodies_.clear();
+    f.clearScopeUse();
     if (f.isSuppressed()) {
       f.bodyStatesAfter_ = state;
       f.setStatus(FeatureStatus::Ok, "suppressed");

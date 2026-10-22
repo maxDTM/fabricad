@@ -126,6 +126,83 @@ class ToolsTest : public QObject {
     QCOMPARE(rig.doc.featureCount(), 2);
   }
 
+  void batchModeDefersPreviewAndComputesOnceAtOk() {
+    // script runs (core::isBatchMode): no preview while inputs are typed, one computation at OK,
+    // the same result as interactively
+    core::setBatchMode(true);
+    struct Reset {
+      ~Reset() { core::setBatchMode(std::nullopt); }
+    } reset;
+    Rig rig;
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    rig.doc.selection().set(sk->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool);
+    QVERIFY(tool->isPreviewPending());
+    QVERIFY(rig.viewer.previews().empty());
+    QVERIFY(rig.host.acceptEnabled());
+    QVERIFY(rig.manager.runCommandLine("25"));
+    QVERIFY(rig.manager.runCommandLine("direction=Symmetric"));
+    QVERIFY(tool->isPreviewPending());
+    // a query computes it (OPTIONS reads isValid / message)
+    QVERIFY(tool->isValid());
+    QVERIFY(!tool->isPreviewPending());
+    QVERIFY(rig.manager.runCommandLine("distance=30"));
+    QVERIFY(tool->isPreviewPending());
+    rig.manager.accept();
+    QVERIFY(!rig.manager.isActive());
+    QCOMPARE(rig.doc.featureCount(), 2);
+    const core::Feature* f = rig.doc.featureAt(1);
+    QCOMPARE(f->status(), core::FeatureStatus::Ok);
+    QVERIFY(near(core::volume(rig.doc.bodyShape(f->createdBodies()[0])), 10 * 10 * 60));  // symmetric, half length 30
+    // the committed result is the one a full recompute gives
+    rig.doc.recomputeAll();
+    QVERIFY(near(core::volume(rig.doc.bodyShape(f->createdBodies()[0])), 10 * 10 * 60));  // symmetric, half length 30
+    // an invalid feature is refused at OK with the reason; the tool stays open
+    QVERIFY(rig.manager.run("part.extrude"));
+    tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool->isPreviewPending());
+    rig.manager.accept();
+    QVERIFY(rig.manager.isActive());
+    QVERIFY(!rig.host.messages().empty());
+    QVERIFY(rig.host.messages().back().second.find("OK is disabled for") != std::string::npos);
+    rig.manager.cancel();
+    QCOMPARE(rig.doc.featureCount(), 2);
+  }
+
+  void removingAFeatureReplaysOnlyWhatDependsOnIt() {
+    Rig rig;
+    core::Document& doc = rig.doc;
+    auto extrude = [&](TestSketch* sk, double d) {
+      auto ex = std::make_unique<ExtrudeFeature>();
+      ex->prop("profiles").addRef(sk->rectProfile(0));
+      ex->prop("distance").setDouble(d);
+      ex->prop("operation").setEnum("New Body");
+      return doc.addFeature(std::move(ex));
+    };
+    TestSketch* s1 = addRectSketch(doc, "XY", 0, 0, 10, 10);
+    extrude(s1, 5);
+    TestSketch* unused = addRectSketch(doc, "XY", 50, 0, 60, 10);
+    TestSketch* s3 = addRectSketch(doc, "XY", 100, 0, 110, 10);
+    core::Feature* e3 = extrude(s3, 7);
+    doc.recompute();
+    QCOMPARE(doc.firstDirtyIndex(), doc.rollbackIndex());
+    // a sketch nothing uses changed no body: nothing to replay
+    auto taken = doc.takeFeature(unused->id());
+    QVERIFY(taken);
+    QCOMPARE(doc.firstDirtyIndex(), doc.rollbackIndex());
+    // the sketch of the last extrude: replay from that extrude, which then fails
+    const core::ObjectId e3id = e3->id();
+    auto taken3 = doc.takeFeature(s3->id());
+    QCOMPARE(doc.firstDirtyIndex(), doc.indexOf(e3id));
+    doc.recompute();
+    QCOMPARE(doc.feature(e3id)->status(), core::FeatureStatus::Error);
+    // an extrude (it made a body): replay from its position
+    doc.takeFeature(e3id);
+    QCOMPARE(doc.firstDirtyIndex(), doc.featureCount());
+  }
+
   void extrudeToolSelectionFlowAndInvalidState() {
     Rig rig;
     TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);

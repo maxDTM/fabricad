@@ -256,3 +256,80 @@ cmake -S docs/comparison/tools -B <scratch>/stlcheck-build -DCMAKE_BUILD_TYPE=Re
 # all STL metrics + merged metrics.json (raw results in docs/comparison/measurements/)
 python3 -I docs/comparison/tools/collect_metrics.py <scratch>/stlcheck-build/stlcheck <scratch>/bench.json <scratch>/fab_stages.json <scratch>/fc/last_run.log
 ```
+
+## Performance update (2026-10-22, branch be/perf)
+
+This section covers recommendation 1 (script and preview performance). The before and after
+builds ran **interleaved on the same machine at the same time**: Release builds, 3 runs each,
+`QT_QPA_PLATFORM=offscreen`. Before is main @ 9ac3d78. After is be/perf. Other builds were
+running during the test (load average 4.5 to 4.9 on 8 threads), so both columns are slower than
+the 2.35 s / 3.30 s measured earlier in this document. Read the ratios, not the absolute values.
+Raw data: `measurements/perf_update.json`.
+
+| Median of 3 | Before | After | Change |
+|---|---:|---:|---:|
+| `chair_min.fcs`, in-app | 3.662 s | 1.896 s | −48 % |
+| `chair_min.fcs`, wall | 3.986 s | 2.200 s | −45 % |
+| `chair.fcs` (with checks, reopen, STEP read-back), in-app | 4.638 s | 2.773 s | −40 % |
+| `chair.fcs`, wall | 4.998 s | 3.073 s | −39 % |
+
+Where the time went, `chair_min.fcs`, median run (ms, count in brackets):
+
+| Lines | Before | After | Why |
+|---|---:|---:|---|
+| 15 property lines (`direction=`, `diameter=`, ...) | 552 | 8 | no preview per property line |
+| `EXTRUDE` (7) | 481 | 104 | no preview when the command starts |
+| `FILLET` (2) + `CHAMFER` (1) | 396 | 39 | same |
+| `OK` (23) | 639 | 694 | the feature is computed once here, and the commit reuses that result |
+| joint `DELETE` (1) | 167 | 9 | no history replay |
+| `DELETECOMPONENT` (1) | 266 | 15 | replays only what the deletion changes |
+
+Per stage of `chair.fcs`, modelling commands (ms, same runs; `tools/fab_stages.py`):
+
+| Stage | Before | After |
+|---|---:|---:|
+| A Seat | 1028 | 520 |
+| A LegFrame | 1157 | 664 |
+| A assembly | 81 | 76 |
+| B split | 115 | 96 |
+| C leg features | 608 | 283 |
+| D transforms | 538 | 128 |
+| Save + STEP + 5 STL | 170 | 156 |
+
+A LegFrame side rail (`EXTRUDE 20`, `direction=`, `symmetricMeasure=`, `OK`) now takes 61 ms,
+down from 163 ms at the same load.
+
+What changed (backend only; nothing in `src/app` or `src/viewer`):
+
+1. **Script mode computes a feature once, at `OK`.** In batch mode (`core::isBatchMode()`),
+   `FeatureTool` only marks a new feature's preview as out of date when its inputs change. It
+   computes the preview when a result is needed: at `OK`, or when `OPTIONS` (`isValid()`) asks.
+   The commit's recompute then reuses that result through `PartFeature::adoptPrecomputed`,
+   because it has the same input state and the feature is at the end of the timeline. Any other
+   input makes the commit compute again. An invalid feature is refused at `OK` with
+   "OK is disabled for <command>: <reason>", and the command stays open. Edit mode and
+   interactive use are unchanged. For now batch mode is detected from the command line
+   (`--script` without `--stay` and without `--step-delay` > 0) or set with `FABRICAD_BATCH`.
+   The app should set it explicitly; see `docs/plans/backend-deferred.md`.
+2. **Removing a feature replays only what depends on it.** `Document::takeFeature` checks the
+   removed feature. If it changed no body (no created or touched bodies, same state as before
+   it), the replay starts at the first later feature that references it, or that reads
+   placements the feature may have moved. A joint does move placements, so for a joint that
+   means the next joint or position. Otherwise the replay starts at the feature's own position,
+   as before. Joint `DELETE` therefore no longer replays the history.
+3. **Delete Component re-homes without a replay when the result cannot change.** Features made
+   in the deleted component move to its parent, so their automatic-boolean scope grows.
+   `part::applyTool` now records the tool solids it tested against the scope. If none of the
+   bodies gained by the larger scope touches one of those tools (the same `shapesTouch` test as
+   before), the participants are unchanged and the feature is not replayed. Child components
+   that change parent re-run the first placement solver (joint or position) only.
+4. **The per-command floor.** The script runner's event-loop settle costs under 1 ms by itself:
+   property lines now take 0.2 to 0.6 ms. The remaining 2 to 5 ms on `SELECT`, `RENAME` and
+   `GROUND` is the app's repaints and browser/timeline rebuilds. These live in `src/app`, so they
+   are recorded in `docs/plans/backend-deferred.md` together with the headless runner
+   (recommendation 2), which needs `main.cpp` and `MainWindow`.
+
+Results are identical. Every `CHECK`/`INFO` line of both scripts prints the same values, and
+`chair.fcad` and all five STL files are byte-identical before and after. `chair.step` differs
+only in its timestamp and in the order of the style entities, which also differs between two
+runs of the old build. All 57 ctest entries pass, including `fabricad_chair_spec`.

@@ -31,6 +31,9 @@ namespace fabricad::part::test {
 
 class TestSketch : public core::Feature, public core::IProfileSource {
  public:
+  // like sketch::SketchFeature: component-local geometry, no placement side effects
+  bool affectsPlacements() const override { return false; }
+  bool readsPlacements() const override { return false; }
   struct Rect {
     double x0, y0, x1, y1;
   };

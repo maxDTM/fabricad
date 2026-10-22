@@ -27,7 +27,34 @@ void addOperationProperties(core::Feature& f, Operation def) {
       .setTooltip("Bodies that take part in the operation (empty = every body the tool touches)");
 }
 
+void PartFeature::adoptPrecomputed(Outcome out, std::vector<std::string> warnings,
+                                   std::map<core::ObjectId, TopoDS_Shape> inputState) {
+  precomputed_ = Precomputed{std::move(out), std::move(warnings), std::move(inputState), scopeProbes_, scopeOpaque_};
+}
+
+namespace {
+bool sameState(const std::map<core::ObjectId, TopoDS_Shape>& a, const std::map<core::ObjectId, TopoDS_Shape>& b) {
+  if (a.size() != b.size()) return false;
+  for (auto i = a.begin(), j = b.begin(); i != a.end(); ++i, ++j)
+    if (i->first != j->first || !i->second.IsEqual(j->second)) return false;
+  return true;
+}
+}  // namespace
+
 void PartFeature::recompute(core::RecomputeContext& ctx) {
+  placementsWritten_ = false;
+  if (precomputed_) {
+    Precomputed pc = std::move(*precomputed_);
+    precomputed_.reset();
+    if (sameState(pc.input, ctx.state())) {
+      // the same computation already ran for the preview: commit its result
+      for (const std::string& w : pc.warnings) ctx.setWarning(w);
+      scopeProbes_ = std::move(pc.scopeProbes);
+      scopeOpaque_ = pc.scopeOpaque;
+      commit(ctx, pc.out);
+      return;
+    }
+  }
   Outcome out;
   try {
     compute(ctx, out);
@@ -50,6 +77,7 @@ void PartFeature::commit(core::RecomputeContext& ctx, const Outcome& out) {
   for (const auto& [comp, placement] : out.placements) {
     core::Component* c = ctx.document().component(comp);
     if (!c) continue;
+    placementsWritten_ = true;
     c->placement = placement;
     ctx.document().notifyComponentChanged(comp);
   }

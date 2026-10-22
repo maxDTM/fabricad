@@ -359,6 +359,7 @@ bool volumeChanged(double v0, double v1, double relTol) {
 }
 
 std::vector<core::ObjectId> bodiesInScope(core::RecomputeContext& ctx) {
+  ctx.self().noteScopeOpaque();  // a use of the scope that no probe describes
   return bodiesInComponentTree(ctx.document(), ctx.self().component(), ctx.bodies());
 }
 
@@ -376,7 +377,10 @@ std::vector<core::ObjectId> participants(core::RecomputeContext& ctx, const Topo
     }
     return out;
   }
-  for (core::ObjectId id : bodiesInScope(ctx))
+  // recorded so that re-homing the feature to another component (Delete Component) can tell
+  // whether the larger scope would change the participants (assembly/ComponentOps.cpp)
+  ctx.self().noteScopeProbe(tool);
+  for (core::ObjectId id : bodiesInComponentTree(ctx.document(), ctx.self().component(), ctx.bodies()))
     if (shapesTouch(ctx.bodyShape(id), tool)) out.push_back(id);
   return out;
 }
