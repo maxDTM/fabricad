@@ -322,6 +322,9 @@ class EditCalloutTool : public DrawingToolBase {
  private:
   /// Revision tables (DRW-ASM-OUTPUT-5): a form per row instead of the key=value field.
   QWidget* createRevisionForm(QWidget* parent, const RevisionTable& t);
+  /// Feature control frames (DRW-VIEWS-ANNOT-16): characteristic picker and fields for the
+  /// first row; the key=value field stays for the rest (row2, leader, above/below).
+  void addFrameFields(QWidget* w, class QFormLayout* form, const FeatureControlFrame& f);
   void loadRevisionRow();
   void storeRevisionRow();
   core::ObjectId id_ = core::kInvalidId;

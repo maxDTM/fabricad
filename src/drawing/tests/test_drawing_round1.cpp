@@ -16,6 +16,7 @@
 #include "drawing/DrawingWorkspaceWidget.h"
 #include "drawing/SectionCut.h"
 #include "drawing/SheetRenderer.h"
+#include "drawing/tools/DrawingTools.h"
 #include "assembly/AssemblyModule.h"
 #include "part/PartModule.h"
 #include "sketch/SketchModule.h"
@@ -628,6 +629,23 @@ class Round1Test : public QObject {
     QCOMPARE(titleBlockValues(*fx.model, s)["Scale"], std::string("1:2"));
     fx.base(ViewOrientation::Front, {150, 140}, 1.0);
     QCOMPARE(titleBlockValues(*fx.model, s)["Scale"], std::string("1:1"));
+  }
+
+  void oneSheetExportsNameTheSheet() {  // DRW-ASM-OUTPUT-8
+    ToolFixture fx;
+    auto* svg = dynamic_cast<ExportTool*>(fx.tools.tool("drawing.export-svg"));
+    auto* pdf = dynamic_cast<ExportTool*>(fx.tools.tool("drawing.export-pdf"));
+    QVERIFY(svg && pdf);
+    core::ToolContext ctx = fx.manager->makeContext();
+    QVERIFY(svg->suggestedExportName(ctx).find("Sheet") == std::string::npos);  // one sheet: plain name
+    QVERIFY(fx.manager->run("drawing.new-sheet"));
+    ctx = fx.manager->makeContext();
+    const std::string name = svg->suggestedExportName(ctx);
+    QVERIFY2(name.size() > 7 && name.substr(name.size() - 7) == "-Sheet2", name.c_str());
+    QVERIFY(pdf->suggestedExportName(ctx).find("Sheet2") == std::string::npos);  // PDF holds all sheets
+    QTemporaryDir dir;
+    QVERIFY(fx.manager->run("drawing.export-svg", {(dir.path() + "/x.svg").toStdString()}));
+    QVERIFY(fx.messaged("only"));
   }
 
   void dxfHeaderHasExtents() {  // DRW-ASM-OUTPUT-9

@@ -12,6 +12,7 @@
 #include "drawing/SheetRenderer.h"
 #include "drawing/tools/ViewTools.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDate>
 #include <QFormLayout>
@@ -1313,6 +1314,41 @@ bool EditCalloutTool::commandLineInput(core::ToolContext& ctx, const std::string
   return any;
 }
 
+void EditCalloutTool::addFrameFields(QWidget* w, QFormLayout* form, const FeatureControlFrame& f) {
+  const FcfRow& row = f.rows.front();
+  auto* chr = new QComboBox(w);
+  for (GdtCharacteristic c : gdtCharacteristics()) {
+    chr->addItem(QString::fromStdString(gdtCharacteristicName(c)), QString::fromStdString(gdtCharacteristicName(c)));
+    if (c == row.characteristic) chr->setCurrentIndex(chr->count() - 1);
+  }
+  form->addRow(tr("Characteristic"), chr);
+  auto* tol = new QLineEdit(QString::number(row.tolerance), w);
+  form->addRow(tr("Tolerance"), tol);
+  auto* dia = new QCheckBox(tr("\u00D8 zone"), w);
+  dia->setChecked(row.diameterZone);
+  form->addRow(QString(), dia);
+  auto* mod = new QComboBox(w);
+  for (GdtModifier mm : {GdtModifier::None, GdtModifier::MMC, GdtModifier::LMC, GdtModifier::FreeState, GdtModifier::TangentPlane,
+                         GdtModifier::ProjectedZone}) {
+    mod->addItem(QString::fromStdString(gdtModifierName(mm)), QString::fromStdString(gdtModifierName(mm)));
+    if (mm == row.modifier) mod->setCurrentIndex(mod->count() - 1);
+  }
+  form->addRow(tr("Modifier"), mod);
+  std::string datums;
+  for (const auto& d : row.datums) datums += (datums.empty() ? "" : " ") + d.letter;
+  auto* dat = new QLineEdit(QString::fromStdString(datums), w);
+  dat->setPlaceholderText(tr("A B C"));
+  form->addRow(tr("Datums"), dat);
+  auto apply = [this](const std::string& k, const QString& v) {
+    if (ctx_) applySetting(*ctx_, k, v.toStdString());
+  };
+  connect(chr, &QComboBox::currentIndexChanged, this, [apply, chr](int) { apply("characteristic", chr->currentData().toString()); });
+  connect(mod, &QComboBox::currentIndexChanged, this, [apply, mod](int) { apply("modifier", mod->currentData().toString()); });
+  connect(tol, &QLineEdit::editingFinished, this, [apply, tol]() { apply("tolerance", tol->text()); });
+  connect(dia, &QCheckBox::toggled, this, [apply](bool on) { apply("dia", on ? "1" : "0"); });
+  connect(dat, &QLineEdit::editingFinished, this, [apply, dat]() { apply("datums", dat->text()); });
+}
+
 QWidget* EditCalloutTool::createRevisionForm(QWidget* parent, const RevisionTable& t) {
   auto* w = new QWidget(parent);
   auto* form = new QFormLayout(w);
@@ -1374,6 +1410,11 @@ QWidget* EditCalloutTool::createDialog(core::ToolContext& ctx, QWidget* parent) 
   }
   auto* w = new QWidget(parent);
   auto* form = new QFormLayout(w);
+  {
+    DrawingModel* m = model(ctx);
+    Sheet* s = m ? m->sheetOf(id_) : nullptr;
+    if (const FeatureControlFrame* f = s ? s->callouts.featureFrame(id_) : nullptr) addFrameFields(w, form, *f);
+  }
   edit_ = new QLineEdit(w);
   edit_->setPlaceholderText(tr("key=value; key=value"));
   form->addRow(tr("Settings"), edit_);
