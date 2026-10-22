@@ -286,6 +286,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost, public A
   void applyToolbarArea();     ///< ui/toolbarArea: top | left | right (vertical MainToolbar)
   void applyQuickToolbar();    ///< ui/quickToolbar: off | left | right (into the active viewport)
   QuickToolbar* ensureQuickToolbar();
+  void scheduleSidebarCardRefit();
   /// The quick toolbar's OverlayLayout item when it is shown in `viewport`.
   void addQuickToolbarItem(viewer::OverlayLayout& l, QWidget* viewport) const;
   /// ui/timelineStyle: FEATURES list in the sidebar or the bottom strip.

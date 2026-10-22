@@ -488,6 +488,16 @@ class TestAppLogic : public QObject {
     QCOMPARE(rf.list().front(), QString("/tmp/c.fcad"));
   }
 
+  void recentFileLabels() {
+    // functional DOC-11: same-named files get as many folders as tell them apart
+    const QStringList paths = {"/x/a/chair/chair.fcad", "/y/b/chair/chair.fcad", "/x/bracket.fcad", "/z/chair/seat.fcad"};
+    QCOMPARE(app::RecentFiles::labels(paths),
+             (QStringList{"chair.fcad (a/chair)", "chair.fcad (b/chair)", "bracket.fcad", "seat.fcad"}));
+    QCOMPARE(app::RecentFiles::labels({"/p/one.fcad", "/q/one.fcad"}), (QStringList{"one.fcad (p)", "one.fcad (q)"}));
+    QCOMPARE(app::RecentFiles::labels({"/only.fcad"}), QStringList{"only.fcad"});
+    QVERIFY(app::RecentFiles::labels({}).isEmpty());
+  }
+
   void uiStateRoundTrip() {
     app::UiState s;
     s.hiddenFeatures = {17, 42};

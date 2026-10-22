@@ -158,6 +158,7 @@ void QuickToolbar::rebuild(core::Workspace ws, bool sketching) {
     buttons_.push_back(b);
   }
   finish_->setVisible(sketching);
+  if (maxHeight_ < QWIDGETSIZE_MAX) fitToHeight(maxHeight_);
   refreshStates();
   adjustSize();
 }
@@ -189,8 +190,22 @@ void QuickToolbar::refreshStates() {
   }
 }
 
+int QuickToolbar::visibleToolCount() const {
+  int n = 0;
+  for (const QToolButton* b : buttons_) n += b->isVisibleTo(this) ? 1 : 0;
+  return n;
+}
+
+QSize QuickToolbar::fitToHeight(int maxHeight) {
+  maxHeight_ = maxHeight;
+  const int fixed = 2 * kGap + 1 + kGap + (1 + (sketching_ ? 1 : 0)) * (kButton + kGap);  // margins, rule, repeat, finish
+  const int room = std::max(0, (maxHeight - fixed) / (kButton + kGap));
+  for (size_t i = 0; i < buttons_.size(); ++i) buttons_[i]->setVisible(static_cast<int>(i) < room);
+  return sizeHint();
+}
+
 QSize QuickToolbar::sizeHint() const {
-  int n = 1 + static_cast<int>(buttons_.size()) + (finish_->isVisibleTo(this) ? 1 : 0);
+  const int n = 1 + visibleToolCount() + (finish_->isVisibleTo(this) ? 1 : 0);
   return QSize(kWidth, 2 * kGap + n * kButton + n * kGap + 1);
 }
 

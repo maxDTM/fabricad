@@ -393,14 +393,7 @@ void MainWindow::buildUi() {
   });
   // a sidebar card floats while the window is too short for it and docks again when it grows
   // (p2p3-check 2); coalesced, a window drag sends many resizes
-  connect(sidebar_, &SidebarHost::heightChanged, this, [this](int) {
-    if (sidebarRefitPending_) return;
-    sidebarRefitPending_ = true;
-    QTimer::singleShot(0, this, [this] {
-      sidebarRefitPending_ = false;
-      if (dialog_ && dialog_->requestedPlacement() == viewer::CardPlacement::Sidebar) dialog_->reposition();
-    });
-  });
+  connect(sidebar_, &SidebarHost::heightChanged, this, [this](int) { scheduleSidebarCardRefit(); });
   addDockWidget(Qt::LeftDockWidgetArea, browserDock_);
   resizeDocks({browserDock_}, {SidebarHost::kDefaultWidth}, Qt::Horizontal);
   connect(sidebar_, &SidebarHost::masterEyeRequested, this, [this] {
@@ -1615,9 +1608,14 @@ void MainWindow::addQuickToolbarItem(viewer::OverlayLayout& l, QWidget* viewport
   if (!quick_ || !viewport || quick_->parentWidget() != viewport || quick_->isHidden()) return;
   viewer::OverlayLayout::Item it;
   it.slot = viewer::OverlayLayout::Slot::QuickToolbar;
-  const QSize hint = quick_->sizeHint();
-  it.size = QSize(hint.width(), std::min(hint.height(), std::max(QuickToolbar::kButton, viewport->height() - 32)));
   it.right = quick_->property("side").toString() != "left";
+  // a short viewport: the strip starts below the orientation widget on the right (6.3) and
+  // shows fewer tools rather than running off the bottom
+  const int margin = l.options().margin;
+  int top = margin;
+  if (auto* v = qobject_cast<viewer::ViewerWidget*>(viewport); v && it.right)
+    if (const QRect cube = v->viewCubeRect(); !cube.isEmpty()) top = cube.bottom() + l.options().gap + 1;
+  it.size = quick_->fitToHeight(viewport->height() - margin - top);
   l.add(it);
 }
 
@@ -2290,6 +2288,18 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
 void MainWindow::resizeEvent(QResizeEvent* e) {
   QMainWindow::resizeEvent(e);
   applyResponsiveChrome();
+  if (e->oldSize().height() != e->size().height()) scheduleSidebarCardRefit();
+}
+
+void MainWindow::scheduleSidebarCardRefit() {
+  // a sidebar card floats while the window is too short for it and docks again when it grows
+  // (p2p3-check 2); coalesced, a window drag sends many resizes
+  if (sidebarRefitPending_) return;
+  sidebarRefitPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    sidebarRefitPending_ = false;
+    if (dialog_ && dialog_->requestedPlacement() == viewer::CardPlacement::Sidebar) dialog_->reposition();
+  });
 }
 
 void MainWindow::applyResponsiveChrome() {

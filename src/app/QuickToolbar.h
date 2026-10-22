@@ -60,6 +60,11 @@ class QuickToolbar : public QFrame {
   void refreshStates();
   const std::vector<std::string>& toolIds() const { return ids_; }
   bool isSketching() const { return sketching_; }
+  /// Fit a short viewport: the last tool buttons hide until the strip is at most `maxHeight`
+  /// (repeat and Finish Sketch stay). Returns the resulting size.
+  QSize fitToHeight(int maxHeight);
+  /// Tool buttons shown now (after fitToHeight).
+  int visibleToolCount() const;
   QSize sizeHint() const override;
 
  signals:
@@ -78,6 +83,7 @@ class QuickToolbar : public QFrame {
   core::Workspace ws_ = core::Workspace::Design;
   bool sketching_ = false;
   bool built_ = false;
+  int maxHeight_ = QWIDGETSIZE_MAX;
 };
 
 }  // namespace fabricad::app

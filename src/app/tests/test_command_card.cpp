@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/CardSlot.h"
 #include "app/CommandCard.h"
+#include "app/FeatureListWidget.h"
 #include "app/MainWindow.h"
 #include "app/ScriptRunner.h"
 #include "app/SegmentedControl.h"
@@ -230,6 +231,69 @@ class TestCommandCard : public QObject {
     settle();
     QVERIFY(!card()->isDocked());
     QVERIFY(!slot->isVisible());
+  }
+
+  void dockedCardFitsShortWindows() {
+    // p2p3-check 2/3: docking never grows the window, Apply / Cancel stay visible (the body
+    // scrolls), and a sidebar too short for the card makes it float without changing the setting
+    const QSize old = w_->size();
+    setPlacement("sidebar");
+    w_->resize(1200, 640);
+    settle();
+    present();
+    settle();
+    QVERIFY(card()->isDocked());
+    QVERIFY2(w_->height() <= 640, qPrintable(QString::number(w_->height())));
+    auto* dock = w_->findChild<QDockWidget*>("BrowserDock");
+    QVERIFY(dock);
+    const QRect dockRect(dock->mapTo(w_.get(), QPoint(0, 0)), dock->size());
+    QPushButton* ok = card()->okButton();
+    QVERIFY(ok->isVisible());
+    const QRect okRect(ok->mapTo(w_.get(), QPoint(0, 0)), ok->size());
+    QVERIFY2(dockRect.contains(okRect), qPrintable(QString("%1,%2 %3x%4").arg(okRect.x()).arg(okRect.y()).arg(okRect.width()).arg(okRect.height())));
+    // the docked card's minimum is small: chrome plus a few body rows
+    QVERIFY(card()->minimumHeight() <= card()->dockedMinimumHeight());
+    if (qEnvironmentVariableIsSet("FABRICAD_DEBUG_DOCK")) {
+      auto* sb = w_->findChild<QWidget*>("CardSlot")->parentWidget()->parentWidget();
+      qInfo() << "sidebar" << sb->height() << "minHint" << sb->minimumSizeHint() << "dock min" << dock->minimumSizeHint()
+              << "card min" << card()->minimumHeight() << card()->dockedMinimumHeight() << "slot max" << card()->slotHost()->cardSlotMaxHeight()
+              << "window min" << w_->minimumSizeHint();
+      for (QWidget* c : sb->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly)) qInfo() << c->objectName() << c->minimumSizeHint() << c->height();
+    }
+    // a window too short for the card: it floats, the setting stays
+    w_->resize(1200, 400);
+    settle();
+    settle();
+    QVERIFY2(w_->height() <= 480, qPrintable(QString::number(w_->height())));
+    QVERIFY(!card()->isDocked());
+    QCOMPARE(ui().string("ui/cardPlacement"), QString("sidebar"));
+    // tall again: back in the sidebar
+    w_->resize(old);
+    settle();
+    settle();
+    QVERIFY(card()->isDocked());
+    w_->toolManager().cancel();
+    settle();
+  }
+
+  void enterInFeatureListAppliesTheCommand() {
+    // p2p3-check 1: with a command running, Enter in the FEATURES list applies the command; it
+    // does not open the list's current feature for editing
+    QVERIFY(w_->newDocument());
+    settle();
+    QCOMPARE(run({"SKETCH XY", "RECT", "0,0", "40,30", "FINISH", "SELECT profile:@20,15,0", "EXTRUDE 10"}), 0);
+    settle();
+    QCOMPARE(QString::fromStdString(w_->toolManager().activeToolId()), QString("part.extrude"));
+    app::FeatureListWidget* list = w_->featureList();
+    QVERIFY(list);
+    list->setFocus();
+    QTest::keyClick(list, Qt::Key_Return);
+    settle();
+    QVERIFY(!w_->toolManager().isActive());
+    QCOMPARE(w_->document().bodies().size(), size_t(1));
+    // without a command, Enter in the list keeps its own meaning (edit the current feature)
+    QVERIFY(app::FeatureListWidget::handlesKey(Qt::Key_Return, 0));
+    w_->document().setModified(false);
   }
 
   // ---- drag to move (6.4) -------------------------------------------------------------------
