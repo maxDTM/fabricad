@@ -3,6 +3,7 @@
 #include "app/HeadlessHost.h"
 
 #include "app/AppActions.h"
+#include "app/AppState.h"
 #include "app/AppTools.h"
 #include "app/DocumentTab.h"
 #include "app/PreferencesDialog.h"
@@ -11,6 +12,7 @@
 #include "core/Document.h"
 #include "core/Feature.h"
 #include "core/Json.h"
+#include "core/Log.h"
 #include "core/Registry.h"
 #include "core/Selection.h"
 #include "core/UndoStack.h"
@@ -95,9 +97,32 @@ int HeadlessHost::addTab(std::shared_ptr<core::Document> doc, bool drawing) {
   t->manager->setDocument(t->doc.get());
   if (!drawing) {
     t->viewer = std::make_unique<core::NullViewerContext>();
+    const UiState defaults;  // the window's view defaults (shaded with edges, orthographic)
+    t->viewer->setDisplayMode(defaults.displayMode);
+    t->viewer->setProjection(defaults.projection);
     t->manager->setViewer(t->viewer.get());
   }
   t->manager->setHost(this);
+  if (!drawing) {
+    // the per-document view state travels with the file as in the window (MainWindow::storeUiState),
+    // so a design saved by a script opens the same way; the headless "view" is the null context
+    core::NullViewerContext* v = t->viewer.get();
+    core::Document* d = t->doc.get();
+    connect(d, &core::Document::aboutToSave, this, [d, v] {
+      UiState s;
+      for (int i = 0; i < d->featureCount(); ++i)
+        if (const core::Feature* f = d->featureAt(i); f && v->isFeatureHidden(f->id())) s.hiddenFeatures.insert(f->id());
+      s.displayMode = v->displayMode();
+      s.projection = v->projection();
+      d->setExtensionData("ui", s.toJson());
+    });
+    connect(d, &core::Document::loaded, this, [d, v] {
+      const UiState s = UiState::fromJson(d->extensionData("ui"));
+      for (core::ObjectId id : s.hiddenFeatures) v->setFeatureHidden(id, true);
+      v->setDisplayMode(s.displayMode);
+      v->setProjection(s.projection);
+    });
+  }
   core::ToolManager* m = t->manager.get();
   connect(m, &core::ToolManager::toolActivated, this, [this](const std::string&) { acceptEnabled_ = true; });
   connect(m, &core::ToolManager::promptChanged, this, [this](const std::string& p) { prompt_ = p; });
@@ -153,6 +178,9 @@ void HeadlessHost::setWorkspace(core::Workspace ws) {
 }
 
 void HeadlessHost::showMessage(const std::string& text, core::MessageLevel level) {
+  // stderr gets warnings and errors as from the window (MainWindow::showMessage)
+  if (level == core::MessageLevel::Error) FC_ERROR("{}", text);
+  else if (level == core::MessageLevel::Warning) FC_WARN("{}", text);
   if (sink_) sink_(static_cast<int>(level), QString::fromStdString(text));
 }
 
