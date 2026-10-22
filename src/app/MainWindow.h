@@ -219,6 +219,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void updateTitle();
   void updateUndoButtons();
   void updateSelectionStatus();
+  void scheduleSelectionStatus();
   void updateSketchStatus();
   void scheduleStateRefresh();
   void applyUiState(DocumentTab& tab);
@@ -275,6 +276,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   bool interactive_ = true;
   bool acceptEnabled_ = true;
   bool stateRefreshPending_ = false;
+  bool selectionStatusPending_ = false;  ///< coalesces rename/recompute -> status label
   bool glEnabled_ = false;        ///< initializeViewer() was called: new tabs get a GL view too
   bool browserDockWanted_ = true; ///< user's dock visibility (hidden automatically in drawing tabs)
   bool switchingTabs_ = false;

@@ -14,6 +14,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MainWindow.h"
 #include "app/ScriptRunner.h"
+#include "app/Theme.h"
 #include "drawing/DrawingWorkspaceWidget.h"
 #include "viewer/ViewerWidget.h"
 
@@ -23,8 +24,6 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
-#include <QFile>
-#include <QStyleFactory>
 #include <QTimer>
 
 #include <cstdio>
@@ -131,10 +130,12 @@ int main(int argc, char** argv) {
   QApplication::setApplicationName("FabriCAD");
   QApplication::setOrganizationName("FabriCAD");
   QApplication::setApplicationVersion("0.1.0");
+  // Qt's own file/colour dialogs follow the application palette; the GTK portal dialog would
+  // follow the (possibly dark) desktop theme instead.
+  QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
   QApplication app(argc, argv);
   mark("QApplication");
-  app.setStyle(QStyleFactory::create("Fusion"));
-  if (QFile qss(":/theme-light.qss"); qss.open(QIODevice::ReadOnly)) app.setStyleSheet(QString::fromUtf8(qss.readAll()));
+  fabricad::app::applyLightTheme(app);  // explicit light palette + QSS (the desktop theme may be dark)
   app.setWindowIcon(QIcon(":/icons/fabricad.svg"));
 
   // Drawing workspace central widget (created lazily on the first switch to DRAWING).

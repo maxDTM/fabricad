@@ -8,9 +8,12 @@
 //   |              [ OK ] [Cancel]   |  (when ITool::wantsDialogButtons())
 //   +--------------------------------+
 //
-// The frame is a child of the viewport (overlay, right edge, below the ViewCube); the
-// viewport stays interactive. Enter -> accepted(), Esc -> cancelled() (Enter is ignored
-// inside multi-line editors and while OK is disabled).
+// The frame is a child of the viewport (overlay docked at the top-left, next to the browser,
+// like Fusion; the ViewCube at the top-right stays free); the viewport stays interactive.
+// Its size is stable while a command runs: it may grow (a longer message, more rows) but
+// never shrinks until the next present(). Tall bodies scroll (height capped).
+// Enter -> accepted(), Esc -> cancelled() (Enter is ignored inside multi-line editors and
+// while OK is disabled).
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
@@ -20,6 +23,7 @@
 
 class QLabel;
 class QPushButton;
+class QScrollArea;
 class QVBoxLayout;
 
 namespace fabricad::app {
@@ -51,10 +55,16 @@ class CommandDialog : public QFrame {
   bool eventFilter(QObject* o, QEvent* e) override;
 
  private:
+  /// Fit the scroll area to the body (capped) and apply the stable height.
+  void relayout();
+  /// Default dock position or the user's position, kept inside the viewport.
+  void place();
   QWidget* viewport_;
   QWidget* title_ = nullptr;
   QLabel* titleIcon_ = nullptr;
   QLabel* titleText_ = nullptr;
+  QScrollArea* scroll_ = nullptr;
+  QWidget* inner_ = nullptr;  ///< scroll area content; holds bodyLayout_
   QVBoxLayout* bodyLayout_ = nullptr;
   QPointer<QWidget> body_;
   QLabel* message_ = nullptr;
@@ -63,6 +73,8 @@ class CommandDialog : public QFrame {
   QPushButton* cancel_ = nullptr;
   bool acceptEnabled_ = true;
   bool userMoved_ = false;
+  bool relayoutPending_ = false;
+  int stableHeight_ = 0;  ///< height since present(); only grows
   QPoint dragOffset_;
   bool dragging_ = false;
 };

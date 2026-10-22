@@ -93,7 +93,7 @@ void NavBar::runTool(const char* id) {
 
 QMenu* NavBar::buildDisplayMenu() {
   auto* m = new QMenu(this);
-  m->addSection("Visual Style");
+  addMenuHeader(m, "Visual Style");
   auto* styles = new QActionGroup(m);
   const std::pair<const char*, core::DisplayMode> modes[] = {{"Shaded", core::DisplayMode::Shaded},
                                                              {"Shaded with Visible Edges", core::DisplayMode::ShadedEdges},
@@ -106,7 +106,7 @@ QMenu* NavBar::buildDisplayMenu() {
     styles->addAction(a);
     connect(a, &QAction::triggered, this, [this, mode = mode] { viewer_.setDisplayMode(mode); });
   }
-  m->addSection("Camera");
+  addMenuHeader(m, "Camera");
   auto* proj = new QActionGroup(m);
   for (auto [name, mode] : {std::pair{"Orthographic", core::ProjectionMode::Orthographic},
                             std::pair{"Perspective", core::ProjectionMode::Perspective}}) {
@@ -116,7 +116,7 @@ QMenu* NavBar::buildDisplayMenu() {
     proj->addAction(a);
     connect(a, &QAction::triggered, this, [this, mode] { viewer_.setProjection(mode); });
   }
-  m->addSection("Object Visibility");
+  addMenuHeader(m, "Object Visibility");
   auto vis = [&](const char* name, const char* key, auto get, auto set) {
     QAction* a = m->addAction(name);
     a->setCheckable(true);
@@ -142,7 +142,7 @@ QMenu* NavBar::buildGridMenu() {
   QAction* snap = m->addAction("Snap to Grid");
   snap->setCheckable(true);
   connect(snap, &QAction::toggled, this, [this](bool on) { viewer_.setGridSnap(on, 0.0); });
-  m->addSection("Grid Spacing");
+  addMenuHeader(m, "Grid Spacing");
   auto* spacing = new QActionGroup(m);
   for (double s : {0.0, 1.0, 2.0, 5.0, 10.0, 25.0}) {
     QAction* a = m->addAction(s == 0.0 ? QString("Adaptive") : QString("%1 mm").arg(s));
@@ -162,7 +162,7 @@ QMenu* NavBar::buildGridMenu() {
 QMenu* NavBar::buildViewsMenu() {
   auto* m = new QMenu(this);
   const std::pair<const char*, core::StandardView> views[] = {
-      {"Home\tHome", core::StandardView::Home}, {"Front\tCtrl+1", core::StandardView::Front},
+      {"Home View\tHome", core::StandardView::Home}, {"Front\tCtrl+1", core::StandardView::Front},
       {"Back\tCtrl+2", core::StandardView::Back}, {"Left\tCtrl+3", core::StandardView::Left},
       {"Right\tCtrl+4", core::StandardView::Right}, {"Top\tCtrl+5", core::StandardView::Top},
       {"Bottom\tCtrl+6", core::StandardView::Bottom}, {"Isometric\tCtrl+7", core::StandardView::Iso}};
@@ -176,7 +176,7 @@ QMenu* NavBar::buildViewsMenu() {
 
 QMenu* NavBar::buildNavMenu() {
   auto* m = new QMenu(this);
-  m->addSection("Pan, Zoom, Orbit Shortcuts");
+  addMenuHeader(m, "Pan, Zoom, Orbit Shortcuts");
   auto* presets = new QActionGroup(m);
   for (NavPreset p : {NavPreset::Fusion, NavPreset::SolidWorks, NavPreset::AutoCAD, NavPreset::Inventor}) {
     QAction* a = m->addAction(viewer::navPresetName(p));

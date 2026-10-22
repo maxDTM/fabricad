@@ -17,6 +17,9 @@
 
 #include <string>
 
+class QAction;
+class QMenu;
+
 namespace fabricad::core {
 struct ToolInfo;
 class Feature;
@@ -42,5 +45,11 @@ QString featureIconPath(const std::string& iconName, const std::string& type, co
 QString badgeText(const QString& label);
 /// Stable accent colour for a name (used by generated badges and timeline cells).
 QColor badgeColor(const QString& key);
+
+/// A bold, non-interactive section header row in `menu` (QMenu::addSection draws a bare
+/// separator under the stylesheet style). Preceded by a separator unless it is the first
+/// row. The action is disabled, not checkable and has no data, so loops over a menu's
+/// checkable/data actions skip it.
+QAction* addMenuHeader(QMenu* menu, const QString& text);
 
 }  // namespace fabricad::app

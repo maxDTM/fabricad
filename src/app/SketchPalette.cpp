@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QGridLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -35,17 +36,30 @@ SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& ma
   v->setContentsMargins(0, 0, 0, 8);
   v->setSpacing(3);
   auto* title = new QWidget(this);
+  title_ = title;
   title->setObjectName("CommandDialogTitle");
   title->setAttribute(Qt::WA_StyledBackground);
+  title->setCursor(Qt::SizeAllCursor);
+  title->setToolTip("Drag to move; double-click to dock at the right");
+  title->installEventFilter(this);
   auto* th = new QHBoxLayout(title);
-  th->setContentsMargins(8, 5, 8, 5);
+  th->setContentsMargins(8, 5, 4, 5);
   auto* ti = new QLabel(title);
   ti->setPixmap(resourceIcon("sketch").pixmap(16, 16));
   th->addWidget(ti);
   th->addWidget(new QLabel("SKETCH PALETTE", title), 1);
+  collapse_ = new QToolButton(title);
+  collapse_->setObjectName("PaletteCollapse");
+  collapse_->setAutoRaise(true);
+  collapse_->setFocusPolicy(Qt::NoFocus);
+  collapse_->setIconSize(QSize(10, 10));
+  collapse_->setCursor(Qt::ArrowCursor);
+  connect(collapse_, &QToolButton::clicked, this, [this] { setCollapsed(!collapsed_); });
+  th->addWidget(collapse_);
   v->addWidget(title);
 
   auto* opts = new QWidget(this);
+  opts_ = opts;
   auto* ov = new QVBoxLayout(opts);
   ov->setContentsMargins(10, 2, 10, 2);
   ov->setSpacing(2);
@@ -107,7 +121,66 @@ SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& ma
   connect(grid_, &QCheckBox::toggled, this, [this](bool on) {
     if (!updating_) viewer_.setGridVisible(on);
   });
+  setCollapsed(false);
+  if (parentWidget()) parentWidget()->installEventFilter(this);  // keep it inside on resize
   hide();
+}
+
+void SketchPalette::setCollapsed(bool collapsed) {
+  collapsed_ = collapsed;
+  // hiding keeps the check states the tools and the session read
+  opts_->setVisible(!collapsed);
+  constraintBox_->setVisible(!collapsed && hasConstraints_);
+  collapse_->setIcon(QIcon(collapsed ? ":/ui/arrow-right.svg" : ":/ui/arrow-down.svg"));
+  collapse_->setToolTip(collapsed ? "Expand the palette" : "Collapse the palette");
+  adjustSize();
+  if (isVisible()) clampToParent();
+}
+
+void SketchPalette::clampToParent() {
+  QWidget* p = parentWidget();
+  if (!p) return;
+  const int x = std::clamp(pos().x(), 0, std::max(0, p->width() - width()));
+  const int y = std::clamp(pos().y(), 0, std::max(0, p->height() - std::min(height(), p->height())));
+  move(x, y);
+}
+
+bool SketchPalette::eventFilter(QObject* o, QEvent* e) {
+  if (o == parentWidget() && e->type() == QEvent::Resize) {
+    if (isVisible()) {
+      if (userMoved_) clampToParent();
+      else move(std::max(0, parentWidget()->width() - width() - kRightMargin), pos().y());
+    }
+    return false;
+  }
+  if (o == title_) {
+    switch (e->type()) {
+      case QEvent::MouseButtonPress: {
+        auto* me = static_cast<QMouseEvent*>(e);
+        dragging_ = me->button() == Qt::LeftButton;
+        dragOffset_ = me->globalPosition().toPoint() - pos();
+        return true;
+      }
+      case QEvent::MouseMove:
+        if (dragging_) {
+          userMoved_ = true;
+          move(static_cast<QMouseEvent*>(e)->globalPosition().toPoint() - dragOffset_);
+          clampToParent();
+          return true;
+        }
+        break;
+      case QEvent::MouseButtonRelease:
+        dragging_ = false;
+        return true;
+      case QEvent::MouseButtonDblClick:
+        userMoved_ = false;
+        reposition(nullptr);
+        return true;
+      default:
+        break;
+    }
+  }
+  return QFrame::eventFilter(o, e);
 }
 
 QCheckBox* SketchPalette::option(const QString& text, const QString& tip) {
@@ -137,7 +210,8 @@ void SketchPalette::rebuildConstraintButtons() {
     constraintGrid_->addWidget(b, i / 6, i % 6);
     ++i;
   }
-  constraintBox_->setVisible(!tools.empty());
+  hasConstraints_ = !tools.empty();
+  constraintBox_->setVisible(hasConstraints_ && !collapsed_);
 }
 
 void SketchPalette::sync() {
@@ -166,13 +240,23 @@ void SketchPalette::reposition(const QWidget* above) {
   QWidget* p = parentWidget();
   if (!p) return;
   adjustSize();
-  int y = kTop;
-  if (above && above->isVisible()) y = above->geometry().bottom() + 8;
-  // not enough room below the dialog: move to the left of it instead
+  if (userMoved_) {
+    clampToParent();
+    raise();
+    return;
+  }
   int x = p->width() - width() - kRightMargin;
-  if (y + height() > p->height() - 50 && above && above->isVisible()) {
-    y = kTop;
-    x = above->geometry().left() - width() - 8;
+  int y = kTop;
+  // the command dialog docks at the left; only avoid it when it overlaps this column
+  if (above && above->isVisible()) {
+    const QRect a = above->geometry();
+    if (a.right() >= x && a.left() <= x + width() && a.top() < y + height() && a.bottom() > y) {
+      y = a.bottom() + 8;
+      if (y + height() > p->height() - 50) {  // no room below: go left of it instead
+        y = kTop;
+        x = a.left() - width() - 8;
+      }
+    }
   }
   move(std::max(0, x), std::max(0, y));
   raise();

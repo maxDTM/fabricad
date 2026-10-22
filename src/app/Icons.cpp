@@ -8,6 +8,9 @@
 #include <QFile>
 #include <QHash>
 #include <QIconEngine>
+#include <QLabel>
+#include <QMenu>
+#include <QWidgetAction>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRegularExpression>
@@ -145,5 +148,17 @@ QIcon featureIcon(const std::string& iconName, const std::string& type, const st
 }
 
 QIcon featureIcon(const core::Feature& f) { return featureIcon(f.iconName(), f.type(), f.browserFolder()); }
+
+QAction* addMenuHeader(QMenu* menu, const QString& text) {
+  if (!menu->actions().isEmpty()) menu->addSeparator();
+  auto* a = new QWidgetAction(menu);
+  auto* label = new QLabel(text, menu);
+  label->setObjectName("MenuHeader");
+  a->setDefaultWidget(label);
+  a->setText(text);
+  a->setEnabled(false);
+  menu->addAction(a);
+  return a;
+}
 
 }  // namespace fabricad::app

@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/BrowserTree.h"
 #include "app/CommandDialog.h"
+#include "app/Icons.h"
+#include "app/Theme.h"
 #include "app/CommandLine.h"
 #include "app/CommandSearch.h"
 #include "app/MainWindow.h"
@@ -29,6 +31,7 @@
 #include <QTimer>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QMenu>
 #include <QtTest>
 
 #include <set>
@@ -206,6 +209,40 @@ class TestMainWindow : public QObject {
     QCOMPARE(tool_->accepted, 2);
   }
 
+  void commandDialogDocksLeftAndKeepsSize() {
+    QVERIFY(w_->runCommand("test.dialog"));
+    settle();
+    CommandDialog* d = w_->commandDialog();
+    QVERIFY(d->isVisible());
+    QVERIFY(d->parentWidget());
+    // docked at the top-left of the viewport (UX-17), away from the ViewCube
+    QVERIFY(d->x() < d->parentWidget()->width() / 2);
+    QVERIFY(d->y() < 40);
+    const int h0 = d->height();
+    d->setMessage("A long prompt that certainly wraps onto more than one line in the fixed-width command dialog");
+    const int h1 = d->height();
+    QVERIFY(h1 >= h0);
+    d->setMessage({});
+    QCOMPARE(d->height(), h1);  // never shrinks while the same command runs
+    QVERIFY(d->body()->findChild<QLineEdit*>("dialogField"));
+    w_->toolManager().cancel();
+    settle();
+    QVERIFY(!d->isVisible());
+  }
+
+  void themeAndMenuHeaders() {
+    const QPalette p = app::lightPalette();
+    QCOMPARE(p.color(QPalette::Active, QPalette::Text), QColor("#2B2E33"));
+    QCOMPARE(p.color(QPalette::Active, QPalette::Base), QColor("#FFFFFF"));
+    QCOMPARE(p.color(QPalette::Disabled, QPalette::Text), QColor("#A9AEB5"));
+    QMenu m;
+    QAction* h = app::addMenuHeader(&m, "Camera");
+    QCOMPARE(m.actions().size(), 1);  // no leading separator
+    QVERIFY(!h->isCheckable() && !h->isEnabled() && !h->data().isValid());
+    app::addMenuHeader(&m, "More");
+    QCOMPARE(m.actions().size(), 3);  // separator + header
+  }
+
   void keysGoToToolFirst() {
     QVERIFY(w_->runCommand("test.dialog"));
     tool_->tabs = 0;
@@ -276,6 +313,13 @@ class TestMainWindow : public QObject {
     settle();
     QCOMPARE(w_->selectionText().toStdString(), doc.body(b1)->name);
     QVERIFY(w_->browser()->itemForKey(QString("body:%1").arg(b1))->isSelected());
+    // renaming the selected body refreshes the status bar (UX-20)
+    doc.undoStack().push(app::makeRenameBody(doc, b1, "Renamed Seat"));
+    settle();
+    QCOMPARE(w_->selectionText(), QString("Renamed Seat"));
+    doc.undoStack().undo();
+    settle();
+    QCOMPARE(w_->selectionText().toStdString(), doc.body(b1)->name);
     // rollback via the timeline playback buttons (undoable)
     w_->timeline()->stepBack();
     QCOMPARE(doc.rollbackIndex(), 1);

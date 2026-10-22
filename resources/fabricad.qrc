@@ -1,6 +1,11 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
   <file>theme-light.qss</file>
+  <file>ui/check.svg</file>
+  <file>ui/radio-dot.svg</file>
+  <file>ui/arrow-down.svg</file>
+  <file>ui/arrow-up.svg</file>
+  <file>ui/arrow-right.svg</file>
   <file>icons/app-cancel.svg</file>
   <file>icons/app-check.svg</file>
   <file>icons/app-close.svg</file>
