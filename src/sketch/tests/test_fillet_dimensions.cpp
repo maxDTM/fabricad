@@ -183,6 +183,17 @@ class FilletDimensionsTest : public QObject {
     auto arc = sk.fillet(l[0], sk.geometry(l[0])->midpoint(), l[1], sk.geometry(l[1])->midpoint(), 2);
     QVERIFY(arc);
     QVERIFY(sk.solve().ok());
+    // the fillet stays a small arc inside the corner (exterior angle 2 pi / n), tangent to both sides
+    auto checkArc = [&] {
+      const Geometry* a = sk.geometry(*arc);
+      QVERIFY2(near(a->sweep(), 2 * kPi / n, 1e-6), std::to_string(a->sweep()).c_str());
+      QVERIFY(a->center().length() < sk.geometry(c)->radius());
+      const Geometry* s0 = sk.geometry(l[0]);
+      const Geometry* s1 = sk.geometry(l[1]);
+      QVERIFY(near(a->start(), s0->end(), 1e-6) || near(a->end(), s0->end(), 1e-6));
+      QVERIFY(near(a->start(), s1->start(), 1e-6) || near(a->end(), s1->start(), 1e-6));
+    };
+    checkArc();
     for (int i = 2; i < n; ++i) QVERIFY(near(sk.geometry(l[i])->length(), side, 1e-6));
     // change the size: every untrimmed side follows, the polygon stays regular
     sk.constraint(rad)->value = 12;
@@ -193,6 +204,43 @@ class FilletDimensionsTest : public QObject {
     const double Rv = 12 / std::cos(kPi / n);
     QVERIFY(near(sk.geometry(l[0])->start().length(), Rv, 1e-5));
     QVERIFY(near(sk.geometry(l[1])->end().length(), Rv, 1e-5));
+    checkArc();
+  }
+
+  /// The GUI case: an unconstrained circumscribed hexagon as the Polygon tool makes it (4 DOF).
+  void filletFreeHexagon() {
+    Sketch sk;
+    const int n = 6;
+    const double R = 12;
+    std::vector<Pt2> vs;
+    for (int i = 0; i < n; ++i) vs.push_back(Pt2{20, 10} + Pt2::polar(R / std::cos(kPi / n), 2 * kPi * i / n + kPi / n - kPi / 2 + kPi / n));
+    std::vector<int> l(n);
+    for (int i = 0; i < n; ++i) l[i] = sk.addGeometry(Geometry::makeLine(vs[i], vs[(i + 1) % n]));
+    Geometry circle = Geometry::makeCircle({20, 10}, R);
+    circle.construction = true;
+    int c = sk.addGeometry(circle);
+    for (int i = 0; i < n; ++i) {
+      sk.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {l[i], PointPos::End}, .b = {l[(i + 1) % n], PointPos::Start}});
+      if (i > 0) sk.addConstraint(Constraint{.type = ConstraintType::Equal, .a = {l[0]}, .b = {l[i]}});
+      sk.addConstraint(Constraint{.type = ConstraintType::Tangent, .a = {l[i]}, .b = {c}, .internal = true});
+    }
+    QVERIFY(sk.solve().ok());
+    std::vector<Geometry> before;
+    for (int id : l) before.push_back(*sk.geometry(id));
+    for (int k = 0; k < n; ++k) {
+      Sketch s2 = sk;
+      int a = l[k], b = l[(k + 1) % n];
+      auto arc = s2.fillet(a, s2.geometry(a)->midpoint(), b, s2.geometry(b)->midpoint(), 2);
+      QVERIFY(arc);
+      QVERIFY(s2.solve().ok());
+      const Geometry* g = s2.geometry(*arc);
+      QVERIFY2(near(g->sweep(), 2 * kPi / n, 1e-6), (std::to_string(k) + " sweep " + std::to_string(g->sweep())).c_str());
+      QVERIFY2(near(g->radius(), 2, 1e-6), (std::to_string(k) + " r " + std::to_string(g->radius())).c_str());
+      for (int i = 0; i < n; ++i) {
+        if (i == k || i == (k + 1) % n) continue;
+        QVERIFY(near(s2.geometry(l[i])->start(), before[i].start(), 1e-6));
+      }
+    }
   }
 };
 
