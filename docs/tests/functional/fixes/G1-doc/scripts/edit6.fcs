@@ -1,0 +1,15 @@
+OPEN holes.fcad
+SELECT feature:Extrude2
+EDITFEATURE
+distance=-5
+OK
+LIST features
+UNDO
+LIST features
+SELECT feature:Extrude1
+EDITFEATURE
+distance=20
+OK
+LIST features
+UNDO
+LIST features

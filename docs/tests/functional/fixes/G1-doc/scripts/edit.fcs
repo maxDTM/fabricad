@@ -1,0 +1,14 @@
+OPEN plate.fcad
+SELECT feature:Hole1
+EDITFEATURE
+diameter=12
+OK
+LIST features
+SELECT feature:Extrude1
+EDITFEATURE
+distance=14
+OK
+LIST features
+UNDO
+UNDO
+LIST features

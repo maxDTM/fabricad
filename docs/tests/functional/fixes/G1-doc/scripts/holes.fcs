@@ -1,0 +1,61 @@
+SELECT plane:XY
+SKETCH
+RECT
+-40,-25
+80,50
+FINISH
+SELECT profile:@0,0,0
+EXTRUDE 10
+OK
+SELECT body:Body1/face:top@-38,-23,10
+SKETCH
+CIRCLE
+-30,-15
+6
+FINISH
+SELECT profile:@-30,-15,10
+EXTRUDE -10
+operation=Cut
+OK
+SELECT body:Body1/face:top@-38,-23,10
+SKETCH
+CIRCLE
+-15,0
+6
+FINISH
+SELECT profile:@-15,0,10
+EXTRUDE -10
+operation=Cut
+OK
+SELECT body:Body1/face:top@-38,-23,10
+SKETCH
+CIRCLE
+0,15
+6
+FINISH
+SELECT profile:@0,15,10
+EXTRUDE -10
+operation=Cut
+OK
+SELECT body:Body1/face:top@-38,-23,10
+SKETCH
+CIRCLE
+15,-15
+6
+FINISH
+SELECT profile:@15,-15,10
+EXTRUDE -10
+operation=Cut
+OK
+SELECT body:Body1/face:top@-38,-23,10
+SKETCH
+CIRCLE
+30,0
+6
+FINISH
+SELECT profile:@30,0,10
+EXTRUDE -10
+operation=Cut
+OK
+LIST features
+SAVE holes.fcad

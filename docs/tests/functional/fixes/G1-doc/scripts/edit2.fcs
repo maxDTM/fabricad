@@ -1,0 +1,9 @@
+OPEN plate.fcad
+SELECT feature:Sketch1
+EDITSKETCH
+INFO sketch:Sketch1
+DIMEDIT d1 50
+FINISH
+LIST features
+UNDO
+LIST features

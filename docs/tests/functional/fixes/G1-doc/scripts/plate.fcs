@@ -1,0 +1,24 @@
+SELECT plane:XY
+SKETCH
+RECT
+-20,-20
+40,40
+FINISH
+SELECT profile:@0,0,0
+EXTRUDE 10
+OK
+SELECT body:Body1/face:top@5,5,10
+SKETCH
+POINT
+PICK 0,0,10 nosnap
+FINISH
+SELECT point:@0,0,10
+HOLE
+diameter=6
+extentType=All
+OK
+SELECT body:Body1/edge:@0,-20,10
+FILLET 2
+OK
+LIST features
+SAVE plate.fcad

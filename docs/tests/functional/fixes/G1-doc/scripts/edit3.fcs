@@ -1,0 +1,9 @@
+OPEN holes.fcad
+SELECT feature:Sketch3
+EDITSKETCH
+INFO sketch:Sketch3
+DIMEDIT d1 10
+FINISH
+LIST features
+UNDO
+LIST features
