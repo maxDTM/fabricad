@@ -5,6 +5,7 @@
 #include "app/CommandLine.h"
 #include "app/MainWindow.h"
 #include "core/AppHost.h"
+#include "viewer/ViewerWidget.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -13,6 +14,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 
+#include <algorithm>
 #include <cstdio>
 
 namespace fabricad::app {
@@ -111,6 +113,22 @@ ScriptRunner::LineResult ScriptRunner::runLine(const QString& rawLine, int lineN
   return r;
 }
 
+void ScriptRunner::pauseAfter(const QString& command) {
+  if (options_.stepDelayMs <= 0) return;
+  if (command.startsWith("CHECK", Qt::CaseInsensitive)) return;  // checks change nothing visible
+  if (auto* v = window_.viewer()) {
+    // outside a sketch show the model from the home view (a finished sketch leaves the camera
+    // looking straight at its plane); inside a sketch keep the sketch camera
+    if (!v->inSketchMode()) v->setStandardView(core::StandardView::Home, false);
+    v->fitAll(false);
+  }
+  window_.update();
+  QElapsedTimer t;
+  t.start();
+  while (t.elapsed() < options_.stepDelayMs)
+    QCoreApplication::processEvents(QEventLoop::AllEvents, std::max<int>(1, options_.stepDelayMs - int(t.elapsed())));
+}
+
 int ScriptRunner::run() {
   results_.clear();
   log_.clear();
@@ -140,6 +158,7 @@ int ScriptRunner::run() {
             .arg(r.text.leftJustified(48))
             .arg(r.millis, 8, 'f', 1));
     for (const QString& m : r.messages) log("        " + m);
+    if (r.ok) pauseAfter(r.text);
     if (!r.ok) {
       ++errors_;
       log(QString("        line %1 failed: %2").arg(r.line).arg(r.error));

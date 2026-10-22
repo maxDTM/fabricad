@@ -32,6 +32,9 @@ class ScriptRunner : public QObject {
     QString logPath;        ///< empty: log to stdout
     bool keepGoing = false; ///< continue after a failed line
     bool quiet = false;     ///< no stdout echo when a log file is given
+    /// Pause after every command (not after CHECK lines) for this many ms while the event loop
+    /// runs, after fitting the 3D view (home view outside sketches): makes a visible run watchable / recordable. 0 = no pause.
+    int stepDelayMs = 0;
   };
   struct LineResult {
     int line = 0;           ///< 1-based line number in the script
@@ -72,6 +75,7 @@ class ScriptRunner : public QObject {
 
  private:
   void log(const QString& line);
+  void pauseAfter(const QString& command);
   void onMessage(int level, const QString& text);
 
   MainWindow& window_;

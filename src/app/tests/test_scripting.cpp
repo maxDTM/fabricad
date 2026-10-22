@@ -16,6 +16,7 @@
 #include "core/Tool.h"
 #include "core/UndoStack.h"
 
+#include <QElapsedTimer>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -117,6 +118,25 @@ class TestScripting : public QObject {
     // the undo stack has the same steps a user would have (sketch, extrude)
     QVERIFY(doc().undoStack().canUndo());
     QVERIFY(!w_->toolManager().isActive());
+    r->deleteLater();
+  }
+
+  void stepDelayPausesAfterEachCommand() {
+    // default: no pause at all
+    QCOMPARE(app::ScriptRunner::Options{}.stepDelayMs, 0);
+    app::ScriptRunner::Options o;
+    o.stepDelayMs = 40;
+    app::ScriptRunner* r = nullptr;
+    QElapsedTimer t;
+    t.start();
+    QCOMPARE(run(kBoxScript, o, &r), 0);
+    const qint64 elapsed = t.elapsed();
+    // 9 commands, of which one CHECK (no pause): at least 8 pauses
+    QCOMPARE(r->commandCount(), 9);
+    QVERIFY2(elapsed >= 8 * 40, qPrintable(QString("elapsed %1 ms").arg(elapsed)));
+    // the pause is not counted in the per-command timings
+    QVERIFY(r->totalMillis() < elapsed);
+    QCOMPARE(doc().liveBodies().size(), size_t(1));
     r->deleteLater();
   }
 

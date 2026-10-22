@@ -11,6 +11,7 @@
 //                         after failures, --stay leaves the window open afterwards
 //   --offscreen           headless (QT_QPA_PLATFORM=offscreen, no 3D view)
 //   --log <file>          write the script log there (default: stdout); --quiet: no stdout copy
+//   --step-delay <ms>     pause (repaint + fit the view) after every command, to watch a run
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MainWindow.h"
 #include "app/ScriptRunner.h"
@@ -26,7 +27,9 @@
 #include <QElapsedTimer>
 #include <QTimer>
 
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace {
@@ -37,6 +40,7 @@ struct CommandLineOptions {
   QStringList files;
   bool offscreen = false;
   bool stay = false;
+  int stepDelay = 0;
   bool keepGoing = false;
   bool quiet = false;
   bool help = false;
@@ -60,6 +64,8 @@ CommandLineOptions parseOptions(int argc, char** argv) {
       if (const char* v = value(a)) o.log = QString::fromLocal8Bit(v);
     } else if (std::strcmp(a, "--offscreen") == 0 || std::strcmp(a, "--headless") == 0) {
       o.offscreen = true;
+    } else if (std::strcmp(a, "--step-delay") == 0) {
+      if (const char* v = value(a)) o.stepDelay = std::max(0, std::atoi(v));
     } else if (std::strcmp(a, "--stay") == 0) {
       o.stay = true;
     } else if (std::strcmp(a, "--keep-going") == 0 || std::strcmp(a, "-k") == 0) {
@@ -79,12 +85,13 @@ CommandLineOptions parseOptions(int argc, char** argv) {
 }
 
 void printUsage() {
-  std::fputs("usage: fabricad [--script file.fcs [--offscreen] [--log out.txt] [--keep-going] [--stay] [--quiet]] [files...]\n"
+  std::fputs("usage: fabricad [--script file.fcs [--offscreen] [--log out.txt] [--keep-going] [--stay] [--step-delay ms] [--quiet]] [files...]\n"
              "  --script    run a FabriCAD command script (docs/SCRIPTING.md) and exit with its status\n"
              "  --offscreen headless run (no window, no 3D view)\n"
              "  --log       write the per-command log to a file instead of stdout\n"
              "  --keep-going continue after a failed line (default: stop at the first error)\n"
-             "  --stay      keep the window open after the script (interactive inspection)\n",
+             "  --stay      keep the window open after the script (interactive inspection)\n"
+             "  --step-delay ms  pause (with repaint and view fit) after each command, to watch a run\n",
              stdout);
 }
 
@@ -172,6 +179,7 @@ int main(int argc, char** argv) {
       ro.logPath = opts.log;
       ro.keepGoing = opts.keepGoing;
       ro.quiet = opts.quiet;
+      ro.stepDelayMs = opts.stepDelay;
       runner->setOptions(ro);
       QString err;
       int code = 2;

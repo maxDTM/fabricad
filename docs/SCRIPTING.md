@@ -19,6 +19,7 @@ fabricad --script part.fcs --keep-going                                  # do no
 | `--log <file>` | write the log to a file (it also goes to stdout unless `--quiet`) |
 | `--keep-going` (`-k`) | continue after a failed line (default: stop there) |
 | `--stay` | leave the window open after the script (interactive inspection, needs a display) |
+| `--step-delay <ms>` | after every command (not CHECK lines) fit the 3D view (home orientation outside sketches) and keep the event loop running for `<ms>` so each step is painted: watch or screen-record a run (default 0; timings in the log exclude the pause) |
 | `--quiet` (`-q`) | no stdout copy of the log when `--log` is given |
 
 Exit status: `0` every line ok, `1` a line failed (unknown command, rejected input, an error
