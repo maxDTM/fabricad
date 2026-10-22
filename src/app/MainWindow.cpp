@@ -740,6 +740,10 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
             updateSelectionStatus();
             scheduleStateRefresh();
           }));
+  // a rename (or a recompute) changes what the status bar says about the selection
+  connect(d, &core::Document::bodyChanged, this, whenActive([this](core::ObjectId) { scheduleSelectionStatus(); }));
+  connect(d, &core::Document::featureChanged, this, whenActive([this](core::ObjectId) { scheduleSelectionStatus(); }));
+  connect(d, &core::Document::componentChanged, this, whenActive([this](core::ObjectId) { scheduleSelectionStatus(); }));
   if (tab->isDesign()) {
     // per-document UI state (hidden features, display mode...) travels with the file
     connect(d, &core::Document::aboutToSave, this, [this, tab] { storeUiState(*tab); });
@@ -1004,6 +1008,15 @@ void MainWindow::updateUndoButtons() {
   redoButton_->setEnabled(u.canRedo());
   undoButton_->setToolTip(u.canUndo() ? QString("Undo %1 (Ctrl+Z)").arg(core::qs(u.undoText())) : "Undo (Ctrl+Z)");
   redoButton_->setToolTip(u.canRedo() ? QString("Redo %1 (Ctrl+Y)").arg(core::qs(u.redoText())) : "Redo (Ctrl+Y)");
+}
+
+void MainWindow::scheduleSelectionStatus() {
+  if (selectionStatusPending_) return;
+  selectionStatusPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    selectionStatusPending_ = false;
+    updateSelectionStatus();
+  });
 }
 
 void MainWindow::updateSelectionStatus() {
@@ -1334,12 +1347,19 @@ void MainWindow::showShortcutsHelp() {
   auto* dlg = new QDialog(this);
   dlg->setAttribute(Qt::WA_DeleteOnClose);
   dlg->setWindowTitle("Keyboard Shortcuts");
-  dlg->resize(560, 520);
+  dlg->resize(700, 520);
   auto* v = new QVBoxLayout(dlg);
   auto* tree = new QTreeWidget(dlg);
   tree->setColumnCount(3);
   tree->setHeaderLabels({"Command", "Shortcut", "Aliases"});
   tree->setRootIsDecorated(false);
+  tree->setUniformRowHeights(true);
+  tree->setAlternatingRowColors(true);
+  tree->setIconSize(QSize(16, 16));
+  // rows without a tool icon get a blank one so every name starts in the same column
+  QPixmap blank(16, 16);
+  blank.fill(Qt::transparent);
+  const QIcon blankIcon(blank);
   for (core::ITool* t : registry_.tools()) {
     const core::ToolInfo& i = t->info();
     if (i.hidden && i.shortcut.empty()) continue;
@@ -1347,16 +1367,20 @@ void MainWindow::showShortcutsHelp() {
     QStringList aliases;
     for (const auto& a : i.aliases) aliases << core::qs(a);
     auto* it = new QTreeWidgetItem(tree, {core::qs(i.name), core::qs(i.shortcut), aliases.join(", ")});
-    it->setIcon(0, toolIcon(i));
+    const QIcon icon = toolIcon(i);
+    it->setIcon(0, icon.isNull() ? blankIcon : icon);
   }
   for (const auto& [k, d] : std::initializer_list<std::pair<const char*, const char*>>{
            {"S", "Command search"}, {"Esc", "Cancel command / clear selection"},
            {"Enter / Space", "Repeat last command (OK while a command is active)"},
            {":", "Focus the command line"}, {"Middle mouse", "Pan (Fusion preset)"},
            {"Shift + middle mouse", "Orbit"}, {"Wheel", "Zoom at cursor"}, {"Right click", "Marking menu"}})
-    new QTreeWidgetItem(tree, {d, k, ""});
+    (new QTreeWidgetItem(tree, {d, k, ""}))->setIcon(0, blankIcon);
   tree->sortItems(0, Qt::AscendingOrder);
+  tree->header()->setStretchLastSection(false);
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+  tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
   v->addWidget(tree);
   auto* bb = new QDialogButtonBox(QDialogButtonBox::Close, dlg);
   connect(bb, &QDialogButtonBox::rejected, dlg, &QDialog::close);

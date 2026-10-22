@@ -50,6 +50,9 @@ CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(
   completer_->setCompletionMode(QCompleter::PopupCompletion);
   completer_->setFilterMode(Qt::MatchStartsWith);
   edit_->setCompleter(completer_);
+  // Enter while the completion popup is open submits right away (the popup would otherwise
+  // eat the first Enter). This filter is installed after QCompleter's, so it runs first.
+  completer_->popup()->installEventFilter(this);
 
   pane_ = new QPlainTextEdit(nullptr);
   pane_->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
@@ -107,14 +110,36 @@ void CommandLine::toggleHistoryPane() {
     pane_->hide();
     return;
   }
+  // above the command box, kept inside the main window
   const QPoint p = edit_->mapToGlobal(QPoint(0, 0));
-  pane_->move(p.x(), p.y() - pane_->height() - 4);
+  const QRect win = window()->geometry();
+  const int w = std::min(520, std::max(200, win.width() - 16));
+  const int h = std::max(60, std::min(180, p.y() - 4 - win.top() - 8));
+  pane_->resize(w, h);
+  const int x = std::clamp(p.x(), win.left() + 8, std::max(win.left() + 8, win.right() - w - 8));
+  pane_->move(x, p.y() - h - 4);
   pane_->show();
   pane_->raise();
   pane_->moveCursor(QTextCursor::End);
 }
 
 bool CommandLine::eventFilter(QObject* o, QEvent* e) {
+  if (completer_ && o == completer_->popup() && e->type() == QEvent::KeyPress) {
+    auto* k = static_cast<QKeyEvent*>(e);
+    if (k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter) {
+      QAbstractItemView* popup = completer_->popup();
+      const QModelIndex cur = popup->currentIndex();
+      // the highlighted row, else the first match (unless the typed text is itself a command)
+      QString text = edit_->text();
+      if (cur.isValid()) text = cur.data(Qt::DisplayRole).toString();
+      else if (!completions_->stringList().contains(text.trimmed(), Qt::CaseInsensitive) &&
+               !completer_->currentCompletion().isEmpty())
+        text = completer_->currentCompletion();
+      popup->hide();
+      submit(text);
+      return true;
+    }
+  }
   if (o == edit_ && e->type() == QEvent::KeyPress) {
     auto* k = static_cast<QKeyEvent*>(e);
     if (k->key() == Qt::Key_Escape) {

@@ -57,6 +57,11 @@ Ribbon::Ribbon(core::ToolManager& manager, QWidget* parent) : QWidget(parent), m
   tabs_->setDrawBase(false);
   tabs_->setExpanding(false);
   tabs_->setFocusPolicy(Qt::NoFocus);
+  // The tab labels are bold 8pt (theme-light.qss sets it on the bar itself, so tabs are
+  // measured with the font they are drawn with). No scroll arrows and no eliding: the few
+  // ribbon tabs always fit, and SOLID must never be clipped when SKETCH is shown.
+  tabs_->setUsesScrollButtons(false);
+  tabs_->setElideMode(Qt::ElideNone);
   pages_ = new QStackedWidget(right);
   col->addWidget(tabs_, 0, Qt::AlignLeft);
   col->addWidget(pages_);
@@ -185,6 +190,7 @@ void Ribbon::rebuild(core::Workspace ws) {
       }
   tabs_->setCurrentIndex(idx);
   pages_->setCurrentIndex(idx);
+  tabs_->updateGeometry();
   updateTabStyle();
   refreshStates();
 }
@@ -205,6 +211,8 @@ void Ribbon::setContextualTab(const std::string& name, bool visible) {
       setCurrentTab(tabBeforeContextual_.empty() || tabBeforeContextual_ == name ? tabNames_.front()
                                                                                   : tabBeforeContextual_);
   }
+  tabs_->adjustSize();
+  tabs_->updateGeometry();
   updateTabStyle();
 }
 

@@ -9,16 +9,23 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QStyle>
 #include <QTextEdit>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace fabricad::app {
 
 namespace {
 constexpr int kWidth = 300;
-constexpr int kTopMargin = 150;  // below the ViewCube
-constexpr int kRightMargin = 12;
+constexpr int kLeftMargin = 12;  // docked next to the browser (left edge of the viewport)
+constexpr int kTopMargin = 12;
+constexpr int kMaxBodyHeight = 380;  // taller bodies (Joint) scroll
+constexpr int kWrapChars = 40;       // body labels longer than this word-wrap
 }  // namespace
 
 CommandDialog::CommandDialog(QWidget* viewport) : QFrame(viewport), viewport_(viewport) {
@@ -44,16 +51,31 @@ CommandDialog::CommandDialog(QWidget* viewport) : QFrame(viewport), viewport_(vi
   th->addWidget(titleText_, 1);
   v->addWidget(title_);
 
-  bodyLayout_ = new QVBoxLayout();
+  scroll_ = new QScrollArea(this);
+  scroll_->setObjectName("CommandDialogScroll");
+  scroll_->setFrameShape(QFrame::NoFrame);
+  scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scroll_->setWidgetResizable(true);
+  scroll_->setFocusPolicy(Qt::NoFocus);
+  inner_ = new QWidget(scroll_);
+  bodyLayout_ = new QVBoxLayout(inner_);
   bodyLayout_->setContentsMargins(0, 0, 0, 0);
-  v->addLayout(bodyLayout_);
+  scroll_->setWidget(inner_);
+  inner_->setAutoFillBackground(false);  // the frame's white shows through
+  scroll_->viewport()->setAutoFillBackground(false);
+  inner_->installEventFilter(this);
+  scroll_->hide();
+  v->addWidget(scroll_);
 
+  // The message line stays in the layout (empty when there is nothing to say) so that the
+  // first prompt does not make the dialog jump.
   message_ = new QLabel(this);
   message_->setObjectName("CommandDialogMessage");
   message_->setWordWrap(true);
   message_->setContentsMargins(10, 0, 10, 0);
-  message_->hide();
+  message_->setMinimumHeight(message_->fontMetrics().lineSpacing());
   v->addWidget(message_);
+  v->addStretch(1);  // extra (stable) height goes above the buttons
 
   buttonRow_ = new QWidget(this);
   auto* bh = new QHBoxLayout(buttonRow_);
@@ -77,19 +99,25 @@ CommandDialog::CommandDialog(QWidget* viewport) : QFrame(viewport), viewport_(vi
 
 void CommandDialog::present(const QString& title, const QIcon& icon, QWidget* body, bool buttons) {
   dismiss();
+  stableHeight_ = 0;
   titleText_->setText(title.toUpper());
   titleIcon_->setPixmap(icon.isNull() ? QPixmap() : icon.pixmap(18, 18));
   if (body) {
-    body->setParent(this);
+    // long hints/prompts inside the body wrap instead of being clipped by the fixed width
+    for (QLabel* l : body->findChildren<QLabel*>())
+      if (!l->wordWrap() && l->pixmap().isNull() && l->text().size() > kWrapChars) l->setWordWrap(true);
+    body->setParent(inner_);
     bodyLayout_->addWidget(body);
     body_ = body;
     body->show();
   }
+  scroll_->setVisible(body != nullptr);
+  scroll_->verticalScrollBar()->setValue(0);
   buttonRow_->setVisible(buttons);
   setAcceptEnabled(true);
   setMessage({});
-  adjustSize();
-  reposition();
+  relayout();
+  place();
   show();
   raise();
 }
@@ -100,8 +128,10 @@ void CommandDialog::dismiss() {
     body_.clear();
     bodyLayout_->removeWidget(b);
     b->hide();
-    b->deleteLater();  // tools may still hold QPointers; never delete synchronously
+    b->setParent(nullptr);  // out of the scroll area right away (deleted below)
+    b->deleteLater();       // tools may still hold QPointers; never delete synchronously
   }
+  scroll_->hide();
   hide();
 }
 
@@ -116,18 +146,48 @@ void CommandDialog::setMessage(const QString& text, bool error) {
   message_->setProperty("error", error);
   message_->style()->unpolish(message_);
   message_->style()->polish(message_);
-  if (isVisible()) adjustSize();
+  if (isVisible()) relayout();
+}
+
+void CommandDialog::relayout() {
+  relayoutPending_ = false;
+  if (!viewport_) return;
+  const int vpH = viewport_->height();
+  const int innerW = kWidth - 2 * frameWidth();
+  int contentH = 0;
+  if (body_) {
+    bodyLayout_->activate();
+    contentH = inner_->hasHeightForWidth() ? inner_->heightForWidth(innerW) : inner_->sizeHint().height();
+    contentH = std::max(contentH, inner_->minimumSizeHint().height());
+  }
+  // room the frame needs around the body
+  int chrome = title_->sizeHint().height() + 8 + 4;
+  chrome += std::max(message_->minimumHeight(), message_->heightForWidth(kWidth - 2 * frameWidth())) + 4;
+  if (buttonRow_->isVisibleTo(this)) chrome += buttonRow_->sizeHint().height() + 4;
+  const int cap = std::max(60, std::min(kMaxBodyHeight, vpH - 2 * kTopMargin - chrome));
+  scroll_->setFixedHeight(body_ ? std::min(contentH, cap) : 0);
+  if (QLayout* l = layout()) l->activate();
+  const int natural = hasHeightForWidth() ? heightForWidth(kWidth) : sizeHint().height();
+  // grow freely; never shrink while the same command runs (unless the viewport got smaller)
+  const int h = std::max(natural, std::min(stableHeight_, std::max(natural, vpH - 2 * kTopMargin)));
+  stableHeight_ = h;
+  setFixedHeight(h);
+}
+
+void CommandDialog::place() {
+  if (!viewport_) return;
+  const QRect area = viewport_->rect();
+  QPoint p = pos();
+  if (!userMoved_) p = QPoint(kLeftMargin, kTopMargin);
+  p.setX(std::clamp(p.x(), 0, std::max(0, area.width() - width())));
+  p.setY(std::clamp(p.y(), 0, std::max(0, area.height() - std::min(height(), area.height()))));
+  move(p);
 }
 
 void CommandDialog::reposition() {
   if (!viewport_) return;
-  adjustSize();
-  const QRect area = viewport_->rect();
-  QPoint p = pos();
-  if (!userMoved_) p = QPoint(area.width() - width() - kRightMargin, std::min(kTopMargin, std::max(8, area.height() / 5)));
-  p.setX(std::clamp(p.x(), 0, std::max(0, area.width() - width())));
-  p.setY(std::clamp(p.y(), 0, std::max(0, area.height() - std::min(height(), area.height()))));
-  move(p);
+  relayout();
+  place();
 }
 
 void CommandDialog::keyPressEvent(QKeyEvent* e) {
@@ -149,6 +209,17 @@ bool CommandDialog::eventFilter(QObject* o, QEvent* e) {
     if (isVisible()) reposition();
     return false;
   }
+  if (o == inner_ && e->type() == QEvent::LayoutRequest && body_ && !relayoutPending_) {
+    // the tool added/removed rows: refit once the layout has settled
+    relayoutPending_ = true;
+    QTimer::singleShot(0, this, [this] {
+      if (relayoutPending_) {
+        relayout();
+        place();
+      }
+    });
+    return false;
+  }
   if (o == title_) {
     if (e->type() == QEvent::MouseButtonPress) {
       auto* me = static_cast<QMouseEvent*>(e);
@@ -160,7 +231,7 @@ bool CommandDialog::eventFilter(QObject* o, QEvent* e) {
       auto* me = static_cast<QMouseEvent*>(e);
       userMoved_ = true;
       move(me->globalPosition().toPoint() - dragOffset_);
-      reposition();
+      place();
       return true;
     }
     if (e->type() == QEvent::MouseButtonRelease) {
@@ -168,8 +239,8 @@ bool CommandDialog::eventFilter(QObject* o, QEvent* e) {
       return true;
     }
     if (e->type() == QEvent::MouseButtonDblClick) {
-      userMoved_ = false;  // double-click the title: dock back to the right edge
-      reposition();
+      userMoved_ = false;  // double-click the title: dock back to the top-left corner
+      place();
       return true;
     }
   }
