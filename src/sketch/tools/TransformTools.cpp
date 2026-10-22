@@ -64,6 +64,7 @@ class SelectFirstTool : public SketchTool {
     }
     selecting_ = ids_.empty();
     started(ctx);
+    syncBoxes();
     ctx.setPrompt(prompt());
   }
 
@@ -79,7 +80,10 @@ class SelectFirstTool : public SketchTool {
         if (const Geometry* g = sk->geometry(h->ref.geo)) previewGeometry(*g, highlightStyle());
       return true;
     }
+    cursor_ = *c;
+    syncBoxes();
     stageMove(ctx, *c, e);
+    showValueBoxes(*c);
     return true;
   }
 
@@ -97,7 +101,9 @@ class SelectFirstTool : public SketchTool {
       ctx.setPrompt(prompt());
       return true;
     }
+    if (values().isTyping()) values().lockActive();  // a click applies the typed value
     stageClick(ctx, *c, e);
+    syncBoxes();
     ctx.setPrompt(prompt());
     return true;
   }
@@ -105,6 +111,7 @@ class SelectFirstTool : public SketchTool {
   bool commandLineInput(ToolContext& ctx, const std::string& text) override {
     if (selecting_) return false;
     bool r = stageTyped(ctx, text);
+    syncBoxes();
     ctx.setPrompt(prompt());
     return r;
   }
@@ -117,6 +124,8 @@ class SelectFirstTool : public SketchTool {
       }
       selecting_ = false;
       selectionDone(ctx);
+      syncBoxes();
+      showValueBoxes(cursor_);
       ctx.setPrompt(prompt());
       return;
     }
@@ -124,6 +133,11 @@ class SelectFirstTool : public SketchTool {
   }
 
  protected:
+  /// Show the stage's on-canvas value boxes (SK-08): typed keys go there, not to shortcuts.
+  virtual void syncBoxes() {}
+  /// Box value if the user locked it.
+  std::optional<double> locked(const char* id) const { return lockedValue(id); }
+  Pt2 cursor_;
   virtual std::string stagePrompt() const = 0;
   virtual void started(ToolContext&) {}
   virtual void selectionDone(ToolContext&) {}
@@ -348,6 +362,19 @@ class ScaleTool : public SelectFirstTool {
     base_.reset();
     auto n = numericArgs(ctx);
     factor_ = n.empty() ? 0.0 : n[0];
+    defineValues({ValueField{.id = "factor", .label = "Scale factor", .kind = ValueKind::Scalar}});
+  }
+  void syncBoxes() override { setValueVisible("factor", !selecting_ && base_.has_value()); }
+  bool commitValues(ToolContext& ctx) override {
+    auto k = locked("factor");
+    if (!k || !base_) return false;
+    if (*k <= 0) {
+      ctx.showMessage("the scale factor must be a positive number", true);
+      values().unlockAll();
+      return true;
+    }
+    apply(ctx, *k);
+    return true;
   }
   std::string stagePrompt() const override { return base_ ? "Type the scale factor" : "Specify the base point"; }
   void stageClick(ToolContext& ctx, Pt2 c, const ViewerMouseEvent& e) override {
@@ -355,8 +382,10 @@ class ScaleTool : public SelectFirstTool {
     base_ = snap(c, e);
     if (factor_ > 0) apply(ctx, factor_);
   }
-  void stageMove(ToolContext&, Pt2, const ViewerMouseEvent&) override {
-    if (base_ && factor_ > 0) previewOn([&](Sketch& s) { return transformEntities(s, ids_, SketchTransform::scaling(*base_, factor_), true); });
+  void stageMove(ToolContext&, Pt2 c, const ViewerMouseEvent&) override {
+    double k = locked("factor").value_or(factor_);
+    setValue("factor", k > 0 ? k : 1.0, c);
+    if (base_ && k > 0) previewOn([&](Sketch& s) { return transformEntities(s, ids_, SketchTransform::scaling(*base_, k), true); });
   }
   bool stageTyped(ToolContext& ctx, const std::string& text) override {
     if (!base_) {
@@ -419,17 +448,49 @@ class RectPatternTool : public SelectFirstTool {
       spec_.spacing2 = n[3] * lengthFactorOf(document());
       dirsSet_ = 2;
     }
+    defineValues({ValueField{.id = "count1", .label = "Count 1", .kind = ValueKind::Count},
+                  ValueField{.id = "spacing1", .label = "Spacing 1", .kind = ValueKind::Length},
+                  ValueField{.id = "count2", .label = "Count 2", .kind = ValueKind::Count},
+                  ValueField{.id = "spacing2", .label = "Spacing 2", .kind = ValueKind::Length}});
     if (!selecting_ && n.size() >= 2) {
       // preselection + arguments: apply at once
       if (commit(ctx, "Rectangular Pattern", [&](Sketch& s) { return rectangularPattern(s, ids_, spec_); })) ctx.finish();
     }
   }
+  void syncBoxes() override {
+    for (const char* id : {"count1", "spacing1", "count2", "spacing2"}) setValueVisible(id, !selecting_);
+  }
+  /// The pattern with the typed boxes applied.
+  RectangularPatternSpec current() const {
+    RectangularPatternSpec s = spec_;
+    if (auto v = locked("count1")) s.count1 = std::max(1, static_cast<int>(std::lround(*v)));
+    if (auto v = locked("spacing1")) s.spacing1 = *v;
+    if (auto v = locked("count2")) s.count2 = std::max(1, static_cast<int>(std::lround(*v)));
+    if (auto v = locked("spacing2")) s.spacing2 = *v;
+    return s;
+  }
+  bool commitValues(ToolContext& ctx) override {
+    if (selecting_ || !values().anyLocked()) return false;
+    spec_ = current();
+    if (commit(ctx, "Rectangular Pattern", [&](Sketch& s) { return rectangularPattern(s, ids_, spec_); })) ctx.finish();
+    return true;
+  }
+  void valuesChanged(ToolContext&) override {
+    clearTemp();
+    RectangularPatternSpec s = current();
+    previewOn([&](Sketch& sk) { return rectangularPattern(sk, ids_, s); });
+  }
   std::string stagePrompt() const override {
     return std::format("Direction {}: type count,spacing (now {} x {} / {} x {}); Enter applies", dirsSet_ >= 1 ? 2 : 1,
                        spec_.count1, formatLength(spec_.spacing1), spec_.count2, formatLength(spec_.spacing2));
   }
-  void stageMove(ToolContext&, Pt2, const ViewerMouseEvent&) override {
-    previewOn([&](Sketch& s) { return rectangularPattern(s, ids_, spec_); });
+  void stageMove(ToolContext&, Pt2 c, const ViewerMouseEvent&) override {
+    RectangularPatternSpec cur = current();
+    setValue("count1", cur.count1, c);
+    setValue("spacing1", cur.spacing1, c);
+    setValue("count2", cur.count2, c);
+    setValue("spacing2", cur.spacing2, c);
+    previewOn([&](Sketch& s) { return rectangularPattern(s, ids_, cur); });
   }
   void stageClick(ToolContext&, Pt2 c, const ViewerMouseEvent&) override {
     Sketch* sk = sketch();
@@ -472,6 +533,7 @@ class RectPatternTool : public SelectFirstTool {
     return true;
   }
   bool stageAccept(ToolContext& ctx) override {
+    spec_ = current();
     if (commit(ctx, "Rectangular Pattern", [&](Sketch& s) { return rectangularPattern(s, ids_, spec_); })) ctx.finish();
     return true;
   }
@@ -505,6 +567,20 @@ class CircPatternTool : public SelectFirstTool {
     auto n = numericArgs(ctx);
     argCount_ = n.size() >= 1 ? static_cast<int>(std::lround(n[0])) : 0;
     if (n.size() >= 2) spec_.totalAngle = n[1];
+    defineValues({ValueField{.id = "count", .label = "Count", .kind = ValueKind::Count},
+                  ValueField{.id = "angle", .label = "Total angle", .kind = ValueKind::Angle}});
+  }
+  void syncBoxes() override {
+    setValueVisible("count", !selecting_ && center_.has_value());
+    setValueVisible("angle", !selecting_ && center_.has_value());
+  }
+  bool commitValues(ToolContext& ctx) override {
+    if (!center_ || !values().anyLocked()) return false;
+    if (auto a = locked("angle")) spec_.totalAngle = *a;
+    auto n = locked("count");
+    int count = n ? static_cast<int>(std::lround(*n)) : (argCount_ >= 2 ? argCount_ : spec_.count);
+    apply(ctx, count);
+    return true;
   }
   std::string stagePrompt() const override {
     return center_ ? "Type the number of instances (or count,total angle)" : "Specify the pattern centre";
@@ -512,6 +588,10 @@ class CircPatternTool : public SelectFirstTool {
   void stageMove(ToolContext&, Pt2 c, const ViewerMouseEvent& e) override {
     CircularPatternSpec s = spec_;
     s.center = center_.value_or(snap(c, e));
+    if (auto n = locked("count")) s.count = static_cast<int>(std::lround(*n));
+    if (auto a = locked("angle")) s.totalAngle = *a;
+    setValue("count", s.count, c);
+    setValue("angle", s.totalAngle, c);
     if (s.count < 2) return;
     previewOn([&](Sketch& sk) { return circularPattern(sk, ids_, s); });
   }
@@ -578,7 +658,16 @@ class ChamferTool : public SketchTool {
     auto n = numericArgs(ctx);
     if (!n.empty()) d1_ = d2_ = n[0] * lengthFactorOf(document());
     if (n.size() >= 2) d2_ = n[1] * lengthFactorOf(document());
+    defineValues({ValueField{.id = "d1", .label = "Distance 1", .kind = ValueKind::Length},
+                  ValueField{.id = "d2", .label = "Distance 2", .kind = ValueKind::Length}});
     ctx.setPrompt(prompt());
+  }
+
+  bool commitValues(ToolContext& ctx) override {
+    if (!values().anyLocked()) return false;
+    takeBoxes();
+    ctx.setPrompt(prompt());
+    return true;
   }
 
   bool mouseMove(ToolContext&, const ViewerMouseEvent& e) override {
@@ -588,15 +677,20 @@ class ChamferTool : public SketchTool {
     clearTemp();
     for (const auto& [id, at] : picks_)
       if (const Geometry* g = sk->geometry(id)) previewGeometry(*g, highlightStyle());
+    double d1 = locked("d1").value_or(d1_);
+    double d2 = locked("d2").value_or(locked("d1") ? d1 : d2_);
     if (auto hit = sk->hitCurve(*c, tol(*c))) {
       const Geometry* g = sk->geometry(hit->ref.geo);
       if (g && g->type == GeomType::Line) previewGeometry(*g, highlightStyle());
       if (g && picks_.size() == 1 && hit->ref.geo != picks_[0].first) {
         Sketch copy = *sk;
-        if (auto ch = chamfer(copy, picks_[0].first, picks_[0].second, hit->ref.geo, hit->point, d1_, d2_))
+        if (auto ch = chamfer(copy, picks_[0].first, picks_[0].second, hit->ref.geo, hit->point, d1, d2))
           previewGeometry(*copy.geometry(*ch), rubberStyle());
       }
     }
+    setValue("d1", d1, *c);
+    setValue("d2", d2, *c);
+    showValueBoxes(*c);
     return true;
   }
 
@@ -611,6 +705,7 @@ class ChamferTool : public SketchTool {
       if (hit) ctx.showMessage("Chamfer works on lines", true);
       return true;
     }
+    if (values().isTyping()) values().lockActive();  // a click applies the typed value
     if (picks_.empty() || picks_[0].first != hit->ref.geo) picks_.push_back({hit->ref.geo, hit->point});
     if (picks_.size() == 2) apply(ctx);
     ctx.setPrompt(prompt());
@@ -641,9 +736,18 @@ class ChamferTool : public SketchTool {
     std::string d = std::abs(d1_ - d2_) < 1e-12 ? formatLength(d1_) : formatLength(d1_) + " x " + formatLength(d2_);
     return std::format("Select the {} line (chamfer {})", picks_.empty() ? "first" : "second", d);
   }
+  std::optional<double> locked(const char* id) const { return lockedValue(id); }
+  /// Typed distances become the tool's distances (only d1 typed: equal distances).
+  void takeBoxes() {
+    auto a = locked("d1"), b = locked("d2");
+    if (a && *a > 0) d1_ = d2_ = *a;
+    if (b && *b > 0) d2_ = *b;
+    values().unlockAll();
+  }
   void apply(ToolContext& ctx) {
     Sketch* sk = sketch();
     if (!sk || !session() || picks_.size() < 2) return;
+    takeBoxes();
     session()->beginEdit();
     auto ch = chamfer(*sk, picks_[0].first, picks_[0].second, picks_[1].first, picks_[1].second, d1_, d2_);
     SolveResult solved;

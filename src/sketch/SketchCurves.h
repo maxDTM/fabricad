@@ -48,6 +48,15 @@ struct BSpline2 {
   void distinctKnots(std::vector<double>& values, std::vector<int>& mults) const;
 };
 
+/// Exact split of a clamped B-spline at an interior parameter u (knot insertion to multiplicity
+/// `degree`). Both halves keep the original parametrisation. False when u is not interior.
+bool splitBSpline(const BSpline2& s, double u, BSpline2& left, BSpline2& right);
+/// The exact piece of `s` between u0 < u1 (clamped to its range).
+BSpline2 subBSpline(const BSpline2& s, double u0, double u1);
+/// `a` followed by `b` (same degree, b starting where a ends); b's knots are shifted to continue
+/// a's. Empty spline when they do not fit together.
+BSpline2 joinBSplines(const BSpline2& a, const BSpline2& b);
+
 /// Basis function values N_{i,p}(u) for all poles (size n). Knot vector clamped.
 std::vector<double> bsplineBasis(const std::vector<double>& knots, int degree, size_t poleCount, double u);
 /// Clamped uniform knot vector on [0, 1] for n poles and the given degree.

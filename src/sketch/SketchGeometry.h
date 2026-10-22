@@ -90,7 +90,7 @@ struct Geometry {
   bool blocked = false;       ///< user "Fix" on the whole entity
   core::ShapeRef source;      ///< for projected geometry
   int degree = 3;             ///< Spline: requested degree
-  std::vector<double> knots;  ///< FitSpline: parameter per fit point
+  std::vector<double> knots;  ///< FitSpline: parameter per fit point; Spline: optional full knot vector (pieces)
   std::string text;           ///< Text: the string
   std::string font;           ///< Text: font family (empty = defaultTextFont())
   bool bold = false, italic = false, mirrored = false;  ///< Text style
@@ -151,6 +151,9 @@ struct Geometry {
   double minorRadius() const;
   /// Is the solver allowed to move this entity? (not projected, not blocked)
   bool isMovable() const { return !projected && !blocked; }
+  /// Hidden helper standing for the sketch origin or an origin axis (Sketch::originHelper()):
+  /// projected (fixed) construction geometry without a 3D source.
+  bool isOriginHelper() const { return projected && construction && !source.isValid(); }
 
   // --- setters that keep arcs consistent ------------------------------------------
   void setStart(Pt2 p);
@@ -213,7 +216,12 @@ enum class ConstraintType {
   Radius,         ///< a=circle/arc
   Diameter,       ///< a=circle/arc
   Angle,          ///< a=line,b=line (degrees) | a=line (angle to +X)
+  MajorRadius,    ///< a=ellipse/elliptical arc: semi-major axis
+  MinorRadius,    ///< a=ellipse/elliptical arc: semi-minor axis
 };
+
+/// Which sketch-origin reference a helper geometry stands for (Sketch::originHelper()).
+enum class OriginRef { Point, XAxis, YAxis };
 const char* constraintTypeName(ConstraintType t);
 std::optional<ConstraintType> constraintTypeFromName(const std::string& s);
 bool isDimensional(ConstraintType t);
@@ -241,6 +249,11 @@ struct Constraint {
   bool internal = false;     ///< created automatically (inference), not shown as a glyph
 
   bool isDimensional() const { return sketch::isDimensional(type); }
+  /// Horizontal / vertical distance between two points (or along a line): stored signed (the
+  /// solver needs the side), but a length to the user, shown and typed as an absolute value.
+  bool isRelativeOffset() const {
+    return (type == ConstraintType::DistanceX || type == ConstraintType::DistanceY) && (b.isValid() || !a.isPoint());
+  }
   bool references(int geoId) const { return a.geo == geoId || b.geo == geoId || c.geo == geoId; }
   QJsonObject toJson() const;
   static Constraint fromJson(const QJsonObject& o);

@@ -46,6 +46,7 @@ class Builder {
     addFitRules();
     buildConstraints();
     if (drag) addDrag(*drag);
+    const bool soft = addKeepShape(drag);
 
     GCS::VEC_pD unknowns = unknowns_;
     sys_.declareUnknowns(unknowns);
@@ -57,6 +58,18 @@ class Builder {
       // LM fallback
       sys_.initSolution(GCS::LevenbergMarquardt);
       st = sys_.solve(GCS::LevenbergMarquardt);
+    }
+    if (st == GCS::SolveStatus::Failed && soft) {
+      // the keep-shape preferences can steer the solve badly: retry once without them
+      sys_.undoSolution();
+      sys_.clearByTag(kKeepShapeTag);
+      sys_.declareUnknowns(unknowns);
+      sys_.initSolution(GCS::DogLeg);
+      st = sys_.solve(GCS::DogLeg);
+      if (st == GCS::SolveStatus::Failed) {
+        sys_.initSolution(GCS::LevenbergMarquardt);
+        st = sys_.solve(GCS::LevenbergMarquardt);
+      }
     }
     switch (st) {
       case GCS::SolveStatus::Success: res.status = SolveResult::Status::Success; break;
@@ -639,6 +652,28 @@ class Builder {
           else if (sa->geo->type == GeomType::Arc) sys_.addConstraintArcDiameter(sa->arc, dia, tag);
           break;
         }
+        case ConstraintType::MinorRadius: {
+          if (!sa->geo->isElliptical()) break;
+          sys_.addConstraintEqual(ellipseOf(*sa).radmin, value(std::abs(c.value)), tag);
+          break;
+        }
+        case ConstraintType::MajorRadius: {
+          if (!sa->geo->isElliptical()) break;
+          // an auxiliary point held at the positive end of the major axis (2 equations, 2
+          // unknowns: no DOF change), at the dimension's distance from the centre
+          GCS::Ellipse& e = ellipseOf(*sa);
+          EllipseFrame f = sa->geo->ellipse();
+          Pt2 tip = f.center + f.major * f.a;
+          double* x = aux(tip.x);
+          double* y = aux(tip.y);
+          unknowns_.push_back(x);
+          unknowns_.push_back(y);
+          GCS::Point& p = auxPoints_.emplace_back(x, y);
+          sys_.addConstraintInternalAlignmentPoint2Ellipse(e, p, GCS::EllipsePositiveMajorX, 0);
+          sys_.addConstraintInternalAlignmentPoint2Ellipse(e, p, GCS::EllipsePositiveMajorY, 0);
+          sys_.addConstraintP2PDistance(e.center, p, value(std::abs(c.value)), tag);
+          break;
+        }
         case ConstraintType::Angle: {
           double* ang = value(c.value * kPi / 180.0);
           if (sb && sa->geo->type == GeomType::Line && sb->geo->type == GeomType::Line) {
@@ -771,6 +806,47 @@ class Builder {
     }
   }
 
+  /// Tag of the low-priority "keep this ellipse's size and orientation" preferences. Negative tags
+  /// are soft in PlaneGCS (solved as an objective, not counted in DOF / conflict diagnosis).
+  static constexpr int kKeepShapeTag = -2;
+
+  /// Soft preferences that keep every movable ellipse's major radius, minor radius and axis
+  /// direction, so a constraint that moves only the centre (a dimension to it, a coincidence)
+  /// translates the ellipse instead of reshaping it, and a radius dimension changes only that
+  /// radius. Skipped for the ellipse being dragged (addDrag() already says how it moves).
+  /// Returns whether any were added.
+  bool addKeepShape(const DragTarget* drag) {
+    bool any = false;
+    for (auto& [id, s] : slots_) {
+      if (!s.geo->isElliptical() || unknownsOf_[id].empty()) continue;
+      if (drag && drag->ref.geo == id) continue;
+      GCS::Ellipse& e = ellipseOf(s);
+      EllipseFrame f = s.geo->ellipse();
+      if (f.a < 1e-9 || f.b < 1e-9) continue;
+      // the major radius through an auxiliary point held at the major axis end (hard, DOF-neutral)
+      Pt2 tip = f.center + f.major * f.a;
+      double* x = aux(tip.x);
+      double* y = aux(tip.y);
+      unknowns_.push_back(x);
+      unknowns_.push_back(y);
+      GCS::Point& p = auxPoints_.emplace_back(x, y);
+      sys_.addConstraintInternalAlignmentPoint2Ellipse(e, p, GCS::EllipsePositiveMajorX, 0);
+      sys_.addConstraintInternalAlignmentPoint2Ellipse(e, p, GCS::EllipsePositiveMajorY, 0);
+      sys_.addConstraintP2PDistance(e.center, p, value(f.a), kKeepShapeTag);
+      sys_.addConstraintEqual(e.radmin, value(s.geo->p[4]), kKeepShapeTag);
+      Pt2 cf{s.geo->p[2] - s.geo->p[0], s.geo->p[3] - s.geo->p[1]};
+      if (cf.length() > 1e-9) sys_.addConstraintP2PAngle(e.center, e.focus1, value(cf.angle()), 0.0, kKeepShapeTag);
+      if (!drag) {
+        // and its position (a radius change grows it about the centre). Not while dragging
+        // something else: that would hold back geometry tied to the centre.
+        sys_.addConstraintCoordinateX(e.center, value(f.center.x), kKeepShapeTag);
+        sys_.addConstraintCoordinateY(e.center, value(f.center.y), kKeepShapeTag);
+      }
+      any = true;
+    }
+    return any;
+  }
+
   void addDrag(const DragTarget& d) {
     GeoSlot* s = slot(d.ref.geo);
     if (!s) return;
@@ -789,6 +865,20 @@ class Builder {
           pull(s->arc.center, s->geo->center() + d.delta);
           pull(s->arc.start, s->geo->start() + d.delta);
           pull(s->arc.end, s->geo->end() + d.delta);
+        }
+        return;
+      }
+      if (d.ref.pos == PointPos::Center && s->geo->isElliptical()) {
+        // the ellipse is stored as centre + focus + minor radius: moving the centre alone would
+        // reshape and rotate it. Carry the focus (and the arc ends) along with the centre.
+        const Geometry& g = *s->geo;
+        Pt2 delta = d.target - Pt2{g.p[0], g.p[1]};
+        GCS::Ellipse& e = ellipseOf(*s);
+        pull(e.center, d.target);
+        pull(e.focus1, Pt2{g.p[2], g.p[3]} + delta);
+        if (g.type == GeomType::EllipseArc) {
+          pull(s->arcEllipse.start, g.start() + delta);
+          pull(s->arcEllipse.end, g.end() + delta);
         }
         return;
       }

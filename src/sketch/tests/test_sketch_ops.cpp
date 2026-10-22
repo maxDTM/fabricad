@@ -382,6 +382,126 @@ class SketchOpsTest : public QObject {
     int newId = back.addGeometry(Geometry::makePoint({0, 0}));
     QVERIFY(newId > a);
   }
+
+  // ---- SK-03: trim / break on splines ----
+  static double maxDeviation(const Geometry& piece, const Geometry& orig) {
+    double d = 0;
+    for (const Pt2& q : piece.tessellate(64)) d = std::max(d, orig.distanceTo(q));
+    return d;
+  }
+
+  void trimControlSplineMiddleExact() {
+    Sketch sk;
+    int s = sk.addGeometry(Geometry::makeControlSpline({{0, 0}, {10, 20}, {30, -10}, {40, 10}, {50, 0}}));
+    sk.addGeometry(Geometry::makeLine({15, -20}, {15, 30}));
+    sk.addGeometry(Geometry::makeLine({35, -20}, {35, 30}));
+    const Geometry orig = *sk.geometry(s);
+    Pt2 mid = orig.pointAt(orig.paramOf({25, 3}));
+    QVERIFY(sk.trimPiece(s, mid).has_value());
+    auto out = sk.trim(s, mid);
+    QCOMPARE(out.size(), size_t(2));
+    const Geometry* a = sk.geometry(out[0]);
+    const Geometry* b = sk.geometry(out[1]);
+    QCOMPARE(a->type, GeomType::Spline);
+    QVERIFY(near(a->start(), orig.start()));
+    QVERIFY(near(b->end(), orig.end()));
+    QVERIFY(std::abs(a->end().x - 15) < 1e-4);
+    QVERIFY(std::abs(b->start().x - 35) < 1e-4);
+    QVERIFY(maxDeviation(*a, orig) < 1e-6);  // exact pieces
+    QVERIFY(maxDeviation(*b, orig) < 1e-6);
+    // pieces survive JSON with their knots, and solve unchanged
+    Sketch copy;
+    copy.fromJson(sk.toJson());
+    QVERIFY(maxDeviation(*copy.geometry(out[0]), orig) < 1e-6);
+    QVERIFY(copy.solve().ok());
+    QVERIFY(maxDeviation(*copy.geometry(out[0]), orig) < 1e-6);
+  }
+
+  void trimFitSplineEndAndBreak() {
+    Sketch sk;
+    int s = sk.addGeometry(Geometry::makeFitSpline({{0, 0}, {10, 10}, {20, 0}, {30, 10}, {40, 0}}));
+    sk.addGeometry(Geometry::makeLine({25, -20}, {25, 30}));
+    const Geometry orig = *sk.geometry(s);
+    auto out = sk.trim(s, orig.pointAt(orig.paramOf({35, 5})));  // the end piece beyond x = 25
+    QCOMPARE(out.size(), size_t(1));
+    const Geometry* g = sk.geometry(s);
+    QCOMPARE(g->type, GeomType::FitSpline);
+    QVERIFY(near(g->start(), {0, 0}));
+    QVERIFY(std::abs(g->end().x - 25) < 1e-3);
+    QVERIFY(maxDeviation(*g, orig) < 0.05);  // refitted, close to the original
+    QVERIFY2(g->vertexCount() <= 8, qPrintable(QString::number(g->vertexCount())));  // few added fit points
+    QVERIFY(sk.solve().ok());
+    QVERIFY(maxDeviation(*sk.geometry(s), orig) < 0.2);
+    // break: two connected pieces
+    int n = sk.geometryCount();
+    auto second = sk.split(s, g->pointAt(g->paramOf({10, 10})));
+    QVERIFY(second.has_value());
+    QCOMPARE(sk.geometryCount(), n + 1);
+    QVERIFY(near(sk.geometry(s)->end(), sk.geometry(*second)->start(), 1e-9));
+    QVERIFY(sk.findConstraint(ConstraintType::Coincident, {s, PointPos::End}, {*second, PointPos::Start}));
+    QVERIFY(sk.solve().ok());
+    // control-point spline break
+    int c = sk.addGeometry(Geometry::makeControlSpline({{0, 50}, {10, 70}, {30, 40}, {40, 60}}));
+    const Geometry corig = *sk.geometry(c);
+    auto c2 = sk.split(c, corig.pointAt(0.4));
+    QVERIFY(c2.has_value());
+    QVERIFY(maxDeviation(*sk.geometry(c), corig) < 1e-6);
+    QVERIFY(maxDeviation(*sk.geometry(*c2), corig) < 1e-6);
+  }
+
+  void trimClosedSplineNeedsTwoCuts() {
+    Sketch sk;
+    int s = sk.addGeometry(Geometry::makeFitSpline({{0, 0}, {20, -5}, {25, 20}, {5, 25}, {0, 0}}));
+    sk.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {s, PointPos::End}, .b = {s, PointPos::Start}});
+    int l = sk.addGeometry(Geometry::makeLine({12, -20}, {12, 40}));
+    const Geometry orig = *sk.geometry(s);
+    // one crossing line cuts the loop twice: the piece right of x = 12 goes
+    auto piece = sk.trimPiece(s, orig.pointAt(orig.paramOf({25, 20})));
+    QVERIFY(piece.has_value());
+    for (const Pt2& q : piece->tessellate(32)) QVERIFY(q.x > 12 - 1e-3);
+    auto out = sk.trim(s, orig.pointAt(orig.paramOf({25, 20})));
+    QCOMPARE(out.size(), size_t(1));
+    const Geometry* g = sk.geometry(s);
+    QVERIFY(!near(g->start(), g->end(), 1e-3));  // open now
+    for (const Pt2& q : g->tessellate(32)) QVERIFY(q.x < 12 + 1e-3);
+    QVERIFY(!sk.findConstraint(ConstraintType::Coincident, {s, PointPos::End}, {s, PointPos::Start}));
+    QVERIFY(sk.solve().ok());
+    (void)l;
+  }
+
+  // ---- SK-05: offset of ellipses (approximated by a closed fit-point spline) ----
+  void offsetEllipse() {
+    Sketch sk;
+    int e = sk.addGeometry(Geometry::makeEllipse({10, 5}, 20, 10, 0.4));
+    auto out = sk.offset({e}, 3.0, Pt2{10 + 40, 5});  // cursor outside
+    QCOMPARE(out.size(), size_t(1));
+    const Geometry* o = sk.geometry(out[0]);
+    QVERIFY(o->isSpline());
+    QVERIFY(near(o->start(), o->end(), 1e-9));
+    const Geometry* src = sk.geometry(e);
+    double dmin = 1e9, dmax = 0;
+    for (const Pt2& q : o->tessellate(128)) {
+      double d = src->distanceTo(q);
+      dmin = std::min(dmin, d);
+      dmax = std::max(dmax, d);
+    }
+    QVERIFY2(dmin > 2.9 && dmax < 3.1, qPrintable(QString("%1 %2").arg(dmin).arg(dmax)));
+    QVERIFY(sk.findConstraint(ConstraintType::Coincident, {out[0], PointPos::End}, {out[0], PointPos::Start}));
+    // inward: smaller, inside
+    auto in = sk.offset({e}, 2.0, Pt2{10, 5});
+    QCOMPARE(in.size(), size_t(1));
+    src = sk.geometry(e);  // the geometry vector grew
+    for (const Pt2& q : sk.geometry(in[0])->tessellate(64)) QVERIFY2(std::abs(src->distanceTo(q) - 2.0) < 0.1, qPrintable(QString("%1 at %2,%3").arg(src->distanceTo(q)).arg(q.x).arg(q.y)));
+    // inward beyond b^2/a (= 5) would fold: nothing
+    QVERIFY(sk.offset({e}, 6.0, Pt2{10, 5}).empty());
+    // elliptical arc and spline offsets too
+    int ea = sk.addGeometry(Geometry::makeEllipseArc({0, 50}, 20, 10, 0.0, 0.0, kPi));
+    QCOMPARE(sk.offset({ea}, 2.0, Pt2{0, 80}).size(), size_t(1));
+    int sp = sk.addGeometry(Geometry::makeFitSpline({{0, 100}, {10, 110}, {20, 100}}));
+    auto so = sk.offset({sp}, 1.0, Pt2{10, 120});
+    QCOMPARE(so.size(), size_t(1));
+    QVERIFY(sk.geometry(so[0])->center().y > 100 || sk.geometry(so[0])->start().y > 100);
+  }
 };
 
 QTEST_GUILESS_MAIN(SketchOpsTest)

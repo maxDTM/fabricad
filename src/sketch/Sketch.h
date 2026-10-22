@@ -83,6 +83,12 @@ class Sketch {
   std::optional<double> measure(const Constraint& c) const;
   /// Default label position for a dimension (used when none was placed).
   Pt2 defaultLabelPos(const Constraint& c) const;
+  /// The hidden fixed helper geometry standing for the sketch origin (a Point) or an origin axis
+  /// (a construction Line through the origin), created on first use so constraints and
+  /// dimensions can reference it. Returns its id.
+  int originHelper(OriginRef which);
+  /// Existing origin helper of that kind, or -1.
+  int findOriginHelper(OriginRef which) const;
 
   // --- solving ------------------------------------------------------------------
   /// Full solve + diagnosis (DOF, conflicts, free geometry). Geometry is updated on success.
@@ -159,6 +165,9 @@ class Sketch {
   std::vector<std::string> takeModifyNotes();
   /// Split a curve at a point into two (returns the new second piece id).
   std::optional<int> split(int curveId, Pt2 at);
+  /// split() for splines: two exact (control) / near-identical (fit) pieces; on a closed spline
+  /// the seam moves to the break point.
+  std::optional<int> splitSpline(int curveId, Pt2 at);
 
   // --- expressions ------------------------------------------------------------------
   /// Evaluate dimension expressions. `lookup` resolves external parameter names and

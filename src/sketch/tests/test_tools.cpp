@@ -11,6 +11,7 @@
 #include "core/Tool.h"
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
+#include "sketch/SketchCurves.h"
 #include "sketch/SketchFeature.h"
 #include "sketch/SketchModule.h"
 #include "sketch/SketchSession.h"
@@ -1232,6 +1233,387 @@ class ToolsTest : public QObject {
     QVERIFY(r.viewer.visibilityOverrides().count(r.session()->sketchId()));
     r.mgr.run("sketch.finish");
     QVERIFY(r.viewer.previews().empty());
+  }
+
+  // ---- G4 regression tests ----
+
+  // SK-02: a vertical point-to-point dimension picked top-first is stored positive and keeps
+  // the geometry on its side when a new value is typed.
+  void pointToPointDimensionPositiveKeepsSide() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int a = r.sk().addGeometry(Geometry::makePoint({0, 20}));
+    int b = r.sk().addGeometry(Geometry::makePoint({0, 0}));
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a}});
+    r.session()->refresh();
+    r.mgr.run("sketch.dimension");
+    r.click(0, 20);
+    r.click(0, 0);
+    r.click(10, 10);  // to the right -> DistanceY
+    const Constraint* d = r.sk().dimensionByName("d1");
+    QVERIFY(d);
+    QCOMPARE(d->type, ConstraintType::DistanceY);
+    QVERIFY(d->value > 0);
+    QCOMPARE(r.session()->dimensionText(*d).find('-'), std::string::npos);
+    QVERIFY(r.mgr.runCommandLine("30"));
+    QVERIFY(near(r.sk().geometry(b)->center(), {0, -10}, 1e-6));  // still below the fixed point
+    // an older negative (signed) dimension: positive typed values keep the side
+    r.mgr.cancel();
+    Constraint* c = r.sk().constraint(r.sk().dimensionByName("d1")->id);
+    std::swap(c->a, c->b);
+    c->value = -30;
+    r.sk().solve();
+    QVERIFY(near(r.sk().geometry(b)->center(), {0, -10}, 1e-6));
+    QCOMPARE(r.session()->dimensionText(*c).find('-'), std::string::npos);
+    QVERIFY(r.mgr.run("sketch.dimension-edit", {"d1", "12"}));
+    QVERIFY(near(r.sk().geometry(b)->center(), {0, 8}, 1e-6));
+  }
+
+  // SK-06: ellipse major / minor radius dimensions, ellipse centre pairs, origin picks.
+  void ellipseAndOriginDimensions() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int e = r.sk().addGeometry(Geometry::makeEllipse({40, 30}, 20, 10, 0.0));
+    r.session()->refresh();
+    int dofBefore = r.sk().solve().dofs;
+    r.mgr.run("sketch.dimension");
+    r.click(60, 30);  // on the ellipse (major vertex)
+    r.click(70, 32);  // place along the major axis -> major radius
+    const Constraint* d1 = r.sk().dimensionByName("d1");
+    QVERIFY(d1);
+    QCOMPARE(d1->type, ConstraintType::MajorRadius);
+    QVERIFY(near(d1->value, 20.0, 1e-6));
+    QVERIFY(r.mgr.runCommandLine("25"));
+    QVERIFY(near(r.sk().geometry(e)->majorRadius(), 25.0, 1e-6));
+    QVERIFY(near(r.sk().geometry(e)->minorRadius(), 10.0, 1e-6));
+    QCOMPARE(r.sk().solve().dofs, dofBefore - 1);
+    r.click(40, 40);  // minor vertex
+    r.click(42, 50);  // place along the minor axis -> minor radius
+    const Constraint* d2 = r.sk().dimensionByName("d2");
+    QVERIFY(d2);
+    QCOMPARE(d2->type, ConstraintType::MinorRadius);
+    QVERIFY(r.mgr.runCommandLine("6"));
+    QVERIFY(near(r.sk().geometry(e)->minorRadius(), 6.0, 1e-6));
+    QVERIFY(near(r.sk().geometry(e)->majorRadius(), 25.0, 1e-6));
+    QCOMPARE(r.sk().solve().dofs, dofBefore - 2);
+    // ellipse (through its centre) to the sketch origin: a pick on the origin is not ignored
+    size_t msgs = r.host.messages().size();
+    r.click(65, 30);     // ellipse curve (major vertex after the change)
+    r.click(0.2, 0.1);   // the origin
+    r.click(-10, 15);    // to the side -> vertical distance
+    const Constraint* d3 = r.sk().dimensionByName("d3");
+    if (!d3) {
+      for (auto& m : r.host.messages()) qWarning() << m.second.c_str();
+      qWarning() << r.sk().geometry(e)->center().x << r.sk().geometry(e)->center().y << r.sk().geometry(e)->ellipse().major.x;
+      for (auto& c : r.sk().constraints()) qWarning() << constraintTypeName(c.type) << c.name.c_str() << c.value;
+    }
+    QVERIFY2(d3, "origin pick ignored");
+    QCOMPARE(d3->type, ConstraintType::DistanceY);
+    QVERIFY(d3->value > 0);
+    QVERIFY(r.mgr.runCommandLine("50"));
+    QVERIFY(near(r.sk().geometry(e)->center(), {40, 50}, 1e-6));
+    QVERIFY(near(r.sk().geometry(e)->majorRadius(), 25.0, 1e-6));
+    // the helper is hidden: not hit, not in the bbox, one per kind
+    int helper = r.sk().findOriginHelper(OriginRef::Point);
+    QVERIFY(helper >= 0);
+    QVERIFY(!r.sk().hit({0, 0}, 1.0));
+    QCOMPARE(r.sk().originHelper(OriginRef::Point), helper);
+    // a pair that cannot be dimensioned gives feedback instead of being ignored
+    r.sk().addGeometry(Geometry::makeControlSpline({{0, 80}, {10, 95}, {20, 80}, {30, 95}}));
+    r.session()->refresh();
+    msgs = r.host.messages().size();
+    r.click(40, 56);  // ellipse minor vertex (curve)
+    r.click(15, 87.5);  // the spline's curve
+    QVERIFY(r.host.messages().size() > msgs);
+    QVERIFY(r.host.messages().back().second.find("Cannot dimension") != std::string::npos);
+    r.mgr.cancel();
+    // cancelling picks on the origin leaves no helper behind
+    int before = r.sk().geometryCount();
+    r.mgr.run("sketch.dimension");
+    r.click(30, 0.1);  // X axis
+    r.mgr.cancel();
+    QCOMPARE(r.sk().geometryCount(), before);
+  }
+
+  // SK-04: clicking near the first fit point closes the spline: one closed profile.
+  void fitSplineClosesOnFirstPoint() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.mgr.run("sketch.spline-fit");
+    r.click(0, 0);
+    r.click(30, -5);
+    r.click(35, 25);
+    r.click(5, 30);
+    r.click(0.9, 0.6);  // near (not exactly on) the first point
+    QCOMPARE(r.sk().geometryCount(), 1);
+    const Geometry* g = &r.sk().geometries().front();
+    QCOMPARE(g->type, GeomType::FitSpline);
+    QVERIFY(near(g->start(), g->end(), 1e-9));
+    QCOMPARE(g->vertexCount(), 5);
+    QVERIFY(r.sk().findConstraint(ConstraintType::Coincident, {g->id, PointPos::End}, {g->id, PointPos::Start}));
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(1));
+    QVERIFY(r.mgr.isActive());  // ready for the next spline
+  }
+
+  // SK-10: an origin axis can be the mirror line (constrained through a hidden fixed helper).
+  void mirrorAboutOriginAxis() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int ln = r.sk().addGeometry(Geometry::makeLine({2, 3}, {6, 8}));
+    r.session()->refresh();
+    r.mgr.run("sketch.mirror");
+    r.click(4, 5.5);
+    r.key(Qt::Key_Return);
+    r.click(20, 0.3);  // on the X axis, nothing else there
+    int helper = r.sk().findOriginHelper(OriginRef::XAxis);
+    QVERIFY(helper >= 0);
+    QCOMPARE(r.sk().geometryCount(), 3);  // line, mirrored line, helper
+    const Geometry* m = nullptr;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.id != ln && g.id != helper) m = &g;
+    QVERIFY(m);
+    QVERIFY(near(m->start(), {2, -3}, 1e-6));
+    QVERIFY(near(m->end(), {6, -8}, 1e-6));
+    QCOMPARE(r.countType(ConstraintType::Symmetric), 2);
+    // the constraints hold when the original moves; the axis helper is reused
+    r.sk().geometry(ln)->setStart({3, 4});
+    r.sk().solve();
+    r.mgr.run("sketch.mirror");
+    r.click(4.5, 6);
+    r.key(Qt::Key_Return);
+    r.click(-30, -0.2);
+    QCOMPARE(r.sk().findOriginHelper(OriginRef::XAxis), helper);
+    int helpers = 0;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.isOriginHelper()) ++helpers;
+    QCOMPARE(helpers, 1);
+  }
+
+  /// Viewport keys: '\t' = Tab, '\n' = Enter, others as typed.
+  static void keys(Rig& r, const std::string& s) {
+    for (char c : s) {
+      core::ViewerKeyEvent e;
+      if (c == '\t') e.key = Qt::Key_Tab;
+      else if (c == '\n') e.key = Qt::Key_Return;
+      else {
+        e.key = std::toupper(static_cast<unsigned char>(c));
+        e.text = std::string(1, c);
+      }
+      r.mgr.keyPress(e);
+    }
+  }
+
+  // SK-08: typed entry in the viewport goes into value boxes (ellipse, scale, patterns, chamfer)
+  // or into the text (Text tool), never to the shortcut router.
+  void viewportTypedEntry() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    // ellipse: centre, then major 30 Tab angle 0 Enter, minor 12 Enter
+    r.mgr.run("sketch.ellipse");
+    r.click(0, 0);
+    r.move(10, 3);
+    keys(r, "30\t0\n");
+    r.move(5, 8);
+    keys(r, "12\n");
+    const Geometry* e = nullptr;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Ellipse) e = &g;
+    QVERIFY(e);
+    QVERIFY(near(e->majorRadius(), 30, 1e-6));
+    QVERIFY(near(e->minorRadius(), 12, 1e-6));
+    QVERIFY(std::abs(e->ellipse().major.y) < 1e-9);
+    QCOMPARE(r.countType(ConstraintType::MajorRadius), 1);
+    QCOMPARE(r.countType(ConstraintType::MinorRadius), 1);
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.ellipse"));  // keys did not switch tools
+    r.mgr.cancel();
+    r.mgr.cancel();
+
+    // scale: select, Enter, base point, factor typed in the viewport
+    int l = r.sk().addGeometry(Geometry::makeLine({100, 0}, {110, 0}));
+    r.session()->refresh();
+    r.mgr.run("sketch.scale");
+    r.click(105, 0);
+    r.key(Qt::Key_Return);
+    r.click(100, 0);
+    r.move(120, 10);
+    keys(r, "2\n");
+    QVERIFY(near(r.sk().geometry(l)->end(), {120, 0}, 1e-6));
+
+    // chamfer: distance typed in the viewport, then the two lines
+    int a = r.sk().addGeometry(Geometry::makeLine({0, 100}, {20, 100}));
+    int b = r.sk().addGeometry(Geometry::makeLine({20, 100}, {20, 120}));
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {a, PointPos::End}, .b = {b, PointPos::Start}});
+    r.session()->refresh();
+    r.mgr.run("sketch.chamfer");
+    r.move(10, 100);
+    keys(r, "4\n");
+    r.click(10, 100);
+    r.click(20, 110);
+    QVERIFY(near(r.sk().geometry(a)->end(), {16, 100}, 1e-6));
+
+    // text: typed letters go into the text, not to shortcuts (T = trim, L = line ...)
+    r.mgr.run("sketch.text");
+    r.click(0, 150);
+    keys(r, "TL");
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.text"));
+    keys(r, "\n");
+    bool found = false;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Text && g.text == "TL") found = true;
+    QVERIFY(found);
+  }
+
+  // SK-11: Delete reports, a new tool clears the old message, the polygon Sides box follows.
+  void staleSketchStatus() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.sk().addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    r.sk().addGeometry(Geometry::makeLine({0, 5}, {10, 5}));
+    r.session()->refresh();
+    r.mgr.run("sketch.select-all");
+    QVERIFY(r.host.messages().back().second.find("2 sketch entities selected") != std::string::npos);
+    r.mgr.run("sketch.select");
+    r.key(Qt::Key_Delete);
+    QCOMPARE(r.sk().geometryCount(), 0);
+    QCOMPARE(r.host.messages().back().second, std::string("Deleted 2 sketch entities"));
+    r.mgr.run("sketch.line");
+    QVERIFY(r.host.messages().back().second.empty());  // cleared by the new tool
+    r.mgr.cancel();
+    r.mgr.run("sketch.polygon");
+    r.move(30, 20);
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    const ValueField* sides = tool->values().field("sides");
+    QVERIFY(sides && sides->hasAnchor);
+    QVERIFY(sides->anchor.distance(r.session()->toWorld({30, 20})) < 1e-9);
+    r.click(30, 20);
+    r.move(50, 20);
+    sides = tool->values().field("sides");
+    QVERIFY(sides->anchor.distance(r.session()->toWorld({30, 20})) < 1e-9);  // at the centre
+  }
+
+  // SK-07: the construction circle of a polygon never splits it into extra profiles, while
+  // drawing, after Finish Sketch, and after a save / load round trip.
+  void polygonConstructionCircleKeepsOneProfile() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    for (const char* tool : {"sketch.polygon", "sketch.polygon-inscribed"}) {
+      r.mgr.run(tool);
+      double x = std::string(tool) == "sketch.polygon" ? 0 : 60;
+      r.click(x, 0);
+      r.click(x + 20, 0);
+      r.mgr.cancel();
+    }
+    int circles = 0;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Circle) {
+        ++circles;
+        QVERIFY(g.construction);
+      }
+    QCOMPARE(circles, 2);
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(2));
+    core::ObjectId id = r.session()->sketchId();
+    r.mgr.run("sketch.finish");
+    auto* f = dynamic_cast<SketchFeature*>(r.doc.feature(id));
+    QVERIFY(f);
+    QCOMPARE(f->regions().size(), size_t(2));
+    QCOMPARE(f->profiles().size(), size_t(2));
+    core::Document copy;
+    QVERIFY(copy.fromJson(r.doc.toJson()));
+    auto* g = dynamic_cast<SketchFeature*>(copy.feature(id));
+    QVERIFY(g);
+    QCOMPARE(g->regions().size(), size_t(2));
+  }
+
+  // SK-13: edge polygon and the overall / centre-point slot variants
+  void edgePolygonAndSlotVariants() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.polygon-edge", {"4"}));
+    r.click(0, 0);
+    r.click(20, 0);
+    QCOMPARE(r.sk().geometryCount(), 5);  // 4 lines + construction circle
+    double minY = 1e9, maxY = -1e9;
+    for (const Geometry& g : r.sk().geometries()) {
+      if (g.type == GeomType::Line) {
+        QVERIFY(near(g.length(), 20.0, 1e-6));
+        for (Pt2 p : {g.start(), g.end()}) minY = std::min(minY, p.y), maxY = std::max(maxY, p.y);
+      } else {
+        QVERIFY(g.type == GeomType::Circle && g.construction);
+        QVERIFY(g.center().distance(Pt2{10, 10}) < 1e-6);  // square to the left
+      }
+    }
+    QVERIFY(near(maxY - minY, 20.0, 1e-6));
+    SolveResult res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(1));
+    r.mgr.cancel();
+
+    // overall slot: ends at 100 and 160, width 10 -> centres 5 in from the ends
+    r.mgr.run("sketch.slot-overall");
+    r.click(100, 0);
+    r.click(160, 0);
+    QVERIFY(r.mgr.runCommandLine("10"));
+    QCOMPARE(r.sk().geometryCount(), 10);
+    double axisLen = 0;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Line && g.construction) axisLen = g.length();
+    QVERIFY2(near(axisLen, 50.0, 1e-6), std::format("axis {}", axisLen).c_str());
+    r.mgr.cancel();
+
+    // centre-point slot: centre 0,100, arc centre 30,100 -> axis 60
+    r.mgr.run("sketch.slot-center");
+    r.click(0, 100);
+    r.click(30, 100);
+    QVERIFY(r.mgr.runCommandLine("8"));
+    QCOMPARE(r.sk().geometryCount(), 15);
+    std::vector<double> axes;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Line && g.construction) axes.push_back(g.length());
+    QCOMPARE(axes.size(), size_t(2));
+    QVERIFY2(near(axes.back(), 60.0, 1e-6), std::format("axis {}", axes.back()).c_str());
+    res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(3));
+  }
+
+  // SK-13: Intersect adds the section of a body with the sketch plane as fixed curves
+  void intersectBodyWithSketchPlane() {
+    Rig r;
+    r.doc.addFeature(std::make_unique<BoxFeature>());  // x,y 0..20, z 5..25
+    r.doc.recompute();
+    core::ObjectId bodyId = r.doc.liveBodies()[0];
+    r.mgr.run("sketch.create", {"XZ"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.intersect"));
+    // the XZ plane (y = 0) cuts the box along its front face boundary
+    TopoDS_Shape box = r.doc.bodyShape(bodyId);
+    core::ShapeRef bodyRef = core::ShapeRef::subShape(bodyId, box, box);
+    r.doc.selection().set(bodyRef);
+    QVERIFY2(r.sk().geometryCount() >= 4, std::format("{} curves", r.sk().geometryCount()).c_str());
+    int lines = 0;
+    for (const Geometry& g : r.sk().geometries()) {
+      QVERIFY(!g.projected && g.blocked);
+      if (g.type == GeomType::Line) {
+        ++lines;
+        QVERIFY(near(g.length(), 20.0, 1e-6));
+      }
+    }
+    QCOMPARE(lines, 4);
+    QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
+    QVERIFY(near(r.sketchFeature()->profiles()[0].area, 400.0, 1e-6));
+    // the same body again adds nothing
+    int n = r.sk().geometryCount();
+    r.doc.selection().set(bodyRef);
+    QCOMPARE(r.sk().geometryCount(), n);
   }
 };
 

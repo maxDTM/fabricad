@@ -36,6 +36,15 @@ TypedInput parseTypedInput(const std::string& text);
 std::optional<double> evaluateTyped(const core::ToolContext& ctx, const std::string& text, bool angle,
                                     std::string* error = nullptr);
 
+/// The sketch origin (within `tol`) or an origin axis (within 0.75 * `tol`) at sketch point `c`.
+/// Tools stand these in with Sketch::originHelper() when the user picks them.
+inline std::optional<OriginRef> originRefAt(Pt2 c, double tol) {
+  if (c.length() <= tol) return OriginRef::Point;
+  if (std::abs(c.y) <= tol * 0.75) return OriginRef::XAxis;
+  if (std::abs(c.x) <= tol * 0.75) return OriginRef::YAxis;
+  return std::nullopt;
+}
+
 /// Arc starting at `p` with tangent direction `t`, ending at `q` (nullopt if q is on the tangent line).
 /// `startIsP` tells whether the (ccw) arc's start point is p.
 std::optional<Geometry> tangentArc(Pt2 p, Pt2 t, Pt2 q, bool* startIsP);

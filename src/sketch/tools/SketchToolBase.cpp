@@ -165,6 +165,9 @@ bool SketchTool::isEnabled(const core::ToolContext& ctx) const {
 void SketchTool::activate(core::ToolContext& ctx) {
   viewer_ = ctx.viewer;
   manager_ = ctx.manager;
+  // a new tool starts without the previous tool's message (SK-11). The idle select tool keeps
+  // it: it takes over when a tool finishes, often right after that tool reported something.
+  if (info().id != "sketch.select") ctx.showMessage({});
   if (viewer_) viewer_->setCursor(core::CursorShape::Cross);
   overlay_.reset();
   values_.clear();

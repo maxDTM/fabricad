@@ -9,6 +9,7 @@
 #include "core/Selection.h"
 #include "core/UndoStack.h"
 #include "core/Units.h"
+#include "sketch/SketchCurves.h"
 #include "sketch/SketchInference.h"
 
 #include <QEvent>
@@ -303,7 +304,14 @@ bool SketchSession::deleteSelection() {
   for (int id : geos) sk->removeGeometry(id);
   selectedConstraints_.clear();
   if (selection_) selection_->clear();
-  return commitEdit("Delete");
+  bool done = commitEdit("Delete");
+  // replaces a stale "N entities selected" message (SK-11)
+  if (done && host_) {
+    size_t n = geos.size() + cons.size();
+    if (n == 0) n = refs.size();
+    host_->showMessage(std::format("Deleted {} sketch {}", n, n == 1 ? "entity" : "entities"));
+  }
+  return done;
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +463,7 @@ void SketchSession::renderGeometry() {
   }
   std::vector<Vec3> freePts, fixedPts, selPts;
   for (const Geometry& g : sk.geometries()) {
+    if (g.isOriginHelper()) continue;  // hidden: the origin / axis it stands for is drawn already
     GeometryStatus st = sk.statusOf(g.id);
     std::array<float, 4> color = colors::kFree;
     switch (st) {
@@ -591,12 +600,14 @@ std::string SketchSession::dimensionText(const Constraint& c) const {
   if (c.driven && sk) {
     if (auto m = sk->measure(c)) v = *m;
   }
+  if (c.isRelativeOffset()) v = std::abs(v);  // the sign is the side, kept internally (SK-02)
   std::string s;
   if (c.type == ConstraintType::Angle) {
     s = core::formatQuantity(core::Quantity::deg(v), units, false) + "°";
   } else {
     s = core::formatQuantity(core::Quantity::mm(v), units, false);
-    if (c.type == ConstraintType::Radius) s = "R" + s;
+    if (c.type == ConstraintType::Radius || c.type == ConstraintType::MajorRadius || c.type == ConstraintType::MinorRadius)
+      s = "R" + s;
     else if (c.type == ConstraintType::Diameter) s = "⌀" + s;
   }
   if (!c.expression.empty()) s = "fx " + s;
@@ -654,6 +665,22 @@ void SketchSession::drawDimension(const Constraint& c) {
         arrow(onCircle, dir);
         arrow(other, -dir);
       }
+      break;
+    }
+    case ConstraintType::MajorRadius:
+    case ConstraintType::MinorRadius: {
+      if (!ga->isElliptical()) break;
+      EllipseFrame f = ga->ellipse();
+      bool major = c.type == ConstraintType::MajorRadius;
+      Pt2 axis = major ? f.major : f.minor;
+      // the half axis on the label's side, with a leader to the label
+      if ((label - f.center).dot(axis) < 0) axis = -axis;
+      Pt2 tip = f.center + axis * (major ? f.a : f.b);
+      seg(f.center, tip);
+      arrow(tip, axis);
+      Pt2 foot = f.center + axis * (label - f.center).dot(axis);
+      seg(foot, label);
+      textShift = axis.perp() * (axis.perp().y >= 0 ? textGap : -textGap);
       break;
     }
     case ConstraintType::Angle: {

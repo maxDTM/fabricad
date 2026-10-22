@@ -223,6 +223,76 @@ void BSpline2::distinctKnots(std::vector<double>& values, std::vector<int>& mult
   }
 }
 
+namespace {
+/// Insert knot u once (Boehm).
+void insertKnot(BSpline2& s, double u) {
+  const int p = s.degree;
+  const size_t n = s.poles.size();
+  size_t k = findSpan(s.knots, p, n, u);
+  std::vector<Pt2> q(n + 1);
+  for (size_t i = 0; i <= n; ++i) {
+    if (i + static_cast<size_t>(p) <= k) {
+      q[i] = s.poles[i];
+    } else if (i > k) {
+      q[i] = s.poles[i - 1];
+    } else {
+      double den = s.knots[i + static_cast<size_t>(p)] - s.knots[i];
+      double a = den > 1e-15 ? (u - s.knots[i]) / den : 0.0;
+      q[i] = s.poles[i - 1] * (1 - a) + s.poles[i] * a;
+    }
+  }
+  s.poles = std::move(q);
+  s.knots.insert(s.knots.begin() + static_cast<std::ptrdiff_t>(k) + 1, u);
+}
+}  // namespace
+
+bool splitBSpline(const BSpline2& s, double u, BSpline2& left, BSpline2& right) {
+  if (!s.isValid()) return false;
+  const double eps = 1e-9 * std::max(1.0, s.last() - s.first());
+  if (u <= s.first() + eps || u >= s.last() - eps) return false;
+  BSpline2 w = s;
+  const int p = w.degree;
+  int mult = 0;
+  for (double k : w.knots)
+    if (std::abs(k - u) <= eps) ++mult;
+  for (double k : w.knots)  // snap to an existing knot
+    if (std::abs(k - u) <= eps) u = k;
+  for (int i = mult; i < p; ++i) insertKnot(w, u);
+  size_t r = 0;
+  while (r < w.knots.size() && w.knots[r] < u - eps) ++r;  // first occurrence of u
+  // r .. r+p-1 are the p copies of u
+  left.degree = right.degree = p;
+  left.knots.assign(w.knots.begin(), w.knots.begin() + static_cast<std::ptrdiff_t>(r + static_cast<size_t>(p)));
+  left.knots.push_back(u);
+  left.poles.assign(w.poles.begin(), w.poles.begin() + static_cast<std::ptrdiff_t>(r));
+  right.knots.assign(1, u);
+  right.knots.insert(right.knots.end(), w.knots.begin() + static_cast<std::ptrdiff_t>(r), w.knots.end());
+  right.poles.assign(w.poles.begin() + static_cast<std::ptrdiff_t>(r) - 1, w.poles.end());
+  return left.isValid() && right.isValid();
+}
+
+BSpline2 subBSpline(const BSpline2& s, double u0, double u1) {
+  BSpline2 cur = s, l, r;
+  if (splitBSpline(cur, u0, l, r)) cur = r;
+  if (splitBSpline(cur, u1, l, r)) cur = l;
+  return cur;
+}
+
+BSpline2 joinBSplines(const BSpline2& a, const BSpline2& b) {
+  BSpline2 out;
+  if (!a.isValid() || !b.isValid() || a.degree != b.degree) return out;
+  if (a.poles.back().distance(b.poles.front()) > 1e-6) return out;
+  const size_t p = static_cast<size_t>(a.degree);
+  const double shift = a.last() - b.first();
+  out.degree = a.degree;
+  out.knots.assign(a.knots.begin(), a.knots.end() - 1);
+  for (size_t i = p + 1; i < b.knots.size(); ++i) out.knots.push_back(b.knots[i] + shift);
+  out.poles = a.poles;
+  out.poles.insert(out.poles.end(), b.poles.begin() + 1, b.poles.end());
+  if (!out.isValid()) return BSpline2{};
+  return out;
+}
+
 BSpline2 controlPointSpline(const std::vector<Pt2>& poles, int degree) {
   BSpline2 s;
   if (poles.size() < 2) return s;

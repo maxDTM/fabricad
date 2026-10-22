@@ -251,6 +251,8 @@ std::optional<double> Sketch::measure(const Constraint& c) const {
     }
     case ConstraintType::Radius: return ga->isCircular() ? std::optional<double>(ga->radius()) : std::nullopt;
     case ConstraintType::Diameter: return ga->isCircular() ? std::optional<double>(2 * ga->radius()) : std::nullopt;
+    case ConstraintType::MajorRadius: return ga->isElliptical() ? std::optional<double>(ga->majorRadius()) : std::nullopt;
+    case ConstraintType::MinorRadius: return ga->isElliptical() ? std::optional<double>(ga->minorRadius()) : std::nullopt;
     case ConstraintType::Angle: {
       if (ga->type == GeomType::Arc && !gb) return ga->sweep() * 180.0 / kPi;  // arc sweep
       if (ga->type != GeomType::Line) return std::nullopt;
@@ -271,6 +273,14 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
   switch (c.type) {
     case ConstraintType::Radius:
     case ConstraintType::Diameter: return ga->center() + Pt2::polar(ga->radius() * 1.3 + off, kPi / 4);
+    case ConstraintType::MajorRadius:
+    case ConstraintType::MinorRadius: {
+      if (!ga->isElliptical()) return ga->center();
+      EllipseFrame f = ga->ellipse();
+      bool major = c.type == ConstraintType::MajorRadius;
+      Pt2 axis = major ? f.major : f.major.perp();
+      return f.center + axis * ((major ? f.a : f.b) * 0.6) + axis.perp() * off;
+    }
     case ConstraintType::Angle: {
       const Geometry* gb = c.b.isValid() ? geometry(c.b.geo) : nullptr;
       if (ga->type == GeomType::Arc) return ga->center() + Pt2::polar(ga->radius() * 0.6, ga->startAngle() + ga->sweep() / 2);
@@ -294,6 +304,41 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
       return ga->midpoint() + Pt2{off, off};
     }
   }
+}
+
+int Sketch::findOriginHelper(OriginRef which) const {
+  for (const Geometry& g : geometries_) {
+    if (!g.isOriginHelper()) continue;
+    switch (which) {
+      case OriginRef::Point:
+        if (g.type == GeomType::Point && g.center().length() < 1e-9) return g.id;
+        break;
+      case OriginRef::XAxis:
+        if (g.type == GeomType::Line && std::abs(g.p[1]) < 1e-9 && std::abs(g.p[3]) < 1e-9) return g.id;
+        break;
+      case OriginRef::YAxis:
+        if (g.type == GeomType::Line && std::abs(g.p[0]) < 1e-9 && std::abs(g.p[2]) < 1e-9) return g.id;
+        break;
+    }
+  }
+  return -1;
+}
+
+int Sketch::originHelper(OriginRef which) {
+  if (int id = findOriginHelper(which); id >= 0) return id;
+  Geometry g;
+  if (which == OriginRef::Point) {
+    g = Geometry::makePoint({0, 0});
+  } else {
+    // a segment of the axis covering the sketch (the solver treats lines as infinite anyway)
+    double ext = 50.0;
+    Pt2 mn, mx;
+    if (bbox(mn, mx)) ext = std::max({ext, std::abs(mn.x), std::abs(mn.y), std::abs(mx.x), std::abs(mx.y)}) * 1.2;
+    g = which == OriginRef::XAxis ? Geometry::makeLine({-ext, 0}, {ext, 0}) : Geometry::makeLine({0, -ext}, {0, ext});
+  }
+  g.construction = true;
+  g.projected = true;  // fixed for the solver, not selectable by Select All, drawn as reference
+  return addGeometry(std::move(g));
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +402,7 @@ void Sketch::endDrag() {
 std::optional<SketchHit> Sketch::hitPoint(Pt2 q, double tol, const std::set<int>& exclude) const {
   std::optional<SketchHit> best;
   for (const auto& g : geometries_) {
-    if (exclude.count(g.id)) continue;
+    if (exclude.count(g.id) || g.isOriginHelper()) continue;
     for (const GeoRef& r : g.pointRefs()) {
       Pt2 p = g.point(r.pos, r.index);
       double d = p.distance(q);
@@ -370,7 +415,7 @@ std::optional<SketchHit> Sketch::hitPoint(Pt2 q, double tol, const std::set<int>
 std::optional<SketchHit> Sketch::hitCurve(Pt2 q, double tol, const std::set<int>& exclude) const {
   std::optional<SketchHit> best;
   for (const auto& g : geometries_) {
-    if (exclude.count(g.id) || !g.isCurve()) continue;
+    if (exclude.count(g.id) || !g.isCurve() || g.isOriginHelper()) continue;
     Pt2 p = g.closestPoint(q);
     double d = p.distance(q);
     if (d <= tol && (!best || d < best->distance)) best = SketchHit{{g.id, PointPos::None}, p, d};
@@ -387,6 +432,7 @@ std::vector<int> Sketch::curvesInRect(Pt2 a, Pt2 b, bool crossing) const {
   Pt2 mn{std::min(a.x, b.x), std::min(a.y, b.y)}, mx{std::max(a.x, b.x), std::max(a.y, b.y)};
   std::vector<int> out;
   for (const auto& g : geometries_) {
+    if (g.isOriginHelper()) continue;
     auto [gmn, gmx] = g.bbox();
     bool inside = gmn.x >= mn.x && gmn.y >= mn.y && gmx.x <= mx.x && gmx.y <= mx.y;
     bool overlaps = gmn.x <= mx.x && gmx.x >= mn.x && gmn.y <= mx.y && gmx.y >= mn.y;
@@ -400,7 +446,7 @@ std::vector<Pt2> Sketch::intersectionsOn(int curveId, bool includeConstruction) 
   const Geometry* g = geometry(curveId);
   if (!g || !g->isCurve()) return out;
   for (const auto& o : geometries_) {
-    if (o.id == curveId || !o.isCurve()) continue;
+    if (o.id == curveId || !o.isCurve() || o.isOriginHelper()) continue;
     if (!includeConstruction && o.construction) continue;
     for (const Pt2& p : intersectCurves(*g, o)) {
       bool dup = false;
@@ -415,7 +461,7 @@ std::vector<Pt2> Sketch::intersectionsOn(int curveId, bool includeConstruction) 
 bool Sketch::bbox(Pt2& mn, Pt2& mx, bool includeConstruction) const {
   bool any = false;
   for (const auto& g : geometries_) {
-    if (!includeConstruction && g.construction) continue;
+    if ((!includeConstruction && g.construction) || g.isOriginHelper()) continue;
     auto [a, b] = g.bbox();
     if (!any) {
       mn = a;
@@ -545,6 +591,139 @@ void dropPointConstraints(Sketch& sk, int geoId, PointPos pos) {
 
 namespace {
 
+/// A spline whose end meets its start (drawn closed): trimmed like a circle.
+bool isClosedSpline(const Geometry& g) {
+  return g.isSpline() && g.vertexCount() >= 3 && g.start().distance(g.end()) < 1e-6;
+}
+
+/// One fit point of a spline piece: position, interpolation parameter, index in the original
+/// spline (-1 for cut / added points).
+struct FitPt {
+  Pt2 p;
+  double t;
+  int orig;
+};
+
+/// Fit points of `g` (a FitSpline) for the parameter range [u0, u1]; with `wrap` the range
+/// u1 is beyond the end of a closed spline and continues from its start (shifted by the range).
+std::vector<FitPt> fitPoints(const Geometry& g, double u0, double u1) {
+  BSpline2 sp = g.bspline();
+  const double a = sp.first(), b = sp.last(), len = b - a;
+  const double eps = 1e-3 * std::max(len, 1e-9);
+  std::vector<double> t = g.knots.size() == static_cast<size_t>(g.vertexCount()) ? g.knots : std::vector<double>{};
+  if (t.empty())
+    for (int k = 0; k < g.vertexCount(); ++k) t.push_back(sp.closestParam(g.vertex(k)));
+  auto at = [&](double u) { return sp.value(u > b ? u - len : u); };
+  std::vector<FitPt> out{{at(u0), u0, -1}};
+  for (int pass = 0; pass < 2; ++pass) {
+    double shift = pass == 0 ? 0.0 : len;
+    for (int k = 0; k < g.vertexCount(); ++k) {
+      if (pass == 1 && k == 0) continue;  // the seam point is the last fit point already
+      double tk = t[static_cast<size_t>(k)] + shift;
+      if (tk > u0 + eps && tk < u1 - eps) out.push_back({g.vertex(k), tk, k});
+    }
+    if (u1 <= b + eps) break;
+  }
+  out.push_back({at(u1), u1, -1});
+  // the refit has other knots and end conditions than the original: add samples of the original
+  // where the refit strays (adaptive, so the piece keeps few fit points)
+  const double tolDev = 1e-3 * std::max(1.0, g.bbox().second.distance(g.bbox().first));
+  for (int iter = 0; iter < 24 && out.size() >= 2; ++iter) {
+    std::vector<Pt2> ps;
+    std::vector<double> ts;
+    for (const FitPt& f : out) {
+      ps.push_back(f.p);
+      ts.push_back(f.t);
+    }
+    BSpline2 fit = interpolateSpline(ps, ts);
+    if (!fit.isValid()) break;
+    size_t worst = 0;
+    double worstDev = 0;
+    for (size_t i = 0; i + 1 < out.size(); ++i)
+      for (double f : {0.25, 0.5, 0.75}) {
+        double m = out[i].t + (out[i + 1].t - out[i].t) * f;
+        double d = fit.value(m).distance(at(m));
+        if (d > worstDev) {
+          worstDev = d;
+          worst = i;
+        }
+      }
+    if (worstDev <= tolDev) break;
+    double m = 0.5 * (out[worst].t + out[worst + 1].t);
+    out.insert(out.begin() + static_cast<std::ptrdiff_t>(worst) + 1, FitPt{at(m), m, -1});
+  }
+  // keep it cubic and close to the original: add samples in the widest gaps
+  while (out.size() < 4) {
+    size_t w = 0;
+    for (size_t i = 1; i + 1 < out.size(); ++i)
+      if (out[i + 1].t - out[i].t > out[w + 1].t - out[w].t) w = i;
+    double m = 0.5 * (out[w].t + out[w + 1].t);
+    out.insert(out.begin() + static_cast<std::ptrdiff_t>(w) + 1, FitPt{at(m), m, -1});
+  }
+  return out;
+}
+
+/// The piece of spline `g` between parameters u0 < u1 (u1 may run past the end of a closed
+/// spline, continuing from its start). Control-point splines are cut exactly (knot insertion);
+/// fit-point splines keep the fit points in the range plus the cut points, with their original
+/// parameters, so the shape barely changes. `origIndex` receives the original index of each
+/// fit point (-1 for new points; empty for control-point splines).
+Geometry splinePiece(const Geometry& g, double u0, double u1, std::vector<int>* origIndex = nullptr) {
+  if (origIndex) origIndex->clear();
+  Geometry out;
+  if (g.type == GeomType::FitSpline) {
+    std::vector<FitPt> pts = fitPoints(g, u0, u1);
+    std::vector<Pt2> ps;
+    std::vector<double> ts;
+    for (const FitPt& f : pts) {
+      ps.push_back(f.p);
+      ts.push_back(f.t);
+      if (origIndex) origIndex->push_back(f.orig);
+    }
+    out = Geometry::makeFitSpline(ps);
+    out.knots = ts;
+  } else {
+    BSpline2 sp = g.bspline();
+    const double a = sp.first(), b = sp.last();
+    BSpline2 piece;
+    if (u1 <= b + 1e-12) {
+      piece = subBSpline(sp, u0, u1);
+    } else {
+      piece = joinBSplines(subBSpline(sp, u0, b), subBSpline(sp, a, u1 - (b - a)));
+    }
+    if (!piece.isValid()) return g;
+    out = Geometry::makeControlSpline(piece.poles, piece.degree);
+    out.knots = piece.knots;
+  }
+  out.construction = g.construction;
+  return out;
+}
+
+/// After replacing spline `oldId` by pieces: move constraints on its fit points (Vertex refs) to
+/// the piece that kept that point, drop the others. `maps[i]` = original index per fit point of
+/// piece `ids[i]`.
+void remapVertexConstraints(Sketch& sk, int oldId, const std::vector<int>& ids, const std::vector<std::vector<int>>& maps) {
+  auto& cs = sk.constraints();
+  cs.erase(std::remove_if(cs.begin(), cs.end(),
+                          [&](Constraint& c) {
+                            for (GeoRef* r : {&c.a, &c.b, &c.c}) {
+                              if (r->geo != oldId || r->pos != PointPos::Vertex) continue;
+                              bool found = false;
+                              for (size_t i = 0; i < ids.size() && !found; ++i)
+                                for (size_t k = 0; k < maps[i].size(); ++k)
+                                  if (maps[i][k] == r->index) {
+                                    r->geo = ids[i];
+                                    r->index = static_cast<int>(k);
+                                    found = true;
+                                    break;
+                                  }
+                              if (!found) return true;
+                            }
+                            return false;
+                          }),
+           cs.end());
+}
+
 /// Bracketing of the piece of a curve around a pick point by its intersections.
 struct TrimBracket {
   double lo = 0, hi = 0;    ///< parameter bounds of the removed piece
@@ -561,10 +740,56 @@ TrimBracket computeBracket(const Sketch& sk, const Geometry& g, Pt2 at) {
     if (o.id == g.id || !o.isCurve()) continue;
     for (const Pt2& p : intersectCurves(g, o)) hits.push_back({g.paramOf(p), o.id});
   }
-  if (g.isSpline() || g.type == GeomType::Text) {
-    // splines and text are only removed as a whole (when nothing crosses them)
+  if (g.type == GeomType::Text) {
+    // text is only removed as a whole (when nothing crosses it)
     br.whole = hits.empty();
     if (!br.whole) br.lo = br.hi = 0;
+    return br;
+  }
+  if (g.isSpline()) {
+    // by parameter range, like lines (open) or circles (closed, needs two cuts)
+    auto [u0, u1] = g.paramRange();
+    const double eps = 1e-7 * std::max(1.0, u1 - u0);
+    double uAt = std::clamp(g.paramOf(at), u0, u1);
+    std::vector<ParamHit> ts;
+    for (const auto& h : hits)
+      if (h.param > u0 + eps && h.param < u1 - eps) ts.push_back(h);
+    std::sort(ts.begin(), ts.end(), [](const ParamHit& a, const ParamHit& b) { return a.param < b.param; });
+    if (isClosedSpline(g)) {
+      if (ts.size() < 2) {
+        br.whole = true;
+        br.circleClosed = true;
+        return br;
+      }
+      size_t i = ts.size() - 1;
+      bool before = false;
+      for (size_t k = 0; k < ts.size(); ++k)
+        if (ts[k].param <= uAt) {
+          i = k;
+          before = true;
+        }
+      size_t j = before ? (i + 1) % ts.size() : 0;
+      br.lo = ts[i].param;
+      br.loOther = ts[i].otherId;
+      br.hi = ts[j].param;
+      br.hiOther = ts[j].otherId;
+      if (br.hi <= br.lo) br.hi += u1 - u0;  // the piece runs across the seam
+      return br;
+    }
+    br.lo = u0;
+    br.hi = u1;
+    for (const auto& h : ts)
+      if (h.param <= uAt) {
+        br.lo = h.param;
+        br.loOther = h.otherId;
+      }
+    for (const auto& h : ts)
+      if (h.param >= uAt) {
+        br.hi = h.param;
+        br.hiOther = h.otherId;
+        break;
+      }
+    br.whole = br.loOther == -1 && br.hiOther == -1;
     return br;
   }
   if (g.type == GeomType::Line) {
@@ -652,7 +877,8 @@ std::optional<Geometry> Sketch::trimPiece(int curveId, Pt2 at) const {
   if (!g || !g->isCurve()) return std::nullopt;
   TrimBracket br = computeBracket(*this, *g, at);
   if (br.whole) return *g;
-  if (g->isSpline() || g->type == GeomType::Text) return std::nullopt;
+  if (g->type == GeomType::Text) return std::nullopt;
+  if (g->isSpline()) return splinePiece(*g, br.lo, br.hi);
   Geometry piece = *g;
   piece.id = -1;
   if (g->type == GeomType::Line) {
@@ -673,11 +899,62 @@ std::vector<int> Sketch::trim(int curveId, Pt2 at) {
     removeGeometry(curveId);
     return {};
   }
-  if (orig.isSpline() || orig.type == GeomType::Text) return {curveId};
+  if (orig.type == GeomType::Text) return {curveId};
   auto onCurve = [&](int geo, PointPos pos, int other) {
     if (other < 0) return;
     addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = {geo, pos}, .b = {other, PointPos::None}, .internal = true});
   };
+
+  if (orig.isSpline()) {
+    auto [u0, u1] = orig.paramRange();
+    auto replace = [&](int id, const Geometry& piece) {
+      Geometry* t = geometry(id);
+      Geometry keep = piece;
+      keep.id = id;
+      keep.projected = orig.projected;
+      keep.blocked = orig.blocked;
+      keep.source = orig.source;
+      *t = keep;
+    };
+    std::vector<int> mapA, mapB;
+    if (isClosedSpline(orig)) {
+      // what stays runs from the hi cut round (across the seam) to the lo cut
+      double from = br.hi, to = br.lo;
+      if (from >= u1 - 1e-12) from -= u1 - u0;
+      if (to <= from) to += u1 - u0;
+      Geometry rest = splinePiece(orig, from, to, &mapA);
+      dropPointConstraints(*this, curveId, PointPos::Start);
+      dropPointConstraints(*this, curveId, PointPos::End);
+      replace(curveId, rest);
+      remapVertexConstraints(*this, curveId, {curveId}, {mapA});
+      onCurve(curveId, PointPos::Start, br.hiOther);
+      onCurve(curveId, PointPos::End, br.loOther);
+      return {curveId};
+    }
+    if (br.loOther == -1) {
+      dropPointConstraints(*this, curveId, PointPos::Start);
+      replace(curveId, splinePiece(orig, br.hi, u1, &mapA));
+      remapVertexConstraints(*this, curveId, {curveId}, {mapA});
+      onCurve(curveId, PointPos::Start, br.hiOther);
+      return {curveId};
+    }
+    if (br.hiOther == -1) {
+      dropPointConstraints(*this, curveId, PointPos::End);
+      replace(curveId, splinePiece(orig, u0, br.lo, &mapA));
+      remapVertexConstraints(*this, curveId, {curveId}, {mapA});
+      onCurve(curveId, PointPos::End, br.loOther);
+      return {curveId};
+    }
+    Geometry second = splinePiece(orig, br.hi, u1, &mapB);
+    int newId = addGeometry(second);
+    replace(curveId, splinePiece(orig, u0, br.lo, &mapA));
+    redistributeConstraints(*this, curveId, newId, PointPos::End, PointPos::End);
+    followNearestPiece(*this, curveId, newId);
+    remapVertexConstraints(*this, curveId, {curveId, newId}, {mapA, mapB});
+    onCurve(curveId, PointPos::End, br.loOther);
+    onCurve(newId, PointPos::Start, br.hiOther);
+    return {curveId, newId};
+  }
 
   if (orig.type == GeomType::Line) {
     if (br.loOther == -1) {
@@ -837,7 +1114,7 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
   auto endpoints = [&](int id, bool rev) {
     const Geometry* g = sk.geometry(id);
     Pt2 s = g->start(), e = g->end();
-    if (g->type == GeomType::Circle || g->type == GeomType::Point) return std::pair<Pt2, Pt2>{s, s};
+    if (g->isClosedCurve() || g->type == GeomType::Point) return std::pair<Pt2, Pt2>{s, s};
     return rev ? std::pair<Pt2, Pt2>{e, s} : std::pair<Pt2, Pt2>{s, e};
   };
   while (!left.empty()) {
@@ -845,7 +1122,7 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
     left.erase(first);
     std::deque<ChainItem> run{{first, false}};
     const Geometry* fg = sk.geometry(first);
-    if (fg->type == GeomType::Circle) {
+    if (fg->isClosedCurve() || isClosedSpline(*fg)) {
       runs.push_back({run.begin(), run.end()});
       continue;
     }
@@ -856,7 +1133,7 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
       Pt2 headStart = endpoints(run.front().id, run.front().reversed).first;
       for (int id : left) {
         const Geometry* g = sk.geometry(id);
-        if (g->type == GeomType::Circle || g->type == GeomType::Point) continue;
+        if (g->isClosedCurve() || isClosedSpline(*g) || g->type == GeomType::Point) continue;
         if (g->start().near(tailEnd, 1e-6)) { run.push_back({id, false}); left.erase(id); grew = true; break; }
         if (g->end().near(tailEnd, 1e-6)) { run.push_back({id, true}); left.erase(id); grew = true; break; }
         if (g->end().near(headStart, 1e-6)) { run.push_front({id, false}); left.erase(id); grew = true; break; }
@@ -866,6 +1143,69 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
     runs.push_back({run.begin(), run.end()});
   }
   return runs;
+}
+
+/// Unit left normal of the traversal of a sampled curve at parameter u.
+Pt2 leftNormalAt(const Geometry& g, double u, bool reversed) {
+  Pt2 t;
+  if (g.isElliptical()) t = g.ellipse().derivative(u);
+  else t = g.bspline().derivative(u);
+  if (t.length() < 1e-12) return {0, 0};
+  t = t.normalized();
+  return (reversed ? -t : t).perp();
+}
+
+/// Offset of an ellipse / elliptical arc / spline, approximated by a fit-point spline through
+/// offset samples (the exact offset of these curves is not of their own type). Ellipses: d > 0 =
+/// outward, like circles; others: d > 0 = left of the traversal. Nullopt when the offset would
+/// fold over itself (inward beyond the tightest curvature).
+std::optional<Geometry> offsetSampled(const Geometry& g, bool reversed, double d) {
+  const bool closed = g.type == GeomType::Ellipse;
+  double side = d;
+  if (g.isElliptical()) {
+    EllipseFrame f = g.ellipse();
+    // ccw parametrisation: its left side is inside. Folding starts at the minimum radius of
+    // curvature b^2 / a.
+    if (closed) side = -d;
+    bool inward = (closed ? d < 0 : (reversed ? d < 0 : d > 0));
+    if (inward && std::abs(d) >= f.b * f.b / std::max(f.a, 1e-12) - 1e-9) return std::nullopt;
+  }
+  auto [u0, u1] = g.paramRange();
+  const double sgn = reversed && !closed ? -1.0 : 1.0;
+  auto offsetAt = [&](double u) { return g.pointAt(u) + leftNormalAt(g, u, false) * (side * sgn); };
+  // as few fit points as keep the spline within ~0.1% of the size of the true offset
+  auto [bmin, bmax] = g.bbox();
+  const double tolDev = 1e-3 * std::max(1.0, bmax.distance(bmin));
+  std::vector<Pt2> pts;
+  for (int n = 12; n <= 192; n *= 2) {
+    pts.clear();
+    std::vector<Pt2> src;
+    for (int i = 0; i < n; ++i) {
+      double u = u0 + (u1 - u0) * i / (closed ? n : n - 1);
+      src.push_back(g.pointAt(u));
+      pts.push_back(offsetAt(u));
+    }
+    if (closed) {
+      pts.push_back(pts.front());
+      src.push_back(src.front());
+    }
+    // a fold (a segment reversing against the original) means the offset is too large
+    for (size_t i = 0; i + 1 < src.size(); ++i)
+      if ((pts[i + 1] - pts[i]).dot(src[i + 1] - src[i]) <= 0) return std::nullopt;
+    Geometry trial = Geometry::makeFitSpline(pts);
+    BSpline2 sp = trial.bspline();
+    double worst = 0;
+    const int segs = closed ? n : n - 1;
+    for (int i = 0; i < segs; ++i) {
+      double um = u0 + (u1 - u0) * (i + 0.5) / segs;
+      Pt2 want = offsetAt(um);
+      worst = std::max(worst, sp.value(sp.closestParam(want)).distance(want));
+    }
+    if (worst <= tolDev) break;
+  }
+  Geometry o = Geometry::makeFitSpline(pts);
+  o.construction = g.construction;
+  return o;
 }
 
 /// Offset one curve; nullopt when the result degenerates (an arc/circle radius collapses).
@@ -891,12 +1231,12 @@ std::optional<Geometry> offsetCurve(const Geometry& g, bool reversed, double d) 
       o.setRadius(r);
       break;
     }
-    case GeomType::Point:
     case GeomType::Ellipse:
     case GeomType::EllipseArc:
     case GeomType::Spline:
-    case GeomType::FitSpline:
-    case GeomType::Text: break;  // not offsettable exactly; copied unchanged (filtered by offset())
+    case GeomType::FitSpline: return offsetSampled(g, reversed, d);
+    case GeomType::Point:
+    case GeomType::Text: break;  // not offsettable; copied unchanged (filtered by offset())
   }
   return o;
 }
@@ -905,6 +1245,16 @@ std::optional<Geometry> offsetCurve(const Geometry& g, bool reversed, double d) 
 double sideOfCurve(const Geometry& g, bool reversed, Pt2 p) {
   if (g.type == GeomType::Line) return signedDistanceToLine(g.start(), g.direction(), p) * (reversed ? -1 : 1);
   if (g.type == GeomType::Circle) return p.distance(g.center()) - g.radius();  // circles: outward = positive
+  if (g.type == GeomType::Ellipse) {  // outward = positive
+    EllipseFrame f = g.ellipse();
+    Pt2 v = p - f.center;
+    double x = v.dot(f.major) / f.a, y = v.dot(f.minor) / f.b;
+    return x * x + y * y - 1;
+  }
+  if (g.type == GeomType::EllipseArc || g.isSpline()) {
+    double u = g.paramOf(p);
+    return (p - g.pointAt(u)).dot(leftNormalAt(g, u, reversed));
+  }
   return (p.distance(g.center()) - g.radius()) * (reversed ? 1 : -1);
 }
 
@@ -923,7 +1273,7 @@ bool runIsClosed(const Sketch& sk, const std::vector<ChainItem>& run) {
   if (run.size() < 2) return false;
   const Geometry* gl = sk.geometry(run.back().id);
   const Geometry* gf = sk.geometry(run.front().id);
-  if (gl->type == GeomType::Circle || gf->type == GeomType::Circle) return false;
+  if (gl->isClosedCurve() || gf->isClosedCurve()) return false;
   Pt2 tail = run.back().reversed ? gl->start() : gl->end();
   Pt2 head = run.front().reversed ? gf->end() : gf->start();
   return tail.near(head, 1e-6);
@@ -953,7 +1303,7 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
   std::vector<int> curves;
   for (int id : ids) {
     const Geometry* g = geometry(id);
-    if (g && (g->type == GeomType::Line || g->isCircular())) curves.push_back(id);
+    if (g && (g->type == GeomType::Line || g->isCircular() || g->isElliptical() || g->isSpline())) curves.push_back(id);
   }
   auto runs = orderChains(*this, curves);
   for (auto& run : runs) {
@@ -993,6 +1343,8 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
     for (size_t i = 0; i + 1 < run.size(); ++i) {
       Geometry& a = offs[i];
       Geometry& b = offs[i + 1];
+      auto exactKind = [](const Geometry& x) { return x.type == GeomType::Line || x.isCircular(); };
+      if (!exactKind(a) || !exactKind(b)) continue;  // sampled offsets (ellipse, spline): no corner trim
       const Geometry* ga = geometry(run[i].id);
       Pt2 junction = run[i].reversed ? ga->start() : ga->end();
       std::vector<Pt2> cand;
@@ -1023,7 +1375,9 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
         Geometry& a = offs.back();
         Geometry& b = offs.front();
         std::vector<Pt2> cand;
-        if (a.type == GeomType::Line && b.type == GeomType::Line) {
+        if (!(a.type == GeomType::Line || a.isCircular()) || !(b.type == GeomType::Line || b.isCircular())) {
+          // sampled offsets: corners are not trimmed
+        } else if (a.type == GeomType::Line && b.type == GeomType::Line) {
           if (auto p = intersectLines(a.start(), a.direction(), b.start(), b.direction())) cand.push_back(*p);
         } else if (a.type == GeomType::Line) {
           cand = intersectLineCircle(a.start(), a.direction(), b.center(), b.radius());
@@ -1056,6 +1410,8 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
       o.blocked = false;
       o.source = core::ShapeRef{};
       newIds.push_back(addGeometry(o));
+      if (o.isSpline() && run.size() == 1 && o.start().near(o.end(), 1e-9))  // offset of a closed curve
+        addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {newIds.back(), PointPos::End}, .b = {newIds.back(), PointPos::Start}, .internal = true});
     }
     // coincidences along the offset chain
     for (size_t i = 0; i + 1 < newIds.size(); ++i) {
@@ -1222,8 +1578,8 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   auto offsetsOf = [&](const Geometry& g, double r) {
     std::vector<Geometry> v;
     if (g.type == GeomType::Line) {
-      v.push_back(*offsetCurve(g, false, r));
-      v.push_back(*offsetCurve(g, false, -r));
+      for (double s : {r, -r})
+        if (auto o = offsetCurve(g, false, s)) v.push_back(*o);
     } else {
       Geometry a = g;
       a.setRadius(g.radius() + r);
@@ -1500,6 +1856,7 @@ int Sketch::preserveTrimmedCorner(int id1, PointPos m1, Pt2 old1, int id2, Point
 
 std::optional<int> Sketch::split(int curveId, Pt2 at) {
   Geometry* g = geometry(curveId);
+  if (g && g->isSpline()) return splitSpline(curveId, at);
   if (!g || (g->type != GeomType::Line && g->type != GeomType::Arc)) return std::nullopt;
   Pt2 p = g->closestPoint(at);
   if (p.near(g->start(), 1e-6) || p.near(g->end(), 1e-6)) return std::nullopt;
@@ -1517,6 +1874,41 @@ std::optional<int> Sketch::split(int curveId, Pt2 at) {
     addConstraint(Constraint{.type = ConstraintType::Concentric, .a = {curveId, PointPos::None}, .b = {newId, PointPos::None}, .internal = true});
     addConstraint(Constraint{.type = ConstraintType::Equal, .a = {curveId, PointPos::None}, .b = {newId, PointPos::None}, .internal = true});
   }
+  return newId;
+}
+
+std::optional<int> Sketch::splitSpline(int curveId, Pt2 at) {
+  Geometry* g = geometry(curveId);
+  if (!g || !g->isSpline()) return std::nullopt;
+  const Geometry orig = *g;
+  auto [u0, u1] = orig.paramRange();
+  double u = orig.paramOf(at);
+  const double eps = 1e-4 * std::max(1.0, u1 - u0);
+  auto replace = [&](int id, Geometry piece) {
+    piece.id = id;
+    piece.projected = orig.projected;
+    piece.blocked = orig.blocked;
+    piece.source = orig.source;
+    *geometry(id) = piece;
+  };
+  std::vector<int> mapA, mapB;
+  if (isClosedSpline(orig)) {
+    // one break on a closed spline moves its seam there (break again to get two pieces)
+    if (u - u0 < eps || u1 - u < eps) return std::nullopt;
+    dropPointConstraints(*this, curveId, PointPos::Start);
+    dropPointConstraints(*this, curveId, PointPos::End);
+    replace(curveId, splinePiece(orig, u, u + (u1 - u0), &mapA));
+    remapVertexConstraints(*this, curveId, {curveId}, {mapA});
+    addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {curveId, PointPos::End}, .b = {curveId, PointPos::Start}, .internal = true});
+    return curveId;
+  }
+  if (u - u0 < eps || u1 - u < eps) return std::nullopt;
+  int newId = addGeometry(splinePiece(orig, u, u1, &mapB));
+  replace(curveId, splinePiece(orig, u0, u, &mapA));
+  redistributeConstraints(*this, curveId, newId, PointPos::End, PointPos::End);
+  followNearestPiece(*this, curveId, newId);
+  remapVertexConstraints(*this, curveId, {curveId, newId}, {mapA, mapB});
+  addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {curveId, PointPos::End}, .b = {newId, PointPos::Start}, .internal = true});
   return newId;
 }
 

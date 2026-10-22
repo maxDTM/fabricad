@@ -43,7 +43,8 @@ bool isOrientationConstraint(const Constraint& c) {
 
 bool isLengthDimension(ConstraintType t) {
   return t == ConstraintType::Distance || t == ConstraintType::DistanceX || t == ConstraintType::DistanceY ||
-         t == ConstraintType::Radius || t == ConstraintType::Diameter;
+         t == ConstraintType::Radius || t == ConstraintType::Diameter || t == ConstraintType::MajorRadius ||
+         t == ConstraintType::MinorRadius;
 }
 
 void scaleDimension(Constraint& c, double k) {

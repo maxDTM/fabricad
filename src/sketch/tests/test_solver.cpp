@@ -1,6 +1,7 @@
 // Sketch solver tests (PlaneGCS wrapper): constraints, DOF, conflicts, dragging.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "sketch/Sketch.h"
+#include "sketch/SketchCurves.h"
 #include "support/SketchTestHelpers.h"
 
 #include <QtTest/QtTest>
@@ -257,6 +258,57 @@ class SolverTest : public QObject {
       return std::nullopt;
     });
     QCOMPARE(errs.size(), size_t(1));
+  }
+
+  // SK-01: moving an ellipse's centre (drag or dimension) must translate it, not reshape it.
+  void ellipseCentreDragKeepsShape() {
+    Sketch sk;
+    int e = sk.addGeometry(Geometry::makeEllipse({0, 0}, 20, 10, 0.3));
+    sk.solve();
+    int dofBefore = sk.solve().dofs;
+    QVERIFY(sk.beginDrag({e, PointPos::Center}, {0, 0}));
+    QVERIFY(sk.drag({15, -5}));
+    sk.endDrag();
+    const Geometry* g = sk.geometry(e);
+    QVERIFY(near(g->center(), {15, -5}));
+    QVERIFY(near(g->majorRadius(), 20.0));
+    QVERIFY(near(g->minorRadius(), 10.0));
+    Pt2 ax = g->ellipse().major;
+    QVERIFY(std::abs(std::atan2(ax.y, ax.x) - 0.3) < 1e-6);
+    QCOMPARE(sk.solve().dofs, dofBefore);
+  }
+
+  void ellipseArcCentreDragKeepsShape() {
+    Sketch sk;
+    int e = sk.addGeometry(Geometry::makeEllipseArc({0, 0}, 20, 10, 0.0, 0.2, 2.0));
+    sk.solve();
+    Pt2 s0 = sk.geometry(e)->start();
+    QVERIFY(sk.beginDrag({e, PointPos::Center}, {0, 0}));
+    QVERIFY(sk.drag({5, 7}));
+    sk.endDrag();
+    const Geometry* g = sk.geometry(e);
+    QVERIFY(near(g->center(), {5, 7}));
+    QVERIFY(near(g->majorRadius(), 20.0));
+    QVERIFY(near(g->minorRadius(), 10.0));
+    QVERIFY(near(g->start(), s0 + Pt2{5, 7}));
+  }
+
+  void ellipseCentreDimensionKeepsShape() {
+    Sketch sk;
+    int o = sk.addGeometry(Geometry::makePoint({0, 0}));
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {o}});
+    int e = sk.addGeometry(Geometry::makeEllipse({10, 10}, 20, 8, 0.0));
+    int dofBefore = sk.solve().dofs;
+    sk.addConstraint(Constraint{.type = ConstraintType::DistanceX, .a = {o, PointPos::Center}, .b = {e, PointPos::Center}, .value = 40});
+    sk.addConstraint(Constraint{.type = ConstraintType::DistanceY, .a = {o, PointPos::Center}, .b = {e, PointPos::Center}, .value = -12});
+    SolveResult r = sk.solve();
+    QVERIFY(r.ok());
+    QCOMPARE(r.dofs, dofBefore - 2);
+    const Geometry* g = sk.geometry(e);
+    QVERIFY(near(g->center(), {40, -12}));
+    QVERIFY(near(g->majorRadius(), 20.0));
+    QVERIFY(near(g->minorRadius(), 8.0));
+    QVERIFY(std::abs(g->ellipse().major.y) < 1e-6);
   }
 };
 

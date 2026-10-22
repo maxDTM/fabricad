@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "sketch/tools/SketchToolBase.h"
 #include "sketch/tools/SketchTools.h"
+#include "sketch/SketchCurves.h"
 
 #include "core/AppHost.h"
 #include "core/Document.h"
@@ -15,7 +16,9 @@
 #include <QTimer>
 #include <QPointer>
 #include <QtCore/Qt>
+#include <BRepAlgoAPI_Section.hxx>
 #include <TopExp_Explorer.hxx>
+#include <gp_Pln.hxx>
 #include <TopoDS.hxx>
 
 #include <algorithm>
@@ -59,6 +62,9 @@ bool applyDimensionText(ToolContext& ctx, Sketch& sk, int id, const std::string&
   const std::string oldExpr = c->expression;
   TypedInput ti = parseTypedInput(text);
   c->value = *v;
+  // a horizontal / vertical offset is shown as a length: a typed number keeps the side the
+  // geometry is on, a negative one flips it (SK-02). Expressions are taken as given.
+  if (c->isRelativeOffset() && ti.kind == TypedInput::Kind::Number && oldValue < 0) c->value = -*v;
   c->expression = ti.kind == TypedInput::Kind::Number ? std::string() : trimmed(text);
   SolveResult r = sk.solve();
   if (!r.ok()) {
@@ -75,7 +81,7 @@ bool applyDimensionText(ToolContext& ctx, Sketch& sk, int id, const std::string&
 std::string dimensionEditText(const Constraint& c, const core::UnitSystem& units) {
   if (!c.expression.empty()) return c.expression;
   if (c.type == ConstraintType::Angle) return core::formatQuantity(core::Quantity::deg(c.value), units, false);
-  return core::formatQuantity(core::Quantity::mm(c.value), units, false);
+  return core::formatQuantity(core::Quantity::mm(c.isRelativeOffset() ? std::abs(c.value) : c.value), units, false);
 }
 
 /// Give a dimension value field keyboard focus with its text selected, on the next event-loop
@@ -316,6 +322,9 @@ class TrimTool : public SketchTool {
     auto hit = sk->hitCurve(*c, tol(*c));
     if (!hit) return true;
     if (pressed_ && (e.buttons & 1)) {
+      // power trim: once per crossing. A piece cut next to the cursor (a refitted spline end)
+      // must not be trimmed again by the next mouse move.
+      if (lastTrim_ && lastTrim_->distance(*c) < 2 * tol(*c)) return true;
       trim(ctx, hit->ref.geo, *c);
       return true;
     }
@@ -329,6 +338,7 @@ class TrimTool : public SketchTool {
     Sketch* sk = sketch();
     if (!c || !sk) return true;
     pressed_ = true;
+    lastTrim_.reset();
     if (auto hit = sk->hitCurve(*c, tol(*c))) trim(ctx, hit->ref.geo, *c);
     return true;
   }
@@ -336,6 +346,7 @@ class TrimTool : public SketchTool {
   bool mouseRelease(ToolContext&, const ViewerMouseEvent& e) override {
     if (e.button != core::MouseButton::Left) return false;
     pressed_ = false;
+    lastTrim_.reset();
     return true;
   }
 
@@ -346,10 +357,12 @@ class TrimTool : public SketchTool {
     clearTemp();
     session()->beginEdit();
     sk->trim(id, at);
-    session()->commitEdit("Trim");
+    lastTrim_ = at;
+    if (!session()->commitEdit("Trim")) ctx.showMessage("Cannot trim this curve", true);
     ctx.setPrompt("Select the piece of a curve to remove");
   }
   bool pressed_ = false;
+  std::optional<Pt2> lastTrim_;  ///< where the current drag last trimmed
 };
 
 // ---------------------------------------------------------------------------
@@ -676,6 +689,16 @@ class MirrorTool : public SketchTool {
       } else if (!lineMode_) {
         previewGeometry(*g, highlightStyle());
       }
+    } else if (lineMode_) {
+      if (auto axis = axisAt(*c)) {
+        // an origin axis as the mirror line (SK-10): real curves win the pick above
+        Pt2 d = *axis == OriginRef::XAxis ? Pt2{1, 0} : Pt2{0, 1};
+        double ext = tol(*c) * 40;
+        previewLines({d * -ext, d * ext}, highlightStyle());
+        Sketch copy = *sk;
+        for (int id : copy.mirror(ids_, Pt2{0, 0}, d))
+          if (const Geometry* m = copy.geometry(id)) previewGeometry(*m, rubberStyle());
+      }
     }
     return true;
   }
@@ -686,6 +709,22 @@ class MirrorTool : public SketchTool {
     Sketch* sk = sketch();
     if (!c || !sk || !session()) return true;
     auto hit = sk->hitCurve(*c, tol(*c));
+    if (!hit && lineMode_) {
+      if (auto axis = axisAt(*c)) {
+        clearTemp();
+        session()->beginEdit();
+        int line = sk->originHelper(*axis);  // one hidden fixed line per axis, reused
+        auto out = sk->mirror(ids_, line, true);
+        if (out.empty()) {
+          session()->cancelEdit();
+          ctx.showMessage("Nothing to mirror", true);
+          return true;
+        }
+        session()->commitEdit("Mirror");
+        ctx.finish();
+        return true;
+      }
+    }
     if (!hit) return true;
     if (!lineMode_) {
       auto it = std::find(ids_.begin(), ids_.end(), hit->ref.geo);
@@ -724,7 +763,16 @@ class MirrorTool : public SketchTool {
  private:
   std::string prompt() const {
     if (!lineMode_) return ids_.empty() ? "Select curves to mirror" : "Select more curves, or press Enter to pick the mirror line";
-    return "Select the mirror line";
+    return "Select the mirror line (a line or an origin axis)";
+  }
+  /// An origin axis under the cursor (not the origin point itself).
+  std::optional<OriginRef> axisAt(Pt2 c) const {
+    auto r = originRefAt(c, tol(c));
+    if (r == OriginRef::Point) {
+      // at the origin: the axis the cursor is closer to
+      r = std::abs(c.y) <= std::abs(c.x) ? OriginRef::XAxis : OriginRef::YAxis;
+    }
+    return r;
   }
   std::vector<int> ids_;
   bool lineMode_ = false;
@@ -737,7 +785,7 @@ class MirrorTool : public SketchTool {
 class ProjectTool : public SketchTool {
  public:
   ProjectTool()
-      : SketchTool(ToolInfo{.id = "sketch.project",
+      : ProjectTool(false, ToolInfo{.id = "sketch.project",
                             .name = "Project",
                             .tooltip = "Project edges, vertices or faces of bodies onto the sketch plane",
                             .icon = "sketch-project",
@@ -747,6 +795,7 @@ class ProjectTool : public SketchTool {
                             .group = "CREATE",
                             .order = 15,
                             .promoted = true}) {}
+  ProjectTool(bool intersect, ToolInfo info) : SketchTool(std::move(info)), intersect_(intersect) {}
 
   void activate(ToolContext& ctx) override {
     SketchTool::activate(ctx);
@@ -756,7 +805,9 @@ class ProjectTool : public SketchTool {
     for (const ShapeRef& r : ctx.preselection)
       if (r.isBrep()) project(ctx, r);
     if (ctx.selection) ctx.selection->clear();
-    ctx.setPrompt("Select edges, vertices, faces or bodies to project (Enter to finish)");
+    done_.clear();
+    ctx.setPrompt(intersect_ ? "Select bodies, faces or edges to intersect with the sketch plane (Enter to finish)"
+                             : "Select edges, vertices, faces or bodies to project (Enter to finish)");
   }
 
   void selectionChanged(ToolContext& ctx) override {
@@ -784,6 +835,10 @@ class ProjectTool : public SketchTool {
     TopoDS_Shape shape = core::resolveShape(*doc, ref);
     if (shape.IsNull()) {
       ctx.showMessage("Cannot resolve the selected geometry", true);
+      return;
+    }
+    if (intersect_) {
+      intersect(ctx, shape, ref);
       return;
     }
     std::vector<std::pair<TopoDS_Shape, ShapeRef>> items;
@@ -821,6 +876,46 @@ class ProjectTool : public SketchTool {
       session()->cancelEdit();
     }
   }
+
+  /// SK-13 Intersect: the section of the picked shape with the sketch plane, added as fixed
+  /// (blocked) curves and points. Not associative: they do not follow later body edits.
+  void intersect(ToolContext& ctx, const TopoDS_Shape& shape, const ShapeRef& ref) {
+    Sketch* sk = sketch();
+    SketchFeature* f = feature();
+    for (const ShapeRef& d : done_)
+      if (d == ref) return;
+    BRepAlgoAPI_Section sec(shape, gp_Pln(f->plane()), Standard_False);
+    sec.Approximation(Standard_True);
+    sec.Build();
+    if (!sec.IsDone()) {
+      ctx.showMessage("Cannot intersect the selection with the sketch plane", true);
+      return;
+    }
+    const TopoDS_Shape& result = sec.Shape();
+    session()->beginEdit();
+    int added = 0;
+    auto add = [&](const TopoDS_Shape& sub) {
+      auto g = projectShape(sub, f->plane(), nullptr);
+      if (!g) return;
+      g->blocked = true;
+      g->construction = session()->constructionMode();
+      sk->addGeometry(*g);
+      ++added;
+    };
+    for (TopExp_Explorer ex(result, TopAbs_EDGE); ex.More(); ex.Next()) add(ex.Current());
+    for (TopExp_Explorer ex(result, TopAbs_VERTEX, TopAbs_EDGE); ex.More(); ex.Next()) add(ex.Current());
+    if (added) {
+      done_.push_back(ref);
+      session()->commitEdit("Intersect");
+      ctx.showMessage(std::format("Intersected: {} item(s) added", added));
+    } else {
+      session()->cancelEdit();
+      ctx.showMessage("The selection does not cross the sketch plane", true);
+    }
+  }
+
+  bool intersect_ = false;
+  std::vector<ShapeRef> done_;
 };
 
 // ---------------------------------------------------------------------------
@@ -898,6 +993,11 @@ class DimensionTool : public SketchTool {
     ctx.setPrompt(prompt());
   }
 
+  void deactivate(ToolContext& ctx) override {
+    dropHelperEdit();
+    SketchTool::deactivate(ctx);
+  }
+
   bool mouseMove(ToolContext&, const ViewerMouseEvent& e) override {
     auto c = cursor(e);
     const Sketch* sk = sketch();
@@ -931,14 +1031,40 @@ class DimensionTool : public SketchTool {
     if (phase_ == Phase::Value) finishValue(ctx);
     auto hit = sk->hit(*c, tol(*c));
     if (hit && hit->ref.pos == PointPos::Mid) hit = sk->hitCurve(*c, tol(*c));  // mid of a curve = the curve
-    if (hit) {
-      GeoRef r = normalize(hit->ref);
-      bool samePick = std::find(picks_.begin(), picks_.end(), r) != picks_.end();
-      bool sameGeo = !picks_.empty() && picks_[0].geo == r.geo && !r.isPoint();
-      if (picks_.size() < 2 && !samePick && !(phase_ == Phase::Place && sameGeo)) {
-        picks_.push_back(r);
-        phase_ = candidate(*c).ok ? Phase::Place : Phase::Pick;
-        ctx.setPrompt(prompt());
+    std::optional<GeoRef> pick;
+    std::optional<OriginRef> originPick;
+    if (hit) pick = normalize(hit->ref);
+    else if (picks_.size() < 2) originPick = originAt(*c);
+    if (pick || originPick) {
+      if (picks_.size() < 2) {
+        if (originPick) {
+          // the origin / axes are not sketch geometry: stand them in with a hidden fixed helper,
+          // created inside the edit the dimension will be committed with (SK-06)
+          if (!helperEdit_) {
+            session()->beginEdit();
+            helperEdit_ = true;
+          }
+          pick = GeoRef{sk->originHelper(*originPick),
+                        *originPick == OriginRef::Point ? PointPos::Center : PointPos::None};
+        }
+        GeoRef r = *pick;
+        bool samePick = std::find(picks_.begin(), picks_.end(), r) != picks_.end();
+        bool sameGeo = !picks_.empty() && picks_[0].geo == r.geo && !r.isPoint();
+        if (!samePick && !(phase_ == Phase::Place && sameGeo)) {
+          picks_.push_back(r);
+          if (picks_.size() == 2 && !candidate(*c).ok) {
+            // a pair that cannot be dimensioned: say so instead of silently ignoring the pick
+            picks_.pop_back();
+            ctx.showMessage("Cannot dimension those two entities together; pick another one or place the dimension", true);
+            return true;
+          }
+          phase_ = candidate(*c).ok ? Phase::Place : Phase::Pick;
+          ctx.setPrompt(prompt());
+          return true;
+        }
+      }
+      if (phase_ != Phase::Place) {
+        ctx.showMessage(picks_.size() >= 2 ? "Two entities are already selected" : "That entity is already selected", true);
         return true;
       }
     }
@@ -980,6 +1106,7 @@ class DimensionTool : public SketchTool {
       return;
     }
     if (phase_ == Phase::Place) {
+      dropHelperEdit();
       reset();
       ctx.setPrompt(prompt());
       return;
@@ -993,6 +1120,7 @@ class DimensionTool : public SketchTool {
       return;
     }
     if (!picks_.empty()) {
+      dropHelperEdit();
       reset();
       clearTemp();
       ctx.setPrompt(prompt());
@@ -1028,7 +1156,17 @@ class DimensionTool : public SketchTool {
     pendingId_ = -1;
     edit_ = nullptr;
     typed_.clear();
+    helperEdit_ = false;
   }
+
+  /// Undo an origin helper created for picks that never became a dimension.
+  void dropHelperEdit() {
+    if (helperEdit_ && phase_ != Phase::Value && session()) session()->cancelEdit();
+    helperEdit_ = false;
+  }
+
+  /// The sketch origin or an origin axis under the cursor (when no sketch entity is).
+  std::optional<OriginRef> originAt(Pt2 c) const { return originRefAt(c, tol(c)); }
 
   std::string prompt() const {
     switch (phase_) {
@@ -1087,10 +1225,13 @@ class DimensionTool : public SketchTool {
       const GeoRef& r = picks_[0];
       const Geometry* g = sk->geometry(r.geo);
       if (!g || r.isPoint() || g->type == GeomType::Point) return c;
+      if (g->isOriginHelper()) return c;  // an axis alone has nothing to measure
       c.a = {r.geo};
       if (g->type == GeomType::Line) c.type = ConstraintType::Distance;
       else if (g->type == GeomType::Circle) c.type = ConstraintType::Diameter;
-      else c.type = ConstraintType::Radius;
+      else if (g->isElliptical()) c.type = ellipseRadiusFor(*g, label);
+      else if (g->type == GeomType::Arc) c.type = ConstraintType::Radius;
+      else return c;  // splines / text: no single-entity dimension
       c.ok = true;
       return c;
     }
@@ -1100,8 +1241,8 @@ class DimensionTool : public SketchTool {
     if (!g1 || !g2) return c;
     auto p1 = asPoint(r1), p2 = asPoint(r2);
     // circles/arcs paired with anything act through their centre
-    if (!p1 && g1->isCircular()) p1 = GeoRef{r1.geo, PointPos::Center};
-    if (!p2 && g2->isCircular()) p2 = GeoRef{r2.geo, PointPos::Center};
+    if (!p1 && (g1->isCircular() || g1->isElliptical())) p1 = GeoRef{r1.geo, PointPos::Center};
+    if (!p2 && (g2->isCircular() || g2->isElliptical())) p2 = GeoRef{r2.geo, PointPos::Center};
     if (p1 && p2) {
       c.a = *p1;
       c.b = *p2;
@@ -1134,6 +1275,16 @@ class DimensionTool : public SketchTool {
     return c;
   }
 
+  /// Major or minor radius of an ellipse, from where the label is: nearer the major axis
+  /// direction measures the major radius.
+  static ConstraintType ellipseRadiusFor(const Geometry& g, Pt2 label) {
+    EllipseFrame f = g.ellipse();
+    Pt2 v = label - f.center;
+    double u = std::abs(v.dot(f.major)) / std::max(f.a, 1e-9);
+    double w = std::abs(v.dot(f.minor)) / std::max(f.b, 1e-9);
+    return u >= w ? ConstraintType::MajorRadius : ConstraintType::MinorRadius;
+  }
+
   std::optional<Pt2> anchor(const DimCandidate& cand) const {
     const Sketch* sk = sketch();
     if (cand.a.isPoint()) return sk->pointOf(cand.a);
@@ -1149,12 +1300,13 @@ class DimensionTool : public SketchTool {
     auto m = sk->measure(c);
     if (!m) {
       ctx.showMessage("Cannot measure that combination", true);
+      dropHelperEdit();
       reset();
       return;
     }
     c.value = *m;
-    if (c.type == ConstraintType::Angle && c.value < 0) {
-      std::swap(c.a, c.b);
+    if ((c.type == ConstraintType::Angle || (c.isRelativeOffset() && c.a.isPoint() && c.b.isPoint())) && c.value < 0) {
+      std::swap(c.a, c.b);  // positive value, same geometry (SK-02)
       c.value = -c.value;
     }
     c.labelPos = p;
@@ -1213,6 +1365,7 @@ class DimensionTool : public SketchTool {
   Pt2 cursor_;
   QPointer<QLineEdit> edit_;
   std::string typed_;  ///< value keys typed while the field had no focus
+  bool helperEdit_ = false;  ///< an origin helper was created for the current picks (edit open)
 };
 
 // ---------------------------------------------------------------------------
@@ -1339,6 +1492,15 @@ void registerModifyTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<OffsetTool>());
   reg.registerTool(std::make_unique<MirrorTool>());
   reg.registerTool(std::make_unique<ProjectTool>());
+  reg.registerTool(std::make_unique<ProjectTool>(
+      true, ToolInfo{.id = "sketch.intersect",
+                     .name = "Intersect",
+                     .tooltip = "Add the intersection of bodies, faces or edges with the sketch plane (fixed curves)",
+                     .icon = "sketch-intersect",
+                     .aliases = {"INTERSECT"},
+                     .tab = "SKETCH",
+                     .group = "CREATE",
+                     .order = 15}));
   reg.registerTool(std::make_unique<ConstructionTool>());
   reg.registerTool(std::make_unique<DimensionTool>());
   reg.registerTool(std::make_unique<DimensionEditTool>());
