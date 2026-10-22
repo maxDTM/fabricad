@@ -86,6 +86,31 @@ QListWidget::item:selected { background: @{row.selected.bg}; color: @{row.select
 #CommandDialogTitle QLabel { color: @{text.primary}; }
 #CommandDialogMessage { color: @{text.secondary}; }
 #CommandDialogMessage[error="true"] { color: @{message.error}; }
+/* command card (5.3, 5.4, 7.1): CardFrame paints the panel, brackets and hairline; QSS styles the controls */
+#CommandDialog[card="true"] { background: transparent; border: none; }
+#CommandDialog[card="true"] #CommandDialogTitle { background: transparent; border: none; }
+#CommandDialog[card="true"] #CardSteps, #CommandDialog[card="true"] #CardFooter { background: transparent; }
+QLabel#CardContext, QLabel#CardDocName { color: @{text.tertiary}; }
+#CardBody QLabel { color: @{text.secondary}; }
+#CardBody QLabel#SegmentedLabel { color: @{text.secondary}; }
+#CardBody QLineEdit, #CardBody QComboBox, #CardBody QSpinBox, #CardBody QDoubleSpinBox { min-height: 24px; background: @{surface.input}; border: 1px solid @{border.control}; padding: 1px 6px; }
+#CardBody QLineEdit:focus { border: 2px solid @{live.base}; padding: 0 5px; }
+#CardBody QComboBox:focus, #CardBody QSpinBox:focus, #CardBody QDoubleSpinBox:focus { border-color: @{accent.focus}; }
+#CardBody QComboBox { padding-right: 28px; }
+#CardBody QComboBox::drop-down { width: 24px; border-left: 1px solid @{border.control}; }
+QPushButton[selectionInput="true"] { background: @{surface.input}; border: 1px solid @{border.control}; border-radius: 1px; color: @{text.primary}; text-align: left; padding: 5px 8px; }
+QPushButton[selectionInput="true"]:hover { border-color: @{accent.text}; background: @{surface.input}; }
+QPushButton[selectionInput="true"]:checked { background: @{accent.selFill}; border-color: @{accent.indicator}; color: @{text.primary}; }
+QPushButton[selectionInput="true"]:focus { border-color: @{accent.focus}; }
+QPushButton#CancelButton { background: transparent; border: 1px solid @{border.control}; padding: 0; }
+QPushButton#CancelButton:hover { background: @{surface.hover}; border-color: @{accent.text}; }
+QPushButton#CancelButton:focus, QPushButton#OkButton:focus { border: 2px solid @{accent.focus}; }
+#CardFooter QPushButton#OkButton { padding: 0; }
+QPushButton#OkButton QLabel, QPushButton#CancelButton QLabel { background: transparent; }
+QPushButton#OkButton QLabel#CardButtonText { color: @{accent.onSolid}; }
+QPushButton#OkButton:disabled QLabel#CardButtonText { color: @{text.disabled}; }
+QPushButton#OkButton QLabel#Keycap { color: @{accent.onSolid}; background: @{accent.pressed}; border-color: @{accent.pressed}; }
+QPushButton#OkButton:disabled QLabel#Keycap { color: @{text.disabled}; background: transparent; border-color: @{border.default}; }
 QPushButton { background: @{button.bg}; border: 1px solid @{button.border}; border-radius: 1px; padding: 4px 14px; color: @{text.primary}; }
 QPushButton:hover { background: @{button.hover.bg}; border-color: @{accent.text}; }
 QPushButton:pressed { background: @{button.pressed.bg}; }

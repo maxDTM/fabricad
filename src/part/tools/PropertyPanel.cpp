@@ -328,7 +328,7 @@ void PropertyPanel::addRow(core::Property& p) {
       btn->setCheckable(true);
       btn->setToolTip(qs(p.tooltip()));
       btn->setObjectName(qs("prop_" + name));
-      btn->setStyleSheet("QPushButton:checked { background: #0B6CFF; color: white; }");
+      btn->setProperty("selectionInput", true);  // styled by the theme QSS (p0-check 5)
       auto* clear = new QToolButton(row);
       clear->setText(QString::fromUtf8("\xC3\x97"));  // multiplication sign as "x"
       clear->setToolTip(tr("Clear selection"));
