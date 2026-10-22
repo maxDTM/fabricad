@@ -105,4 +105,7 @@ class DocumentTab : public QObject {
   bool viewerInitialized_ = false;
 };
 
+/// A name the app gave a new document ("Untitled", "Untitled 2", ...) rather than the user.
+bool isAutoDocumentName(const std::string& name);
+
 }  // namespace fabricad::app

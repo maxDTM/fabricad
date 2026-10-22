@@ -598,6 +598,13 @@ class TestMainWindow : public QObject {
     const QString recA = w_->recoveryFilePath();
     QVERIFY(w_->newDocument());
     app::DocumentTab* b = w_->activeTab();
+    // DOC-10: new documents are numbered; give both the same name for this check
+    QVERIFY(a->document().name() != b->document().name());
+    QVERIFY(core::qs(b->document().name()).startsWith("Untitled"));
+    QVERIFY(app::isAutoDocumentName(b->document().name()));
+    QVERIFY(!b->document().isModified());
+    QVERIFY(b->isPristine());
+    b->document().setName(a->document().name());
     addBox(b->document(), 13);
     const QString recB = w_->recoveryFilePath();
     QCOMPARE(a->document().name(), b->document().name());

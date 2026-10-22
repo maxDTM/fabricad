@@ -1372,7 +1372,16 @@ bool MainWindow::maybeSave(DocumentTab& tab) {
 bool MainWindow::maybeSave() { return active_ ? maybeSave(*active_) : true; }
 
 bool MainWindow::newDocument() {
+  // "Untitled", "Untitled 2", ...: the lowest number no open document uses (DOC-10)
+  std::set<std::string> used;
+  for (const auto& t : tabs_) used.insert(t->document().name());
+  std::string name = "Untitled";
+  for (int n = 2; used.count(name); ++n) name = "Untitled " + std::to_string(n);
   addDesignTab();
+  if (document_->name() != name) {
+    document_->setName(name);
+    document_->setModified(false);
+  }
   if (viewer_) {
     viewer_->setStandardView(core::StandardView::Home, false);
     viewer_->setOriginVisible(false);
@@ -1471,7 +1480,7 @@ bool MainWindow::openFile(const QString& path, QString* error) {
     if (created && tabCount() > 1) closeTab(created);  // do not leave an empty tab behind
     return false;
   }
-  if (document_->name().empty() || document_->name() == "Untitled") document_->setName(QFileInfo(path).completeBaseName().toStdString());
+  if (isAutoDocumentName(document_->name())) document_->setName(QFileInfo(path).completeBaseName().toStdString());
   document_->setModified(false);
   recent_.add(canonical);
   recent_.save();
@@ -1524,7 +1533,7 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
   const std::string& name = oldName;
   const std::string oldStem =
       document_->filePath().empty() ? std::string() : QFileInfo(core::qs(document_->filePath())).completeBaseName().toStdString();
-  if (name.empty() || name == "Untitled" || (!oldStem.empty() && name == oldStem))
+  if (isAutoDocumentName(name) || (!oldStem.empty() && name == oldStem))
     document_->setName(QFileInfo(path).completeBaseName().toStdString());
   std::string err;
   if (!document_->save(path.toStdString(), &err)) {

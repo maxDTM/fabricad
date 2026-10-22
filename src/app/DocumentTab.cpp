@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/DocumentTab.h"
 
+#include <algorithm>
+
 #include "app/BrowserTree.h"
 #include "app/CommandDialog.h"
 #include "app/NavBar.h"
@@ -90,7 +92,15 @@ void DocumentTab::initializeViewer() {
 
 bool DocumentTab::isPristine() const {
   return isDesign() && doc_->featureCount() == 0 && !doc_->isModified() && doc_->filePath().empty() &&
-         (doc_->name().empty() || doc_->name() == "Untitled") && doc_.use_count() == 1 && !doc_->undoStack().canUndo();
+         isAutoDocumentName(doc_->name()) && doc_.use_count() == 1 && !doc_->undoStack().canUndo();
+}
+
+bool isAutoDocumentName(const std::string& name) {
+  if (name.empty() || name == "Untitled") return true;
+  const std::string prefix = "Untitled ";
+  if (name.size() <= prefix.size() || name.compare(0, prefix.size(), prefix) != 0) return false;
+  return std::all_of(name.begin() + static_cast<std::ptrdiff_t>(prefix.size()), name.end(),
+                     [](char c) { return c >= '0' && c <= '9'; });
 }
 
 }  // namespace fabricad::app
