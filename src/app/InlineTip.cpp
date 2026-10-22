@@ -8,6 +8,8 @@
 #include <QPainter>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace fabricad::app {
 
 using theme::Tok;
@@ -51,6 +53,9 @@ void InlineTip::showBeside(QWidget* anchor, const QRect& rowRect, const QString&
   title_->setText(title);
   text_->setText(text);
   text_->setVisible(!text.isEmpty());
+  // p2p3-check 8: a short text stays on one line (QLabel's word-wrap heuristic would break it
+  // early at the sidebar edge); longer ones wrap at 300 px
+  text_->setMinimumWidth(std::min(300, QFontMetrics(text_->font()).horizontalAdvance(text) + 4));
   QPalette pal = palette();
   pal.setColor(QPalette::WindowText, theme::color(Tok::TextPrimary));
   title_->setPalette(pal);

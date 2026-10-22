@@ -33,6 +33,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 
 namespace fabricad::app {
 
@@ -173,6 +174,8 @@ class DropTargets : public QWidget {
   void paintEvent(QPaintEvent*) override {
     QPainter p(this);
     p.setFont(theme::font(theme::TextStyle::Caption));
+    const QFontMetrics fm(p.font());
+    std::vector<QRect> captions;  // drawn so far: overlapping targets (narrow windows) never print over each other
     for (const Target& t : targets_) {
       if (t.global.isEmpty()) continue;
       const QRect r(mapFromGlobal(t.global.topLeft()), t.global.size());
@@ -182,7 +185,22 @@ class DropTargets : public QWidget {
       p.setBrush(Qt::NoBrush);
       p.drawRect(r.adjusted(1, 1, -1, -1));
       p.setPen(theme::color(Tok::AccentText));
-      p.drawText(r.adjusted(8, 6, -8, -6), Qt::AlignTop | Qt::AlignLeft, t.caption);
+      const QRect area = r.adjusted(8, 6, -8, -6);
+      const QSize text = fm.size(Qt::TextSingleLine, t.caption);
+      // p2p3-check 5: the top-left corner first, else the bottom-right, else the bottom-left
+      const std::array<QRect, 3> spots = {QRect(area.topLeft(), text),
+                                          QRect(QPoint(area.right() - text.width() + 1, area.bottom() - text.height() + 1), text),
+                                          QRect(QPoint(area.left(), area.bottom() - text.height() + 1), text)};
+      QRect spot = spots[0];
+      for (const QRect& c : spots) {
+        const bool clash = std::any_of(captions.begin(), captions.end(), [&](const QRect& d) { return d.intersects(c.adjusted(-4, -2, 4, 2)); });
+        if (!clash) {
+          spot = c;
+          break;
+        }
+      }
+      captions.push_back(spot);
+      p.drawText(spot, Qt::AlignLeft | Qt::AlignVCenter, t.caption);
     }
   }
 

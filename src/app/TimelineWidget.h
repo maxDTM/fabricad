@@ -55,6 +55,8 @@ class TimelineStrip : public QWidget {
   void suppressRequested(fabricad::core::ObjectId id, bool suppress);
   void findInBrowserRequested(fabricad::core::ObjectId id);
   void selectRequested(fabricad::core::ObjectId id, bool add);
+  /// "Insert Feature After": the rollback bar moved behind the feature; open the command search.
+  void insertRequested();
 
  protected:
   void paintEvent(QPaintEvent* e) override;

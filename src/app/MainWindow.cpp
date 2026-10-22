@@ -1471,6 +1471,10 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
         if (const core::Feature* f = document_->feature(id)) refs.push_back(featureRef(*f));
       deleteRefs(refs);
     });
+    connect(strip, &TimelineStrip::insertRequested, this, [this] {
+      search_->setRecent(recentCommands_);
+      search_->popup(QCursor::pos());
+    });
     connect(strip->actions(), &TimelineActions::messageRequested, this, [this](const QString& text, int level) {
       showMessage(text.toStdString(), static_cast<core::MessageLevel>(level));
     });
