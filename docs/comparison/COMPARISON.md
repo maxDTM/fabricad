@@ -333,3 +333,53 @@ Results are identical. Every `CHECK`/`INFO` line of both scripts prints the same
 `chair.fcad` and all five STL files are byte-identical before and after. `chair.step` differs
 only in its timestamp and in the order of the style entities, which also differs between two
 runs of the old build. All 57 ctest entries pass, including `fabricad_chair_spec`.
+
+### Headless runner (2026-10-22, branch ui/app4)
+
+This section covers recommendation 2 (a true headless runner) and the per-command floor left
+open above. `fabricad --script file.fcs --offscreen` (or `fabricad --batch file.fcs`) now runs
+the script in `HeadlessHost` (`src/app/HeadlessHost.*`) and never builds `MainWindow` or any
+other widget. The host keeps one `Document`, `ToolManager` and `core::NullViewerContext` per tab.
+The app and script verbs reach it through the new `AppShell` interface (`src/app/AppShell.h`),
+which `MainWindow` also implements, so both shells run the same verbs. `main()` now sets
+`core::setBatchMode` itself, and the command-line sniffing in core is gone. Query lines (`CHECK`,
+`INFO`, `LIST`, `ECHO`, `OPTIONS`) skip the event-loop settle, and a batch run settles in one pass.
+`FABRICAD_SCRIPT_WINDOW=1` still runs a script through the (offscreen) window. `--stay`,
+`--step-delay` and `FABRICAD_SCREENSHOT` imply the window.
+
+Same machine, Release builds, `QT_QPA_PLATFORM=offscreen`, 3 runs each, interleaved, load
+average 1.6 to 2.1 on 8 threads. *main* is the main build after the phase 3 merge (84befe3; the
+same core and part code as be/perf). *window* is ui/app4 with `FABRICAD_SCRIPT_WINDOW=1`.
+Raw data: `measurements/headless_runner.json`.
+
+| Median of 3 | main (window) | ui/app4 window | ui/app4 headless | headless vs main |
+|---|---:|---:|---:|---:|
+| Startup + shutdown, one-`ECHO` script | 0.207 s | 0.209 s | **0.059 s** | −71 % |
+| `chair_min.fcs`, in-app | 1.700 s | 1.698 s | **0.474 s** | −72 % |
+| `chair_min.fcs`, wall | 1.917 s | 1.929 s | **0.539 s** | −72 % |
+| `chair.fcs` (checks, reopen, STEP read-back), in-app | 2.912 s | 2.552 s | **1.018 s** | −65 % |
+| `chair.fcs`, wall | 3.135 s | 2.778 s | **1.080 s** | −66 % |
+
+FreeCAD measured 1.325 s (wall, `freecadcmd`) and 0.074 s (startup) in section 2. The headless
+`chair_min` run now takes 0.54 s, about 2.5 times faster than FreeCAD's 1.3 s. Its startup is
+0.059 s, slightly faster than `freecadcmd`'s 0.074 s. The window column of `chair.fcs` gains
+from the skipped settle on its 130 query lines.
+
+Where the time went, `chair_min.fcs`, median run (ms in total, count in brackets):
+
+| Lines | main (window) | headless | Why |
+|---|---:|---:|---|
+| `OK` (23) | 547 | 308 | the window's 3D view and panels no longer react to each new result |
+| `SELECT` (39) | 183 (4.7 each) | 28 (0.7 each) | no browser, timeline, property, status-bar or highlight update |
+| coordinate input (22) | 193 | 32 | no sketch preview in a 3D view |
+| `SKETCH`, `RECT`, `FINISH`, `EXTRUDE`, `OFFSETPLANE` (33) | 372 | 2 | no command card, toolbar page or sketch view to build |
+| `EXPORTSTL` (5) | 62 | 43 | |
+| `RENAME` (4), `GROUND` (2) | 25 | 5 | |
+
+Results are identical: every `CHECK` and `INFO` line prints the same values, and `chair.fcad`
+plus all five STL files are byte-identical between main and the headless runner. The headless
+host writes the same per-document view state (`ui` extension) as the window. `chair.step`
+differs only in its timestamp and in the order of the style entities, as between two runs of
+one build. The `tests/scripts/*.fcs` entries and `fabricad_chair_spec` now run headless. The
+new `fabricad_script_{bracket,chair}_window` entries run the same scripts through the window,
+so both shells stay in step.

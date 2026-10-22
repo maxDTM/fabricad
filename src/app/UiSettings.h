@@ -3,12 +3,12 @@
 // stored in QSettings and announced with changed(key), so the shell applies them live.
 //
 //   ui/theme          dark | light | system          (applied by ThemeManager)
-//   ui/toolbarArea    top | left | right             (phase 1 applies top; left/right: phase 4)
+//   ui/toolbarArea    top | left | right             (applied live; vertical MainToolbar)
 //   ui/sidebarSide    left | right                   (stored; applied in phase 2)
 //   ui/cardPlacement  floatRight | floatLeft | sidebar | free   (stored; phase 3)
 //   ui/cardRememberDrag  bool                        (stored; phase 3)
 //   ui/cardFreePos    string (anchor + offset)       (written by the card, phase 3)
-//   ui/quickToolbar   off | left | right             (stored; phase 4)
+//   ui/quickToolbar   off | left | right             (applied live; QuickToolbar in the viewport)
 //   ui/orientation    hexDial | viewCube             (stored; phase 4)
 //   ui/timelineStyle  featureList | strip            (stored; phase 2)
 //   ui/fontScale      90 .. 130 (%)                  (applied live)

@@ -3,7 +3,8 @@
 // Single window, redesign phase 1 shell (docs/plans/ui-redesign.md 5.1, 6.2):
 //   title bar (#AppBar)   [F FABRICAD v][PART ALT 1 v] /bracket *\ /lever\ [+]   [>_ SEARCH  S][undo][redo][save][?]
 //   main toolbar          SKETCH | CREATE | MODIFY | ASSEMBLE | CONSTRUCT | INSPECT | MORE v      DOCUMENT
-//                         (MainToolbar in the non-movable QToolBar #MainToolbarHost, top area)
+//                         (MainToolbar in the non-movable QToolBar #MainToolbarHost, top / left /
+//                         right area from ui/toolbarArea)
 //   browser (dock)  | viewport (OCCT, ViewCube, nav bar, command dialog overlay)
 //   timeline (bottom dock, full width)
 //   status bar            command | prompt | key hints | message | > command line | OCCT | units | grid |

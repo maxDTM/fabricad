@@ -15,7 +15,8 @@ fabricad --script part.fcs --keep-going                                  # do no
 | Option | Meaning |
 |---|---|
 | `--script <file>` (`-s`) | run the script after start-up and exit with its status |
-| `--offscreen` (`--headless`) | `QT_QPA_PLATFORM=offscreen`: no window, no OpenGL view; all modelling works, only screenshots are blank |
+| `--offscreen` (`--headless`) | `QT_QPA_PLATFORM=offscreen`: no window, no OpenGL view; all modelling works. With `--script` (and without `--stay` / `--step-delay`) the script runs in the lightweight headless runner, which builds no window at all (about 60 ms startup); `SCREENSHOT` fails there. `FABRICAD_SCRIPT_WINDOW=1` runs it in the offscreen window instead (blank screenshots) |
+| `--batch file.fcs` | the same as `--script file.fcs --offscreen` |
 | `--log <file>` | write the log to a file (it also goes to stdout unless `--quiet`) |
 | `--keep-going` (`-k`) | continue after a failed line (default: stop there) |
 | `--stay` | leave the window open after the script (interactive inspection, needs a display) |
@@ -105,7 +106,7 @@ enabled in the current context. `EXPORTSTEP` is the part exporter (bodies); use 
 | `ROLLBACK <n\|feature\|group\|end>` | move the history marker after the first n features, after that feature or group, or to the end (undoable); `ROLLBACK` alone reports where it is. The marker may sit inside a group. |
 | `ECHO text` (`REM`) | write text to the log / history |
 | `WAIT ms` (`SLEEP`) | wait, processing events |
-| `SCREENSHOT file.png [viewport]` (`SNAP`) | grab the window (or the 3D view); blank in `--offscreen` runs |
+| `SCREENSHOT file.png [viewport]` (`SNAP`) | grab the window (or the 3D view); blank in an offscreen window, an error in the headless runner |
 | `TAB <n\|title\|next\|prev>` (`GOTO`) | activate a document tab (1-based number or title); `TAB` alone lists them |
 | `CLOSE [tab]` (`CLOSETAB`) | close the active tab (or the named one); unsaved changes are discarded in scripts |
 
