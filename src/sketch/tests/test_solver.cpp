@@ -278,6 +278,30 @@ class SolverTest : public QObject {
     QCOMPARE(sk.solve().dofs, dofBefore);
   }
 
+  // general retest NEW-ADVANCED-SKETCH-3: the R labels of a dragged ellipse move with it
+  void dragMovesPlacedDimensionLabels() {
+    Sketch sk;
+    int e = sk.addGeometry(Geometry::makeEllipse({0, 0}, 20, 10, 0.0));
+    int maj = sk.addConstraint(Constraint{.type = ConstraintType::MajorRadius, .a = {e}, .value = 20});
+    int mn = sk.addConstraint(Constraint{.type = ConstraintType::MinorRadius, .a = {e}, .value = 10});
+    QVERIFY(sk.solve().ok());
+    // a label the user placed somewhere else keeps its offset from the geometry
+    for (Constraint& c : sk.constraints())
+      if (c.id == mn) c.labelPos = {3, 25};
+    auto labelOf = [&](int id) {
+      for (const Constraint& c : sk.constraints())
+        if (c.id == id) return c.labelPos;
+      return Pt2{};
+    };
+    const Pt2 majBefore = labelOf(maj);
+    QVERIFY(sk.beginDrag({e, PointPos::Center}, {0, 0}));
+    QVERIFY(sk.drag({30, -8}));
+    sk.endDrag();
+    QVERIFY(near(sk.geometry(e)->center(), {30, -8}));
+    QVERIFY(near(labelOf(maj), majBefore + Pt2{30, -8}));
+    QVERIFY(near(labelOf(mn), Pt2{33, 17}));
+  }
+
   void ellipseArcCentreDragKeepsShape() {
     Sketch sk;
     int e = sk.addGeometry(Geometry::makeEllipseArc({0, 0}, 20, 10, 0.0, 0.2, 2.0));

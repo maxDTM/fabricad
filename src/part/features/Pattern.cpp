@@ -7,6 +7,7 @@
 #include "core/Feature.h"
 #include "core/Json.h"
 #include "core/ShapeUtils.h"
+#include "part/ComponentCommands.h"
 #include "part/PartUtils.h"
 
 #include <BRepBndLib.hxx>
@@ -23,6 +24,8 @@ namespace fabricad::part {
 
 namespace {
 constexpr auto kPlaneKinds = core::kPlaneKinds | core::ShapeKind::Sketch;
+/// New-body instances closer than this share of their size along the step are an error.
+constexpr double kNearlyCoincidentFraction = 0.1;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,53 +60,6 @@ bool TransformFeature::wantsCommitPreparation() const {
 }
 
 namespace {
-
-/// Insert a component with a fixed id (allocated on the first redo); undo removes it.
-class AddComponentCommand : public core::UndoCommand {
- public:
-  AddComponentCommand(core::Document& doc, core::Component c) : UndoCommand("Add pattern instance"), doc_(doc), c_(std::move(c)) {}
-  core::ObjectId id() const { return c_.id; }
-  void redo() override {
-    if (!doc_.component(c_.parent)) c_.parent = core::kRootComponentId;
-    c_.children.clear();
-    c_.id = doc_.addComponent(c_).id;
-    doc_.notifyComponentChanged(c_.id);
-  }
-  void undo() override { doc_.removeComponent(c_.id); }
-
- private:
-  core::Document& doc_;
-  core::Component c_;
-};
-
-/// Remove a (leaf) instance component; undo puts it back with the same id.
-class RemoveComponentCommand : public core::UndoCommand {
- public:
-  RemoveComponentCommand(core::Document& doc, core::ObjectId id) : UndoCommand("Remove pattern instance"), doc_(doc), id_(id) {}
-  void redo() override {
-    if (const core::Component* c = doc_.component(id_)) {
-      saved_ = *c;
-      saved_.children.clear();
-      doc_.removeComponent(id_);
-    }
-  }
-  void undo() override {
-    if (saved_.id == core::kInvalidId || doc_.component(saved_.id)) return;
-    if (!doc_.component(saved_.parent)) saved_.parent = core::kRootComponentId;
-    doc_.addComponent(saved_);
-    doc_.notifyComponentChanged(saved_.id);
-  }
-
- private:
-  core::Document& doc_;
-  core::ObjectId id_;
-  core::Component saved_;
-};
-
-void runOrPush(core::UndoStack* undo, std::unique_ptr<core::UndoCommand> cmd) {
-  if (undo) undo->push(std::move(cmd));
-  else cmd->redo();
-}
 
 gp_Trsf parentWorld(const core::Document& doc, core::ObjectId comp) {
   const core::Component* c = doc.component(comp);
@@ -142,7 +98,7 @@ void TransformFeature::prepareCommit(core::Document& doc, core::UndoStack* undo)
         c.description = src->description;
         c.material = src->material;
         c.visible = src->visible;
-        auto cmd = std::make_unique<AddComponentCommand>(doc, c);
+        auto cmd = std::make_unique<AddComponentCommand>(doc, c, "Add pattern instance");
         AddComponentCommand* raw = cmd.get();
         runOrPush(undo, std::move(cmd));
         found = raw->id();
@@ -157,7 +113,7 @@ void TransformFeature::prepareCommit(core::Document& doc, core::UndoStack* undo)
   for (int i = 0; i < old.size(); ++i) {
     if (used[static_cast<size_t>(i)]) continue;
     core::ObjectId id = core::idFromJson(old[i].toObject().value("component"));
-    if (doc.component(id)) runOrPush(undo, std::make_unique<RemoveComponentCommand>(doc, id));
+    if (doc.component(id)) runOrPush(undo, std::make_unique<RemoveComponentCommand>(doc, id, "Remove pattern instance"));
   }
   prop("instances").setJson(next);
 }
@@ -282,6 +238,15 @@ bool TransformFeature::checkInstanceSpacing(core::RecomputeContext& ctx, const s
         hi = std::max(hi, t);
       }
       extent = hi - lo;
+    }
+    // Nearly coincident new bodies (GENERAL-BUGS-14: 500 bodies 0.04 mm apart) are never what the
+    // user wants and z-fight into a black, slow viewport: refuse them, so the dialog's OK is off.
+    // A moderate overlap stays a warning (overlapping bodies are legal, e.g. to Combine later).
+    if (extent > 1e-9 && overlapStep < kNearlyCoincidentFraction * extent) {
+      ctx.setError(std::format("pattern instances nearly coincide (spacing {:.4g} mm, size {:.4g} mm): increase the spacing "
+                               "or reduce the quantity",
+                               overlapStep, extent));
+      return false;
     }
     if (overlapStep < extent - 1e-6)
       ctx.setWarning(std::format("pattern instances overlap (spacing {:.4g} mm, size {:.4g} mm)", overlapStep, extent));

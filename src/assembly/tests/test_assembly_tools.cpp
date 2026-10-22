@@ -4,6 +4,7 @@
 #include "assembly/AssemblyModule.h"
 #include "assembly/Bom.h"
 #include "assembly/ComponentOps.h"
+#include "assembly/Interference.h"
 #include "assembly/JointFeature.h"
 #include "assembly/JointFrame.h"
 #include "assembly/Triad.h"
@@ -933,6 +934,32 @@ class AssemblyToolsTest : public QObject {
     QVERIFY(!h.host.messages().empty());
     h.manager.accept();
     QVERIFY(h.viewer.previews().empty());
+  }
+
+  void interferenceToolComparesBodiesOfOneComponent() {
+    // general retest APP-11: with every body in the same component, "0 pairs tested"
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    h.doc.setActiveComponent(b.compA);
+    auto f = std::make_unique<core::test::BoxFeature>();
+    f->prop("dx").setDouble(5);  // inside the 10 mm Base box: 500 mm3 in common
+    f->prop("dy").setDouble(10);
+    f->prop("dz").setDouble(10);
+    h.doc.addFeature(std::move(f));
+    h.doc.recompute();
+    h.doc.setActiveComponent(core::kRootComponentId);
+    QCOMPARE(h.doc.bodiesOf(b.compA).size(), size_t(2));
+    h.select({ShapeRef::component(b.compA)});
+    QVERIFY(h.manager.run("assembly.interference"));
+    auto* it = h.tool<InterferenceTool>("assembly.interference");
+    QCOMPARE(it->report().pairsTested, 1);
+    QCOMPARE(it->report().pairs.size(), size_t(1));
+    QVERIFY(near(it->report().pairs.front().volume, 500.0, 1e-3));
+    h.manager.accept();
+    // whole document: the two Base bodies are not compared with each other (components differ)
+    std::vector<BodyInstance> all = bodyInstances(h.doc, {}, true);
+    QVERIFY(!allInOneComponent(all));
+    QVERIFY(checkInterference(h.doc).pairs.empty());
   }
 
   void moveToolPivotAndNamedInputs() {
