@@ -421,7 +421,7 @@ class TestMainWindow : public QObject {
       settle();
       QVERIFY(w_->viewer()->inSketchMode());
       QVERIFY(w_->toolManager().isActive());  // the sketch's idle select tool
-      QVERIFY(key(k, Qt::ControlModifier | (k == Qt::Key_Enter ? Qt::KeypadModifier : 0)));
+      QVERIFY(key(k, Qt::ControlModifier | (k == Qt::Key_Enter ? Qt::KeypadModifier : Qt::NoModifier)));
       settle();
       QVERIFY(!w_->viewer()->inSketchMode());
     }

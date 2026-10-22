@@ -39,4 +39,13 @@ if(FABRICAD_BUILD_TESTS)
     add_test(NAME fabricad_app_${_n} COMMAND fabricad_app_${_n})
     set_tests_properties(fabricad_app_${_n} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 300)
   endforeach()
+  # timing checks run as their own entries with the label `timing` (`ctest -LE timing` skips them
+  # on a busy machine); the main entries skip them through FABRICAD_SKIP_TIMING
+  if(TARGET fabricad_app_test_theme_manager)
+    set_tests_properties(fabricad_app_test_theme_manager PROPERTIES
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen;FABRICAD_SKIP_TIMING=1")
+    add_test(NAME fabricad_app_test_theme_manager_timing COMMAND fabricad_app_test_theme_manager themeSwitchIsFast)
+    set_tests_properties(fabricad_app_test_theme_manager_timing PROPERTIES
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 300 LABELS timing)
+  endif()
 endif()

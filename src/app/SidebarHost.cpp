@@ -13,6 +13,7 @@
 
 #include <QLineEdit>
 #include <QMenu>
+#include <QResizeEvent>
 #include <QPainter>
 #include <QSettings>
 #include <QSplitter>
@@ -172,6 +173,14 @@ SidebarHost::~SidebarHost() {
 void SidebarHost::resizeEvent(QResizeEvent* e) {
   QWidget::resizeEvent(e);
   applyLayout();  // keeps the panels' proportions
+  if (e->oldSize().height() != e->size().height()) emit heightChanged(e->size().height());
+}
+
+int SidebarHost::cardSlotMaxHeight() const {
+  int reserved = 2 * PanelHeader::kHeight + 3 * splitter_->handleWidth();
+  if (style_ == TimelineStyle::FeatureList)
+    reserved += PanelHeader::kHeight + (features_ ? features_->compactHeight() : FeatureListWidget::kRowH);
+  return std::max(0, height() - reserved);
 }
 
 void SidebarHost::paintEvent(QPaintEvent*) {
@@ -333,6 +342,9 @@ void SidebarHost::applyLayout() {
   const bool makeRoom = docked && fs && showFeatures;
   panels_[1]->setCollapsed(collapsed_[1] || makeRoom);
   panels_[2]->setCollapsed(collapsed_[2] || makeRoom);
+  // p2p3-check 2: beside a docked card MODEL and SELECTION may shrink to their headers, so the
+  // card plus the panels never set a window minimum taller than the screen
+  for (size_t i = 1; i < 3; ++i) panels_[i]->setMinimumHeight(docked ? PanelHeader::kHeight : 0);
   cardSlot_->setVisible(docked);
 
   // sizes: the panels' remembered sizes; a docked card takes what FEATURES gives up

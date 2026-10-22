@@ -32,6 +32,10 @@ class RecentFiles {
   /// QSettings persistence ("recentFiles").
   void load();
   void save() const;
+  /// Menu labels for `paths` (same order): the file name, plus the parent folder when another
+  /// entry has the same file name, plus more folders while two labels still collide
+  /// ("chair.fcad (a/chair)" vs "chair.fcad (b/chair)"; functional DOC-11).
+  static QStringList labels(const QStringList& paths);
 
  private:
   QStringList list_;

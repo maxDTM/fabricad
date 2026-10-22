@@ -21,6 +21,7 @@
 
 #include "app/AppState.h"
 #include "app/DocumentTab.h"
+#include "app/QuickToolbar.h"
 #include "app/TitleBar.h"
 #include "core/AppHost.h"
 #include "core/Document.h"
@@ -48,6 +49,7 @@ class QTimer;
 
 namespace fabricad::viewer {
 class ViewerWidget;
+class OverlayLayout;
 }
 
 namespace fabricad::app {
@@ -63,6 +65,7 @@ class ElideLabel;
 class KeyHints;
 class MainToolbar;
 class NavBar;
+class QuickToolbar;
 class RebuildMeter;
 class SketchPalette;
 class StatusCell;
@@ -93,6 +96,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   MainToolbar* ribbon() const { return ribbon_; }
   MainToolbar* mainToolbar() const { return ribbon_; }
   QToolBar* mainToolbarHost() const { return toolbarHost_; }
+  /// The floating quick toolbar of the model view (ui/quickToolbar; hidden when off).
+  QuickToolbar* quickToolbar() const { return quick_.data(); }
   WorkspaceSelector* workspaceSelector() const { return workspaceSelector_; }
   BrowserTree* browser() const { return browser_; }
   TimelineWidget* timeline() const { return timeline_; }
@@ -262,6 +267,11 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void applyUiSetting(const QString& key);
   /// ui/sidebarSide: move #BrowserDock to the left or right dock area (keeps its width).
   void applySidebarSide();
+  void applyToolbarArea();     ///< ui/toolbarArea: top | left | right (vertical MainToolbar)
+  void applyQuickToolbar();    ///< ui/quickToolbar: off | left | right (into the active viewport)
+  QuickToolbar* ensureQuickToolbar();
+  /// The quick toolbar's OverlayLayout item when it is shown in `viewport`.
+  void addQuickToolbarItem(viewer::OverlayLayout& l, QWidget* viewport) const;
   /// ui/timelineStyle: FEATURES list in the sidebar or the bottom strip.
   void applyTimelineStyle();
   void updateTimelineDock();
@@ -336,6 +346,9 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
 
   MainToolbar* ribbon_ = nullptr;
   QToolBar* toolbarHost_ = nullptr;
+  /// One strip, moved into the active tab's viewport; it goes with a closed tab's viewport and
+  /// is made again by applyQuickToolbar() (ensureQuickToolbar)
+  QPointer<QuickToolbar> quick_;
   WorkspaceSelector* workspaceSelector_ = nullptr;
   QToolButton* searchBox_ = nullptr;
   QDockWidget* browserDock_ = nullptr;
@@ -397,6 +410,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   bool acceptEnabled_ = true;
   bool stateRefreshPending_ = false;
   bool failureReportPending_ = false;
+  bool sidebarRefitPending_ = false;
   std::map<const core::Document*, std::set<core::ObjectId>> failedFeatures_;  ///< DOC-08 baseline
   bool selectionStatusPending_ = false;  ///< coalesces rename/recompute -> status label
   bool glEnabled_ = false;        ///< initializeViewer() was called: new tabs get a GL view too

@@ -5,6 +5,12 @@
 //   [Sketch][Extrude][Revolve]...                       [Surface][Tools]          [Params][Settings]
 //   ------- caption dropdowns (every tool of the section) ---------------------------------------
 //
+// Vertical layout (ui/toolbarArea left or right, 5.1 "Vertical toolbar", 6.2): a 64 px column;
+// each section is a caption bar (16 h, straight rule above) over one column of icon buttons
+// (40 h, the label below at 9 px when it fits, else in the tooltip). When the column is shorter
+// than its content the bottom buttons fold into the caption dropdowns, then whole sections
+// collapse to their caption. DOCUMENT (and FINISH SKETCH) sit at the bottom.
+//
 // The structure comes from app::buildToolbarSections() (unit-tested): the default page per
 // workspace, the contextual SKETCH page while a sketch is edited (decision 5, with FINISH
 // SKETCH) and the Design filter Part / Assembly (decision 2). When the row is narrower than
@@ -77,8 +83,14 @@ class MainToolbar : public QWidget {
   bool isSectionCollapsed(const std::string& name) const;
   /// Visible tool buttons of a section (the others are in its caption dropdown).
   int visibleButtonCount(const std::string& name) const;
-  /// Width the current page needs with every section expanded.
+  /// Width the current page needs with every section expanded (vertical: the height).
   int naturalWidth() const;
+
+  /// Horizontal (top) or vertical (left / right tool bar area). Rebuilds the pages; tool ids,
+  /// enabled and checked states are re-applied, so nothing else changes.
+  void setOrientation(Qt::Orientation o);
+  Qt::Orientation orientation() const { return vertical_ ? Qt::Vertical : Qt::Horizontal; }
+  static constexpr int kVerticalWidth = 64;
   QSize sizeHint() const override;
   QSize minimumSizeHint() const override;
 
@@ -94,6 +106,9 @@ class MainToolbar : public QWidget {
   struct Page;
   Page* currentPage() const;
   Page* buildPage(bool sketchPage);
+  Page* buildVerticalPage(bool sketchPage);
+  void addCaptionMenu(Page& p, Section& s, QToolButton* caption);
+  void fitVertical();
   void clearPages();
   void showPage(bool sketchPage);
   void fit();
@@ -110,6 +125,7 @@ class MainToolbar : public QWidget {
   bool sketching_ = false;
   std::set<std::string> contextualShown_;
   bool fitPending_ = false;
+  bool vertical_ = false;
 };
 
 }  // namespace fabricad::app

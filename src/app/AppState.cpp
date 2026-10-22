@@ -5,9 +5,13 @@
 #include "core/Document.h"
 #include "core/Json.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QSettings>
+
+#include <algorithm>
+#include <vector>
 
 namespace fabricad::app {
 
@@ -38,6 +42,46 @@ void RecentFiles::load() {
 void RecentFiles::save() const {
   QSettings s;
   s.setValue("recentFiles", list_);
+}
+
+QStringList RecentFiles::labels(const QStringList& paths) {
+  // folders of each path, innermost first: /x/a/chair/chair.fcad -> chair, a, x
+  std::vector<QStringList> dirs;
+  QStringList names;
+  for (const QString& p : paths) {
+    const QFileInfo fi(p);
+    names << fi.fileName();
+    QStringList d = QDir::fromNativeSeparators(fi.absolutePath()).split('/', Qt::SkipEmptyParts);
+    std::reverse(d.begin(), d.end());
+    dirs.push_back(d);
+  }
+  const qsizetype n = paths.size();
+  std::vector<int> depth(static_cast<size_t>(n), 0);
+  auto label = [&](qsizetype i) {
+    const int k = depth[static_cast<size_t>(i)];
+    if (k == 0) return names[i];
+    const QStringList& d = dirs[static_cast<size_t>(i)];
+    QStringList shown = d.mid(0, std::min<qsizetype>(k, d.size()));
+    std::reverse(shown.begin(), shown.end());
+    return QString("%1 (%2)").arg(names[i], shown.join('/'));
+  };
+  // deepen every member of a colliding group until the labels differ or the paths run out
+  for (bool changed = true; changed;) {
+    changed = false;
+    QStringList now;
+    for (qsizetype i = 0; i < n; ++i) now << label(i);
+    for (qsizetype i = 0; i < n; ++i) {
+      bool clash = false;
+      for (qsizetype j = 0; j < n && !clash; ++j) clash = j != i && now[j] == now[i];
+      if (clash && depth[static_cast<size_t>(i)] < dirs[static_cast<size_t>(i)].size()) {
+        ++depth[static_cast<size_t>(i)];
+        changed = true;
+      }
+    }
+  }
+  QStringList out;
+  for (qsizetype i = 0; i < n; ++i) out << label(i);
+  return out;
 }
 
 // --- UiState -------------------------------------------------------------------------------

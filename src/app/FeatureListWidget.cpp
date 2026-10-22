@@ -836,6 +836,7 @@ void FeatureListWidget::mouseReleaseEvent(QMouseEvent* e) {
       selectRow(dragRow_, {});
     dragStarted_ = false;
     viewport()->update();
+    if (e->button() == Qt::LeftButton && d == Drag::Row) emit rowClicked();
     return;
   }
   dragStarted_ = false;

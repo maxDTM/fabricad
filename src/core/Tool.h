@@ -180,11 +180,11 @@ class ToolRegistry {
 
 /// Non-interactive (script / batch) run. Nobody watches a live preview there, so command tools
 /// may skip it while their inputs are typed and compute the result once at OK (FeatureTool).
-/// Interactive behaviour is unchanged. Resolution order: setBatchMode() (an explicit value), else
-/// FABRICAD_BATCH=1/0 in the environment, else the process command line: `--script` without
-/// `--stay` (the user takes over afterwards) and without `--step-delay` > 0 (a watched run).
+/// Interactive behaviour is unchanged. Resolution order: setBatchMode() (an explicit value; the
+/// app sets it from main(): `--script` without `--stay` and without `--step-delay` > 0), else
+/// FABRICAD_BATCH=1/0 in the environment, else off.
 bool isBatchMode();
-/// Force batch mode on/off; std::nullopt returns to the automatic detection above.
+/// Force batch mode on/off; std::nullopt returns to the environment default above.
 void setBatchMode(std::optional<bool> on);
 
 /// Activation and event routing. One per main window.

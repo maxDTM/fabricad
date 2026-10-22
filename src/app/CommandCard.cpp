@@ -48,6 +48,7 @@ constexpr int kHeaderH = 40;
 constexpr int kStepsH = StepIndicator::kHeight + 8;
 constexpr int kFooterH = 52;
 constexpr int kMaxBodyHeight = 560;  // taller bodies (Joint) scroll
+constexpr int kMinDockedBody = 72;   // docked in a short sidebar: at least ~2 rows, then it floats
 constexpr int kWrapChars = 40;       // body labels longer than this word-wrap
 constexpr int kLabelColumn = 96;     // form label column (3.4)
 constexpr int kSnap = 64;            // a dropped card snaps to a float slot this close (px)
@@ -638,10 +639,24 @@ void CommandCard::relayout() {
   }
   const int chrome = chromeHeight();
   const Placement p = effectivePlacement();
-  int maxTotal = 0;
   if (docked) {
-    maxTotal = slotHost_->cardSlotMaxHeight();
-  } else {
+    // p2p3-check 2/3: in the sidebar the card is not fixed-size. It asks for its natural height
+    // (sizeHint) but may shrink to the chrome plus a few body rows: the body scrolls and the
+    // footer (Cancel / Apply) stays visible, so a short window never grows to fit the card.
+    const int bodyMax = body_ ? std::min(contentH, kMaxBodyHeight) : 0;
+    const int bodyMin = body_ ? std::min(bodyMax, kMinDockedBody) : 0;
+    scroll_->setMinimumHeight(bodyMin);
+    scroll_->setMaximumHeight(bodyMax);
+    setMinimumHeight(chrome + bodyMin);
+    setMaximumHeight(chrome + bodyMax);
+    dockedHint_ = std::max(chrome + bodyMin, std::min(chrome + bodyMax, slotHost_->cardSlotMaxHeight()));
+    if (QLayout* l = layout()) l->activate();
+    updateGeometry();
+    emit placed();
+    return;
+  }
+  int maxTotal = 0;
+  {
     OverlayLayout probe;
     buildLayout(probe, QSize(w, chrome + contentH), p);
     maxTotal = probe.cardMaxHeight() > 0 ? probe.cardMaxHeight() : viewport_->height();
@@ -674,10 +689,21 @@ void CommandCard::reposition() {
   relayout();
 }
 
+int CommandCard::dockedMinimumHeight() const { return chromeHeight() + (body_ ? kMinDockedBody : 0); }
+
+QSize CommandCard::sizeHint() const {
+  if (isDocked() && dockedHint_ > 0) return QSize(width(), dockedHint_);
+  return QFrame::sizeHint();
+}
+
 CommandCard::Placement CommandCard::effectivePlacement() const {
   switch (requested_) {
     case Placement::Sidebar:
-      if (slotHost_ && slotAllowed_ && slotHost_->cardSlotAvailable()) return Placement::Sidebar;
+      // 6.4 fallback, also when the sidebar is too short for the card's chrome plus a few body
+      // rows next to the FEATURES live row and the panel headers (p2p3-check 2)
+      if (slotHost_ && slotAllowed_ && slotHost_->cardSlotAvailable() &&
+          slotHost_->cardSlotMaxHeight() >= dockedMinimumHeight())
+        return Placement::Sidebar;
       return sidebarLeft_ ? Placement::FloatLeft : Placement::FloatRight;  // 6.4 fallback
     case Placement::Free: return free_.valid ? Placement::Free : Placement::FloatRight;
     default: return requested_;

@@ -112,6 +112,11 @@ class CommandCard : public QFrame {
   /// Visible card rect in the card's own coordinates (without the bracket margin).
   QRect cardRect() const;
   bool isDragging() const { return dragging_; }
+  /// Smallest height the docked card can work with (chrome + a few body rows); a shorter
+  /// sidebar slot makes the card float (6.4 fallback).
+  int dockedMinimumHeight() const;
+  /// Docked: the natural height (the slot sizes the card from it); floating: QFrame's.
+  QSize sizeHint() const override;
 
  signals:
   void accepted();
@@ -169,6 +174,7 @@ class CommandCard : public QFrame {
   bool live_ = false;
   bool relayoutPending_ = false;
   int stableHeight_ = 0;  ///< height since present(); only grows
+  int dockedHint_ = 0;    ///< docked: natural height (chrome + body, capped by the slot)
   QString refocusSegment_;  ///< segmented control to focus again after a panel rebuild
   std::vector<QPointer<QWidget>> stepTargets_;  ///< input focused by clicking a done step
 

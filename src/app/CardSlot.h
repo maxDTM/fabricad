@@ -57,7 +57,7 @@ class SidebarCardSlotAdapter : public CardSlotHost {
   }
   QWidget* dockedCard() const override { return host_ ? host_->dockedCard() : nullptr; }
   int cardSlotWidth() const override { return host_->cardSlot()->width() > 0 ? host_->cardSlot()->width() : host_->width(); }
-  int cardSlotMaxHeight() const override { return std::max(200, host_->height() - 120); }  // FEATURES header + live row stay
+  int cardSlotMaxHeight() const override { return host_->cardSlotMaxHeight(); }  // FEATURES header + live row stay
   QRect cardSlotGlobalRect() const override { return cardSlotAvailable() ? host_->cardDropRect() : QRect(); }
   void setFeatureSelectionActive(bool active) override { host_->setFeatureSelectionActive(active); }
   void setDropHighlight(bool on) override { host_->setDropHighlight(on); }
