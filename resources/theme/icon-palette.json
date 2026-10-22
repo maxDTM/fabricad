@@ -1,0 +1,32 @@
+{
+  "dark": {
+    "accent.indicator": "#8B5CF6",
+    "accent.text": "#B49CFF",
+    "icon.badge.amber": "#D9A441",
+    "icon.badge.blue": "#6F9DFF",
+    "icon.badge.cyan": "#3CC8F0",
+    "icon.badge.green": "#4CC27A",
+    "icon.badge.red": "#FF7A8F",
+    "icon.badge.slate": "#A7AEB9",
+    "icon.badge.teal": "#3CC8C0",
+    "icon.badge.violet": "#B49CFF",
+    "icon.ink": "#C3C9D2",
+    "live.base": "#F5B700",
+    "live.ink": "#1A1400"
+  },
+  "light": {
+    "accent.indicator": "#6D3FE0",
+    "accent.text": "#6D3FE0",
+    "icon.badge.amber": "#8A5A00",
+    "icon.badge.blue": "#1E5FC0",
+    "icon.badge.cyan": "#0A6F91",
+    "icon.badge.green": "#1E7F45",
+    "icon.badge.red": "#B0293A",
+    "icon.badge.slate": "#4F5D6E",
+    "icon.badge.teal": "#00737C",
+    "icon.badge.violet": "#7A3FB8",
+    "icon.ink": "#3C4148",
+    "live.base": "#F5B700",
+    "live.ink": "#1A1400"
+  }
+}
