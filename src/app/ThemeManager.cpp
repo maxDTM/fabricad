@@ -15,6 +15,7 @@
 #include <QFile>
 #include <QHeaderView>
 #include <QLabel>
+#include <QScreen>
 #include <QSettings>
 #include <QStatusBar>
 #include <QStyleFactory>
@@ -273,7 +274,9 @@ bool ThemeManager::eventFilter(QObject* watched, QEvent* event) {
       // bold mono caps is ~25 % wider than the platform font: give Qt's file dialog room so the
       // sidebar and the size/type/date columns are not elided (p0-check 8)
       dlg->setProperty("_fcSized", true);
-      dlg->resize(std::max(dlg->width(), 1000), std::max(dlg->height(), 600));
+      QSize want(std::max(dlg->width(), 1000), std::max(dlg->height(), 600));
+      if (const QScreen* scr = dlg->screen()) want = want.boundedTo(scr->availableGeometry().size() - QSize(40, 60));
+      dlg->resize(want.expandedTo(dlg->minimumSizeHint()));
       if (auto* split = dlg->findChild<QSplitter*>("splitter"); split && split->count() == 2)
         split->setSizes({200, std::max(400, dlg->width() - 240)});
       if (auto* tree = dlg->findChild<QTreeView*>("treeView"))

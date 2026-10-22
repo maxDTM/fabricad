@@ -216,7 +216,8 @@ WorkspaceSelector::WorkspaceSelector(QWidget* parent) : QToolButton(parent) {
   menu_->setObjectName("WorkspaceMenu");
   auto* group = new QActionGroup(menu_);
   for (const WorkspaceShortcut& s : kWorkspaceShortcuts) {
-    QAction* a = menu_->addAction(resourceIcon(s.icon), QString("%1\t%2").arg(s.name, QKeySequence(s.shortcut).toString(QKeySequence::NativeText)));
+    // no icons: the menu's check mark shows the current choice
+    QAction* a = menu_->addAction(QString("%1\t%2").arg(s.name, QKeySequence(s.shortcut).toString(QKeySequence::NativeText)));
     a->setCheckable(true);
     a->setData(static_cast<int>(s.choice));
     a->setObjectName(QString("Workspace%1").arg(s.name));

@@ -71,6 +71,8 @@ MainToolbar::MainToolbar(core::ToolManager& manager, QWidget* parent) : QWidget(
   setAttribute(Qt::WA_StyledBackground);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   setFixedHeight(kRowHeight);
+  // an explicit minimum: the pages' layouts must not hold the window wide (fit() folds them)
+  setMinimumWidth(120);
   auto* l = new QHBoxLayout(this);
   l->setContentsMargins(0, 0, 0, 0);
   l->setSpacing(0);

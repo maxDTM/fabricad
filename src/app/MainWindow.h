@@ -247,6 +247,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void updateWorkspaceSelector();
   void applyUiSetting(const QString& key);
   void ensureTimelineHeight();
+  void applyResponsiveChrome();
   void buildFileMenu(QMenu* menu);
   void buildStatusBar();
   void connectShellSignals();
@@ -305,6 +306,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   MainToolbar* ribbon_ = nullptr;
   QToolBar* toolbarHost_ = nullptr;
   WorkspaceSelector* workspaceSelector_ = nullptr;
+  QToolButton* searchBox_ = nullptr;
   QDockWidget* browserDock_ = nullptr;
   QStackedWidget* browserStack_ = nullptr;
   QDockWidget* timelineDock_ = nullptr;

@@ -334,6 +334,7 @@ QWidget* MainWindow::buildAppBar() {
 
   // command search box: opens the S-box (#SearchPopup)
   auto* searchBox = new QToolButton(bar);
+  searchBox_ = searchBox;
   searchBox->setObjectName("SearchBox");
   searchBox->setFocusPolicy(Qt::NoFocus);
   searchBox->setToolTip("Search commands (S)");
@@ -1551,12 +1552,11 @@ void MainWindow::updateKeyHints() {
     hints.push_back({":", "Command"});
   }
   keyHints_->setHints(std::move(hints));
+  applyResponsiveChrome();
 }
 
 void MainWindow::updateViewCells() {
   if (!gridCell_) return;
-  // the OCCT version is the first cell to go on narrow windows
-  occtCell_->setVisible(width() >= 1500);
   const bool haveViewer = viewer_ != nullptr;
   gridCell_->setVisible(haveViewer);
   snapCell_->setVisible(haveViewer);
@@ -1822,7 +1822,22 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
 
 void MainWindow::resizeEvent(QResizeEvent* e) {
   QMainWindow::resizeEvent(e);
-  if (occtCell_) occtCell_->setVisible(width() >= 1500);
+  applyResponsiveChrome();
+}
+
+void MainWindow::applyResponsiveChrome() {
+  // narrow windows drop the least important chrome first (status cells, then the search text);
+  // the toolbar folds on its own (MainToolbar::fit)
+  const int w = width();
+  if (occtCell_) occtCell_->setVisible(w >= 1500);
+  if (rebuildMeter_) rebuildMeter_->setVisible(w >= 1150);
+  if (keyHints_) keyHints_->setVisible(w >= 1050 && !keyHints_->hints().empty());
+  if (searchBox_) {
+    const bool compact = w < 1100;
+    searchBox_->setFixedWidth(compact ? 64 : 260);
+    if (QWidget* t = searchBox_->findChild<QWidget*>("SearchBoxText")) t->setVisible(!compact);
+  }
+  if (commandLine_) commandLine_->setMinimumWidth(w < 1100 ? 160 : 280);
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
