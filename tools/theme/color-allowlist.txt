@@ -25,7 +25,7 @@ src/sketch/ValueInputOverlay.cpp           8  sketch   inline QSS -> objectName 
 src/sketch/tools/SketchToolBase.cpp        4  sketch   preview colours -> ColorRole
 #
 # --- part: PropertyPanel styling through QSS properties (request)
-src/part/tools/PropertyPanel.cpp          11  part     inline error/checked styles -> dynamic properties (invalid, messageLevel) styled by app.qss.tmpl
+src/part/tools/PropertyPanel.cpp           9  part     inline error/message styles (SELECT button done in phase 3) -> dynamic properties (invalid, messageLevel) styled by app.qss.tmpl
 src/part/tools/FeatureTool.cpp             1  part     preview colour -> ColorRole Live
 src/part/tools/MeasureTool.cpp             1  part     measure line colour -> ColorRole (Dimension)
 #

@@ -34,7 +34,8 @@ class ViewerWidget;
 namespace fabricad::app {
 
 class BrowserTree;
-class CommandDialog;
+class CommandCard;
+using CommandDialog = CommandCard;
 class FeatureListWidget;
 class NavBar;
 class SketchPalette;

@@ -8,6 +8,8 @@
 #include "app/AppActions.h"
 #include "app/AppTools.h"
 #include "app/BrowserTree.h"
+#include "app/CardSlot.h"
+#include "app/CommandCard.h"
 #include "app/CommandDialog.h"
 #include "app/CommandLine.h"
 #include "app/CommandSearch.h"
@@ -40,6 +42,7 @@
 #include "part/PartModule.h"
 #include "sketch/SketchModule.h"
 #include "sketch/SketchSession.h"
+#include "viewer/OverlayHost.h"
 #include "viewer/ViewerWidget.h"
 
 #include <QAbstractSpinBox>
@@ -181,11 +184,16 @@ void MainWindow::applyUiSetting(const QString& key) {
     commandLine_->setVisible(ui.flag(key));
   } else if (key == "ui/sidebarSide") {
     applySidebarSide();
+    for (const auto& t : tabs_)
+      if (t->dialog()) applyCardSettings(t->dialog());
   } else if (key == "ui/timelineStyle") {
     applyTimelineStyle();
+  } else if (key == "ui/cardPlacement" || key == "ui/cardFreePos") {
+    for (const auto& t : tabs_)
+      if (t->dialog()) applyCardSettings(t->dialog());
   }
-  // ui/toolbarArea, cardPlacement, quickToolbar, orientation are stored now and applied by
-  // phases 3-4 (the toolbar stays at the top)
+  // ui/toolbarArea, quickToolbar, orientation are stored now and applied by phase 4 (the
+  // toolbar stays at the top)
 }
 
 void MainWindow::applySidebarSide() {
@@ -242,6 +250,35 @@ void MainWindow::updateLiveRow() {
   featureList_->setPendingLive(pending);
 }
 
+void MainWindow::applyCardSettings(CommandCard* card) {
+  UiSettings& ui = UiSettings::instance();
+  const viewer::CardPlacement p = viewer::parsePlacement(ui.string("ui/cardPlacement")).value_or(viewer::CardPlacement::FloatRight);
+  card->setSidebarOnLeft(ui.string("ui/sidebarSide") != "right");
+  card->setPlacement(p, viewer::FreePos::fromString(ui.string("ui/cardFreePos")));
+}
+
+void MainWindow::storeCardPlacement(int placement, const QString& freePos) {
+  UiSettings& ui = UiSettings::instance();
+  const auto p = static_cast<viewer::CardPlacement>(placement);
+  // a dragged position is only kept when "remember dragged card" is on (6.1 #1b); the card
+  // keeps it for this session either way
+  if (p == viewer::CardPlacement::Free && !ui.flag("ui/cardRememberDrag")) return;
+  if (p == viewer::CardPlacement::Free) ui.set("ui/cardFreePos", freePos);
+  ui.set("ui/cardPlacement", QString::fromLatin1(viewer::placementName(p)));
+}
+
+void MainWindow::setCardSlotHost(CardSlotHost* host) {
+  cardSlotHost_ = host;
+  for (const auto& t : tabs_)
+    if (t->dialog()) t->dialog()->setSlotHost(host);
+}
+
+QString MainWindow::workspaceCaption() const {
+  if (!active_) return {};
+  if (!active_->isDesign()) return "Drawing";
+  return UiSettings::instance().string("ui/designFilter") == "assembly" ? "Assembly" : "Part";
+}
+
 void MainWindow::ensureTimelineHeight() {
   if (!timelineDock_ || timelineDock_->isHidden()) return;
   if (timelineDock_->height() < 60) resizeDocks({timelineDock_}, {120}, Qt::Vertical);
@@ -290,6 +327,15 @@ void MainWindow::buildUi() {
   sidebar_ = new SidebarHost(browserDock_);
   browserStack_ = sidebar_->modelStack();
   browserDock_->setWidget(sidebar_);
+  cardSlotAdapter_ = std::make_unique<SidebarCardSlotAdapter<SidebarHost>>(sidebar_);
+  setCardSlotHost(cardSlotAdapter_.get());
+  // a docked card falls back to floating while the sidebar cannot take it (hidden, drawing tab;
+  // 6.4), and comes back
+  connect(sidebar_, &SidebarHost::cardDockAvailabilityChanged, this, [this](bool) {
+    QTimer::singleShot(0, this, [this] {
+      if (dialog_) dialog_->reposition();
+    });
+  });
   addDockWidget(Qt::LeftDockWidgetArea, browserDock_);
   resizeDocks({browserDock_}, {SidebarHost::kDefaultWidth}, Qt::Horizontal);
   connect(sidebar_, &SidebarHost::masterEyeRequested, this, [this] {
@@ -764,6 +810,7 @@ void MainWindow::setBrowserVisible(bool on) {
 }
 
 void MainWindow::syncActivePointers() {
+  if (dialog_) dialog_->setSlotAllowed(false);  // a background tab's card never sits in the sidebar
   document_ = active_ ? &active_->document() : nullptr;
   manager_ = active_ ? &active_->manager() : nullptr;
   viewer_ = active_ ? active_->viewer() : nullptr;
@@ -773,6 +820,7 @@ void MainWindow::syncActivePointers() {
   dialog_ = active_ ? active_->dialog() : nullptr;
   navBar_ = active_ ? active_->navBar() : nullptr;
   palette_ = active_ ? active_->palette() : nullptr;
+  if (dialog_) dialog_->setSlotAllowed(active_ && active_->isDesign());
   if (manager_) {
     ribbon_->setToolManager(manager_);
     commandLine_->setToolManager(manager_);
@@ -1178,6 +1226,24 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
               if (acceptEnabled_) manager_->accept();
             }));
     connect(dlg, &CommandDialog::cancelled, this, whenActive([this] { manager_->cancel(); }));
+    // phase 3 card: sidebar slot, overlay regions, placement memory, pin
+    dlg->setSlotAllowed(false);  // only the active design tab docks (syncActivePointers)
+    dlg->setSlotHost(cardSlotHost_);
+    dlg->setOverlayRegions([tab](viewer::OverlayLayout& l) {
+      if (NavBar* nb = tab->navBar(); nb && nb->isVisible()) {
+        viewer::OverlayLayout::Item it;
+        it.slot = viewer::OverlayLayout::Slot::NavBar;
+        it.fixed = nb->geometry();
+        l.add(it);
+      }
+    });
+    applyCardSettings(dlg);
+    connect(dlg, &CommandCard::placementChosen, this,
+            [this](viewer::CardPlacement p, const viewer::FreePos& f) { storeCardPlacement(static_cast<int>(p), f.toString()); });
+    connect(dlg, &CommandCard::placed, this, whenActive([this] { layoutOverlays(); }));
+    connect(dlg, &CommandCard::pinnedChanged, this, whenActive([this](bool on) {
+              pinnedToolId_ = on && manager_->isActive() && !isIdleTool() ? manager_->activeToolId() : std::string();
+            }));
   }
   if (SketchPalette* pal = tab->palette())
     connect(pal, &SketchPalette::commandRequested, this, [this](const std::string& id) { runCommand(id); });
@@ -1392,14 +1458,63 @@ void MainWindow::presentDialog() {
     return;
   }
   const bool keep = acceptEnabled_;
-  dialog_->present(core::qs(tool->info().name), toolIcon(tool->info()), body, tool->wantsDialogButtons());
+  const core::ToolInfo& info = tool->info();
+  dialog_->setShortcut(core::qs(info.shortcut));
+  dialog_->setContext(workspaceCaption(), document_ ? core::qs(document_->name()) : QString());
+  dialog_->setLive(tool->wantsDialogButtons());  // an operation with Apply previews live (7.1)
+  if (pinnedToolId_ != info.id) dialog_->setPinned(false);
+  dialog_->present(core::qs(info.name), toolIcon(info), body, tool->wantsDialogButtons());
   dialog_->setAcceptEnabled(keep);
   layoutOverlays();
   updateKeyHints();
 }
 
 void MainWindow::layoutOverlays() {
-  if (palette_ && palette_->isVisible()) palette_->reposition(dialog_);
+  // One OverlayLayout for the active viewport (6.3): the card placed itself (priority 4); the
+  // sketch palette (5) stacks below it on a shared side or takes the free side. The result is
+  // published on the viewport's OverlayHost for other overlays and the tutorial bubble.
+  if (!viewer_) {
+    if (palette_ && palette_->isVisible()) palette_->reposition(nullptr);
+    return;
+  }
+  using viewer::OverlayLayout;
+  OverlayLayout l;
+  l.setViewport(viewer_->rect());
+  OverlayLayout::Options o;
+  if (dialog_) o.card = dialog_->effectivePlacement();
+  l.setOptions(o);
+  auto fixed = [&l](OverlayLayout::Slot s, const QRect& r) {
+    OverlayLayout::Item it;
+    it.slot = s;
+    it.fixed = r;
+    l.add(it);
+  };
+  if (const QRect cube = viewer_->viewCubeRect(); !cube.isEmpty()) fixed(OverlayLayout::Slot::Orientation, cube);
+  if (navBar_ && navBar_->isVisible()) fixed(OverlayLayout::Slot::NavBar, navBar_->geometry());
+  const bool cardFloats = dialog_ && dialog_->isVisible() && !dialog_->isDocked() && dialog_->parentWidget() == viewer_;
+  if (cardFloats) fixed(OverlayLayout::Slot::Card, dialog_->geometry());
+  if (palette_ && palette_->isVisible()) {
+    palette_->adjustSize();
+    OverlayLayout::Item it;
+    it.slot = OverlayLayout::Slot::SketchPalette;
+    it.size = palette_->size();
+    it.userMoved = palette_->isUserMoved();
+    if (it.userMoved) it.fixed = palette_->geometry();
+    l.add(it);
+  }
+  l.compute();
+  if (palette_ && palette_->isVisible()) {
+    if (palette_->isUserMoved()) palette_->reposition(nullptr);  // clamps where the user put it
+    else if (const QRect r = l.rect(OverlayLayout::Slot::SketchPalette); r.isValid()) {
+      palette_->move(r.topLeft());
+      palette_->raise();
+    }
+  }
+  // Fit / Home keep the model clear of the overlays (the viewer uses top and bottom today)
+  QMargins m = l.insets();
+  m.setBottom(std::max(m.bottom(), 56));
+  viewer_->setViewportInsets(m);
+  viewer::OverlayHost::of(viewer_)->publish(l);
 }
 
 void MainWindow::clearTimelineFrameUnlessSelected() {
@@ -1417,6 +1532,16 @@ void MainWindow::onToolFinished(const std::string& id, bool accepted) {
   editingFeature_ = core::kInvalidId;
   clearTimelineFrameUnlessSelected();
   dialog_->dismiss();
+  // a pinned card stays for repeats: Apply re-runs the command (5.4); Cancel ends the pin
+  if (!pinnedToolId_.empty()) {
+    if (accepted && id == pinnedToolId_) {
+      QTimer::singleShot(0, this, [this, id] {
+        if (pinnedToolId_ == id && manager_ && (!manager_->isActive() || isIdleTool())) runCommand(id);
+      });
+    } else {
+      pinnedToolId_.clear();
+    }
+  }
   layoutOverlays();
   acceptEnabled_ = true;
   scheduleStateRefresh();
@@ -1519,6 +1644,12 @@ void MainWindow::scheduleStateRefresh() {
     updateUndoButtons();
     updateKeyHints();
     updateViewCells();
+    if (dialog_ && dialog_->isVisible()) dialog_->syncControls();
+    // decision 6: FEATURES expands while the docked card's feature-selection input is active
+    if (cardSlotHost_)
+      cardSlotHost_->setFeatureSelectionActive(dialog_ && dialog_->isDocked() && viewer_ && manager_->isActive() &&
+                                               !isIdleTool() &&
+                                               core::hasKind(viewer_->effectiveFilter(), core::ShapeKind::Feature));
   });
 }
 

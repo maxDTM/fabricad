@@ -38,6 +38,8 @@ class SketchPalette : public QFrame {
   /// `above` (the command dialog) only when that is visible on the same side.
   void reposition(const QWidget* above);
   bool isCollapsed() const { return collapsed_; }
+  /// Dragged by the user (it then stays where it was put, clamped to the viewport).
+  bool isUserMoved() const { return userMoved_; }
   void setCollapsed(bool collapsed);
 
  signals:

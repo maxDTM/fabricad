@@ -53,7 +53,9 @@ class ViewerWidget;
 namespace fabricad::app {
 
 class BrowserTree;
-class CommandDialog;
+class CommandCard;
+using CommandDialog = CommandCard;
+class CardSlotHost;
 class CommandLine;
 class CommandSearch;
 class MarkingMenu;
@@ -99,6 +101,11 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   /// The sidebar in #BrowserDock (FEATURES, MODEL, SELECTION and the command card slot).
   SidebarHost* sidebarHost() const { return sidebar_; }
   CommandDialog* commandDialog() const { return dialog_; }
+  CommandCard* commandCard() const { return dialog_; }
+  /// The sidebar's card slot (ui/cardPlacement = sidebar): SidebarHost's #CardSlot through
+  /// SidebarCardSlotAdapter; see app/CardSlot.h.
+  CardSlotHost* cardSlotHost() const { return cardSlotHost_; }
+  void setCardSlotHost(CardSlotHost* host);
   CommandLine* commandLine() const { return commandLine_; }
   CommandSearch* commandSearch() const { return search_; }
   RecentFiles& recentFiles() { return recent_; }
@@ -302,6 +309,10 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void afterDocumentReplaced();
   void viewCubeMenu(const QPoint& globalPos);
   void layoutOverlays();
+  /// ui/cardPlacement, ui/cardFreePos, ui/sidebarSide -> every tab's card.
+  void applyCardSettings(CommandCard* card);
+  void storeCardPlacement(int placement, const QString& freePos);
+  QString workspaceCaption() const;
   bool isCanvasFocus(QWidget* focus) const;
   bool isIdleTool() const;
 
@@ -329,6 +340,9 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QToolButton* searchBox_ = nullptr;
   QDockWidget* browserDock_ = nullptr;
   QStackedWidget* browserStack_ = nullptr;
+  std::unique_ptr<CardSlotHost> cardSlotAdapter_;  ///< SidebarHost's card slot as a CardSlotHost
+  CardSlotHost* cardSlotHost_ = nullptr;
+  std::string pinnedToolId_;                ///< the card is pinned for this command (repeat after Apply)
   QDockWidget* timelineDock_ = nullptr;
   QStackedWidget* timelineStack_ = nullptr;
   QStackedWidget* central_ = nullptr;
