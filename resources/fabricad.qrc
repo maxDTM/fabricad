@@ -1,6 +1,15 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
   <file>theme-light.qss</file>
+  <file>icons/app-isolate.svg</file>
+  <file>icons/select-filter-bodies.svg</file>
+  <file>icons/select-filter-faces.svg</file>
+  <file>icons/select-filter-edges.svg</file>
+  <file>icons/select-filter-vertices.svg</file>
+  <file>icons/select-filter-sketches.svg</file>
+  <file>icons/select-filter-construction.svg</file>
+  <file>icons/select-filter-components.svg</file>
+  <file>icons/select-filter-all.svg</file>
   <file>icons/app-cancel.svg</file>
   <file>icons/app-check.svg</file>
   <file>icons/app-close.svg</file>

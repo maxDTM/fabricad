@@ -480,7 +480,7 @@ std::vector<BomRow> DrawingModel::bom(const DrawingView* v) const {
 void fitPartsListInFrame(const Sheet& sheet, PartsList& pl) {
   const BBox2 f = sheet.frameRect();
   if (!f.isValid()) return;
-  const double margin = 2.0;
+  const double margin = 0.0;  // the frame line itself is the limit
   const double avail = f.width() - 2 * margin;
   double w = pl.width();
   if (w > avail && w > 0) {
