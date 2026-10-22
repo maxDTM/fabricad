@@ -439,6 +439,14 @@ CanvasHit DrawingCanvas::hitViewGeometry(const DrawingView& view, const Point2& 
   return h;
 }
 
+namespace {
+bool isTableCallout(const Sheet& s, ObjectId id) {
+  for (const auto& t : s.callouts.revisionTables)
+    if (t.id == id) return true;
+  return false;
+}
+}  // namespace
+
 CanvasHit DrawingCanvas::hitTest(const Point2& at, bool wantGeometry) const {
   flushPendingRebuild();
   CanvasHit none;
@@ -455,6 +463,11 @@ CanvasHit DrawingCanvas::hitTest(const Point2& at, bool wantGeometry) const {
     QRectF r = item->boundingRect().translated(item->pos()).adjusted(-tol, -tol, tol, tol);
     if (!r.contains(at.x, at.y)) continue;
     double d = distanceToList(item->list(), at - Point2{item->pos().x(), item->pos().y()});
+    // tables are solid: a click anywhere in a cell hits them (DRW-ASM-OUTPUT-5: a double-click
+    // inside the revision table opened Edit Sheet because it missed the table)
+    if (item->kind() == HitKind::PartsList ||
+        (item->kind() == HitKind::Callout && isTableCallout(*s, item->id())))
+      if (item->boundingRect().translated(item->pos()).contains(at.x, at.y)) d = std::min(d, tol * 0.5);
     if (d <= tol && d < bestDist) {
       bestDist = d;
       bestItem = item;

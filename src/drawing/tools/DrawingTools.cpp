@@ -146,15 +146,36 @@ void ExportTool::activate(core::ToolContext& ctx) {
       return;
     }
     QString filter = QStringLiteral("%1 files (*%2)").arg(formatName(format_), formatSuffix(format_));
-    QString suggested = QString::fromStdString(ctx.document->name()) + formatSuffix(format_);
+    QString suggested = QString::fromStdString(suggestedExportName(ctx)) + formatSuffix(format_);
     QString chosen = QFileDialog::getSaveFileName(parent, tr("Output %1").arg(formatName(format_)), suggested, filter);
     if (chosen.isEmpty()) return;
     if (QFileInfo(chosen).suffix().isEmpty()) chosen += formatSuffix(format_);
     path = chosen.toStdString();
   }
   std::string error;
-  if (exportTo(ctx, path, &error)) ctx.showMessage(std::string("Exported ") + formatName(format_) + " to " + path);
-  else ctx.showMessage(std::string("Export failed: ") + error, true);
+  if (exportTo(ctx, path, &error)) {
+    std::string msg = std::string("Exported ") + formatName(format_) + " to " + path;
+    // SVG and DXF hold one sheet: say which, when there are more (DRW-ASM-OUTPUT-8)
+    const DrawingModel* m = model(ctx);
+    if ((format_ == Format::Svg || format_ == Format::Dxf) && m && m->sheets().size() > 1)
+      msg += " (sheet " + activeSheet(ctx)->name + " only; activate another sheet to export it)";
+    ctx.showMessage(msg);
+  } else {
+    ctx.showMessage(std::string("Export failed: ") + error, true);
+  }
+}
+
+std::string ExportTool::suggestedExportName(core::ToolContext& ctx) {
+  DrawingModel* m = model(ctx);
+  const Sheet* s = activeSheet(ctx);
+  std::string base = ctx.document ? ctx.document->name() : std::string();
+  if ((base.empty() || base == "Untitled") && m && s) base = documentTitle(*m, *s);
+  if (base.empty()) base = "drawing";
+  // file-name safe
+  for (char& c : base)
+    if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') c = '_';
+  if ((format_ == Format::Svg || format_ == Format::Dxf) && m && s && m->sheets().size() > 1) base += "-" + s->name;
+  return base;
 }
 
 // ---------------------------------------------------------------------------------------

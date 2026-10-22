@@ -93,7 +93,7 @@ class ExportTest : public QObject {
     QCOMPARE(tv["Title"], std::string("Bracket"));
     QCOMPARE(tv["Size"], std::string("A3"));
     QCOMPARE(tv["Sheet"], std::string("1 / 1"));
-    QCOMPARE(tv["Scale"], std::string("1:1"));
+    QCOMPARE(tv["Scale"], std::string("2:1"));  // the main (first base) view scale, DRW-ASM-OUTPUT-7
     // view scale maps geometry: top view box 10x20 at 2:1 -> 20 x 40 mm on the sheet
     const DrawingView* v = fx.model->view(fx.viewId);
     BBox2 sb = v->sheetBBox();

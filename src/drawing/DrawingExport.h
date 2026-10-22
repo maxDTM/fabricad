@@ -9,6 +9,7 @@
 #include <vector>
 
 class QPainter;
+class QString;
 
 namespace fabricad::drawing {
 
@@ -37,5 +38,9 @@ std::string partsListCsv(DrawingModel& model, const Sheet& sheet);
 
 /// Paint a whole sheet into a painter whose unit is millimetres.
 void paintSheet(QPainter& painter, DrawingModel& model, const Sheet& sheet, bool frame);
+/// Title for exported documents: the title block's Title of the sheet, else the document name.
+std::string documentTitle(const DrawingModel& model, const Sheet& sheet);
+/// Rewrite the stroke-dasharray values of a QSvgGenerator file into user units (sheet mm).
+bool fixSvgDashes(const QString& path);
 
 }  // namespace fabricad::drawing

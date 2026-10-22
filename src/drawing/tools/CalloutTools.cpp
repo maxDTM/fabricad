@@ -12,6 +12,8 @@
 #include "drawing/SheetRenderer.h"
 #include "drawing/tools/ViewTools.h"
 
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDate>
 #include <QFormLayout>
 #include <QLabel>
@@ -608,6 +610,13 @@ OrdinateTool::OrdinateTool()
 void OrdinateTool::reset() {
   step_ = 0;
   viewId_ = ordinateId_ = core::kInvalidId;
+  pending_ = OrdinateDimension{};
+  committed_ = false;
+}
+
+void OrdinateTool::onDone(core::ToolContext& ctx) {
+  if (step_ != 0 && !committed_) ctx.showMessage("Ordinate dimension discarded: no features were picked");
+  ctx.finish();
 }
 
 bool OrdinateTool::setOption(const std::string& key, const std::string& value) {
@@ -643,10 +652,10 @@ bool OrdinateTool::onClick(core::ToolContext& ctx, const Point2& sheet) {
     o.axis = xAxis ? OrdinateAxis::X : OrdinateAxis::Y;
     o.origin = origin_;
     o.originText = xAxis ? Point2{originSheet_.x, sheet.y} : Point2{sheet.x, originSheet_.y};
-    commit("Ordinate dimension", [&](Sheet& sh) { sh.callouts.ordinates.push_back(o); });
+    // not on the sheet yet: a sequence ended before any feature was picked leaves nothing behind
+    pending_ = o;
+    committed_ = false;
     ordinateId_ = o.id;
-    ++created_;
-    createdIds_.push_back(o.id);
     step_ = 2;
     return true;
   }
@@ -658,12 +667,21 @@ bool OrdinateTool::onClick(core::ToolContext& ctx, const Point2& sheet) {
     return false;
   }
   const DrawingView* v = s->view(viewId_);
-  OrdinateDimension* o = s->callouts.ordinate(ordinateId_);
+  const OrdinateDimension* o = committed_ ? s->callouts.ordinate(ordinateId_) : &pending_;
   if (!v || !o) return false;
   Point2 P = v->toSheet(local);
   OrdinateMember mem;
   mem.ref = ref;
   mem.textPos = o->axis == OrdinateAxis::X ? Point2{P.x, o->originText.y} : Point2{o->originText.x, P.y};
+  if (!committed_) {
+    OrdinateDimension first = pending_;
+    first.members.push_back(mem);
+    commit("Ordinate dimension", [&](Sheet& sh) { sh.callouts.ordinates.push_back(first); });
+    committed_ = true;
+    ++created_;
+    createdIds_.push_back(first.id);
+    return true;
+  }
   ObjectId oid = ordinateId_;
   commit("Ordinate dimension", [&](Sheet& sh) {
     if (OrdinateDimension* od = sh.callouts.ordinate(oid)) od->members.push_back(mem);
@@ -677,6 +695,13 @@ void OrdinateTool::preview(DisplayList& out) const {
     Point2 d = cursor_ - originSheet_;
     bool xAxis = forcedAxis_ >= 0 ? forcedAxis_ == 0 : std::abs(d.y) >= std::abs(d.x);
     Point2 end = xAxis ? Point2{originSheet_.x, cursor_.y} : Point2{cursor_.x, originSheet_.y};
+    out.curves.push_back(Curve2D::segment(originSheet_, end, LineClass::Dimension));
+    out.texts.push_back({end, "0", 3.5, xAxis ? 90.0 : 0.0, HAlign::Center, VAlign::Middle, LineClass::Dimension});
+  }
+  if (step_ == 2 && !committed_) {
+    // the origin label waits for the first member: show it as a preview until then
+    const Point2 end = pending_.originText;
+    const bool xAxis = pending_.axis == OrdinateAxis::X;
     out.curves.push_back(Curve2D::segment(originSheet_, end, LineClass::Dimension));
     out.texts.push_back({end, "0", 3.5, xAxis ? 90.0 : 0.0, HAlign::Center, VAlign::Middle, LineClass::Dimension});
   }
@@ -738,6 +763,13 @@ bool BaselineChainTool::setBase(const Sheet& sheet, ObjectId dimId) {
   line_ = d->textPos;
   index_ = 1;
   haveBase_ = true;
+  occupied_.clear();
+  {
+    const bool horiz = t != DimensionType::Vertical;
+    Point2 a = v->toSheet(g.p1), b = v->toSheet(g.p2);
+    double lo = horiz ? std::min(a.x, b.x) : std::min(a.y, b.y), hi = horiz ? std::max(a.x, b.x) : std::max(a.y, b.y);
+    occupied_.push_back({lo, hi});
+  }
   return true;
 }
 
@@ -770,6 +802,31 @@ bool BaselineChainTool::onClick(core::ToolContext& ctx, const Point2& sheet) {
   std::vector<Dimension> dims;
   if (chain_) {
     dims = makeChainDimensions(*v, {last_, ref}, type_, line_);
+    // a segment overlapping one already on this line (e.g. a point inside the base span) goes
+    // to the next line out, so the texts never print over each other
+    const bool horiz = type_ != DimensionType::Vertical;
+    auto spanOf = [&](const Dimension& d, double& lo, double& hi) {
+      DimGeometry g;
+      if (!measureDimension(d, *v, g)) return false;
+      Point2 a = v->toSheet(g.p1), b = v->toSheet(g.p2);
+      lo = horiz ? std::min(a.x, b.x) : std::min(a.y, b.y);
+      hi = horiz ? std::max(a.x, b.x) : std::max(a.y, b.y);
+      return true;
+    };
+    double lo = 0, hi = 0;
+    if (!dims.empty() && spanOf(dims.front(), lo, hi)) {
+      bool overlaps = false;
+      for (const auto& [olo, ohi] : occupied_)
+        if (std::min(hi, ohi) - std::max(lo, olo) > 0.5) overlaps = true;
+      if (overlaps) {
+        Point2 c = v->sheetBBox().center();
+        double sgn = horiz ? (line_.y >= c.y ? 1.0 : -1.0) : (line_.x >= c.x ? 1.0 : -1.0);
+        line_ += horiz ? Point2{0, sgn * spacing_} : Point2{sgn * spacing_, 0};
+        occupied_.clear();
+        dims = makeChainDimensions(*v, {last_, ref}, type_, line_);
+      }
+      occupied_.push_back({lo, hi});
+    }
   } else {
     const bool horiz = type_ != DimensionType::Vertical;
     Point2 c = v->sheetBBox().center();
@@ -1218,8 +1275,22 @@ bool EditCalloutTool::applySetting(core::ToolContext& ctx, const std::string& ke
     else ok = false;
   } else if (RevisionTable* t = cs.revisionTable(id_)) {
     ok = !t->rows.empty();
+    if (ok && key == "row") {
+      // row=<rev letter> or row=<1-based index>: which row the following keys edit
+      int idx = -1;
+      for (size_t i = 0; i < t->rows.size(); ++i)
+        if (lower(t->rows[i].rev) == lower(value)) idx = static_cast<int>(i);
+      if (idx < 0) {
+        int n = std::atoi(value.c_str());
+        if (n >= 1 && n <= static_cast<int>(t->rows.size())) idx = n - 1;
+      }
+      if (idx < 0) return false;
+      revRow_ = idx;
+      return true;
+    }
     if (ok) {
-      RevisionRow& r = t->rows.back();
+      const int ri = revRow_ >= 0 && revRow_ < static_cast<int>(t->rows.size()) ? revRow_ : static_cast<int>(t->rows.size()) - 1;
+      RevisionRow& r = t->rows[static_cast<size_t>(ri)];
       if (key == "description") r.description = value;
       else if (key == "approved") r.approved = value;
       else if (key == "date") r.date = value;
@@ -1243,21 +1314,119 @@ bool EditCalloutTool::commandLineInput(core::ToolContext& ctx, const std::string
   return any;
 }
 
-QWidget* EditCalloutTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
-  (void)ctx;
+void EditCalloutTool::addFrameFields(QWidget* w, QFormLayout* form, const FeatureControlFrame& f) {
+  const FcfRow& row = f.rows.front();
+  auto* chr = new QComboBox(w);
+  for (GdtCharacteristic c : gdtCharacteristics()) {
+    chr->addItem(QString::fromStdString(gdtCharacteristicName(c)), QString::fromStdString(gdtCharacteristicName(c)));
+    if (c == row.characteristic) chr->setCurrentIndex(chr->count() - 1);
+  }
+  form->addRow(tr("Characteristic"), chr);
+  auto* tol = new QLineEdit(QString::number(row.tolerance), w);
+  form->addRow(tr("Tolerance"), tol);
+  auto* dia = new QCheckBox(tr("\u00D8 zone"), w);
+  dia->setChecked(row.diameterZone);
+  form->addRow(QString(), dia);
+  auto* mod = new QComboBox(w);
+  for (GdtModifier mm : {GdtModifier::None, GdtModifier::MMC, GdtModifier::LMC, GdtModifier::FreeState, GdtModifier::TangentPlane,
+                         GdtModifier::ProjectedZone}) {
+    mod->addItem(QString::fromStdString(gdtModifierName(mm)), QString::fromStdString(gdtModifierName(mm)));
+    if (mm == row.modifier) mod->setCurrentIndex(mod->count() - 1);
+  }
+  form->addRow(tr("Modifier"), mod);
+  std::string datums;
+  for (const auto& d : row.datums) datums += (datums.empty() ? "" : " ") + d.letter;
+  auto* dat = new QLineEdit(QString::fromStdString(datums), w);
+  dat->setPlaceholderText(tr("A B C"));
+  form->addRow(tr("Datums"), dat);
+  auto apply = [this](const std::string& k, const QString& v) {
+    if (ctx_) applySetting(*ctx_, k, v.toStdString());
+  };
+  connect(chr, &QComboBox::currentIndexChanged, this, [apply, chr](int) { apply("characteristic", chr->currentData().toString()); });
+  connect(mod, &QComboBox::currentIndexChanged, this, [apply, mod](int) { apply("modifier", mod->currentData().toString()); });
+  connect(tol, &QLineEdit::editingFinished, this, [apply, tol]() { apply("tolerance", tol->text()); });
+  connect(dia, &QCheckBox::toggled, this, [apply](bool on) { apply("dia", on ? "1" : "0"); });
+  connect(dat, &QLineEdit::editingFinished, this, [apply, dat]() { apply("datums", dat->text()); });
+}
+
+QWidget* EditCalloutTool::createRevisionForm(QWidget* parent, const RevisionTable& t) {
   auto* w = new QWidget(parent);
   auto* form = new QFormLayout(w);
+  rowCombo_ = new QComboBox(w);
+  for (size_t i = 0; i < t.rows.size(); ++i)
+    rowCombo_->addItem(QString::fromStdString(t.rows[i].rev.empty() ? std::to_string(i + 1) : t.rows[i].rev), static_cast<int>(i));
+  rowCombo_->setCurrentIndex(static_cast<int>(t.rows.size()) - 1);
+  form->addRow(tr("Revision"), rowCombo_);
+  revEdit_ = new QLineEdit(w);
+  descEdit_ = new QLineEdit(w);
+  dateEdit_ = new QLineEdit(w);
+  approvedEdit_ = new QLineEdit(w);
+  form->addRow(tr("Rev"), revEdit_);
+  form->addRow(tr("Description"), descEdit_);
+  form->addRow(tr("Date"), dateEdit_);
+  form->addRow(tr("Approved"), approvedEdit_);
+  revRow_ = rowCombo_->currentIndex();
+  loadRevisionRow();
+  connect(rowCombo_, &QComboBox::currentIndexChanged, this, [this](int i) {
+    if (i < 0) return;
+    storeRevisionRow();
+    revRow_ = i;
+    loadRevisionRow();
+  });
+  for (QLineEdit* e : {revEdit_.data(), descEdit_.data(), dateEdit_.data(), approvedEdit_.data()})
+    connect(e, &QLineEdit::editingFinished, this, [this]() { storeRevisionRow(); });
+  return w;
+}
+
+void EditCalloutTool::loadRevisionRow() {
+  if (!ctx_) return;
+  DrawingModel* m = model(*ctx_);
+  Sheet* s = m ? m->sheetOf(id_) : nullptr;
+  const RevisionTable* t = s ? s->callouts.revisionTable(id_) : nullptr;
+  if (!t || revRow_ < 0 || revRow_ >= static_cast<int>(t->rows.size())) return;
+  const RevisionRow& r = t->rows[static_cast<size_t>(revRow_)];
+  if (revEdit_) revEdit_->setText(QString::fromStdString(r.rev));
+  if (descEdit_) descEdit_->setText(QString::fromStdString(r.description));
+  if (dateEdit_) dateEdit_->setText(QString::fromStdString(r.date));
+  if (approvedEdit_) approvedEdit_->setText(QString::fromStdString(r.approved));
+}
+
+void EditCalloutTool::storeRevisionRow() {
+  if (!ctx_ || !revEdit_ || revRow_ < 0) return;
+  applySetting(*ctx_, "row", std::to_string(revRow_ + 1));
+  applySetting(*ctx_, "rev", revEdit_->text().toStdString());
+  applySetting(*ctx_, "description", descEdit_->text().toStdString());
+  applySetting(*ctx_, "date", dateEdit_->text().toStdString());
+  applySetting(*ctx_, "approved", approvedEdit_->text().toStdString());
+  if (rowCombo_ && revRow_ < rowCombo_->count()) rowCombo_->setItemText(revRow_, revEdit_->text());
+}
+
+QWidget* EditCalloutTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
+  {
+    DrawingModel* m = model(ctx);
+    Sheet* s = m ? m->sheetOf(id_) : nullptr;
+    if (const RevisionTable* t = s ? s->callouts.revisionTable(id_) : nullptr; t && !t->rows.empty())
+      return createRevisionForm(parent, *t);
+  }
+  auto* w = new QWidget(parent);
+  auto* form = new QFormLayout(w);
+  {
+    DrawingModel* m = model(ctx);
+    Sheet* s = m ? m->sheetOf(id_) : nullptr;
+    if (const FeatureControlFrame* f = s ? s->callouts.featureFrame(id_) : nullptr) addFrameFields(w, form, *f);
+  }
   edit_ = new QLineEdit(w);
   edit_->setPlaceholderText(tr("key=value; key=value"));
   form->addRow(tr("Settings"), edit_);
   form->addRow(new QLabel(tr("Hole: text, thread, class, count, precision. Frame: row, row2, tolerance, dia, "
                              "modifier, datums, leader, above, below. Datum: letter. Surface: roughness, process, "
-                             "lay, method, secondary, allowance, allaround. Revision: description, approved, date, rev."),
+                             "lay, method, secondary, allowance, allaround. Revision: row, description, approved, date, rev."),
                           w));
   return w;
 }
 
 void EditCalloutTool::accept(core::ToolContext& ctx) {
+  storeRevisionRow();
   if (edit_) commandLineInput(ctx, edit_->text().toStdString());
   if (DrawingModel* m = model(ctx)) m->commitSnapshot("Edit annotation", ctx.undo, before_);
   ctx.finish();
