@@ -11,6 +11,7 @@ the X11 runs, `rsvg-convert` only when a mockup PNG is missing.
 | `cvd.py` | protanopia / deuteranopia / tritanopia simulation of a PNG (Machado 2009, as the `theme_tokens` ctest) |
 | `pngio.py` | the stdlib PNG reader and writer both scripts use |
 | `card-shots.sh` | offscreen grabs of the command card in every placement and theme |
+| `readme-shots.sh` | regenerates `docs/screenshots/fabricad-*.png` (dark, and `-light`) on a private display |
 
 ## Safety
 

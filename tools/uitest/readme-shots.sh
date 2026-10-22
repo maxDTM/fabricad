@@ -3,7 +3,7 @@
 #   readme-shots.sh <bin> [outdir=docs/screenshots] [display=93]
 # The 3D view needs GL, so the shots run on a private Xwayland display (tools/uitest/ui.sh, its own
 # settings and data); the window is grabbed at exactly 1920x1080 by FABRICAD_SCREENSHOT. Scenes:
-#   fabricad-extrude   the bracket fixture (tests/e2e/bracket-v3.fcad) editing the boss extrude
+#   fabricad-extrude   the bracket fixture (tests/e2e/bracket-v3.fcad) extruding the boss profile (as the v6 mockup)
 #   fabricad-assembly  the chair benchmark (tests/scripts/chair.fcs)
 #   fabricad-drawing   the chair as a drawing tab (white paper, black lines in both themes)
 #   fabricad-empty     a new empty design
@@ -24,16 +24,17 @@ trap '"$here/ui.sh" stop "$n" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
 [ -f "$tmp/chair.fcad" ] || { echo "chair.fcs did not produce chair.fcad" >&2; exit 1; }
 
 cat >"$tmp/extrude.fcs" <<'S'
+ROLLBACK Sketch3
 ISO
 FIT
-SELECT feature:Extrude3
-EDITFEATURE
+SELECT profile:@100,55,12
+EXTRUDE 25
 S
-cat >"$tmp/assembly.fcs" <<'S'
-ISO
-FIT
-SELECT none
-S
+{  # the root active (no ghosting), construction planes hidden
+  echo "SELECT none"; echo "ACTIVATE"
+  for i in 1 2 3 4 5; do echo "SELECT plane:OffsetPlane$i"; echo "HIDE"; done
+  echo "SELECT none"; echo "ISO"; echo "FIT"
+} >"$tmp/assembly.fcs"
 cat >"$tmp/drawing.fcs" <<'S'
 DRAWING
 OK
@@ -49,13 +50,14 @@ cat >"$tmp/empty.fcs" <<'S'
 ISO
 S
 
-shoot() {  # <name> <theme> <script> [file]
+shoot() {  # <name> <theme> <script> [file] [extra prefs...]
   local name=$1 theme=$2 script=$3 file=${4:-} suffix=""
+  shift 4 2>/dev/null || shift $#
   [ "$theme" = light ] && suffix="-light"
   local png="$out/$name$suffix.png"
   "$here/ui.sh" stop "$n" >/dev/null 2>&1 || true
   "$here/ui.sh" reset "$n" >/dev/null
-  "$here/ui.sh" prefs "$n" ui/theme="$theme" >/dev/null
+  "$here/ui.sh" prefs "$n" ui/theme="$theme" "$@" >/dev/null
   rm -f "$png"
   FABRICAD_WINDOW_SIZE=1920x1080 FABRICAD_SCREENSHOT="$png" FABRICAD_SCREENSHOT_DELAY=${SHOT_DELAY:-9000} \
     UI_ARGS="--script $script --stay $file" "$here/ui.sh" start "$n" "$bin" 1920x1080 >/dev/null
@@ -65,8 +67,9 @@ shoot() {  # <name> <theme> <script> [file]
 }
 
 for theme in dark light; do
-  shoot fabricad-extrude "$theme" "$tmp/extrude.fcs" "$root/tests/e2e/bracket-v3.fcad"
+  # card at the left: at this camera the boss's value box would sit under a right-hand card
+  shoot fabricad-extrude "$theme" "$tmp/extrude.fcs" "$root/tests/e2e/bracket-v3.fcad" ui/cardPlacement=floatLeft
   shoot fabricad-assembly "$theme" "$tmp/assembly.fcs" "$tmp/chair.fcad"
   shoot fabricad-drawing "$theme" "$tmp/drawing.fcs" "$tmp/chair.fcad"
-  shoot fabricad-empty "$theme" "$tmp/empty.fcs"
+  shoot fabricad-empty "$theme" "$tmp/empty.fcs" ""
 done

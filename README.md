@@ -8,7 +8,7 @@ a command card with live previews, and a hex orientation dial. It makes **parts*
 features), **assemblies** (components, joints, motion) and **engineering drawings** (sheets,
 projected/section/detail views, dimensions, parts lists; PDF/SVG/DXF export).
 
-![FabriCAD (dark theme) extruding a sketch profile: feature list, command card, live preview](docs/screenshots/fabricad-extrude.png)
+![FabriCAD (dark theme) extruding a sketch profile: feature list, command card (placed at the left), gold live preview and value box](docs/screenshots/fabricad-extrude.png)
 
 ![The chair benchmark model in the light theme](docs/screenshots/fabricad-assembly-light.png)
 
@@ -18,6 +18,7 @@ More screenshots: [chair, dark](docs/screenshots/fabricad-assembly.png),
 [extrude, light](docs/screenshots/fabricad-extrude-light.png),
 [drawing, light](docs/screenshots/fabricad-drawing-light.png),
 [empty window, dark](docs/screenshots/fabricad-empty.png) and [light](docs/screenshots/fabricad-empty-light.png).
+They are regenerated with `tools/uitest/readme-shots.sh build/bin/fabricad`.
 
 * Stack: C++20, CMake, Qt 6 Widgets, OpenCASCADE 7.9 (modelling kernel, HLR, STEP/STL,
   AIS/V3d viewer), Eigen (sketch and assembly solvers), FreeCAD's PlaneGCS (vendored).
