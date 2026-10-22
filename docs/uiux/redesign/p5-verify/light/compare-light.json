@@ -1,0 +1,938 @@
+{
+ "regions": [
+  {
+   "id": "Viewer",
+   "mockup": [
+    320.0,
+    106.0,
+    1600.0,
+    946.0
+   ],
+   "widget": [
+    326,
+    106,
+    1594,
+    946
+   ],
+   "edges": [
+    6.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F9FAFB",
+    "mockup": "#F8FAFB",
+    "dE00": 0.49
+   },
+   "ssim": 0.669,
+   "crop": "Viewer"
+  },
+  {
+   "id": "fcValueBox",
+   "mockup": [
+    924.4,
+    531.3,
+    118.0,
+    46.0
+   ],
+   "widget": [
+    1039,
+    628,
+    164,
+    50
+   ],
+   "edges": [
+    114.6,
+    96.7,
+    160.6,
+    100.7
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#AAAEB2",
+    "mockup": "#FFFFFF",
+    "dE00": 19.23
+   },
+   "ssim": 0.269,
+   "crop": "fcValueBox"
+  },
+  {
+   "id": "CoordReadout",
+   "mockup": [
+    336.0,
+    1010.0,
+    320.0,
+    26.0
+   ],
+   "widget": [
+    342,
+    1010,
+    320,
+    26
+   ],
+   "edges": [
+    6.0,
+    0.0,
+    6.0,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F1F2F6",
+    "mockup": "#F1F3F7",
+    "dE00": 0.52
+   },
+   "ssim": 0.425,
+   "crop": "CoordReadout"
+  },
+  {
+   "id": "ScaleBar",
+   "mockup": [
+    1704.0,
+    1018.0,
+    200.0,
+    16.0
+   ],
+   "widget": [
+    1704,
+    1018,
+    200,
+    18
+   ],
+   "edges": [
+    0.0,
+    0.0,
+    0.0,
+    2.0
+   ],
+   "layout": "ok",
+   "colour": {
+    "shot": "#D5DBE3",
+    "mockup": "#D6DCE4",
+    "dE00": 0.23
+   },
+   "ssim": 0.127,
+   "crop": "ScaleBar"
+  },
+  {
+   "id": "Breadcrumb",
+   "mockup": [
+    336.0,
+    122.0,
+    382.6,
+    28.0
+   ],
+   "widget": [
+    342,
+    122,
+    282,
+    28
+   ],
+   "edges": [
+    6.0,
+    0.0,
+    -94.6,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F4F5F8",
+    "mockup": "#F3F5F7",
+    "dE00": 0.83
+   },
+   "ssim": 0.36,
+   "crop": "Breadcrumb"
+  },
+  {
+   "id": "SelectionFilterBar",
+   "mockup": [
+    730.6,
+    122.0,
+    323.4,
+    28.0
+   ],
+   "widget": [
+    636,
+    122,
+    203,
+    28
+   ],
+   "edges": [
+    -94.6,
+    0.0,
+    -215.0,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F8F9FA",
+    "mockup": "#F3F5F7",
+    "dE00": 1.04
+   },
+   "ssim": 0.285,
+   "crop": "SelectionFilterBar"
+  },
+  {
+   "id": "OrientationDial",
+   "mockup": [
+    1716.0,
+    122.0,
+    140.0,
+    162.0
+   ],
+   "widget": [
+    1702,
+    122,
+    168,
+    192
+   ],
+   "edges": [
+    -14.0,
+    0.0,
+    14.0,
+    30.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#FAFBFC",
+    "mockup": "#FAFBFC",
+    "dE00": 0.0
+   },
+   "ssim": 0.489,
+   "crop": "OrientationDial"
+  },
+  {
+   "id": "ViewButtons",
+   "mockup": [
+    1701.8,
+    288.0,
+    168.4,
+    26.0
+   ],
+   "layout": "missing",
+   "colour": {
+    "shot": "#F3F4F7",
+    "mockup": "#F3F5F8",
+    "dE00": 0.52
+   },
+   "ssim": 0.546,
+   "crop": "ViewButtons"
+  },
+  {
+   "id": "ViewToolColumn",
+   "mockup": [
+    1868.0,
+    330.0,
+    36.0,
+    220.0
+   ],
+   "widget": [
+    1866,
+    330,
+    38,
+    218
+   ],
+   "edges": [
+    -2.0,
+    0.0,
+    0.0,
+    -2.0
+   ],
+   "layout": "ok",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.571,
+   "crop": "ViewToolColumn"
+  },
+  {
+   "id": "StepIndicator",
+   "mockup": [
+    1286.0,
+    222.0,
+    360.0,
+    22.0
+   ],
+   "widget": [
+    1302,
+    222,
+    328,
+    22
+   ],
+   "edges": [
+    16.0,
+    0.0,
+    -16.0,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#FFFFFF",
+    "mockup": "#FFFFFF",
+    "dE00": 0.0
+   },
+   "ssim": 0.238,
+   "crop": "StepIndicator"
+  },
+  {
+   "id": "CommandDialog",
+   "mockup": [
+    1286.0,
+    182.0,
+    360.0,
+    532.0
+   ],
+   "widget": [
+    1286,
+    182,
+    360,
+    494
+   ],
+   "edges": [
+    0.0,
+    0.0,
+    0.0,
+    -38.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#FFFFFF",
+    "mockup": "#FFFFFF",
+    "dE00": 0.0
+   },
+   "ssim": 0.394,
+   "crop": "CommandDialog"
+  },
+  {
+   "id": "OkButton",
+   "mockup": [
+    1423.3,
+    672.0,
+    206.7,
+    32.0
+   ],
+   "widget": [
+    1417,
+    634,
+    213,
+    32
+   ],
+   "edges": [
+    -6.3,
+    -38.0,
+    0.0,
+    -38.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#E3E7EC",
+    "mockup": "#6D3FE0",
+    "dE00": 45.81
+   },
+   "ssim": 0.327,
+   "crop": "OkButton"
+  },
+  {
+   "id": "WorkspaceSwitcher",
+   "mockup": [
+    140.0,
+    4.0,
+    153.5,
+    28.0
+   ],
+   "widget": [
+    137,
+    4,
+    128,
+    28
+   ],
+   "edges": [
+    -3.0,
+    0.0,
+    -28.5,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#E9ECF1",
+    "mockup": "#E9ECF1",
+    "dE00": 0.0
+   },
+   "ssim": 0.414,
+   "crop": "WorkspaceSwitcher"
+  },
+  {
+   "id": "DocumentTabs",
+   "mockup": [
+    309.5,
+    4.0,
+    363.0,
+    32.0
+   ],
+   "widget": [
+    277,
+    0,
+    142,
+    36
+   ],
+   "edges": [
+    -32.5,
+    -4.0,
+    -253.5,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#E9ECF1",
+    "mockup": "#E9ECF1",
+    "dE00": 0.0
+   },
+   "ssim": 0.591,
+   "crop": "DocumentTabs"
+  },
+  {
+   "id": "NewTabButton",
+   "mockup": [
+    678.5,
+    6.0,
+    28.0,
+    28.0
+   ],
+   "widget": [
+    423,
+    6,
+    41,
+    23
+   ],
+   "edges": [
+    -255.5,
+    0.0,
+    -242.5,
+    -5.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#E9ECF1",
+    "mockup": "#E9ECF1",
+    "dE00": 0.0
+   },
+   "ssim": 0.571,
+   "crop": "NewTabButton"
+  },
+  {
+   "id": "SearchBox",
+   "mockup": [
+    1454.0,
+    5.0,
+    260.0,
+    26.0
+   ],
+   "widget": [
+    1520,
+    5,
+    260,
+    26
+   ],
+   "edges": [
+    66.0,
+    0.0,
+    66.0,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#FFFFFF",
+    "mockup": "#FFFFFF",
+    "dE00": 0.0
+   },
+   "ssim": 0.234,
+   "crop": "SearchBox"
+  },
+  {
+   "id": "AppBar",
+   "mockup": [
+    0.0,
+    0.0,
+    1920.0,
+    36.0
+   ],
+   "widget": [
+    0,
+    0,
+    1920,
+    36
+   ],
+   "edges": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "layout": "ok",
+   "colour": {
+    "shot": "#E9ECF1",
+    "mockup": "#E9ECF1",
+    "dE00": 0.0
+   },
+   "ssim": 0.694,
+   "crop": "AppBar"
+  },
+  {
+   "id": "RibbonGroup:SKETCH",
+   "mockup": [
+    8.0,
+    36.0,
+    117.2,
+    68.0
+   ],
+   "widget": [
+    4,
+    36,
+    81,
+    70
+   ],
+   "edges": [
+    -4.0,
+    0.0,
+    -40.2,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.407,
+   "crop": "RibbonGroup_SKETCH"
+  },
+  {
+   "id": "RibbonGroup:CREATE",
+   "mockup": [
+    134.2,
+    36.0,
+    259.8,
+    68.0
+   ],
+   "widget": [
+    85,
+    36,
+    180,
+    70
+   ],
+   "edges": [
+    -49.2,
+    0.0,
+    -129.0,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.4,
+   "crop": "RibbonGroup_CREATE"
+  },
+  {
+   "id": "RibbonGroup:MODIFY",
+   "mockup": [
+    403.0,
+    36.0,
+    274.4,
+    68.0
+   ],
+   "widget": [
+    265,
+    36,
+    318,
+    70
+   ],
+   "edges": [
+    -138.0,
+    0.0,
+    -94.4,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.446,
+   "crop": "RibbonGroup_MODIFY"
+  },
+  {
+   "id": "RibbonGroup:ASSEMBLE",
+   "mockup": [
+    686.4,
+    36.0,
+    120.5,
+    68.0
+   ],
+   "widget": [
+    583,
+    36,
+    194,
+    70
+   ],
+   "edges": [
+    -103.4,
+    0.0,
+    -29.9,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.398,
+   "crop": "RibbonGroup_ASSEMBLE"
+  },
+  {
+   "id": "RibbonGroup:CONSTRUCT",
+   "mockup": [
+    815.9,
+    36.0,
+    112.0,
+    68.0
+   ],
+   "widget": [
+    777,
+    36,
+    225,
+    70
+   ],
+   "edges": [
+    -38.9,
+    0.0,
+    74.1,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.408,
+   "crop": "RibbonGroup_CONSTRUCT"
+  },
+  {
+   "id": "RibbonGroup:INSPECT",
+   "mockup": [
+    936.9,
+    36.0,
+    115.8,
+    68.0
+   ],
+   "widget": [
+    1002,
+    36,
+    144,
+    70
+   ],
+   "edges": [
+    65.1,
+    0.0,
+    93.3,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.462,
+   "crop": "RibbonGroup_INSPECT"
+  },
+  {
+   "id": "RibbonGroup:MORE",
+   "mockup": [
+    1061.7,
+    36.0,
+    121.9,
+    68.0
+   ],
+   "widget": [
+    1146,
+    36,
+    188,
+    70
+   ],
+   "edges": [
+    84.3,
+    0.0,
+    150.4,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.49,
+   "crop": "RibbonGroup_MORE"
+  },
+  {
+   "id": "RibbonGroup:DOCUMENT",
+   "mockup": [
+    1796.2,
+    36.0,
+    115.8,
+    68.0
+   ],
+   "widget": [
+    1786,
+    36,
+    130,
+    70
+   ],
+   "edges": [
+    -10.2,
+    0.0,
+    4.0,
+    2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.505,
+   "crop": "RibbonGroup_DOCUMENT"
+  },
+  {
+   "id": "MainToolbarHost",
+   "mockup": [
+    0.0,
+    36.0,
+    1920.0,
+    70.0
+   ],
+   "widget": [
+    0,
+    36,
+    1920,
+    70
+   ],
+   "edges": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "layout": "ok",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.579,
+   "crop": "MainToolbarHost"
+  },
+  {
+   "id": "RollbackBar",
+   "mockup": [
+    0.0,
+    450.0,
+    320.0,
+    16.0
+   ],
+   "layout": "missing",
+   "colour": {
+    "shot": "#F5F7F9",
+    "mockup": "#F5F7F9",
+    "dE00": 0.0
+   },
+   "ssim": -0.215,
+   "crop": "RollbackBar"
+  },
+  {
+   "id": "FeatureList",
+   "mockup": [
+    0.0,
+    106.0,
+    320.0,
+    468.0
+   ],
+   "widget": [
+    0,
+    142,
+    320,
+    425
+   ],
+   "edges": [
+    0.0,
+    36.0,
+    0.0,
+    -7.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.523,
+   "crop": "FeatureList"
+  },
+  {
+   "id": "Browser",
+   "mockup": [
+    0.0,
+    584.0,
+    320.0,
+    260.0
+   ],
+   "widget": [
+    0,
+    610,
+    320,
+    265
+   ],
+   "edges": [
+    0.0,
+    26.0,
+    0.0,
+    31.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.593,
+   "crop": "Browser"
+  },
+  {
+   "id": "SelectionPanel",
+   "mockup": [
+    0.0,
+    900.0,
+    320.0,
+    152.0
+   ],
+   "widget": [
+    0,
+    918,
+    320,
+    134
+   ],
+   "edges": [
+    0.0,
+    18.0,
+    0.0,
+    0.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.683,
+   "crop": "SelectionPanel"
+  },
+  {
+   "id": "SidebarHost",
+   "mockup": [
+    0.0,
+    106.0,
+    320.0,
+    946.0
+   ],
+   "widget": [
+    0,
+    106,
+    320,
+    946
+   ],
+   "edges": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "layout": "ok",
+   "colour": {
+    "shot": "#F3F5F8",
+    "mockup": "#F3F5F8",
+    "dE00": 0.0
+   },
+   "ssim": 0.566,
+   "crop": "SidebarHost"
+  },
+  {
+   "id": "CommandLine",
+   "mockup": [
+    651.8,
+    1055.0,
+    400.0,
+    22.0
+   ],
+   "widget": [
+    1107,
+    1056,
+    280,
+    19
+   ],
+   "edges": [
+    455.2,
+    1.0,
+    335.2,
+    -2.0
+   ],
+   "layout": "FAIL",
+   "colour": {
+    "shot": "#E9ECF1",
+    "mockup": "#FFFFFF",
+    "dE00": 4.73
+   },
+   "ssim": 0.303,
+   "crop": "CommandLine"
+  },
+  {
+   "id": "StatusBar",
+   "mockup": [
+    0.0,
+    1052.0,
+    1920.0,
+    28.0
+   ],
+   "widget": [
+    0,
+    1052,
+    1920,
+    28
+   ],
+   "edges": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "layout": "ok",
+   "colour": {
+    "shot": "#E9ECF1",
+    "mockup": "#E9ECF1",
+    "dE00": 0.0
+   },
+   "ssim": 0.403,
+   "crop": "StatusBar"
+  }
+ ],
+ "samples": []
+}
