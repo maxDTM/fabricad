@@ -70,7 +70,12 @@ BrowserTree::BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWid
   connect(this, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int column) {
     if (column == 1 || !item) return;
     const int kind = item->data(0, RoleKind).toInt();
-    if (kind == KindFeature) emit editFeatureRequested(item->data(0, RoleId).toULongLong());
+    if (kind == KindFeature) {
+      // the edit runs in the canvas: drop the keyboard focus, so the row shows no focus frame
+      // that reads as an inline rename (UX-38)
+      clearFocus();
+      emit editFeatureRequested(item->data(0, RoleId).toULongLong());
+    }
     else if (kind == KindBody || kind == KindComponent || kind == KindRoot) startRename(item);
   });
   connect(this, &QTreeWidget::itemEntered, this, [this](QTreeWidgetItem* item, int) {
