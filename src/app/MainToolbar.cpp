@@ -35,6 +35,17 @@ QString menuText(const core::ToolInfo& i) {
   return t;
 }
 
+/// A tool's dropdown entry. Toggles (Snap, Sketch Grid, Show Profile, filters) are checkable and
+/// carry no icon, so the menu draws their check mark in the icon column (p1-check 7).
+QAction* addToolMenuAction(QMenu* menu, const core::ToolInfo& info) {
+  if (info.checked) {
+    QAction* a = menu->addAction(menuText(info));
+    a->setCheckable(true);
+    return a;
+  }
+  return menu->addAction(toolIcon(info), menuText(info));
+}
+
 /// Icon of a MORE entry: the registry tab's own icon when there is one, else its first tool's.
 QIcon moreIcon(const MoreEntry& e) {
   static const std::map<std::string, const char*> kIcons = {
@@ -221,13 +232,14 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
           for (const auto& [group, tools] : e.groups) {
             if (e.groups.size() > 1 || group != e.label) addMenuHeader(menu, core::qs(group));
             for (core::ITool* t : tools) {
-              QAction* a = menu->addAction(toolIcon(t->info()), menuText(t->info()));
+              QAction* a = addToolMenuAction(menu, t->info());
               a->setToolTip(core::qs(t->info().tooltip));
               connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
               addAction(p, t->info().id, a);
             }
           }
           b->setMenu(menu);
+          connect(menu, &QMenu::aboutToShow, this, &MainToolbar::refreshStates);
           h->addWidget(b);
           s.buttons.push_back(b);
         }
@@ -261,7 +273,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
         addMenuHeader(menu, core::qs(e.label));
         for (const auto& [group, tools] : e.groups)
           for (core::ITool* t : tools) {
-            QAction* a = menu->addAction(toolIcon(t->info()), menuText(t->info()));
+            QAction* a = addToolMenuAction(menu, t->info());
             a->setToolTip(core::qs(t->info().tooltip));
             connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
             addAction(p, t->info().id, a);
@@ -269,7 +281,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
       }
     } else {
       for (core::ITool* t : model.all) {
-        QAction* a = menu->addAction(toolIcon(t->info()), menuText(t->info()));
+        QAction* a = addToolMenuAction(menu, t->info());
         a->setToolTip(core::qs(t->info().tooltip));
         connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
         addAction(p, t->info().id, a);

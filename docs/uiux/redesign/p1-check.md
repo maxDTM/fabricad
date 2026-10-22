@@ -52,3 +52,18 @@ Compared with `docs/mockups/custom-ui-extrude-v6-tokens-{dark,light}.png`:
 - `tools/uitest/ui.sh start` resizes `xdotool search --name FabriCAD | head -1`, which is not the Qt window (it is a 1x1 or helper window); the app stays at its own 1400x860. Use the last match.
 - A rootful Xwayland under Hyprland is tiled to 945x490 and falls back to that whenever the client restarts, so 1920x1080 needs a float and exact resize of the Xwayland window each time.
 - Other agents' `pkill` patterns killed `fabricad-ui-64` twice (exit 143). Running the binary through a symlink with another name avoided it.
+
+## Fix status (branch ui/p1fix)
+| # | Status | Change |
+|---|---|---|
+| 1 | Deferred to phase 4 | ViewCube colours are viewer code (fixed colours, not tokens). |
+| 2 | Fixed | The HISTORY pane is now an overlay of the window above the status bar (header band, CLEAR, close, Esc/F2), with every line of command output. Output of several lines opens it by itself when it answers a command typed in the box; the message cell shows the first line plus `... +N lines (history)` and opens the pane on click. |
+| 3 | Fixed | A feature failure caused by the command just run is shown beside its result: `Suppress Base · Extrude1 failed: ...`. |
+| 4 | Fixed | Feature commands update the prompt after each pick: `Profiles: 1 selected · Enter to finish`. |
+| 5 | Fixed | The search popup opens under the search box and stays inside the window and the screen. |
+| 6 | Fixed | A collapsed section shows an icon button in the button row and keeps its caption on the shared caption line. |
+| 7 | Fixed | Toggle tools carry their state (`ToolInfo::checked`); toolbar dropdowns show check marks and refresh when they open. |
+| 8 | Deferred to phase 4 | The on-canvas value box and profile fill are viewport overlays (sketch/ValueInputOverlay, viewer). |
+| 9 | Fixed | Preferences, Parameters, message and input dialogs have a 1 px `border.control` edge. |
+| 10 | Fixed | `.fcad` shows as `FabriCAD design` in Qt's file dialog (icon provider type). |
+| 12 | Fixed | The GRID cell tooltip says the spacing follows the zoom. |
