@@ -181,12 +181,8 @@ void applyInference(Sketch& sketch, const InferenceResult& r, const GeoRef& newP
     else if (r.perpendicularTo && *r.perpendicularTo != newLine)
       sketch.addConstraint(Constraint{.type = ConstraintType::Perpendicular, .a = {newLine}, .b = {*r.perpendicularTo}});
   }
-  if (!r.onPoint && !r.onCurve && newPoint.isValid()) {
-    if (r.alignedXWith && !(newLine >= 0 && r.vertical))
-      sketch.addConstraint(Constraint{.type = ConstraintType::Vertical, .a = newPoint, .b = *r.alignedXWith, .internal = true});
-    if (r.alignedYWith && !(newLine >= 0 && r.horizontal))
-      sketch.addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = newPoint, .b = *r.alignedYWith, .internal = true});
-  }
+  // Tracking-line alignment (alignedXWith / alignedYWith) only snaps the position, like Fusion:
+  // it adds no constraint, so separate shapes are never tied together by hidden H/V constraints.
 }
 
 }  // namespace fabricad::sketch

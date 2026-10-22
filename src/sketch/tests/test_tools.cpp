@@ -256,6 +256,35 @@ class ToolsTest : public QObject {
     QVERIFY(named.count("display:points"));
   }
 
+  /// UX-23: a point snapped to another shape's tracking line adds no (hidden) constraint, so
+  /// changing a dimension on one shape leaves the other where it is.
+  void alignmentAddsNoHiddenConstraint() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.line"));
+    r.click(0, 0);
+    r.click(0.2, 20);  // vertical line A
+    r.key(Qt::Key_Escape);
+    r.click(30, 5);
+    r.click(50, 20.5);  // B's end snaps to A's end height (tracking line), no H/V direction
+    r.key(Qt::Key_Escape);
+    QCOMPARE(r.sk().geometryCount(), 2);
+    const int a = 1, b = 2;
+    QVERIFY(near(r.sk().geometry(b)->end(), {50, 20}));  // the snapped position stays
+    for (const auto& c : r.sk().constraints())
+      QVERIFY2(!(c.references(a) && c.references(b)), "no constraint ties the two shapes together");
+    // dimension A's length and change it: B does not move
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a, PointPos::Start}});
+    int dim = r.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {a}, .value = 20});
+    QVERIFY(r.sk().solve().ok());
+    r.sk().constraint(dim)->value = 30;
+    QVERIFY(r.sk().solve().ok());
+    QVERIFY(near(r.sk().geometry(a)->end(), {0, 30}));
+    QVERIFY(near(r.sk().geometry(b)->end(), {50, 20}));
+    QVERIFY(near(r.sk().geometry(b)->start(), {30, 5}));
+  }
+
   void lineTypedInputAndTangentArc() {
     Rig r;
     r.mgr.run("sketch.create", {"XY"});
