@@ -1392,6 +1392,81 @@ class ToolsTest : public QObject {
       if (g.isOriginHelper()) ++helpers;
     QCOMPARE(helpers, 1);
   }
+
+  /// Viewport keys: '\t' = Tab, '\n' = Enter, others as typed.
+  static void keys(Rig& r, const std::string& s) {
+    for (char c : s) {
+      core::ViewerKeyEvent e;
+      if (c == '\t') e.key = Qt::Key_Tab;
+      else if (c == '\n') e.key = Qt::Key_Return;
+      else {
+        e.key = std::toupper(static_cast<unsigned char>(c));
+        e.text = std::string(1, c);
+      }
+      r.mgr.keyPress(e);
+    }
+  }
+
+  // SK-08: typed entry in the viewport goes into value boxes (ellipse, scale, patterns, chamfer)
+  // or into the text (Text tool), never to the shortcut router.
+  void viewportTypedEntry() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    // ellipse: centre, then major 30 Tab angle 0 Enter, minor 12 Enter
+    r.mgr.run("sketch.ellipse");
+    r.click(0, 0);
+    r.move(10, 3);
+    keys(r, "30\t0\n");
+    r.move(5, 8);
+    keys(r, "12\n");
+    const Geometry* e = nullptr;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Ellipse) e = &g;
+    QVERIFY(e);
+    QVERIFY(near(e->majorRadius(), 30, 1e-6));
+    QVERIFY(near(e->minorRadius(), 12, 1e-6));
+    QVERIFY(std::abs(e->ellipse().major.y) < 1e-9);
+    QCOMPARE(r.countType(ConstraintType::MajorRadius), 1);
+    QCOMPARE(r.countType(ConstraintType::MinorRadius), 1);
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.ellipse"));  // keys did not switch tools
+    r.mgr.cancel();
+    r.mgr.cancel();
+
+    // scale: select, Enter, base point, factor typed in the viewport
+    int l = r.sk().addGeometry(Geometry::makeLine({100, 0}, {110, 0}));
+    r.session()->refresh();
+    r.mgr.run("sketch.scale");
+    r.click(105, 0);
+    r.key(Qt::Key_Return);
+    r.click(100, 0);
+    r.move(120, 10);
+    keys(r, "2\n");
+    QVERIFY(near(r.sk().geometry(l)->end(), {120, 0}, 1e-6));
+
+    // chamfer: distance typed in the viewport, then the two lines
+    int a = r.sk().addGeometry(Geometry::makeLine({0, 100}, {20, 100}));
+    int b = r.sk().addGeometry(Geometry::makeLine({20, 100}, {20, 120}));
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {a, PointPos::End}, .b = {b, PointPos::Start}});
+    r.session()->refresh();
+    r.mgr.run("sketch.chamfer");
+    r.move(10, 100);
+    keys(r, "4\n");
+    r.click(10, 100);
+    r.click(20, 110);
+    QVERIFY(near(r.sk().geometry(a)->end(), {16, 100}, 1e-6));
+
+    // text: typed letters go into the text, not to shortcuts (T = trim, L = line ...)
+    r.mgr.run("sketch.text");
+    r.click(0, 150);
+    keys(r, "TL");
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.text"));
+    keys(r, "\n");
+    bool found = false;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Text && g.text == "TL") found = true;
+    QVERIFY(found);
+  }
 };
 
 QTEST_GUILESS_MAIN(ToolsTest)

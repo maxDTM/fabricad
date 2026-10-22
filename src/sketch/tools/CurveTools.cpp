@@ -14,6 +14,7 @@
 #include <QFormLayout>
 #include <QLineEdit>
 #include <QPointer>
+#include <QSignalBlocker>
 #include <QWidget>
 #include <QtCore/Qt>
 
@@ -123,8 +124,12 @@ class ClickTool : public SketchTool {
       pts_.clear();
       clearTemp();
     }
+    pointsChanged();
     ctx.setPrompt(prompt());
   }
+
+  /// Hook after a point was added (and the curve possibly created).
+  virtual void pointsChanged() {}
 
   std::vector<Pt2> points() const {
     std::vector<Pt2> p;
@@ -174,7 +179,110 @@ class EllipseTool : public ClickTool {
                                  .order = 12}),
         arc_(arc) {}
 
+  void activate(ToolContext& ctx) override {
+    ClickTool::activate(ctx);
+    // on-canvas value boxes like Line / Circle (SK-08): typed keys go here, not to shortcuts
+    std::vector<ValueField> f = {ValueField{.id = "major", .label = "Major radius", .kind = ValueKind::Length},
+                                 ValueField{.id = "angle", .label = "Angle", .kind = ValueKind::Angle},
+                                 ValueField{.id = "minor", .label = "Minor radius", .kind = ValueKind::Length}};
+    if (arc_) f.push_back(ValueField{.id = "sweep", .label = "Sweep", .kind = ValueKind::Angle});
+    defineValues(std::move(f));
+    pointsChanged();
+  }
+
+  bool mousePress(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    if (e.button == core::MouseButton::Left && values().isTyping()) values().lockActive();  // a click applies the typed value
+    return ClickTool::mousePress(ctx, e);
+  }
+
+  bool commandLineInput(ToolContext& ctx, const std::string& text) override {
+    TypedInput in = parseTypedInput(text);
+    bool toBoxes = !pts_.empty() && values().visibleCount() > 0 &&
+                   (in.kind == TypedInput::Kind::Number || in.kind == TypedInput::Kind::Text ||
+                    (in.kind == TypedInput::Kind::Pair && values().visibleCount() >= 2));
+    if (toBoxes && typedValuesToBoxes(ctx, text)) return true;
+    return ClickTool::commandLineInput(ctx, text);
+  }
+
  protected:
+  void pointsChanged() override {
+    if (pts_.empty()) values().resetInput();
+    setValueVisible("major", pts_.size() == 1);
+    setValueVisible("angle", pts_.size() == 1);
+    setValueVisible("minor", pts_.size() == 2);
+    if (arc_) setValueVisible("sweep", pts_.size() == 3);
+  }
+
+  /// Frame of the ellipse being drawn once centre and major end are known (minor radius `b`).
+  std::optional<EllipseFrame> frameWith(double b) const {
+    if (pts_.size() < 2) return std::nullopt;
+    Pt2 c = pts_[0].point, m = pts_[1].point;
+    if (c.distance(m) < 1e-9 || b <= 1e-9) return std::nullopt;
+    EllipseFrame f;
+    f.center = c;
+    f.major = (m - c).normalized();
+    f.minor = f.major.perp();
+    f.a = c.distance(m);
+    f.b = b;
+    return f;
+  }
+
+  /// The cursor point moved so that it honours the locked boxes of the current phase.
+  Pt2 applyLocks(Pt2 p) const {
+    if (pts_.size() == 1) {
+      auto R = lockedValue("major");
+      auto A = lockedValue("angle");
+      if (!R && !A) return p;
+      Pt2 c = pts_[0].point, d = p - c;
+      double len = R ? *R : d.length();
+      double ang = A ? *A * kPi / 180.0 : (d.length() < 1e-9 ? 0.0 : d.angle());
+      return c + Pt2::polar(len, ang);
+    }
+    if (pts_.size() == 2) {
+      auto B = lockedValue("minor");
+      if (!B) return p;
+      Pt2 c = pts_[0].point, u = (pts_[1].point - c).normalized();
+      if (!arc_) {
+        double side = (p - c).dot(u.perp()) >= 0 ? 1.0 : -1.0;
+        return c + u.perp() * (*B * side);
+      }
+      auto f = frameWith(*B);
+      return f ? f->value(f->closestParam(p)) : p;
+    }
+    if (pts_.size() == 3 && arc_) {
+      auto S = lockedValue("sweep");
+      auto b = minorFor(pts_[0].point, pts_[1].point, pts_[2].point);
+      auto f = b ? frameWith(*b) : std::nullopt;
+      if (!S || !f) return p;
+      double u0 = f->closestParam(pts_[2].point);
+      return f->value(u0 + *S * kPi / 180.0);
+    }
+    return p;
+  }
+
+  InferenceResult inferAt(Pt2 c, const ViewerMouseEvent& e) override {
+    InferenceResult r = ClickTool::inferAt(c, e);
+    if (pts_.empty() || !values().anyLocked()) return r;
+    Pt2 p = applyLocks(r.point);
+    if (p.near(r.point, 1e-9)) return r;
+    return inferExact(p, pts_.back().point);
+  }
+
+  void valuesChanged(ToolContext& ctx) override {
+    if (pts_.empty()) return;
+    Pt2 p = applyLocks(cursor_);
+    clearTemp();
+    preview(ctx, p);
+  }
+
+  bool commitValues(ToolContext& ctx) override {
+    if (pts_.empty() || !values().anyLocked()) return false;
+    Pt2 p = applyLocks(cursor_);
+    if (pts_.size() == 1 && p.distance(pts_[0].point) < 1e-9) p = pts_[0].point + Pt2{1, 0} * cursor_.distance(pts_[0].point);
+    addPoint(ctx, inferExact(p, pts_.back().point));
+    return true;
+  }
+
   std::string prompt() const override {
     switch (pts_.size()) {
       case 0: return "Specify the ellipse centre";
@@ -202,12 +310,32 @@ class EllipseTool : public ClickTool {
     return Geometry::makeEllipseArc(f.center, f.a, f.b, f.major.angle(), u0, u1);
   }
 
-  void preview(ToolContext&, Pt2 c) override {
+  void preview(ToolContext& ctx, Pt2 c) override {
+    previewShapes(ctx, c);
+    std::vector<Pt2> p = points();
+    if (p.size() == 1) {
+      setValue("major", p[0].distance(c), (p[0] + c) * 0.5);
+      setValue("angle", deg360((c - p[0]).angle()), c);
+    } else if (p.size() == 2) {
+      if (auto b = minorFor(p[0], p[1], c)) setValue("minor", *b, c);
+    } else if (p.size() == 3 && arc_) {
+      if (auto b = minorFor(p[0], p[1], p[2])) {
+        if (auto f = frameWith(*b)) {
+          double u0 = f->closestParam(p[2]);
+          setValue("sweep", deg360(f->closestParam(c) - u0), c);
+        }
+      }
+    }
+    if (!p.empty()) showValueBoxes(c);
+  }
+
+  static double deg360(double rad) { return normalizeAngle(rad) * 180.0 / kPi; }
+
+  void previewShapes(ToolContext&, Pt2 c) {
     std::vector<Pt2> p = points();
     if (p.empty()) return;
     if (p.size() == 1) {
       previewLines({p[0], c}, guideStyle());
-      showDynamicText(c, "a " + formatLength(p[0].distance(c)));
       return;
     }
     p.push_back(c);
@@ -216,14 +344,10 @@ class EllipseTool : public ClickTool {
       std::vector<Pt2> q = p;
       if (auto b = minorFor(q[0], q[1], q[2])) {
         previewGeometry(Geometry::makeEllipse(q[0], q[0].distance(q[1]), *b, (q[1] - q[0]).angle()), guideStyle());
-        showDynamicText(c, "b " + formatLength(*b));
       }
       return;
     }
-    if (auto g = build(p)) {
-      previewGeometry(*g, rubberStyle());
-      if (!arc_) showDynamicText(c, std::format("{} x {}", formatLength(g->majorRadius()), formatLength(g->minorRadius())));
-    }
+    if (auto g = build(p)) previewGeometry(*g, rubberStyle());
   }
 
   bool typedNumber(ToolContext& ctx, double v) override {
@@ -260,6 +384,15 @@ class EllipseTool : public ClickTool {
     } else {
       for (size_t i = 1; i < pts_.size(); ++i)
         if (pts_[i].onPoint) sk->addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = *pts_[i].onPoint, .b = {id}});
+    }
+    // typed radii become driving dimensions (a < b swaps the axes of the result)
+    const Geometry* made = sk->geometry(id);
+    bool swapped = made && pts_[0].point.distance(pts_[1].point) < made->majorRadius() - 1e-9;
+    for (const char* box : {"major", "minor"}) {
+      const ValueField* f = values().field(box);
+      if (!f || !f->locked) continue;
+      bool major = (std::string(box) == "major") != swapped;
+      addLockedDimension(ctx, *f, Constraint{.type = major ? ConstraintType::MajorRadius : ConstraintType::MinorRadius, .a = {id}});
     }
     session()->commitEdit(arc_ ? "Elliptical Arc" : "Ellipse");
   }
@@ -437,10 +570,46 @@ class TextTool : public SketchTool {
     if (ctx.args.size() > 2)
       if (auto v = evaluateTyped(ctx, ctx.args[2], true)) angle_ = *v * kPi / 180.0;
     if (ctx.args.size() > 3) font_ = ctx.args[3];
+    edit_ = nullptr;
     ctx.setPrompt(prompt());
   }
 
-  QWidget* createDialog(ToolContext&, QWidget* parent) override {
+  void deactivate(ToolContext& ctx) override {
+    edit_ = nullptr;
+    SketchTool::deactivate(ctx);
+  }
+
+  /// Typing in the viewport goes into the text (SK-08): printable keys append, Backspace deletes;
+  /// they never reach the shortcut router.
+  bool keyPress(ToolContext& ctx, const ViewerKeyEvent& e) override {
+    if (e.key == Qt::Key_Return || e.key == Qt::Key_Enter) {
+      accept(ctx);
+      return true;
+    }
+    if (!(e.modifiers & (core::ModCtrl | core::ModAlt))) {
+      if (e.key == Qt::Key_Backspace) {
+        if (!text_.empty()) {
+          // drop one UTF-8 character
+          size_t n = text_.size() - 1;
+          while (n > 0 && (static_cast<unsigned char>(text_[n]) & 0xC0) == 0x80) --n;
+          text_.erase(n);
+        }
+        textChanged(ctx);
+        return true;
+      }
+      bool printable = !e.text.empty();
+      for (char ch : e.text)
+        if (static_cast<unsigned char>(ch) < 0x20 || ch == 0x7f) printable = false;
+      if (printable) {
+        text_ += e.text;
+        textChanged(ctx);
+        return true;
+      }
+    }
+    return SketchTool::keyPress(ctx, e);
+  }
+
+  QWidget* createDialog(ToolContext& ctx, QWidget* parent) override {
     auto* w = new QWidget(parent);
     auto* form = new QFormLayout(w);
     auto* edit = new QLineEdit(QString::fromStdString(text_), w);
@@ -461,6 +630,14 @@ class TextTool : public SketchTool {
       text_ = t.toStdString();
       refreshPreview();
     });
+    // Enter in the field places the text (once positioned), instead of re-running an older
+    // command-line entry (SK-09)
+    core::ToolManager* mgr = ctx.manager;
+    QObject::connect(edit, &QLineEdit::returnPressed, w, [this, mgr] {
+      if (!mgr || !mgr->isActive() || mgr->activeToolId() != info().id) return;
+      if (anchor_ && !text_.empty()) mgr->runCommandLine(text_);
+    });
+    edit_ = edit;
     QObject::connect(height, &QDoubleSpinBox::valueChanged, w, [this](double v) {
       height_ = lastHeight_ = v;
       refreshPreview();
@@ -506,7 +683,7 @@ class TextTool : public SketchTool {
         return true;
       }
       text_ = text;  // text first, then click the position
-      ctx.setPrompt(prompt());
+      textChanged(ctx);
       return true;
     }
     text_ = text;
@@ -528,6 +705,16 @@ class TextTool : public SketchTool {
   Geometry build(Pt2 at) const {
     Geometry g = Geometry::makeText(at, text_.empty() ? std::string("Text") : text_, height_, angle_, font_);
     return g;
+  }
+
+  /// One source for the text: the dialog field follows text typed elsewhere.
+  void textChanged(ToolContext& ctx) {
+    if (edit_ && edit_->text().toStdString() != text_) {
+      QSignalBlocker block(edit_.data());
+      edit_->setText(QString::fromStdString(text_));
+    }
+    refreshPreview();
+    ctx.setPrompt(prompt());
   }
 
   void refreshPreview() {
@@ -556,6 +743,10 @@ class TextTool : public SketchTool {
     anchor_.reset();
     text_.clear();
     clearTemp();
+    if (edit_) {
+      QSignalBlocker block(edit_.data());
+      edit_->clear();
+    }
     ctx.setPrompt(prompt());
   }
 
@@ -567,6 +758,7 @@ class TextTool : public SketchTool {
   std::optional<Pt2> anchor_;
   InferenceResult anchorInf_, cursorInf_;
   Pt2 cursor_;
+  QPointer<QLineEdit> edit_;  ///< the dialog's Text field (rebuilt with the dialog)
 };
 
 }  // namespace
