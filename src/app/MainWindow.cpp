@@ -1772,8 +1772,71 @@ bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, boo
   return false;
 }
 
+namespace {
+// The open application menus (File / Help and their submenus), innermost last.
+std::vector<QMenu*> openMenus() {
+  std::vector<QMenu*> out;
+  for (QWidget* w : QApplication::topLevelWidgets())
+    if (auto* m = qobject_cast<QMenu*>(w); m && m->isVisible()) out.push_back(m);
+  return out;
+}
+
+QMenu* menuOf(QObject* o) {
+  for (auto* w = qobject_cast<QWidget*>(o); w; w = w->parentWidget())
+    if (auto* m = qobject_cast<QMenu*>(w)) return m;
+  return nullptr;
+}
+
+bool insideMenu(QObject* o) { return menuOf(o) != nullptr; }
+
+// The window a menu was opened from (through its parent menus and the button/widget owning it).
+QWidget* menuOwnerWindow(QMenu* m) {
+  QWidget* w = m;
+  while (auto* menu = qobject_cast<QMenu*>(w)) {
+    w = menu->parentWidget();
+    if (!w) return nullptr;
+    if (!qobject_cast<QMenu*>(w)) return w->window();
+  }
+  return w ? w->window() : nullptr;
+}
+
+void closeMenus(const std::vector<QMenu*>& menus) {
+  for (QMenu* m : menus) m->close();
+}
+}  // namespace
+
 bool MainWindow::eventFilter(QObject* o, QEvent* e) {
   if (viewer_ && o == viewer_ && e->type() == QEvent::Resize) QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
+  // DOC-12: without a pointer/keyboard grab (XWayland, no window manager) a click on the main
+  // window or a key typed into it does not reach the open menu, so the menu would stay up and
+  // keep acting as the active popup. A click outside every menu closes them; with a menu open,
+  // Escape just closes it and any other key closes it before it is handled as usual.
+  // Ctrl/Alt shortcuts typed while one of this window's menus is open (the menu has the keyboard)
+  // would be swallowed: their menu entries only show the key as text. Close the menus and run
+  // the shortcut as if typed on the canvas (DOC-12).
+  if (e->type() == QEvent::KeyPress && active_) {
+    auto* k = static_cast<QKeyEvent*>(e);
+    QMenu* menu = menuOf(o);
+    if (menu && menuOwnerWindow(menu) == this && !k->isAutoRepeat() &&
+        (k->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+        !(k == lastKeyEvent_ && k->timestamp() == lastKeyTimestamp_)) {
+      lastKeyEvent_ = k;
+      lastKeyTimestamp_ = k->timestamp();
+      closeMenus(openMenus());
+      QWidget* focus = viewer_ ? static_cast<QWidget*>(viewer_) : this;
+      handleKeyPress(k->key(), static_cast<int>(k->modifiers()), k->text(), false, focus);
+      return true;
+    }
+  }
+  if ((e->type() == QEvent::MouseButtonPress || e->type() == QEvent::KeyPress) && o->isWidgetType() && !insideMenu(o)) {
+    auto* w = static_cast<QWidget*>(o);
+    if (w->window() == this) {
+      if (const std::vector<QMenu*> menus = openMenus(); !menus.empty()) {
+        closeMenus(menus);
+        if (e->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(e)->key() == Qt::Key_Escape) return true;
+      }
+    }
+  }
   if (e->type() == QEvent::KeyPress && active_) {
     auto* w = qobject_cast<QWidget*>(o);
     auto* k = static_cast<QKeyEvent*>(e);

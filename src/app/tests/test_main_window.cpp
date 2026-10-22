@@ -18,6 +18,7 @@
 #include "assembly/ComponentOps.h"
 #include "sketch/SketchFeature.h"
 #include "core/Commands.h"
+#include "core/Json.h"
 #include "core/Selection.h"
 #include "core/UndoStack.h"
 #include "core/tests/support/TestFeatures.h"

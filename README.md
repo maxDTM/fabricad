@@ -141,9 +141,12 @@ parts lists; PDF/SVG/DXF export).
   a non-zero exit status on error. See `docs/SCRIPTING.md`; `tests/scripts/chair.fcs` builds the
   chair benchmark of `docs/comparison/CHAIR_SPEC.md`.
 * `.fcad` documents (plain JSON, parametric definition only) with per-document UI state.
-* Autosave: a recovery copy is written to `QStandardPaths::AppDataLocation/recovery` two
-  minutes after the last change and five seconds after each undoable edit; at the next start
-  FabriCAD offers to recover it. A clean save or close removes the copy.
+* Autosave: a recovery copy of every modified document is written to
+  `QStandardPaths::AppDataLocation/recovery/<session>/` (one locked folder per running
+  instance, one file per document) every two minutes and five seconds after each undoable
+  edit; at the next start FabriCAD offers to recover every copy left by instances that are no
+  longer running, each into its own tab. A recovered document is autosaved again at once. A
+  clean save or close removes the copy.
 
 ## Building (Arch Linux dev box)
 
