@@ -37,6 +37,7 @@ struct DeletePlan {
   std::vector<core::ObjectId> features;    ///< timeline features, document order
   std::vector<core::ObjectId> components;  ///< child components
   std::vector<std::string> bodyNotes;      ///< "Body1 (created by Extrude1)" for the confirmation text
+  std::vector<std::string> dependents;     ///< later features (not deleted) that read a deleted one
   bool isEmpty() const { return features.empty() && components.empty(); }
   std::string summary(const core::Document& doc) const;
 };

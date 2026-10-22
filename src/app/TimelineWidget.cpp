@@ -6,6 +6,7 @@
 #include "core/Commands.h"
 #include "core/Document.h"
 #include "core/Json.h"
+#include "core/UndoStack.h"
 
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
@@ -256,7 +257,12 @@ TimelineWidget::TimelineWidget(core::Document& doc, QWidget* parent) : QWidget(p
   scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   scroll_->setFixedHeight(kHeight + 8);
-  scroll_->setStyleSheet("background: transparent;");
+  // Scoped by object name: an unscoped rule would also reach the strip's context menu and its
+  // tooltips (children / tip labels of the strip) and make them transparent, i.e. black (DOC-10).
+  scroll_->setObjectName("TimelineScroll");
+  scroll_->viewport()->setObjectName("TimelineViewport");
+  strip_->setObjectName("TimelineStrip");
+  scroll_->setStyleSheet("#TimelineScroll, #TimelineViewport, #TimelineStrip { background: transparent; }");
   row->addWidget(scroll_, 1);
 
   auto ref = [this] { scheduleRefresh(); };
@@ -269,6 +275,10 @@ TimelineWidget::TimelineWidget(core::Document& doc, QWidget* parent) : QWidget(p
   connect(&doc_, &core::Document::rollbackChanged, this, [this](int) { scheduleRefresh(); });
   connect(&doc_, &core::Document::recomputeFinished, this, ref);
   connect(&doc_, &core::Document::documentReset, this, ref);
+  // a feature tooltip must not stay up over a timeline that undo/redo just changed
+  connect(&doc_.undoStack(), &core::UndoStack::changed, this, [this] {
+    if (QToolTip::isVisible() && strip_->underMouse()) QToolTip::hideText();
+  });
 }
 
 void TimelineWidget::scheduleRefresh() {

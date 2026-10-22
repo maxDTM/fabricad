@@ -816,7 +816,7 @@ QJsonObject Document::toJson() const {
 
 bool Document::fromJson(const QJsonObject& root, std::string* error) {
   if (root["format"].toString() != "fabricad") {
-    if (error) *error = "not a FabriCAD document";
+    if (error) *error = "not a FabriCAD design";
     return false;
   }
   int version = root["version"].toInt(0);
@@ -895,7 +895,8 @@ bool Document::fromJson(const QJsonObject& root, std::string* error) {
   emit documentReset();
   recompute();
   emit loaded();
-  setModified(false);
+  // The modified flag is left alone: an undo/redo that restores a snapshot through fromJson is
+  // still an edit (DOC-05). load() marks a freshly read file as unmodified.
   return true;
 }
 
@@ -924,15 +925,29 @@ bool Document::load(const std::string& path, std::string* error) {
     if (error) *error = ss(file.errorString());
     return false;
   }
+  const QByteArray data = file.readAll();
+  // user-facing messages instead of the raw parser text (DOC-07)
+  if (data.trimmed().isEmpty()) {
+    if (error) *error = "the file is empty";
+    return false;
+  }
   QJsonParseError perr;
-  QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &perr);
-  if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
-    if (error) *error = ss(perr.errorString());
+  QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
+  if (perr.error != QJsonParseError::NoError) {
+    if (error)
+      *error = data.trimmed().startsWith('{')
+                   ? std::format("the file is damaged or truncated (at byte {} of {})", perr.offset, data.size())
+                   : std::string("not a FabriCAD design (the file is not FabriCAD data)");
+    return false;
+  }
+  if (!doc.isObject()) {
+    if (error) *error = "not a FabriCAD design";
     return false;
   }
   filePath_ = path;
   if (!fromJson(doc.object(), error)) return false;
   undo_->clear();
+  setModified(false);
   return true;
 }
 

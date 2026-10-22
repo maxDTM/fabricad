@@ -69,7 +69,7 @@ std::string DeletePlan::summary(const core::Document& doc) const {
   for (ObjectId id : features)
     for (ObjectId d : doc.dependentsOf(id, true))
       if (!doomed.count(d)) ++dependents;
-  if (dependents > 0) s += std::format(" ({} dependent feature{} will fail)", dependents, dependents == 1 ? "" : "s");
+  if (dependents > 0) s += std::format(" ({} dependent feature{} may fail)", dependents, dependents == 1 ? "" : "s");
   return s;
 }
 
@@ -93,6 +93,14 @@ DeletePlan planDelete(const core::Document& doc, const std::vector<ShapeRef>& it
   std::sort(plan.features.begin(), plan.features.end(),
             [&](ObjectId a, ObjectId b) { return doc.indexOf(a) < doc.indexOf(b); });
   plan.components.assign(comps.begin(), comps.end());
+  // features that will fail once these are gone (the Delete prompt lists them, DOC-09)
+  std::set<ObjectId> listed;
+  for (ObjectId id : plan.features)
+    for (ObjectId d : doc.dependentsOf(id, true))
+      if (!feats.count(d) && doc.feature(d)) listed.insert(d);
+  std::vector<ObjectId> deps(listed.begin(), listed.end());
+  std::sort(deps.begin(), deps.end(), [&](ObjectId a, ObjectId b) { return doc.indexOf(a) < doc.indexOf(b); });
+  for (ObjectId d : deps) plan.dependents.push_back(doc.feature(d)->name());  // timeline order
   return plan;
 }
 

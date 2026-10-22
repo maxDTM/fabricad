@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "core/Document.h"
 #include "core/GeometryRefs.h"
+#include "core/Json.h"
 #include "core/Registry.h"
 #include "core/ShapeUtils.h"
 #include "core/Tool.h"
@@ -294,6 +295,70 @@ class DressUpTest : public QObject {
     p.type = HoleFeature::Counterbore;
     QVERIFY(HoleFeature::makeProtoHole(p, &err).IsNull());
     QVERIFY(!err.empty());
+  }
+
+  void holeEditKeepsDownstreamRefsQuiet() {
+    // DOC-04: editing a hole must not make a later fillet on the box (an edge of
+    // Extrude1/End) report "re-matched by geometry", neither after the edit nor after undoing it.
+    core::Document doc;
+    core::ObjectId body = makeBox(doc);
+    auto sk = std::make_unique<TestSketch>();
+    sk->prop("plane").setRef(faceWithNormal(doc, body, 1, 10));
+    {
+      auto pl = core::resolvePlane(doc, sk->prop("plane").ref());
+      QVERIFY(pl);
+      gp_Vec d(pl->Location(), gp_Pnt(10, 10, 10));
+      sk->points.push_back(TestSketch::Point{d.Dot(gp_Vec(pl->XDirection())), d.Dot(gp_Vec(pl->YDirection()))});
+    }
+    TestSketch* s = static_cast<TestSketch*>(doc.addFeature(std::move(sk)));
+    auto hole = std::make_unique<HoleFeature>();
+    hole->prop("points").addRef(s->pointRef(0));
+    hole->prop("diameter").setDouble(4);
+    hole->prop("depth").setDouble(5);
+    core::Feature* hf = doc.addFeature(std::move(hole));
+    doc.recompute();
+    QVERIFY2(hf->status() == core::FeatureStatus::Ok, hf->statusMessage().c_str());
+    QVERIFY(hf->namedShapes().count("Extrude1/End"));
+    // a top outer edge, picked after the hole (as a user would)
+    core::ShapeRef top;
+    {
+      const TopoDS_Shape& shape = doc.bodyShape(body);
+      for (const auto& e : core::subShapes(shape, TopAbs_EDGE)) {
+        BRepAdaptor_Curve c(TopoDS::Edge(e));
+        core::Vec3 m = core::centroid(e);
+        if (c.GetType() == GeomAbs_Line && near(m.z, 10) && near(m.y, 0)) {
+          top = core::ShapeRef::subShape(body, shape, e);
+          annotateRef(doc, top);
+        }
+      }
+    }
+    QVERIFY(top.isValid());
+    QVERIFY2(!top.name.empty(), "the edge has a history name");
+    auto fil = std::make_unique<FilletFeature>();
+    fil->prop("edges").addRef(top);
+    fil->prop("radius").setDouble(1);
+    core::Feature* ff = doc.addFeature(std::move(fil));
+    doc.recompute();
+    QVERIFY2(ff->status() == core::FeatureStatus::Ok, ff->statusMessage().c_str());
+    for (double dia : {6.0, 4.0, 8.0, 4.0}) {
+      hf->prop("diameter").setDouble(dia);
+      doc.notifyFeatureChanged(hf->id());
+      doc.recompute();
+      QVERIFY2(hf->status() == core::FeatureStatus::Ok, hf->statusMessage().c_str());
+      QVERIFY2(hf->namedShapes().count("Extrude1/End"), "the hole carries the box's names");
+      QVERIFY2(ff->status() == core::FeatureStatus::Ok,
+               qPrintable(QString("diameter %1: %2").arg(dia).arg(core::qs(ff->statusMessage()))));
+    }
+    // the box itself changes size (the referenced edge moves): still no warning
+    core::Feature* ex = doc.featureAt(1);
+    ex->prop("distance").setDouble(14);
+    doc.notifyFeatureChanged(ex->id());
+    doc.recompute();
+    QVERIFY2(ff->status() == core::FeatureStatus::Ok, ff->statusMessage().c_str());
+    ex->prop("distance").setDouble(10);
+    doc.notifyFeatureChanged(ex->id());
+    doc.recompute();
+    QVERIFY2(ff->status() == core::FeatureStatus::Ok, ff->statusMessage().c_str());
   }
 
   void holesAtSketchPointsAndThroughAll() {
