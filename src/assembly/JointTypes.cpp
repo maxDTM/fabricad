@@ -92,6 +92,14 @@ const std::vector<DofInfo>& jointDofs(JointType t) {
 
 int jointDofCount(JointType t) { return static_cast<int>(jointDofs(t).size()); }
 
+double wrapAngle180(double deg) {
+  if (!std::isfinite(deg)) return deg;
+  double r = std::fmod(deg, 360.0);
+  if (r > 180.0) r -= 360.0;
+  if (r <= -180.0) r += 360.0;
+  return r;
+}
+
 gp_Trsf jointMotion(JointType t, const JointValues& q) {
   switch (t) {
     case JointType::Rigid: return gp_Trsf();

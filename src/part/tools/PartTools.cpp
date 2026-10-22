@@ -57,6 +57,41 @@ std::unique_ptr<FeatureTool> featureTool(core::ToolInfo i) {
   return std::make_unique<FeatureTool>(std::move(i), F::kType, [] { return std::make_unique<F>(); });
 }
 
+/// Move/Copy (ASM-08): it moves bodies. With only components selected it hands off to the assembly
+/// Move Component tool (Fusion's Move/Copy takes components too), keeping the selection.
+class MoveCopyTool : public FeatureTool {
+ public:
+  explicit MoveCopyTool(core::ToolInfo i)
+      : FeatureTool(std::move(i), MoveBodyFeature::kType, [] { return std::make_unique<MoveBodyFeature>(); }) {}
+
+  void activate(core::ToolContext& ctx) override {
+    handedOff_ = false;
+    bool components = false, bodies = false;
+    for (const core::ShapeRef& r : ctx.preselection) {
+      if (r.kind == core::ShapeKind::Component && r.owner != core::kRootComponentId) components = true;
+      else if (r.kind == core::ShapeKind::Body || r.isBrep()) bodies = true;
+    }
+    if (components && !bodies && ctx.manager && ctx.manager->registry().has(kComponentMove)) {
+      handedOff_ = true;
+      // the selection still holds the components: Move Component takes them as its preselection
+      ctx.manager->run(kComponentMove);
+      return;
+    }
+    FeatureTool::activate(ctx);
+  }
+  void deactivate(core::ToolContext& ctx) override {
+    if (handedOff_) {
+      handedOff_ = false;
+      return;
+    }
+    FeatureTool::deactivate(ctx);
+  }
+
+ private:
+  static constexpr const char* kComponentMove = "assembly.move";
+  bool handedOff_ = false;
+};
+
 std::string chooseFile(core::ToolContext& ctx, bool save, const std::string& filter, const std::string& defaultSuffix) {
   if (!ctx.args.empty()) return ctx.args[0];
   QWidget* parent = ctx.host ? ctx.host->mainWindow() : nullptr;
@@ -143,7 +178,7 @@ void registerPartTools(core::ModuleContext& ctx) {
   t.registerTool(featureTool<DraftFeature>(info("part.draft", "Draft", "Tilt faces by an angle", SOLID, MODIFY, 45, false, "", {"DRAFT"})));
   t.registerTool(featureTool<CombineFeature>(info("part.combine", "Combine", "Join, cut or intersect bodies", SOLID, MODIFY, 50, true, "", {"COMBINE"})));
   t.registerTool(featureTool<SplitBodyFeature>(info("part.split-body", "Split Body", "Split bodies with a plane, face or body", SOLID, MODIFY, 60, false, "", {"SPLIT", "SPLITBODY"})));
-  t.registerTool(featureTool<MoveBodyFeature>(info("part.move", "Move/Copy", "Translate, rotate (free move with typed values) or copy bodies", SOLID, MODIFY, 70, false, "M", {"MOVE", "M", "COPY", "CO"})));
+  t.registerTool(std::make_unique<MoveCopyTool>(info("part.move", "Move/Copy", "Translate, rotate (free move with typed values) or copy bodies; with components selected, moves the components", SOLID, MODIFY, 70, false, "M", {"MOVE", "M", "COPY", "CO"})));
 
   // INSPECT
   t.registerTool(std::make_unique<MeasureTool>());

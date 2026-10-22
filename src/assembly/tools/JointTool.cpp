@@ -18,6 +18,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QWidget>
 #include <gp_Quaternion.hxx>
 
@@ -88,7 +89,17 @@ PreviewStyle frameStyle(int axis) {
 
 std::string describeOrigin(const Document& doc, const JointOrigin& o) {
   if (o.component == kInvalidId) return "not set";
+  if (o.mode == SnapMode::ComponentOrigin) return std::format("Component origin of {}", componentLabel(doc, o.component));
   return std::format("{} ({})", componentLabel(doc, o.component), snapModeName(o.mode));
+}
+
+/// Middle-elided label text with the full text as tooltip (labels have an Ignored size policy).
+void setElided(QLabel* label, const std::string& text) {
+  if (!label) return;
+  const QString full = core::qs(text);
+  const int width = std::max(label->width(), 120);
+  label->setText(label->fontMetrics().elidedText(full, Qt::ElideMiddle, width));
+  label->setToolTip(full);
 }
 
 }  // namespace
@@ -127,12 +138,18 @@ void JointTool::reset(ToolContext& ctx) {
   glyphs_.clear();
   framePreviews_.clear();
   animPhase_ = 0.0;
+  typedValue_ = 0.0;
+  pickErrorShown_ = false;
 }
 
 void JointTool::activate(ToolContext& ctx) {
   ctx_ = &ctx;
   reset(ctx);
   core::ShapeKindMask filter = core::kBrepKinds | ShapeKind::Component | core::kPlaneKinds | core::kAxisKinds | core::kPointKinds;
+  // ASM-06: origin geometry stays an explicit pick (browser Origin folder) but is neither
+  // auto-shown nor pickable in the viewport, so body faces win over the origin planes.
+  const core::ShapeKindMask viewerFilter =
+      filter & ~(ShapeKind::OriginPlane | ShapeKind::OriginAxis | ShapeKind::OriginPoint);
   // Edit mode: {"edit", id} (Feature::editToolId dispatch) or a Joint feature in the preselection.
   ObjectId editId = kInvalidId;
   if (ctx.args.size() >= 2 && ctx.args[0] == "edit") {
@@ -155,7 +172,7 @@ void JointTool::activate(ToolContext& ctx) {
     before_ = f->toJson();
     loadFromFeature(*ctx.document, *f);
     ctx.selection->setFilter(filter);
-    if (ctx.viewer) ctx.viewer->setSelectionFilter(filter);
+    if (ctx.viewer) ctx.viewer->setSelectionFilter(viewerFilter);
     ctx.selection->clear();
     setStage(ctx, Stage::Ready);
     ctx.setPrompt(std::format("Editing {}: change the motion type, offsets or re-pick a snap, then OK", f->name()));
@@ -167,11 +184,13 @@ void JointTool::activate(ToolContext& ctx) {
     for (int i = 0; i < kJointTypeCount; ++i)
       if (wordIs(a, jointTypeName(static_cast<JointType>(i)))) type_ = static_cast<JointType>(i);
   ctx.selection->setFilter(filter);
-  if (ctx.viewer) ctx.viewer->setSelectionFilter(filter);
+  if (ctx.viewer) ctx.viewer->setSelectionFilter(viewerFilter);
   // preselection: up to two picked entities become the snaps
   std::vector<ShapeRef> pre;
+  // ASM-10: a joint snaps to B-rep geometry; a preselected component would silently become its
+  // component origin, so only the as-built flavour (which picks whole components) takes those
   for (const ShapeRef& r : ctx.preselection)
-    if (r.isBrep() || r.kind == ShapeKind::Component) pre.push_back(r);
+    if (r.isBrep() || (asBuilt_ && r.kind == ShapeKind::Component)) pre.push_back(r);
   ctx.selection->clear();
   setStage(ctx, Stage::PickA);
   for (size_t i = 0; i < pre.size() && i < 2; ++i) {
@@ -181,7 +200,7 @@ void JointTool::activate(ToolContext& ctx) {
 }
 
 void JointTool::deactivate(ToolContext& ctx) {
-  timer_.stop();
+  stopAnimation(nullptr);
   if (editing_ != kInvalidId && !editAccepted_) restoreEdited(ctx);
   else if (placementsChanged_ && created_ == kInvalidId) restorePlacements(ctx);
   editing_ = kInvalidId;
@@ -199,7 +218,7 @@ void JointTool::deactivate(ToolContext& ctx) {
 }
 
 void JointTool::cancel(ToolContext& ctx) {
-  timer_.stop();
+  stopAnimation(nullptr);
   if (editing_ != kInvalidId) restoreEdited(ctx);
   else if (placementsChanged_) restorePlacements(ctx);
   ctx.cancel();
@@ -210,7 +229,8 @@ void JointTool::accept(ToolContext& ctx) {
     ctx.showMessage("Select both joint positions first", true);
     return;
   }
-  timer_.stop();
+  // the animation's leftover value must not be committed: restore the typed one (ASM-05)
+  stopAnimation(nullptr);
   Document& doc = *ctx.document;
   if (editing_ != kInvalidId) {
     auto* f = doc.featureAs<JointFeature>(editing_);
@@ -218,7 +238,6 @@ void JointTool::accept(ToolContext& ctx) {
       ctx.cancel();
       return;
     }
-    if (values_[0] != 0.0 && timer_.isActive()) values_[0] = 0.0;
     fillFeature(*f, doc);
     doc.notifyFeatureChanged(editing_);
     doc.recompute();
@@ -248,9 +267,21 @@ void JointTool::accept(ToolContext& ctx) {
   ctx.finish();
 }
 
+void JointTool::clearPickError(ToolContext& ctx) {
+  if (!pickErrorShown_) return;
+  pickErrorShown_ = false;
+  // replaces the red "must differ" line in the status bar
+  ctx.showMessage(std::format("Component 2: {}", asBuilt_ ? componentLabel(*ctx.document, compB_)
+                                                        : describeOrigin(*ctx.document, originB_)));
+}
+
 void JointTool::setStage(ToolContext& ctx, Stage s) {
   stage_ = s;
   clearSnapGlyphs(ctx);
+  // a stale hover from the previous stage must not decide the next click (ASM-10)
+  hoverRef_ = ShapeRef{};
+  hoverCandidates_.clear();
+  hoverBest_ = -1;
   switch (s) {
     case Stage::PickA:
       ctx.setPrompt(asBuilt_ ? "As-built joint: select component 1" : "Joint: select a snap position on component 1");
@@ -276,6 +307,12 @@ void JointTool::pick(ToolContext& ctx, const ShapeRef& ref, const gp_Pnt& worldP
     ctx.showMessage("Pick geometry that belongs to a component", true);
     return;
   }
+  if (const core::Component* c = doc.component(comp); c && c->children.empty() && displayedBodies(doc, comp).empty()) {
+    // ASM-03: an empty component has nothing to joint (and nothing would visibly move)
+    ctx.showMessage(std::format("'{}' is empty: it has no bodies to joint", componentLabel(doc, comp)), true);
+    pickErrorShown_ = true;
+    return;
+  }
   if (asBuilt_) {
     if (stage_ == Stage::PickA) {
       compA_ = comp;
@@ -283,9 +320,11 @@ void JointTool::pick(ToolContext& ctx, const ShapeRef& ref, const gp_Pnt& worldP
     } else if (stage_ == Stage::PickB) {
       if (comp == compA_) {
         ctx.showMessage("Component 2 must differ from component 1", true);
+        pickErrorShown_ = true;
         return;
       }
       compB_ = comp;
+      clearPickError(ctx);
       if (type_ == JointType::Rigid) {
         asBuiltAxis_ = gp_Ax3().Transformed(doc.worldPlacement(compB_));
         setStage(ctx, Stage::Ready);
@@ -316,9 +355,11 @@ void JointTool::placeOrigin(ToolContext& ctx, const JointOrigin& origin) {
   } else {
     if (origin.component == originA_.component) {
       ctx.showMessage("Component 2 must differ from component 1", true);
+      pickErrorShown_ = true;
       return;
     }
     originB_ = origin;
+    clearPickError(ctx);
     setStage(ctx, Stage::Ready);
   }
   updatePreview(ctx);
@@ -365,7 +406,8 @@ bool JointTool::mouseMove(ToolContext& ctx, const core::ViewerMouseEvent& e) {
 
 bool JointTool::mousePress(ToolContext& ctx, const core::ViewerMouseEvent& e) {
   if (e.button != core::MouseButton::Left) return false;
-  if (hoverBest_ >= 0 && hoverBest_ < static_cast<int>(hoverCandidates_.size()) && hoverRef_.isValid()) {
+  const bool snapStage = !asBuilt_ || stage_ == Stage::PickAxis;
+  if (snapStage && hoverBest_ >= 0 && hoverBest_ < static_cast<int>(hoverCandidates_.size()) && hoverRef_.isValid()) {
     const SnapCandidate& c = hoverCandidates_[static_cast<size_t>(hoverBest_)];
     ObjectId comp = componentOfRef(*ctx.document, hoverRef_);
     gp_Pnt world = c.frame.Location().Transformed(ctx.document->worldPlacement(comp));
@@ -512,6 +554,7 @@ void JointTool::loadFromFeature(const Document& doc, const JointFeature& f) {
   offset_[2] = f.number("offsetZ");
   rotation_ = f.number("rotation");
   values_ = f.values();
+  typedValue_ = values_[0];
   limitsEnabled_ = f.limitsEnabled();
   limitMin_ = f.limitMin();
   limitMax_ = f.limitMax();
@@ -630,8 +673,11 @@ void JointTool::documentChanged(ToolContext& ctx) {
 // ---------------------------------------------------------------------------
 
 void JointTool::setJointType(ToolContext& ctx, JointType t) {
+  stopAnimation(nullptr);
   type_ = t;
   values_ = {0, 0, 0};
+  typedValue_ = 0.0;
+  pickErrorShown_ = false;
   if (asBuilt_ && stage_ == Stage::Ready && t != JointType::Rigid && asBuiltAxis_ && compB_ != kInvalidId) {
     // a rigid as-built joint had no axis pick: ask for one now
     setStage(ctx, Stage::PickAxis);
@@ -655,7 +701,10 @@ void JointTool::setOffset(ToolContext& ctx, double x, double y, double z, double
 }
 
 void JointTool::setValue(ToolContext& ctx, double primary) {
+  const auto& dofs = jointDofs(type_);
+  if (!dofs.empty() && dofs.front().kind == DofKind::Rotation && !limitsEnabled_) primary = wrapAngle180(primary);
   values_[0] = primary;
+  typedValue_ = primary;
   updatePreview(ctx);
 }
 
@@ -669,15 +718,28 @@ void JointTool::setLimits(bool enabled, double min, double max, double rest) {
 
 void JointTool::setAnimating(ToolContext& ctx, bool on) {
   if (on && stage_ == Stage::Ready && jointDofCount(type_) > 0) {
+    if (!timer_.isActive()) typedValue_ = values_[0];
     animPhase_ = 0.0;
     timer_.start();
   } else {
-    timer_.stop();
-    values_[0] = 0.0;
-    updatePreview(ctx);
+    stopAnimation(&ctx);
   }
-  if (animateButton_) animateButton_->setChecked(timer_.isActive());
-  (void)ctx;
+  if (animateButton_) {
+    const QSignalBlocker block(animateButton_);
+    animateButton_->setChecked(timer_.isActive());
+  }
+}
+
+void JointTool::stopAnimation(ToolContext* ctx) {
+  if (!timer_.isActive()) return;
+  timer_.stop();
+  values_[0] = typedValue_;
+  if (!ctx) ctx = ctx_;
+  if (ctx) updatePreview(*ctx);
+  if (animateButton_) {
+    const QSignalBlocker block(animateButton_);
+    animateButton_->setChecked(false);
+  }
 }
 
 void JointTool::onAnimationTick() {
@@ -691,7 +753,7 @@ void JointTool::onAnimationTick() {
   double v;
   if (dofs.front().kind == DofKind::Rotation) {
     v = limitsEnabled_ ? (limitMin_ + (limitMax_ - limitMin_) * (0.5 - 0.5 * std::cos(animPhase_ * std::numbers::pi)))
-                       : std::fmod(animPhase_ * 180.0, 360.0);
+                       : wrapAngle180(animPhase_ * 180.0);
   } else {
     double amp = 20.0;
     v = limitsEnabled_ ? (limitMin_ + (limitMax_ - limitMin_) * (0.5 - 0.5 * std::cos(animPhase_ * std::numbers::pi)))
@@ -739,7 +801,12 @@ QWidget* JointTool::createDialog(ToolContext& ctx, QWidget* parent) {
     auto* h = new QHBoxLayout(row);
     h->setContentsMargins(0, 0, 0, 0);
     label = new QLabel("not set", row);
+    // ASM-10: a long label must not push the Select button out of the dialog
+    label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    label->setMinimumWidth(40);
+    label->setTextFormat(Qt::PlainText);
     auto* btn = new QPushButton("Select", row);
+    btn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QObject::connect(btn, &QPushButton::clicked, this, [this, stage] {
       if (ctx_) setStage(*ctx_, stage);
     });
@@ -823,11 +890,11 @@ void JointTool::syncDialog() {
   syncing_ = true;
   const Document& doc = *ctx_->document;
   if (asBuilt_) {
-    labelA_->setText(core::qs(compA_ == kInvalidId ? std::string("not set") : componentLabel(doc, compA_)));
-    labelB_->setText(core::qs(compB_ == kInvalidId ? std::string("not set") : componentLabel(doc, compB_)));
+    setElided(labelA_, compA_ == kInvalidId ? std::string("not set") : componentLabel(doc, compA_));
+    setElided(labelB_, compB_ == kInvalidId ? std::string("not set") : componentLabel(doc, compB_));
   } else {
-    labelA_->setText(core::qs(describeOrigin(doc, originA_)));
-    labelB_->setText(core::qs(describeOrigin(doc, originB_)));
+    setElided(labelA_, describeOrigin(doc, originA_));
+    setElided(labelB_, describeOrigin(doc, originB_));
   }
   typeCombo_->setCurrentIndex(static_cast<int>(type_));
   if (flipButton_) flipButton_->setChecked(flip_);
@@ -838,7 +905,8 @@ void JointTool::syncDialog() {
   animateButton_->setEnabled(hasDof && stage_ == Stage::Ready);
   if (hasDof) {
     valueLabel_->setText(core::qs(dofs.front().label));
-    double shown = values_[0];
+    // while animating the field keeps the typed value (the animation is preview only)
+    double shown = timer_.isActive() ? typedValue_ : values_[0];
     if (std::abs(shown - valueEdit_->value()) > 1e-9) valueEdit_->setValue(shown);
   }
   limitsCheck_->setChecked(limitsEnabled_);

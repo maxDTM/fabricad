@@ -41,13 +41,15 @@ class MoveComponentTool : public QObject, public core::ToolBase {
   void setComponents(core::ToolContext& ctx, const std::vector<core::ObjectId>& ids);
   const Triad& triad() const { return triad_; }
   /// Apply an absolute delta (relative to the start placements) in world coordinates.
-  void applyDelta(core::ToolContext& ctx, const gp_Trsf& delta);
+  void applyDelta(core::ToolContext& ctx, const gp_Trsf& delta, const double* fields = nullptr);
   /// Translate by (x,y,z) and rotate by (rx,ry,rz) degrees about the pivot (triad origin).
   void setTransform(core::ToolContext& ctx, double x, double y, double z, double rx, double ry, double rz);
   /// Move the rotation pivot (world point); the accumulated angles then turn about it.
   bool setPivot(core::ToolContext& ctx, const gp_Pnt& p);
   const gp_Pnt& pivot() const { return baseFrame_.Location(); }
   const gp_Trsf& delta() const { return delta_; }
+  /// Dialog field value i (0..2 X/Y/Z distance in mm, 3..5 X/Y/Z angle in degrees).
+  double fieldValue(int i) const { return i >= 0 && i < 6 ? values_[i] : 0.0; }
   /// The joint that constrains the moved component (nullptr for free move).
   const JointFeature* constrainingJoint() const { return joint_; }
   bool isDragging() const { return dragging_; }

@@ -92,11 +92,15 @@ core::ObjectId createOccurrence(core::Document& doc, core::UndoStack* undo, core
 struct DeleteComponentResult {
   int movedChildren = 0;  ///< child components re-parented to the deleted component's parent
   int movedBodies = 0;    ///< bodies moved to the parent
+  int removedFeatures = 0;  ///< joints / rigid groups removed with the component
 };
 /// Delete a component (undoable): its bodies and child components move to its parent (children keep
 /// their world placement), joints and other features referencing it are removed.
 bool deleteComponent(core::Document& doc, core::UndoStack* undo, core::ObjectId comp,
                      DeleteComponentResult* result = nullptr);
+/// The undo command deleteComponent() pushes (not yet run), for callers composing a larger macro
+/// (the browser / Del key delete). Null for the root or an unknown id.
+std::unique_ptr<core::UndoCommand> makeDeleteComponentCommand(core::Document& doc, core::ObjectId comp);
 /// Re-solve the joints after a placement or ground change: recompute from the first active joint
 /// feature only (body features do not depend on placements). Returns that timeline index, -1 when
 /// there is no joint (nothing to recompute).

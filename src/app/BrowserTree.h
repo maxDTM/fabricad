@@ -36,7 +36,8 @@ namespace fabricad::app {
 class BrowserTree : public QTreeWidget {
   Q_OBJECT
  public:
-  enum ItemKind { KindRoot = 1, KindFolder, KindBody, KindFeature, KindComponent, KindOrigin };
+  enum ItemKind { KindRoot = 1, KindFolder, KindBody, KindFeature, KindComponent, KindOrigin,
+                  KindOccurrenceBody };  ///< read-only body row of an occurrence (RoleId = occurrence)
   enum Roles { RoleKind = Qt::UserRole + 1, RoleId, RoleKey, RoleFolder, RoleOrigin };
 
   BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWidget* parent = nullptr);

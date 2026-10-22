@@ -98,8 +98,29 @@ void MoveComponentTool::deactivate(ToolContext& ctx) {
 void MoveComponentTool::setComponents(ToolContext& ctx, const std::vector<ObjectId>& ids) {
   Document& doc = *ctx.document;
   components_.clear();
-  for (ObjectId id : ids)
-    if (doc.component(id) && id != core::kRootComponentId) components_.push_back(id);
+  // ASM-09: a grounded component stays put (Fusion): warn and leave it out
+  std::vector<ObjectId> grounded;
+  for (ObjectId id : ids) {
+    const core::Component* c = doc.component(id);
+    if (!c || id == core::kRootComponentId) continue;
+    if (c->grounded) grounded.push_back(id);
+    else components_.push_back(id);
+  }
+  if (!grounded.empty()) {
+    // ASM-09: warn before moving a grounded component (scripts take the default: move it)
+    std::string names;
+    for (ObjectId id : grounded) names += (names.empty() ? "'" : ", '") + componentLabel(doc, id) + "'";
+    const bool one = grounded.size() == 1;
+    const bool move = !ctx.host || ctx.host->askYesNo("Move grounded component",
+                                                      std::format("{} {} grounded. Move {} anyway?", names,
+                                                                  one ? "is" : "are", one ? "it" : "them"),
+                                                      true);
+    const std::string msg = move ? std::format("Moving grounded {}", names)
+                                 : std::format("{} {} grounded: not moved (Unground first)", names, one ? "is" : "are");
+    if (ctx.host) ctx.host->showMessage(msg, core::MessageLevel::Warning);
+    else ctx.showMessage(msg, !move);
+    if (move) components_.insert(components_.end(), grounded.begin(), grounded.end());
+  }
   // drop components whose ancestor is also selected (they move with it)
   std::vector<ObjectId> roots;
   for (ObjectId c : components_) {
@@ -254,7 +275,7 @@ void MoveComponentTool::onTriadEvent(ToolContext& ctx, const core::ManipulatorEv
   }
 }
 
-void MoveComponentTool::applyDelta(ToolContext& ctx, const gp_Trsf& delta) {
+void MoveComponentTool::applyDelta(ToolContext& ctx, const gp_Trsf& delta, const double* fields) {
   Document& doc = *ctx.document;
   delta_ = delta;
   if (joint_ && jointDofCount(joint_->jointType()) > 0) {
@@ -263,8 +284,17 @@ void MoveComponentTool::applyDelta(ToolContext& ctx, const gp_Trsf& delta) {
   } else {
     for (ObjectId c : components_) setWorldPlacement(doc, c, delta.Multiplied(startWorld_.at(c)));
   }
-  // dialog numbers: translation + Euler angles of the delta
-  gp_XYZ t = delta.TranslationPart();
+  if (fields) {
+    // typed values are the source of truth (ASM-04): never re-derive them from the transform
+    for (int i = 0; i < 6; ++i) values_[i] = fields[i];
+    syncDialog();
+    return;
+  }
+  // dialog numbers: translation + Euler angles of the delta. The delta is T(t)*T(p)*R*T(-p) about
+  // the pivot p (see setTransform), so the translation field is TranslationPart - (p - R*p).
+  const gp_XYZ p = baseFrame_.Location().XYZ();
+  const gp_XYZ rp = delta.GetRotation().Multiply(gp_Vec(p)).XYZ();
+  gp_XYZ t = delta.TranslationPart() - (p - rp);
   values_[0] = t.X();
   values_[1] = t.Y();
   values_[2] = t.Z();
@@ -310,7 +340,8 @@ void MoveComponentTool::setTransform(ToolContext& ctx, double x, double y, doubl
   fromPivot.SetTranslation(gp_Vec(pivot, gp_Pnt(0, 0, 0)));
   gp_Trsf tr;
   tr.SetTranslation(gp_Vec(x, y, z));
-  applyDelta(ctx, tr.Multiplied(toPivot).Multiplied(rot).Multiplied(fromPivot));
+  const double fields[6] = {x, y, z, rx, ry, rz};
+  applyDelta(ctx, tr.Multiplied(toPivot).Multiplied(rot).Multiplied(fromPivot), fields);
   dragBase_ = delta_;
   moveTriadToCurrent(ctx);
 }

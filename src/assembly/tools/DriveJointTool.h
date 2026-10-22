@@ -46,12 +46,13 @@ class DriveJointTool : public QObject, public core::ToolBase {
   /// that drives the primary value; kInvalidManipulator without a joint.
   core::ManipulatorId manipulatorId() const { return manipId_; }
   void onManipulatorEvent(core::ToolContext& ctx, const core::ManipulatorEvent& e);
+  /// Joints the dialog offers: active, not in error, with a motion DOF.
+  std::vector<core::ObjectId> candidates(const core::Document& doc) const;
 
  private:
   void syncDialog();
   void showManipulator(core::ToolContext& ctx);
   void restore(core::ToolContext& ctx);
-  std::vector<core::ObjectId> candidates(const core::Document& doc) const;
 
   JointFeature* joint_ = nullptr;
   core::ManipulatorId manipId_ = core::kInvalidManipulator;

@@ -94,6 +94,9 @@ class JointTool : public QObject, public core::ToolBase {
   void restoreEdited(core::ToolContext& ctx);
   void syncDialog();
   void onAnimationTick();
+  /// Stop the Animate preview and put back the value the user typed (ASM-05).
+  void stopAnimation(core::ToolContext* ctx);
+  void clearPickError(core::ToolContext& ctx);
 
   const bool asBuiltTool_;  ///< flavour this tool was registered as
   bool asBuilt_;            ///< current flavour (follows the feature in edit mode)
@@ -117,6 +120,8 @@ class JointTool : public QObject, public core::ToolBase {
   core::ToolContext* ctx_ = nullptr;  ///< valid while active (for timer / dialog callbacks)
   QTimer timer_;
   double animPhase_ = 0.0;
+  double typedValue_ = 0.0;
+  bool pickErrorShown_ = false;  ///< a red pick error is on the status line  ///< the primary joint value as typed (animation writes values_[0])
   // hover state
   core::ShapeRef hoverRef_;
   std::vector<SnapCandidate> hoverCandidates_;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/PasteNew.h"
 
+#include "assembly/BaseBodyFeature.h"
 #include "assembly/ComponentOps.h"
 #include "assembly/tools/ComponentTools.h"
 #include "core/Commands.h"
@@ -144,6 +145,32 @@ DeepCopyResult deepCopyComponent(Document& doc, ObjectId source, ObjectId parent
       if (f->component() == p.from) mine = true;
     if (mine) feats.push_back(f);
   }
+  // Bodies of the copied components whose creating feature is not copied (it lives outside the
+  // tree, e.g. "Create Components from Bodies" moved a root body into the component): those
+  // become frozen BaseBody copies of their current shape (ASM-03), else the copy is empty.
+  std::set<ObjectId> copiedFeatures;
+  for (const core::Feature* f : feats) copiedFeatures.insert(f->id());
+  struct Frozen {
+    ObjectId body;       ///< source body
+    ObjectId component;  ///< new owning component
+    ObjectId feature = kInvalidId;
+  };
+  std::vector<Frozen> frozen;
+  std::set<ObjectId> seenDefs;
+  for (const Pending& p : queue) {
+    if (!seenDefs.insert(p.from).second || !m.components.count(p.from)) continue;
+    for (ObjectId b : doc.bodiesOf(p.from)) {
+      const core::Body* body = doc.body(b);
+      if (!body || copiedFeatures.count(body->creator) || doc.bodyShape(b).IsNull()) continue;
+      frozen.push_back({b, m.components.at(p.from)});
+    }
+  }
+  for (Frozen& fz : frozen) {
+    fz.feature = doc.allocateId();
+    ObjectId nb = doc.allocateId();
+    m.ids[fz.body] = nb;
+    res.bodies[fz.body] = nb;
+  }
   // ids first (bodies may be referenced by any later feature), then one feature at a time so
   // uniqueFeatureName sees the copies already added and history names map to the new names.
   for (const core::Feature* f : feats) {
@@ -158,6 +185,18 @@ DeepCopyResult deepCopyComponent(Document& doc, ObjectId source, ObjectId parent
       }
   }
   std::vector<std::pair<ObjectId, ObjectId>> bodyPairs(res.bodies.begin(), res.bodies.end());
+  for (const Frozen& fz : frozen) {
+    const core::Body* body = doc.body(fz.body);
+    auto nf = std::make_unique<BaseBodyFeature>();
+    nf->setShape(doc.bodyShape(fz.body), body ? body->name : std::string());
+    QJsonObject j = nf->toJson();
+    j["id"] = core::idToJson(fz.feature);
+    j["name"] = core::qs(doc.uniqueFeatureName("BaseBody"));
+    j["component"] = core::idToJson(fz.component);
+    j["createdBodies"] = QJsonArray{core::idToJson(m.ids.at(fz.body))};
+    nf->fromJson(j);
+    doc.addFeature(std::move(nf), -1);
+  }
   for (const core::Feature* f : feats) {
     std::string base = f->name();
     while (!base.empty() && std::isdigit(static_cast<unsigned char>(base.back()))) base.pop_back();
@@ -228,9 +267,24 @@ std::vector<ObjectId> pasteNewComponents(core::ToolContext& ctx, bool startMove)
   std::vector<core::ShapeRef> refs;
   for (ObjectId id : created) refs.push_back(core::ShapeRef::component(id));
   if (ctx.selection) ctx.selection->set(refs);
-  ctx.showMessage(created.size() == 1 ? std::format("Pasted new component {}", componentLabel(doc, created.front()))
-                                      : std::format("Pasted {} new components", created.size()),
-                  false);
+  auto showsNothing = [&doc](ObjectId c) {
+    if (!displayedBodies(doc, c).empty()) return false;
+    for (ObjectId d : descendants(doc, c))
+      if (!displayedBodies(doc, d).empty()) return false;
+    return true;
+  };
+  std::vector<std::string> empty;
+  for (ObjectId id : created)
+    if (showsNothing(id)) empty.push_back(componentLabel(doc, id));
+  if (!empty.empty()) {
+    std::string names;
+    for (const std::string& n : empty) names += (names.empty() ? "" : ", ") + n;
+    ctx.showMessage(std::format("Pasted {}, but it has no bodies (the copied component was empty)", names), true);
+  } else {
+    ctx.showMessage(created.size() == 1 ? std::format("Pasted new component {}", componentLabel(doc, created.front()))
+                                        : std::format("Pasted {} new components", created.size()),
+                    false);
+  }
   if (startMove && ctx.manager && ctx.manager->registry().has("assembly.move")) ctx.manager->run("assembly.move");
   return created;
 }

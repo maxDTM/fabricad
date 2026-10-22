@@ -188,6 +188,74 @@ class PasteNewPatternTest : public QObject {
     QVERIFY(near(core::volume(re.bodyShape(copyBodies.front())), 6000 - M_PI * 9 * 5));
   }
 
+  void pasteNewCopiesBodiesMadeOutsideTheComponent() {
+    // ASM-03: "Create Components from Bodies" moves a root body into a component while its Box
+    // feature stays in the root; Paste New must still copy the body (frozen BaseBody copy)
+    Harness h;
+    Document& doc = h.doc;
+    core::Feature* boxF = addIn(doc, core::kRootComponentId, box(10, 20, 30));
+    const ObjectId body = boxF->createdBodies().front();
+    h.doc.selection().set({ShapeRef::body(body)});
+    QVERIFY(h.manager.run("assembly.components-from-bodies"));
+    const ObjectId comp = doc.body(body)->component;
+    QVERIFY(comp != core::kRootComponentId);
+    QCOMPARE(boxF->component(), core::kRootComponentId);
+    assembly::setComponentClipboard({comp});
+    QVERIFY(h.manager.run("assembly.paste-new"));
+    h.manager.cancel();
+    const std::string copyName = doc.component(comp)->name + " (1)";
+    std::vector<ObjectId> copies = componentsNamed(doc, copyName);
+    QCOMPARE(copies.size(), size_t(1));
+    std::vector<ObjectId> copyBodies = bodiesOf(doc, copies.front());
+    QCOMPARE(copyBodies.size(), size_t(1));
+    QVERIFY(near(core::volume(doc.bodyShape(copyBodies.front())), 6000));
+    QCOMPARE(doc.body(copyBodies.front())->name, doc.body(body)->name);
+    const core::Feature* creator = doc.feature(doc.body(copyBodies.front())->creator);
+    QVERIFY(creator);
+    QCOMPARE(creator->type(), std::string("BaseBody"));
+    QCOMPARE(creator->component(), copies.front());
+    // the copy is independent: editing the original box leaves it alone
+    boxF->prop("length").setDouble(20);
+    doc.notifyFeatureChanged(boxF->id());
+    doc.recompute();
+    QVERIFY(near(core::volume(doc.bodyShape(body)), 12000));
+    QVERIFY(near(core::volume(doc.bodyShape(copyBodies.front())), 6000));
+    // save / load round-trips the frozen shape
+    QTemporaryDir dir;
+    const std::string path = dir.filePath("frozen.fcad").toStdString();
+    QVERIFY(doc.save(path));
+    Document re;
+    QVERIFY(re.load(path));
+    re.recompute();
+    QVERIFY(re.bodyShape(copyBodies.front()).IsNull() == false);
+    QVERIFY(near(core::volume(re.bodyShape(copyBodies.front())), 6000));
+    // one undo step removes the copy and its frozen feature
+    const int features = doc.featureCount();
+    doc.undoStack().undo();
+    doc.recompute();
+    QVERIFY(componentsNamed(doc, copyName).empty());
+    QCOMPARE(doc.featureCount(), features - 1);
+  }
+
+  void moveCopyHandsComponentsToMoveComponent() {
+    // ASM-08: Move/Copy (M) with only components selected runs Move Component on them
+    Harness h;
+    Document& doc = h.doc;
+    ObjectId comp = doc.addComponent("Peg").id;
+    addIn(doc, comp, box(10, 10, 10));
+    doc.selection().set({ShapeRef::component(comp)});
+    QVERIFY(h.manager.run("part.move"));
+    QVERIFY(h.manager.activeTool());
+    QCOMPARE(h.manager.activeTool()->info().id, std::string("assembly.move"));
+    h.manager.cancel();
+    // bodies still go to the body Move/Copy
+    ObjectId body = bodiesOf(doc, comp).front();
+    doc.selection().set({ShapeRef::body(body)});
+    QVERIFY(h.manager.run("part.move"));
+    QCOMPARE(h.manager.activeTool()->info().id, std::string("part.move"));
+    h.manager.cancel();
+  }
+
   void rectangularComponentPattern() {
     Harness h;
     Document& doc = h.doc;

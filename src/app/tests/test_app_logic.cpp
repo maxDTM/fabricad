@@ -391,10 +391,18 @@ class TestAppLogic : public QObject {
     const core::ObjectId cid = c.id;
     app::DeletePlan plan = app::planDelete(doc, {ShapeRef::component(cid), ShapeRef::component(core::kRootComponentId)});
     QCOMPARE(plan.components, std::vector<core::ObjectId>{cid});  // root is never deleted
+    // ASM-02: the browser / Del delete goes through the assembly delete, so a joint on the
+    // component goes with it (and comes back on undo)
+    const core::ObjectId other = doc.addComponent("Base").id;
+    auto joint = std::make_unique<assembly::JointFeature>();
+    joint->setComponents(cid, other);
+    const core::ObjectId jid = doc.addFeature(std::move(joint))->id();
     doc.undoStack().push(app::makeDeleteCommand(doc, plan));
     QVERIFY(doc.component(cid) == nullptr);
+    QVERIFY(doc.feature(jid) == nullptr);
     doc.undoStack().undo();
     QVERIFY(doc.component(cid) != nullptr);
+    QVERIFY(doc.feature(jid) != nullptr);
   }
 
   void visibility() {

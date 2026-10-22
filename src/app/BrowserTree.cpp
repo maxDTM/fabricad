@@ -196,6 +196,25 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
       updateEye(it, true, b->visible);
     }
   }
+  if (comp->isOccurrence()) {
+    // ASM-03: an occurrence owns no bodies; list the definition's bodies read-only (Fusion shows
+    // them under every occurrence). Clicking one selects the occurrence.
+    std::vector<ObjectId> shown = assembly::displayedBodies(doc_, compId);
+    if (!shown.empty()) {
+      QTreeWidgetItem* bf = addFolder(node, compId, "Bodies", false, true);
+      for (ObjectId id : shown) {
+        const core::Body* b = doc_.body(id);
+        if (!b) continue;
+        auto* it = new QTreeWidgetItem(bf);
+        it->setText(0, core::qs(b->name));
+        it->setIcon(0, resourceIcon("body"));
+        it->setData(0, RoleKind, KindOccurrenceBody);
+        it->setData(0, RoleId, QVariant::fromValue<qulonglong>(compId));
+        it->setData(0, RoleKey, QString("occbody:%1:%2").arg(compId).arg(id));
+        it->setToolTip(0, core::qs(std::format("{} (from {})", b->name, assembly::componentLabel(doc_, assembly::definitionOf(doc_, compId)))));
+      }
+    }
+  }
   {
     // features by browser folder, under the component they were created in (Fusion);
     // features without a (live) component are listed under the root
@@ -324,6 +343,7 @@ ShapeRef BrowserTree::refForItem(const QTreeWidgetItem* item) const {
   switch (item->data(0, RoleKind).toInt()) {
     case KindBody: return ShapeRef::body(id);
     case KindComponent:
+    case KindOccurrenceBody:
     case KindRoot: return ShapeRef::component(id);
     case KindFeature:
       if (const core::Feature* f = doc_.feature(id)) return featureRef(*f);
