@@ -21,6 +21,8 @@
 #include <Aspect_Grid.hxx>
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
+#include <Font_FontMgr.hxx>
+#include <Font_SystemFont.hxx>
 #include <Graphic3d_MaterialAspect.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_IsoAspect.hxx>
@@ -40,6 +42,7 @@
 #include <QGuiApplication>
 #include <QLinearGradient>
 #include <QMouseEvent>
+#include <QPainterPath>
 #include <QPainter>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -124,6 +127,26 @@ TopAbs_ShapeEnum contentType(const TopoDS_Shape& s) {
   return TopAbs_SHAPE;
 }
 
+/// Sans-serif UI font for all viewer text (labels, ViewCube): the first installed of Inter
+/// and DejaVu Sans (which also has the constraint symbol glyphs), else OCCT's sans alias.
+const char* viewerFont() {
+  static const std::string name = [] {
+    Handle(Font_FontMgr) mgr = Font_FontMgr::GetInstance();
+    for (const char* f : {"Inter", "DejaVu Sans"}) {
+      Font_FontAspect asp = Font_FontAspect_Regular;
+      Handle(Font_SystemFont) sf = mgr->FindFont(TCollection_AsciiString(f), Font_StrictLevel_Strict, asp, false);
+      if (!sf.IsNull()) return std::string(sf->FontName().ToCString());
+    }
+    return std::string(Font_NOF_SANS_SERIF);
+  }();
+  return name.c_str();
+}
+
+// ViewCube placement (TriedronPers offset of its centre from the top-right corner, px) and the
+// radius of the ring the overlay controls sit on
+constexpr double kCubeOffset = 115.0;
+constexpr double kCubeCtlRadius = 84.0;
+
 }  // namespace
 
 void setupGlPlatform() { OcctQtTools::qtGlPlatformSetup(); }
@@ -180,6 +203,8 @@ struct ViewerWidget::Impl {
   std::map<core::ManipulatorId, ManipObj> manips;
 
   Handle(Graphic3d_Camera) home;
+  std::vector<Handle(AIS_TextLabel)> originLabels;
+  double originLabelSize = 0.0;
 
   bool ready() const { return view && view->isReady(); }
   const Handle(AIS_InteractiveContext)& ctx() const { return view->context(); }
@@ -190,14 +215,28 @@ struct ViewerWidget::Impl {
     c->Copy(v3d()->Camera());
     return c;
   }
-  /// `cam` fitted to the scene (view camera restored afterwards).
+  QMargins insets;
+  /// Bounding box of the displayed document geometry (world placement applied).
+  Bnd_Box sceneBox() const {
+    Bnd_Box box;
+    for (const auto& [k, o] : objects) {
+      if (o.item.shape.IsNull()) continue;
+      BRepBndLib::Add(isIdentity(o.item.placement) ? o.item.shape : o.item.shape.Moved(TopLoc_Location(o.item.placement)), box);
+    }
+    return box;
+  }
+  /// Fit `cam` in place to `box` with a comfortable margin, keeping the content clear of the
+  /// overlay insets (nav bar).
+  void fitCamera(const Handle(Graphic3d_Camera)& cam, const Bnd_Box& box) const {
+    if (box.IsVoid()) return;
+    v3d()->FitMinMax(cam, box, 0.15, 10.0 * Precision::Confusion());
+    applyViewportInset(*cam, view->width(), view->height(), insets.top(), insets.bottom());
+  }
+  /// `cam` fitted to `box` (default: the whole scene).
   Handle(Graphic3d_Camera) fitted(const Handle(Graphic3d_Camera)& cam, const Bnd_Box* box = nullptr) const {
-    Handle(Graphic3d_Camera) saved = cameraCopy();
-    v3d()->Camera()->Copy(cam);
-    if (box && !box->IsVoid()) v3d()->FitAll(*box, 0.1, false);
-    else v3d()->FitAll(0.05, false);
-    Handle(Graphic3d_Camera) out = cameraCopy();
-    v3d()->Camera()->Copy(saved);
+    Handle(Graphic3d_Camera) out = new Graphic3d_Camera();
+    out->Copy(cam);
+    fitCamera(out, box && !box->IsVoid() ? *box : sceneBox());
     return out;
   }
   /// Scene has displayed document geometry (so FitAll is meaningful).
@@ -215,6 +254,7 @@ ViewerWidget::ViewerWidget(QWidget* parent) : QWidget(parent), d_(std::make_uniq
   auto* lay = new QVBoxLayout(this);
   lay->setContentsMargins(0, 0, 0, 0);
   d_->listener = std::make_unique<ViewerListener>(this);
+  d_->insets = insets_;
   manipulators_.setChangeListener([this] { syncManipulatorPrs(); });
 }
 
@@ -234,6 +274,11 @@ void ViewerWidget::setDocument(Document* doc) {
   hoverRef_.reset();
   onFilterInputsChanged();
   scheduleSync();
+}
+
+void ViewerWidget::setViewportInsets(QMargins m) {
+  insets_ = m;
+  d_->insets = m;
 }
 
 void ViewerWidget::setToolManager(core::ToolManager* manager) { manager_ = manager; }
@@ -393,13 +438,27 @@ void ViewerWidget::onGlInitialized() {
     hs->SetColor(hexq("#0B6CFF"));
   }
 
-  // ViewCube top-right, upper-case labels, light theme
+  // ViewCube top-right, upper-case labels, light theme with an outline; generous edge and
+  // corner zones (facet extension + minimum sizes) so they are easy to hit
   const Handle(AIS_ViewCube)& cube = d_->view->viewCube();
-  cube->SetSize(55.0);
-  cube->SetFontHeight(11.0);
-  cube->SetBoxColor(hexq("#D9DDE3"));
+  cube->SetSize(80.0);
+  cube->SetBoxFacetExtension(14.0);
+  cube->SetRoundRadius(0.1);
+  cube->SetBoxEdgeMinSize(5.0);
+  cube->SetBoxCornerMinSize(5.0);
+  cube->SetBoxEdgeGap(0.0);
+  cube->SetFontHeight(13.0);
+  cube->SetFont(viewerFont());
+  cube->SetBoxColor(hexq("#F2F4F7"));
   cube->SetTextColor(hexq("#2B2E33"));
-  cube->SetInnerColor(hexq("#C8D0D9"));
+  cube->SetInnerColor(hexq("#9AA4B1"));
+  // soft blue hover tint instead of OCCT's cyan
+  for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()}) {
+    if (hl.IsNull()) continue;
+    hl->SetColor(hexq("#9CC6FF"));
+    hl->SetTransparency(0.0f);
+    if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(hexq("#9CC6FF"));
+  }
   cube->SetDrawAxes(false);
   cube->SetBoxSideLabel(V3d_Xpos, "RIGHT");
   cube->SetBoxSideLabel(V3d_Xneg, "LEFT");
@@ -408,9 +467,15 @@ void ViewerWidget::onGlInitialized() {
   cube->SetBoxSideLabel(V3d_Zpos, "TOP");
   cube->SetBoxSideLabel(V3d_Zneg, "BOTTOM");
   cube->SetDuration(0.25);
-  cube->SetTransformPersistence(
-      new Graphic3d_TransformPers(Graphic3d_TMF_TriedronPers, Aspect_TOTP_RIGHT_UPPER, Graphic3d_Vec2i(85, 85)));
+  cube->SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_TriedronPers, Aspect_TOTP_RIGHT_UPPER,
+                                                            Graphic3d_Vec2i(int(kCubeOffset), int(kCubeOffset))));
   ctx->Display(cube, 0, 0, false);
+  // after a cube click: rotate, then fit with our margin/nav-bar inset (OCCT's own fit leaves
+  // almost no margin), keeping the chosen projection
+  d_->view->setCubeFitter([this](const Handle(V3d_View)&, const Handle(Graphic3d_Camera)& cam) {
+    if (d_->hasGeometry()) d_->fitCamera(cam, d_->sceneBox());
+    assertProjection(cam);
+  });
 
   // camera: orthographic iso, Z up
   view->Camera()->SetProjectionType(projection_ == core::ProjectionMode::Orthographic ? Graphic3d_Camera::Projection_Orthographic
@@ -486,7 +551,38 @@ void ViewerWidget::orbitBy(double yawDeg, double pitchDeg, bool animate) {
   up.Transform(r);
   cam->SetEyeAndCenter(c.Translated(toEye), c);
   cam->SetUp(up);
-  d_->view->animateTo(cam, animate ? 0.15 : 0.0);
+  animateCamera(cam, animate ? 0.15 : 0.0);
+}
+
+void ViewerWidget::rollBy(double deg, bool animate) {
+  if (!d_->ready()) return;
+  Handle(Graphic3d_Camera) cam = d_->cameraCopy();
+  gp_Dir up = cam->Up();
+  gp_Trsf r;
+  r.SetRotation(gp_Ax1(cam->Center(), cam->Direction()), deg * M_PI / 180.0);
+  up.Transform(r);
+  cam->SetUp(up);
+  animateCamera(cam, animate ? 0.2 : 0.0);
+}
+
+void ViewerWidget::animateCamera(const Handle(Graphic3d_Camera)& target, double seconds) {
+  Handle(Graphic3d_Camera) cam = new Graphic3d_Camera();
+  cam->Copy(target);  // never animate to (or alias) a stored camera such as Home
+  assertProjection(cam);
+  d_->view->animateTo(cam, seconds);
+}
+
+void ViewerWidget::assertProjection(const Handle(Graphic3d_Camera)& cam) {
+  const auto want = projection_ == core::ProjectionMode::Orthographic ? Graphic3d_Camera::Projection_Orthographic
+                                                                      : Graphic3d_Camera::Projection_Perspective;
+  if (!cam.IsNull() && cam->ProjectionType() != want) cam->SetProjectionType(want);
+  if (!d_->ready()) return;
+  const Handle(Graphic3d_Camera)& vc = d_->v3d()->Camera();
+  if (vc->ProjectionType() != want) {
+    FC_WARN("viewer: camera projection drifted, re-applying");
+    vc->SetProjectionType(want);
+    d_->v3d()->Invalidate();
+  }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -603,8 +699,8 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, core::Displ
       // ASPECT material: ambient/diffuse act as multipliers of the body colour. Plastified's
       // defaults render the steel grey far too dark; these give Fusion-like light parts.
       Graphic3d_MaterialAspect mat(Graphic3d_NameOfMaterial_Plastified);
-      mat.SetAmbientColor(Quantity_Color(0.42, 0.42, 0.42, Quantity_TOC_RGB));
-      mat.SetDiffuseColor(Quantity_Color(0.72, 0.72, 0.72, Quantity_TOC_RGB));
+      mat.SetAmbientColor(Quantity_Color(0.32, 0.32, 0.32, Quantity_TOC_RGB));
+      mat.SetDiffuseColor(Quantity_Color(0.62, 0.62, 0.62, Quantity_TOC_RGB));
       mat.SetSpecularColor(Quantity_Color(0.18, 0.18, 0.18, Quantity_TOC_RGB));
       mat.SetShininess(0.35f);
       s->SetMaterial(mat);
@@ -706,6 +802,18 @@ void ViewerWidget::doSync() {
     sceneItems_.clear();
   } else {
     sceneItems_ = scene_.collect(*document_, sceneOptions_);
+    if (sceneOptions_.showOrigin || sceneOptions_.showOriginPlanes) {
+      // origin planes follow the model size (1-2-5 steps, so edits rarely rebuild them)
+      Bnd_Box box;
+      for (const SceneItem& it : sceneItems_)
+        if (it.style == SceneStyle::Body && !it.shape.IsNull() && !it.ghosted)
+          BRepBndLib::Add(isIdentity(it.placement) ? it.shape : it.shape.Moved(TopLoc_Location(it.placement)), box);
+      const double size = originPlaneHalfSize(box.IsVoid() ? 0.0 : std::sqrt(box.SquareExtent()));
+      if (std::abs(size - sceneOptions_.originSize) > 1e-9) {
+        sceneOptions_.originSize = size;
+        sceneItems_ = scene_.collect(*document_, sceneOptions_);
+      }
+    }
   }
   if (!d_->ready()) return;
 
@@ -732,7 +840,9 @@ void ViewerWidget::doSync() {
     int dispMode = 0;
     Graphic3d_ZLayerId layer = Graphic3d_ZLayerId_Default;
     Handle(AIS_InteractiveObject) obj = makeDisplayObject(item, displayMode_, dispMode, layer);
-    ctx->Display(obj, dispMode, -1, false);
+    // selection mode 0 (not -1): only then is the object loaded into the selection manager;
+    // applySelectionModes() below replaces it with the modes the filter wants
+    ctx->Display(obj, dispMode, 0, false);
     if (layer != Graphic3d_ZLayerId_Default) ctx->SetZLayer(obj, layer);
     Impl::DisplayObj dobj;
     dobj.obj = obj;
@@ -749,9 +859,35 @@ void ViewerWidget::doSync() {
     ctx->Remove(it->second.obj, false);
     it = d_->objects.erase(it);
   }
+  syncOriginLabels();
   applySelectionModes();
   syncOverlays();
   requestRedraw();
+}
+
+void ViewerWidget::syncOriginLabels() {
+  const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+  const bool show = sceneOptions_.showOrigin || sceneOptions_.showOriginPlanes;
+  const double size = sceneOptions_.originSize;
+  if (show && !d_->originLabels.empty() && std::abs(d_->originLabelSize - size) < 1e-9) return;
+  for (auto& l : d_->originLabels) ctx->Remove(l, false);
+  d_->originLabels.clear();
+  if (!show) return;
+  d_->originLabelSize = size;
+  for (const char* name : {"XY", "XZ", "YZ"}) {
+    // label near the outer corner of the plane (planes sit in the positive quadrant)
+    const gp_Ax3 ax = core::originPlane(name);
+    const gp_Pnt at = ax.Location().Translated((gp_Vec(ax.XDirection()) + gp_Vec(ax.YDirection())) * (size * 1.75));
+    Handle(AIS_TextLabel) t = new AIS_TextLabel();
+    t->SetText(TCollection_ExtendedString(name));
+    t->SetPosition(at);
+    t->SetHeight(12.0);
+    t->SetFont(viewerFont());
+    t->SetColor(hexq("#8A5A00"));
+    t->SetZoomable(false);
+    ctx->Display(t, 0, -1, false);  // never pickable
+    d_->originLabels.push_back(t);
+  }
 }
 
 void ViewerWidget::applySelectionModes() {
@@ -775,6 +911,19 @@ void ViewerWidget::syncOverlays() {
   for (auto& o : d_->overlays) ctx->Remove(o, false);
   d_->overlays.clear();
 
+  // the scene item that displays a ref's owner (body for B-rep refs, sketch for sketch refs);
+  // null when that owner is hidden: no overlay then (a hidden selected body must not ghost)
+  auto ownerItem = [&](const ShapeRef& r) -> const SceneItem* {
+    for (const SceneItem& it : sceneItems_) {
+      if (it.ghosted) continue;
+      if (r.isBrep() && it.style == SceneStyle::Body && it.ref.owner == r.owner) return &it;
+      if ((r.kind == ShapeKind::SketchCurve || r.kind == ShapeKind::SketchPoint) && isSketchStyle(it.style) &&
+          it.ref.owner == r.owner)
+        return &it;
+      if (!r.isBrep() && !isSketchStyle(it.style) && it.style != SceneStyle::Body && it.ref.owner == r.owner) return &it;
+    }
+    return nullptr;
+  };
   auto add = [&](const ShapeRef& r, const Quantity_Color& col, double transparency) {
     TopoDS_Shape shape;
     gp_Trsf placement;
@@ -785,11 +934,13 @@ void ViewerWidget::syncOverlays() {
         break;
       }
     if (shape.IsNull()) {
+      const SceneItem* owner = ownerItem(r);
+      if (!owner) return;
       shape = core::resolveShape(*document_, r);
-      if (r.isBrep())
-        if (const core::Body* b = document_->body(r.owner)) placement = document_->worldPlacement(b->component);
+      placement = owner->placement;
     }
     if (shape.IsNull()) return;
+    const bool wholeBody = r.kind == ShapeKind::Body || r.kind == ShapeKind::Component;
     Handle(AIS_Shape) o = new AIS_Shape(shape);
     if (!isIdentity(placement)) o->SetLocalTransformation(placement);
     Handle(Prs3d_Drawer) dr = o->Attributes();
@@ -798,8 +949,10 @@ void ViewerWidget::syncOverlays() {
     int mode = AIS_WireFrame;
     if (type == TopAbs_FACE) {
       mode = AIS_Shaded;
-      o->SetTransparency(transparency);
-      dr->SetFaceBoundaryDraw(false);
+      if (transparency > 0.0) o->SetTransparency(transparency);
+      // whole bodies get a dark-blue outline so the selection reads against the model
+      dr->SetFaceBoundaryDraw(wholeBody);
+      if (wholeBody) dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(hexq("#0B4FC0"), Aspect_TOL_SOLID, 2.0));
       dr->ShadingAspect()->Aspect()->SetPolygonOffsets(Aspect_POM_Fill, 0.0f, -2.0f);
     } else if (type == TopAbs_EDGE) {
       o->SetWidth(3.0);
@@ -812,11 +965,16 @@ void ViewerWidget::syncOverlays() {
   };
 
   const Quantity_Color selCol = hexq("#0B6CFF");
-  for (const ShapeRef& r : document_->selection().items()) add(r, selCol, 0.5);
+  // a component highlights each of its displayed bodies (with that body's placement)
+  auto addRef = [&](const ShapeRef& r, const Quantity_Color& col, double transparency) {
+    if (r.kind != ShapeKind::Component) return add(r, col, transparency);
+    for (ObjectId b : document_->bodiesOf(r.owner)) add(ShapeRef::body(b), col, transparency);
+  };
+  for (const ShapeRef& r : document_->selection().items()) addRef(r, selCol, 0.15);
   for (const ShapeRef& r : highlighted_)
-    if (!document_->selection().contains(r)) add(r, selCol, 0.55);
+    if (!document_->selection().contains(r)) addRef(r, selCol, 0.3);
   const auto& pre = document_->selection().preselection();
-  if (pre && pre != hoverRef_) add(*pre, hexq("#4FA3FF"), 0.6);
+  if (pre && pre != hoverRef_) addRef(*pre, hexq("#4FA3FF"), 0.6);
   requestRedraw();
 }
 
@@ -1006,7 +1164,7 @@ void ViewerWidget::updateHover(const core::ViewerMouseEvent& ev) {
   hoverRef_ = now;
   document_->selection().setPreselection(now);
   if (!now && d_->ready()) d_->ctx()->ClearDetected(false);
-  requestRedraw();
+  requestImmediateRedraw();
 }
 
 Qt::MouseButtons ViewerWidget::onMousePress(QMouseEvent* e) {
@@ -1019,13 +1177,32 @@ Qt::MouseButtons ViewerWidget::onMousePress(QMouseEvent* e) {
     return Qt::MiddleButton | Qt::LeftButton;
   }
   if (e->button() == Qt::LeftButton) {
+    // ViewCube overlay controls and the cube itself take the press ahead of tools: a click
+    // rotates to the clicked part, a drag orbits; neither selects nor reaches a tool
+    if (const CubeCtl ctl = cubeControlAt(e->position()); ctl != CubeCtl::None) {
+      ctlPress_ = true;
+      triggerCubeControl(ctl);
+      return Qt::MiddleButton;
+    }
+    {
+      bool onCube = false;
+      ShapeRef dummy;
+      const QPoint p = e->position().toPoint();
+      detect(p.x(), p.y(), effectiveFilter(), dummy, nullptr, &onCube);
+      if (onCube) {
+        cubePress_ = true;
+        cubeDrag_ = false;
+        pressPos_ = cubeLast_ = p;
+        return Qt::MiddleButton;
+      }
+    }
     leftDown_ = true;
     rubber_ = false;
     suppressRelease_ = false;
     pressPos_ = e->position().toPoint();
     rubberEnd_ = pressPos_;
     // manipulators grab the pointer ahead of tools and selection
-    if (manipulatorPress(pressPos_.x(), pressPos_.y(), modifiersOf(e->modifiers()))) {
+    if (gizmoPress(pressPos_.x(), pressPos_.y(), modifiersOf(e->modifiers()))) {
       leftConsumed_ = true;
       if (hoverRef_ && document_) {
         hoverRef_.reset();
@@ -1055,11 +1232,29 @@ Qt::MouseButtons ViewerWidget::onMouseMove(QMouseEvent* e) {
   }
   navigating_ = false;
   const QPoint pos = e->position().toPoint();
-  if (manipulators_.isDragging()) {
-    manipulatorMove(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+  if (ctlPress_) return Qt::MiddleButton;
+  if (cubePress_) {
+    if (!cubeDrag_ && exceedsDragThreshold(pos.x() - pressPos_.x(), pos.y() - pressPos_.y())) cubeDrag_ = true;
+    if (cubeDrag_) {
+      const QPoint dl = pos - cubeLast_;
+      cubeLast_ = pos;
+      constexpr double kDegPerPx = 0.5;
+      if (!dl.isNull()) orbitBy(-dl.x() * kDegPerPx, -dl.y() * kDegPerPx, false);
+    }
     return Qt::MiddleButton;
   }
-  const bool onGizmo = !rubber_ && !leftDown_ && manipulatorMove(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+  if (!leftDown_) {
+    const CubeCtl hc = cubeControlAt(e->position());
+    if (hc != hoverCtl_) {
+      hoverCtl_ = hc;
+      requestImmediateRedraw();
+    }
+  }
+  if (manipulators_.isDragging()) {
+    gizmoMove(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+    return Qt::MiddleButton;
+  }
+  const bool onGizmo = !rubber_ && !leftDown_ && gizmoMove(pos.x(), pos.y(), modifiersOf(e->modifiers()));
   if (onGizmo != gizmoCursor_) {
     gizmoCursor_ = onGizmo;
     setCursor(onGizmo ? core::CursorShape::Hand : core::CursorShape::Arrow);
@@ -1067,12 +1262,22 @@ Qt::MouseButtons ViewerWidget::onMouseMove(QMouseEvent* e) {
   core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::None, !rubber_ && !onGizmo);
   if (manager_) manager_->mouseMove(ev);
   if (!rubber_) updateHover(ev);
+  if (d_->ready()) {  // ViewCube hover tint: repaint when the hovered cube part changes
+    const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+    const void* co = nullptr;
+    if (ctx->HasDetected() && ctx->DetectedOwner()->Selectable().get() == d_->view->viewCube().get())
+      co = ctx->DetectedOwner().get();
+    if (co != cubeHoverOwner_) {
+      cubeHoverOwner_ = co;
+      requestImmediateRedraw();
+    }
+  }
   if (leftDown_ && !leftConsumed_) {
     const QPoint dlt = pos - pressPos_;
     if (!rubber_ && exceedsDragThreshold(dlt.x(), dlt.y())) rubber_ = true;
     if (rubber_) {
       rubberEnd_ = pos;
-      requestRedraw();
+      requestImmediateRedraw();
     }
   }
   if (rightDown_ && !rightConsumed_) {
@@ -1092,8 +1297,32 @@ Qt::MouseButtons ViewerWidget::onMouseRelease(QMouseEvent* e) {
     return Qt::MiddleButton;
   }
   const QPoint pos = e->position().toPoint();
+  if (e->button() == Qt::LeftButton && ctlPress_) {
+    ctlPress_ = false;
+    return Qt::MiddleButton;
+  }
+  if (e->button() == Qt::LeftButton && cubePress_) {
+    const bool click = !cubeDrag_;
+    cubePress_ = cubeDrag_ = false;
+    if (click && d_->ready()) {
+      bool onCube = false;
+      ShapeRef dummy;
+      detect(pos.x(), pos.y(), effectiveFilter(), dummy, nullptr, &onCube);
+      if (onCube && d_->ctx()->HasDetected()) {
+        const double dpr = d_->view->devicePixelRatioF();
+        d_->ctx()->DetectedOwner()->HandleMouseClick(
+            Graphic3d_Vec2i(static_cast<int>(pos.x() * dpr), static_cast<int>(pos.y() * dpr)),
+            Aspect_VKeyMouse_LeftButton, Aspect_VKeyFlags_NONE, false);
+      }
+    }
+    // drop the detected part so the hover tint does not stick after the click
+    if (d_->ready()) d_->ctx()->ClearDetected(false);
+    cubeHoverOwner_ = nullptr;
+    requestRedraw();
+    return Qt::MiddleButton;
+  }
   if (e->button() == Qt::LeftButton && manipulators_.isDragging()) {
-    manipulatorRelease(pos.x(), pos.y(), modifiersOf(e->modifiers()));
+    gizmoRelease(pos.x(), pos.y(), modifiersOf(e->modifiers()));
     leftDown_ = false;
     leftConsumed_ = false;
     rubber_ = false;
@@ -1147,6 +1376,24 @@ void ViewerWidget::onMouseDoubleClick(QMouseEvent* e) {
     return;
   }
   if (e->button() != Qt::LeftButton) return;
+  // fast clicks on the ViewCube / its controls are two clicks, not a double-click
+  if (const CubeCtl ctl = cubeControlAt(e->position()); ctl != CubeCtl::None) {
+    ctlPress_ = true;
+    triggerCubeControl(ctl);
+    return;
+  }
+  {
+    bool onCube = false;
+    ShapeRef dummy;
+    const QPoint p = e->position().toPoint();
+    detect(p.x(), p.y(), effectiveFilter(), dummy, nullptr, &onCube);
+    if (onCube) {
+      cubePress_ = true;
+      cubeDrag_ = false;
+      pressPos_ = cubeLast_ = p;
+      return;
+    }
+  }
   core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::Left, true);
   ev.clickCount = 2;
   leftDown_ = true;
@@ -1183,6 +1430,8 @@ void ViewerWidget::onLeave() {
     document_->selection().setPreselection(std::nullopt);
   }
   if (d_->ready()) d_->ctx()->ClearDetected(false);
+  cubeHoverOwner_ = nullptr;
+  hoverCtl_ = CubeCtl::None;
   requestRedraw();
 }
 
@@ -1251,11 +1500,110 @@ void ViewerWidget::paintEvent(QPaintEvent*) {
 }
 
 void ViewerWidget::beforeRedraw() {
+  assertProjection();
   updateGrid(false);
   refreshManipulatorSizes();
 }
 
+QPointF ViewerWidget::cubeCenter() const {
+  const double dpr = d_->view ? d_->view->devicePixelRatioF() : 1.0;
+  const double w = d_->view ? d_->view->width() : width();
+  return {w - kCubeOffset / dpr, kCubeOffset / dpr};
+}
+
+std::vector<std::pair<ViewerWidget::CubeCtl, QRectF>> ViewerWidget::cubeControls() const {
+  std::vector<std::pair<CubeCtl, QRectF>> out;
+  if (!d_->ready()) return out;
+  const QPointF c = cubeCenter();
+  const double r = kCubeCtlRadius, s = 22.0;
+  auto box = [s](QPointF at) { return QRectF(at.x() - s / 2, at.y() - s / 2, s, s); };
+  out.push_back({CubeCtl::Home, box(c + QPointF(-r, -r))});
+  out.push_back({CubeCtl::RollCcw, box(c + QPointF(r - 26, -r))});
+  out.push_back({CubeCtl::RollCw, box(c + QPointF(r, -r))});
+  if (isFaceOnView(viewDirection(), upDirection())) {
+    out.push_back({CubeCtl::StepLeft, box(c + QPointF(-r, 0))});
+    out.push_back({CubeCtl::StepRight, box(c + QPointF(r, 0))});
+    out.push_back({CubeCtl::StepUp, box(c + QPointF(0, -r))});
+    out.push_back({CubeCtl::StepDown, box(c + QPointF(0, r))});
+  }
+  return out;
+}
+
+ViewerWidget::CubeCtl ViewerWidget::cubeControlAt(QPointF p) const {
+  for (const auto& [ctl, r] : cubeControls())
+    if (r.contains(p)) return ctl;
+  return CubeCtl::None;
+}
+
+void ViewerWidget::triggerCubeControl(CubeCtl c) {
+  switch (c) {
+    case CubeCtl::Home: setStandardView(core::StandardView::Home, true); break;
+    case CubeCtl::RollCcw: rollBy(90.0); break;
+    case CubeCtl::RollCw: rollBy(-90.0); break;
+    // step to the adjacent face: the face beside the arrow comes to the front
+    case CubeCtl::StepLeft: orbitBy(-90.0, 0.0); break;
+    case CubeCtl::StepRight: orbitBy(90.0, 0.0); break;
+    case CubeCtl::StepUp: orbitBy(0.0, -90.0); break;
+    case CubeCtl::StepDown: orbitBy(0.0, 90.0); break;
+    case CubeCtl::None: break;
+  }
+}
+
 void ViewerWidget::paintOverlay(QPainter& p) {
+  // ViewCube controls (ux.md 5.1): home, roll arrows, face-step arrows (face-on views only)
+  p.setRenderHint(QPainter::Antialiasing, true);
+  for (const auto& [ctl, r] : cubeControls()) {
+    const bool hot = ctl == hoverCtl_;
+    const QColor fg = hot ? QColor("#0B6CFF") : QColor("#5F6B7A");
+    if (hot) {
+      p.setPen(Qt::NoPen);
+      p.setBrush(QColor(255, 255, 255, 200));
+      p.drawEllipse(r);
+    }
+    const QPointF c = r.center();
+    QPen pen(fg, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    switch (ctl) {
+      case CubeCtl::Home: {
+        QPainterPath roof;
+        roof.moveTo(c + QPointF(-7, -1));
+        roof.lineTo(c + QPointF(0, -7));
+        roof.lineTo(c + QPointF(7, -1));
+        p.drawPath(roof);
+        p.drawRect(QRectF(c.x() - 5, c.y() - 1, 10, 7));
+        break;
+      }
+      case CubeCtl::RollCcw:
+      case CubeCtl::RollCw: {
+        const bool ccw = ctl == CubeCtl::RollCcw;
+        const QRectF arc(c.x() - 6.5, c.y() - 6.5, 13, 13);
+        // mirror-image arcs (gap at the lower right / lower left), head at the bottom
+        p.drawArc(arc, (ccw ? 30 : 270) * 16, 240 * 16);
+        const double a = 270.0 * M_PI / 180.0;
+        const QPointF tip(c.x() + 6.5 * std::cos(a), c.y() - 6.5 * std::sin(a));
+        const double t = a + (ccw ? M_PI / 2 : -M_PI / 2);  // tangent direction of travel
+        const QPointF dir(std::cos(t), -std::sin(t)), nrm(-dir.y(), dir.x());
+        QPolygonF head{tip + dir * 3.5, tip - dir * 2.0 + nrm * 3.5, tip - dir * 2.0 - nrm * 3.5};
+        p.setBrush(fg);
+        p.setPen(Qt::NoPen);
+        p.drawPolygon(head);
+        break;
+      }
+      default: {
+        const QPointF d = ctl == CubeCtl::StepLeft    ? QPointF(-1, 0)
+                          : ctl == CubeCtl::StepRight ? QPointF(1, 0)
+                          : ctl == CubeCtl::StepUp    ? QPointF(0, -1)
+                                                      : QPointF(0, 1);
+        const QPointF n(-d.y(), d.x());
+        QPolygonF tri{c + d * 6.0, c - d * 4.0 + n * 6.0, c - d * 4.0 - n * 6.0};
+        p.setBrush(fg);
+        p.setPen(Qt::NoPen);
+        p.drawPolygon(tri);
+        break;
+      }
+    }
+  }
   if (!rubber_) return;
   const QRect r = QRect(pressPos_, rubberEnd_).normalized();
   const bool crossing = isCrossingSelection(pressPos_.x(), rubberEnd_.x());
@@ -1269,6 +1617,11 @@ void ViewerWidget::paintOverlay(QPainter& p) {
 
 void ViewerWidget::requestRedraw() {
   null_.requestRedraw();
+  if (d_->view) d_->view->redrawAll();  // scene changes need a full frame, not just the immediate layer
+  else update();
+}
+
+void ViewerWidget::requestImmediateRedraw() {
   if (d_->view) d_->view->updateView();
   else update();
 }
@@ -1379,6 +1732,7 @@ PreviewHandle ViewerWidget::showPreviewText(const core::Vec3& at, const std::str
   t->SetHeight(style.textHeight);
   t->SetColor(Quantity_Color(style.color[0], style.color[1], style.color[2], Quantity_TOC_sRGB));
   t->SetZoomable(false);
+  t->SetFont(viewerFont());
   d_->ctx()->Display(t, 0, -1, false);
   d_->ctx()->SetZLayer(t, Graphic3d_ZLayerId_Topmost);
   const PreviewHandle h = d_->nextPreview++;
@@ -1475,6 +1829,41 @@ std::string ViewerWidget::manipulatorValueText(const core::ManipulatorModel& m, 
   return s.label.empty() ? text : s.label + ": " + text;
 }
 
+// Gizmos are drawn and hit-tested with a scaled pixel size so auto-sized ones (the Move
+// triad) appear kGizmoScale times larger than core's kAutoSizePixels; drawing and picking
+// must use the same value.
+namespace {
+constexpr double kGizmoScale = 1.6;
+}
+
+double ViewerWidget::gizmoPixelSize(const gp_Pnt& at) const { return pixelSize(at) * kGizmoScale; }
+
+bool ViewerWidget::gizmoRay(int x, int y, gp_Pnt& o, gp_Dir& d) const { return screenRay(x, y, o, d); }
+
+bool ViewerWidget::gizmoPress(int x, int y, int modifiers) {
+  if (manipulators_.count() == 0) return false;
+  gp_Pnt o;
+  gp_Dir d;
+  if (!gizmoRay(x, y, o, d)) return false;
+  return manipulators_.press(o, d, modifiers, [this](const gp_Pnt& at) { return gizmoPixelSize(at); });
+}
+
+bool ViewerWidget::gizmoMove(int x, int y, int modifiers) {
+  if (manipulators_.count() == 0 && !manipulators_.isDragging()) return false;
+  gp_Pnt o;
+  gp_Dir d;
+  if (!gizmoRay(x, y, o, d)) return false;
+  return manipulators_.move(o, d, modifiers, [this](const gp_Pnt& at) { return gizmoPixelSize(at); });
+}
+
+bool ViewerWidget::gizmoRelease(int x, int y, int modifiers) {
+  if (!manipulators_.isDragging()) return false;
+  gp_Pnt o;
+  gp_Dir d;
+  if (!gizmoRay(x, y, o, d)) return false;
+  return manipulators_.release(o, d, modifiers, [this](const gp_Pnt& at) { return gizmoPixelSize(at); });
+}
+
 void ViewerWidget::syncManipulatorPrs() {
   if (!d_->ready()) return;
   const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
@@ -1491,7 +1880,7 @@ void ViewerWidget::syncManipulatorPrs() {
     const core::ManipulatorModel* m = manipulators_.model(id);
     if (!m) continue;
     Impl::ManipObj& obj = d_->manips[id];
-    const double ps = pixelSize(m->spec().frame.Location());
+    const double ps = gizmoPixelSize(m->spec().frame.Location());
     obj.pixelSize = ps;
     const core::ManipulatorHandle hl = manipulators_.highlightFor(id);
     std::vector<core::ManipulatorGlyph> glyphs = m->glyphs(ps, hl);
@@ -1518,6 +1907,7 @@ void ViewerWidget::syncManipulatorPrs() {
       obj.label->SetHeight(13.0);
       obj.label->SetColor(hexq("#1A1A1A"));
       obj.label->SetZoomable(false);
+      obj.label->SetFont(viewerFont());
       obj.label->SetDisplayType(Aspect_TODT_SUBTITLE);
       obj.label->SetColorSubTitle(hexq("#FFF4C2"));
       obj.label->SetText(TCollection_ExtendedString(text.c_str(), true));
@@ -1538,7 +1928,7 @@ void ViewerWidget::refreshManipulatorSizes() {
   for (const auto& [id, obj] : d_->manips) {
     const core::ManipulatorModel* m = manipulators_.model(id);
     if (!m || m->spec().size > 0) continue;
-    const double ps = pixelSize(m->spec().frame.Location());
+    const double ps = gizmoPixelSize(m->spec().frame.Location());
     if (obj.pixelSize <= 0 || std::abs(ps - obj.pixelSize) > 0.02 * obj.pixelSize) {
       syncManipulatorPrs();
       return;
@@ -1626,14 +2016,14 @@ void ViewerWidget::lookAt(const gp_Ax3& plane, bool animate) {
   const double dist = std::max(cam->Distance(), 1.0);
   cam->SetEyeAndCenter(c.Translated(gp_Vec(o.toEye) * dist), c);
   cam->SetUp(o.up);
-  d_->view->animateTo(cam, animate ? 0.3 : 0.0);
+  animateCamera(cam, animate ? 0.3 : 0.0);
 }
 
 void ViewerWidget::setStandardView(core::StandardView v, bool animate) {
   null_.setStandardView(v, animate);
   if (!d_->ready()) return;
   if (v == core::StandardView::Home && !d_->home.IsNull()) {
-    d_->view->animateTo(d_->home, animate ? 0.3 : 0.0);
+    animateCamera(d_->home, animate ? 0.3 : 0.0);
     return;
   }
   Handle(Graphic3d_Camera) cam = d_->cameraCopy();
@@ -1643,7 +2033,7 @@ void ViewerWidget::setStandardView(core::StandardView v, bool animate) {
   cam->SetEyeAndCenter(c.Translated(gp_Vec(o.toEye) * dist), c);
   cam->SetUp(o.up);
   if ((v == core::StandardView::Home || v == core::StandardView::Iso) && d_->hasGeometry()) cam = d_->fitted(cam);
-  d_->view->animateTo(cam, animate ? 0.3 : 0.0);
+  animateCamera(cam, animate ? 0.3 : 0.0);
 }
 
 void ViewerWidget::fitAll(bool animate) {
@@ -1653,15 +2043,10 @@ void ViewerWidget::fitAll(bool animate) {
     Handle(Graphic3d_Camera) cam = d_->cameraCopy();
     cam->SetScale(250.0);
     cam->SetCenter(gp_Pnt(0, 0, 0));
-    d_->view->animateTo(cam, animate ? 0.25 : 0.0);
+    animateCamera(cam, animate ? 0.25 : 0.0);
     return;
   }
-  Bnd_Box box;
-  for (const auto& [k, o] : d_->objects) {
-    if (o.item.shape.IsNull()) continue;
-    BRepBndLib::Add(isIdentity(o.item.placement) ? o.item.shape : o.item.shape.Moved(TopLoc_Location(o.item.placement)), box);
-  }
-  d_->view->animateTo(d_->fitted(d_->cameraCopy(), &box), animate ? 0.25 : 0.0);
+  animateCamera(d_->fitted(d_->cameraCopy()), animate ? 0.25 : 0.0);
 }
 
 void ViewerWidget::fitShapes(const std::vector<ShapeRef>& refs, bool animate) {
@@ -1682,7 +2067,7 @@ void ViewerWidget::fitShapes(const std::vector<ShapeRef>& refs, bool animate) {
     fitAll(animate);
     return;
   }
-  d_->view->animateTo(d_->fitted(d_->cameraCopy(), &box), animate ? 0.25 : 0.0);
+  animateCamera(d_->fitted(d_->cameraCopy(), &box), animate ? 0.25 : 0.0);
 }
 
 void ViewerWidget::setProjection(core::ProjectionMode mode) {

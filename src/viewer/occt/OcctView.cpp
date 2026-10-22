@@ -27,6 +27,30 @@
 
 namespace fabricad::viewer {
 
+namespace {
+/// AIS_ViewCube whose post-click fit is delegated to the viewer (margin, nav-bar inset).
+class FabViewCube : public AIS_ViewCube
+{
+public:
+  OcctView::CubeFitter fitter;
+
+protected:
+  void viewFitAll(const Handle(V3d_View)& theView, const Handle(Graphic3d_Camera)& theCamera) override
+  {
+    if (fitter)
+      fitter(theView, theCamera);
+    else
+      AIS_ViewCube::viewFitAll(theView, theCamera);
+  }
+};
+} // namespace
+
+void OcctView::setCubeFitter(CubeFitter f)
+{
+  if (auto* aCube = dynamic_cast<FabViewCube*>(myViewCube.get()))
+    aCube->fitter = std::move(f);
+}
+
 OcctView::OcctView(OcctViewListener* listener, QWidget* parent) : QOpenGLWidget(parent), myListener(listener)
 {
   Handle(Aspect_DisplayConnection) aDisp;
@@ -50,7 +74,7 @@ OcctView::OcctView(OcctViewListener* listener, QWidget* parent) : QOpenGLWidget(
   // create AIS context
   myContext = new AIS_InteractiveContext(myViewer);
 
-  myViewCube = new AIS_ViewCube();
+  myViewCube = new FabViewCube();
   myViewCube->SetViewAnimation(myViewAnimation);
   myViewCube->SetFixedAnimationLoop(false);
   myViewCube->SetAutoStartAnimation(true);
@@ -176,9 +200,16 @@ void OcctView::leaveEvent(QEvent* theEvent)
 
 void OcctView::handleViewRedraw(const Handle(AIS_InteractiveContext)& theCtx, const Handle(V3d_View)& theView)
 {
+  // a running camera animation must redraw the whole frame each step (else the immediate
+  // layer is drawn over the previous frame and the cube/scene tear)
+  if (!myViewAnimation.IsNull() && !myViewAnimation->IsStopped())
+    theView->Invalidate();
   AIS_ViewController::handleViewRedraw(theCtx, theView);
   if (myToAskNextFrame)
+  {
+    theView->Invalidate();
     updateView(); // ask more frames for animation
+  }
 }
 
 void OcctView::dumpGlInfo()

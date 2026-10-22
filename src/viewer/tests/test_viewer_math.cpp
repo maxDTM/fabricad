@@ -65,6 +65,41 @@ class ViewerMathTest : public QObject {
     QVERIFY(std::abs(ps * 600 - 200.0) < 1e-6);  // ortho scale = view height
   }
 
+  void viewportInsetKeepsContentInFreeBand() {
+    // content fitted to the whole 800x600 view: a point at the top edge and one at the bottom
+    auto cam = makeCamera(true, 800, 600);
+    const gp_Pnt top(0, 100, 0), bottom(0, -100, 0);
+    applyViewportInset(*cam, 800, 600, 0, 60);
+    double x, yt, yb;
+    QVERIFY(cameraWorldToScreen(*cam, top, 800, 600, x, yt));
+    QVERIFY(cameraWorldToScreen(*cam, bottom, 800, 600, x, yb));
+    // now spans exactly the band above the 60 px inset
+    QVERIFY2(std::abs(yt - 0.0) < 1e-6, qPrintable(QString::number(yt)));
+    QVERIFY2(std::abs(yb - 540.0) < 1e-6, qPrintable(QString::number(yb)));
+    // no inset: unchanged; absurd inset: ignored
+    auto cam2 = makeCamera(true, 800, 600);
+    applyViewportInset(*cam2, 800, 600, 0, 0);
+    QCOMPARE(cam2->Scale(), 200.0);
+    applyViewportInset(*cam2, 800, 600, 0, 590);
+    QCOMPARE(cam2->Scale(), 200.0);
+  }
+
+  void faceOnViews() {
+    QVERIFY(isFaceOnView(gp_Dir(0, -1, 0), gp_Dir(0, 0, 1)));
+    QVERIFY(isFaceOnView(gp_Dir(0, 0, -1), gp_Dir(-1, 0, 0)));  // rolled top view
+    QVERIFY(!isFaceOnView(gp_Dir(1, -1, 1), gp_Dir(0, 0, 1)));  // iso
+    QVERIFY(!isFaceOnView(gp_Dir(0, -1, 0), gp_Dir(0.5, 0, 0.866)));  // rolled 30 degrees
+    QVERIFY(isFaceOnView(gp_Dir(0.001, -1, 0), gp_Dir(0, 0, 1)));  // within tolerance
+  }
+
+  void originPlaneSizeFollowsModel() {
+    QCOMPARE(originPlaneHalfSize(0.0), 40.0);
+    QCOMPARE(originPlaneHalfSize(10.0), 20.0);    // floor of 20
+    QCOMPARE(originPlaneHalfSize(1000.0), 500.0);  // 350 -> 500 (1-2-5 steps)
+    QCOMPARE(originPlaneHalfSize(1010.0), 500.0);  // small edits do not change it
+    QCOMPARE(originPlaneHalfSize(200.0), 100.0);   // 70 -> 100
+  }
+
   void behindPerspectiveCamera() {
     auto cam = makeCamera(false, 800, 600);
     double x, y;
