@@ -72,6 +72,11 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void orbitBy(double yawDeg, double pitchDeg, bool animate = true);
   /// Roll the camera about the viewing direction (ViewCube roll arrows: +-90 degrees).
   void rollBy(double deg, bool animate = true);
+  /// Zoom about the view centre: factor > 1 magnifies (ZOOM command).
+  void zoomBy(double factor, bool animate = true);
+  /// Screen area of the ViewCube and its overlay controls, in logical px (empty before GL is ready).
+  /// Docked panels (Sketch Palette, command dialogs) stay below it.
+  QRect viewCubeRect() const;
   /// Screen areas covered by overlays (the nav bar at the bottom): Fit/Home keep the model
   /// clear of them. Default: 56 px at the bottom.
   void setViewportInsets(QMargins m);

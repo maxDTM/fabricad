@@ -8,7 +8,9 @@
 #include "core/Document.h"
 #include "core/Materials.h"
 #include "core/Feature.h"
+#include "core/Expression.h"
 #include "core/Tool.h"
+#include "sketch/SketchFeature.h"
 #include "part/tools/FeatureTool.h"
 #include "viewer/ViewerWidget.h"
 
@@ -309,6 +311,94 @@ EditCommand editCommandFor(const core::ToolRegistry& reg, const core::Feature& f
   }
   if (reg.has("app.edit-properties")) return {"app.edit-properties", {id}};
   return {};
+}
+
+// --- appearance -------------------------------------------------------------------------------
+
+std::vector<core::ObjectId> appearanceTargets(const core::Document& doc, const std::vector<core::ShapeRef>& items) {
+  std::vector<core::ObjectId> out;
+  auto add = [&](core::ObjectId id) {
+    if (doc.body(id) && std::find(out.begin(), out.end(), id) == out.end()) out.push_back(id);
+  };
+  for (const core::ShapeRef& r : items) {
+    if (r.kind == core::ShapeKind::Component) {
+      for (core::ObjectId b : doc.displayedBodies(r.owner)) add(b);
+    } else if (r.isBrep()) {
+      add(r.owner);  // body, or the body owning the face/edge/vertex
+    }
+  }
+  return out;
+}
+
+std::unique_ptr<core::UndoCommand> makeSetBodiesColor(core::Document& doc, const std::vector<core::ObjectId>& bodyIds,
+                                                      std::array<float, 4> rgba) {
+  auto macro = std::make_unique<core::MacroCommand>(bodyIds.size() == 1 ? "Appearance" : "Appearance of bodies");
+  int n = 0;
+  for (core::ObjectId id : bodyIds)
+    if (auto cmd = makeSetBodyColor(doc, id, rgba)) {
+      macro->add(std::move(cmd));
+      ++n;
+    }
+  if (n == 0) return nullptr;
+  return macro;
+}
+
+// --- parameters / units -----------------------------------------------------------------------------
+
+namespace {
+bool references(const std::string& expr, const std::string& name) {
+  if (expr.empty()) return false;
+  const std::vector<std::string> refs = core::referencedParameters(expr);
+  return std::find(refs.begin(), refs.end(), name) != refs.end();
+}
+}  // namespace
+
+std::vector<std::string> parameterUsers(const core::Document& doc, const std::string& name) {
+  std::vector<std::string> out;
+  auto add = [&](const std::string& who) {
+    if (std::find(out.begin(), out.end(), who) == out.end()) out.push_back(who);
+  };
+  for (const core::Document::Parameter& p : doc.parameters())
+    if (p.name != name && references(p.expression, name)) add(p.name);
+  for (const auto& f : doc.features()) {
+    bool used = false;
+    for (const core::Property& prop : f->properties())
+      if (prop.hasExpression() && references(prop.expression(), name)) used = true;
+    if (auto* sk = dynamic_cast<const sketch::SketchFeature*>(f.get()))
+      for (const sketch::Constraint& c : sk->sketch().constraints())
+        if (references(c.expression, name)) used = true;
+    if (used) add(f->name());
+  }
+  return out;
+}
+
+std::string checkParameterEdit(const core::Document& doc, const std::string& oldName, const std::string& newName) {
+  if (!newName.empty() && newName != oldName) {
+    if (!core::isValidParameterName(newName))
+      return std::format("Invalid name '{}': use letters, digits and _, not starting with a digit, and not a unit or "
+                         "function name",
+                         newName);
+    if (doc.parameter(newName)) return std::format("A parameter named '{}' already exists", newName);
+  }
+  if (oldName.empty() || newName == oldName) return {};
+  const std::vector<std::string> users = parameterUsers(doc, oldName);
+  if (users.empty()) return {};
+  std::string list;
+  for (const std::string& u : users) list += (list.empty() ? "" : ", ") + u;
+  return std::format("'{}' is used by {}: {} it would break them", oldName, list, newName.empty() ? "removing" : "renaming");
+}
+
+std::unique_ptr<core::UndoCommand> makeSetUnits(core::Document& doc, const core::UnitSystem& units) {
+  if (units == doc.units()) return nullptr;
+  std::vector<std::string> lengths, angles;
+  for (const auto& f : doc.features())
+    if (auto* sk = dynamic_cast<const sketch::SketchFeature*>(f.get()))
+      for (const sketch::Constraint& c : sk->sketch().constraints()) {
+        if (c.expression.empty()) continue;
+        for (const std::string& n : core::referencedParameters(c.expression))
+          (c.type == sketch::ConstraintType::Angle ? angles : lengths).push_back(n);
+      }
+  return std::make_unique<core::SetUnitsCommand>(doc, units, std::move(lengths), std::move(angles));
 }
 
 }  // namespace fabricad::app

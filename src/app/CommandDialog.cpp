@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/CommandDialog.h"
 
+#include "viewer/ViewerWidget.h"
+
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -202,7 +204,13 @@ void CommandDialog::place() {
 int CommandDialog::dockTop() const {
   if (!viewport_) return kTopMargin;
   // a short viewport: give the dialog the height rather than keep clear of the cube
-  return viewport_->height() < 2 * kDockTop + 200 ? kTopMargin : kDockTop;
+  if (viewport_->height() < 2 * kDockTop + 200) return kTopMargin;
+  // keep clear of the ViewCube's face-step arrows too (APP-12)
+  if (auto* v = qobject_cast<const viewer::ViewerWidget*>(viewport_)) {
+    const QRect cube = v->viewCubeRect();
+    if (!cube.isEmpty()) return std::max(kDockTop, cube.bottom() + 8);
+  }
+  return kDockTop;
 }
 
 void CommandDialog::reposition() {

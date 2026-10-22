@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/BrowserTree.h"
 
+#include "app/AppearancePicker.h"
+
 #include "core/Materials.h"
 
 #include "assembly/tools/ComponentTools.h"
@@ -584,14 +586,16 @@ void BrowserTree::addMaterialMenu(QMenu& menu, ObjectId bodyId) {
 }
 
 void BrowserTree::pickBodyAppearance(ObjectId bodyId) {
-  const core::Body* b = doc_.body(bodyId);
-  if (!b) return;
-  QColor current = QColor::fromRgbF(b->color[0], b->color[1], b->color[2], b->color[3]);
-  QColor c = QColorDialog::getColor(current, this, "Appearance of " + core::qs(b->name), QColorDialog::ShowAlphaChannel);
-  if (!c.isValid()) return;
-  std::array<float, 4> rgba{static_cast<float>(c.redF()), static_cast<float>(c.greenF()), static_cast<float>(c.blueF()),
-                            static_cast<float>(c.alphaF())};
-  if (auto cmd = makeSetBodyColor(doc_, bodyId, rgba)) doc_.undoStack().push(std::move(cmd));
+  // the same picker as the A command (APP-04); several selected bodies get one colour
+  std::vector<ObjectId> ids;
+  for (QTreeWidgetItem* it : selectedItems())
+    if (it->data(0, RoleKind).toInt() == KindBody) ids.push_back(it->data(0, RoleId).toULongLong());
+  if (std::find(ids.begin(), ids.end(), bodyId) == ids.end()) ids = {bodyId};
+  pickAppearance(this, doc_, ids);
+}
+
+void BrowserTree::keyboardSearch(const QString&) {
+  // Fusion's browser has no type-ahead: letters are command shortcuts (A = Appearance), APP-04
 }
 
 void BrowserTree::editComponentProperties(ObjectId componentId) {

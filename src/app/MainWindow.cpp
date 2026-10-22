@@ -18,6 +18,7 @@
 #include "app/SketchPalette.h"
 #include "app/TimelineWidget.h"
 #include "app/ParametersDialog.h"
+#include "app/PreferencesDialog.h"
 #include "assembly/AssemblyModule.h"
 #include "core/Json.h"
 #include "core/Log.h"
@@ -207,6 +208,9 @@ void MainWindow::buildUi() {
   commandLine_ = new CommandLine(m, statusBar());
   commandLine_->setVisible(QSettings().value("ui/commandLine", true).toBool());
   statusBar()->addPermanentWidget(commandLine_, 1);
+  // G2 APP-06: empty Enter in the box with a tool active behaves like Enter on the canvas
+  connect(commandLine_, &CommandLine::emptyEnter, this,
+          [this] { handleKeyPress(Qt::Key_Return, 0, "\r", false, viewer_); });
   search_ = new CommandSearch(m, this);
   marking_ = new MarkingMenu(this);
 }
@@ -388,6 +392,10 @@ void MainWindow::buildStatusBar() {
   sketchLabel_->hide();
   unitsLabel_ = new QLabel(sb);
   unitsLabel_->setObjectName("StatusDim");
+  // G2 APP-03: clicking the units opens Preferences > Document (UNITS command)
+  unitsLabel_->setCursor(Qt::PointingHandCursor);
+  unitsLabel_->setToolTip("Document units (click to change)");
+  installClickHandler(unitsLabel_, [this] { runCommand("app.units"); });
   sb->addWidget(promptLabel_, 2);
   sb->addWidget(messageLabel_, 2);
   sb->addPermanentWidget(selectionLabel_);
@@ -1427,6 +1435,11 @@ bool MainWindow::newDocument() {
     document_->setName(name);
     document_->setModified(false);
   }
+  // G2 APP-03: Preferences > General > default units for new designs
+  if (auto u = defaultUnitsPreference(); u && !(*u == document_->units())) {
+    document_->setUnits(*u);
+    document_->setModified(false);
+  }
   if (viewer_) {
     viewer_->setStandardView(core::StandardView::Home, false);
     viewer_->setOriginVisible(false);
@@ -1711,7 +1724,7 @@ void MainWindow::toggleCommandLine() {
 
 void MainWindow::focusCommandLine() {
   commandLine_->show();
-  commandLine_->edit()->setFocus();
+  commandLine_->focusForTyping();  // G2 APP-07: drops the ':' that triggered this
 }
 
 void MainWindow::showShortcutsHelp() {

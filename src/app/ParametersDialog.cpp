@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/ParametersDialog.h"
 
+#include "app/AppActions.h"
+
 #include "core/Commands.h"
 #include "core/Document.h"
+#include "core/Expression.h"
 #include "core/Json.h"
 
 #include <QDialogButtonBox>
 #include <QHeaderView>
+#include <QLabel>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -24,6 +28,13 @@ ParametersDialog::ParametersDialog(core::Document& doc, QWidget* parent) : QDial
   table_->verticalHeader()->hide();
   table_->setSelectionBehavior(QAbstractItemView::SelectRows);
   v->addWidget(table_);
+  // refusals are shown inline, not in a modal box (scripted/headless use must not block)
+  error_ = new QLabel(this);
+  error_->setObjectName("ParametersError");
+  error_->setStyleSheet("color: #D93025;");
+  error_->setWordWrap(true);
+  error_->hide();
+  v->addWidget(error_);
   auto* buttons = new QDialogButtonBox(this);
   QPushButton* add = buttons->addButton("Add", QDialogButtonBox::ActionRole);
   QPushButton* rem = buttons->addButton("Remove", QDialogButtonBox::ActionRole);
@@ -66,6 +77,18 @@ void ParametersDialog::onCellChanged(int row, int column) {
   const std::string expr = table_->item(row, 1) ? table_->item(row, 1)->text().trimmed().toStdString() : "";
   const std::string comment = table_->item(row, 3) ? table_->item(row, 3)->text().toStdString() : "";
   if (name.empty() || expr.empty()) return;
+  if (const std::string why = checkParameterEdit(doc_, oldName, name); !why.empty()) {
+    // keep the old name: rebuild the table after the item's own edit has finished
+    showError(core::qs(why));
+    QMetaObject::invokeMethod(this, &ParametersDialog::reload, Qt::QueuedConnection);
+    return;
+  }
+  if (oldName.empty() && !core::isValidParameterName(name)) {
+    showError(core::qs("Invalid name '" + name + "'"));
+    QMetaObject::invokeMethod(this, &ParametersDialog::reload, Qt::QueuedConnection);
+    return;
+  }
+  showError({});
   if (!oldName.empty() && oldName != name) {
     // rename = remove + add in one undo step
     auto macro = std::make_unique<core::MacroCommand>("Rename parameter");
@@ -88,12 +111,25 @@ void ParametersDialog::addParameter() {
   table_->editItem(table_->item(table_->rowCount() - 1, 1));
 }
 
-void ParametersDialog::removeSelected() {
-  const int r = table_->currentRow();
+void ParametersDialog::removeSelected() { removeRow(table_->currentRow()); }
+
+void ParametersDialog::removeRow(int r) {
   if (r < 0 || !table_->item(r, 0)) return;
-  doc_.undoStack().push(
-      std::make_unique<core::SetParameterCommand>(doc_, table_->item(r, 0)->data(Qt::UserRole).toString().toStdString(), ""));
+  const std::string name = table_->item(r, 0)->data(Qt::UserRole).toString().toStdString();
+  if (const std::string why = checkParameterEdit(doc_, name, ""); !why.empty()) {
+    showError(core::qs(why));
+    return;
+  }
+  showError({});
+  doc_.undoStack().push(std::make_unique<core::SetParameterCommand>(doc_, name, ""));
   reload();
 }
+
+void ParametersDialog::showError(const QString& text) {
+  error_->setText(text);
+  error_->setVisible(!text.isEmpty());
+}
+
+QString ParametersDialog::errorText() const { return error_->text(); }
 
 }  // namespace fabricad::app

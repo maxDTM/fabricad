@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "core/Commands.h"
 
+#include "core/Expression.h"
+#include "core/Feature.h"
+
+#include <algorithm>
+#include <cctype>
 #include <format>
+#include <set>
 
 namespace fabricad::core {
 
@@ -129,13 +135,62 @@ SetParameterCommand::SetParameterCommand(Document& doc, std::string name, std::s
 
 void SetParameterCommand::redo() {
   if (expr_.empty()) doc_.removeParameter(name_);
-  else doc_.setParameter(name_, expr_, comment_);
+  else if (!doc_.setParameter(name_, expr_, comment_)) {
+    failed_ = true;  // invalid name: nothing changed, so undo must not remove anything either
+    return;
+  }
+  failed_ = false;
   doc_.recompute();
 }
 
 void SetParameterCommand::undo() {
+  if (failed_) return;
   if (existed_) doc_.setParameter(name_, oldExpr_, oldComment_);
   else doc_.removeParameter(name_);
+  doc_.recompute();
+}
+
+// --- SetUnitsCommand ---------------------------------------------------------
+
+SetUnitsCommand::SetUnitsCommand(Document& doc, UnitSystem units, std::vector<std::string> lengthParams,
+                                 std::vector<std::string> angleParams)
+    : UndoCommand("Change units"), doc_(doc), old_(doc.units()), new_(units) {
+  std::set<std::string> lengths(lengthParams.begin(), lengthParams.end());
+  std::set<std::string> angles(angleParams.begin(), angleParams.end());
+  for (const auto& f : doc.features())
+    for (const Property& p : f->properties()) {
+      if (!p.hasExpression()) continue;
+      if (p.type() != PropertyType::Length && p.type() != PropertyType::Angle) continue;
+      for (const std::string& n : referencedParameters(p.expression()))
+        (p.type() == PropertyType::Length ? lengths : angles).insert(n);
+    }
+  // A parameter whose expression is a plain scalar (no references, e.g. "10" or "2*5") and that
+  // is used as a length/angle changes meaning with the display unit: pin it to the old unit.
+  for (const Document::Parameter& p : doc.parameters()) {
+    if (!p.ok || !p.value.dim.isScalar() || !referencedParameters(p.expression).empty()) continue;
+    const bool len = lengths.count(p.name) > 0, ang = angles.count(p.name) > 0;
+    if (len == ang) continue;  // unused, or ambiguous: leave it
+    if (len && old_.length == new_.length) continue;
+    if (ang && old_.angle == new_.angle) continue;
+    const char* unit = len ? lengthUnitSymbol(old_.length) : angleUnitSymbol(old_.angle);
+    std::string e = p.expression;
+    const bool simple = std::all_of(e.begin(), e.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)) || c == '.' || c == ' '; });
+    oldExprs_.emplace_back(p.name, p.expression);
+    newExprs_.emplace_back(p.name, simple ? e + " " + unit : "(" + e + ") " + unit);
+  }
+}
+
+void SetUnitsCommand::redo() {
+  for (const auto& [n, e] : newExprs_)
+    if (const auto* p = doc_.parameter(n)) doc_.setParameter(n, e, p->comment);
+  doc_.setUnits(new_);
+  doc_.recompute();
+}
+
+void SetUnitsCommand::undo() {
+  for (const auto& [n, e] : oldExprs_)
+    if (const auto* p = doc_.parameter(n)) doc_.setParameter(n, e, p->comment);
+  doc_.setUnits(old_);
   doc_.recompute();
 }
 

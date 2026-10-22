@@ -6,6 +6,7 @@
 
 #include "core/ShapeRef.h"
 #include "core/Types.h"
+#include "core/Units.h"
 #include "core/UndoStack.h"
 
 #include <array>
@@ -73,6 +74,23 @@ std::unique_ptr<core::UndoCommand> makeSetBodyColor(core::Document& doc, core::O
 std::unique_ptr<core::UndoCommand> makeSetComponentProperties(core::Document& doc, core::ObjectId componentId,
                                                               const std::string& partNumber, const std::string& description,
                                                               const std::string& material);
+
+/// Bodies an Appearance command targets: bodies, the owning body of faces/edges/vertices, the
+/// displayed bodies of components (deduplicated, in selection order). APP-04.
+std::vector<core::ObjectId> appearanceTargets(const core::Document& doc, const std::vector<core::ShapeRef>& items);
+/// One undo step colouring several bodies (null when no body changes).
+std::unique_ptr<core::UndoCommand> makeSetBodiesColor(core::Document& doc, const std::vector<core::ObjectId>& bodyIds,
+                                                      std::array<float, 4> rgba);
+
+// --- parameters / units ------------------------------------------------------------------------
+/// Who references parameter `name`: other parameters, feature property expressions, sketch
+/// dimension expressions ("half", "Extrude1", "Sketch2"); deduplicated, in document order. APP-05.
+std::vector<std::string> parameterUsers(const core::Document& doc, const std::string& name);
+/// Why renaming/removing a parameter is refused ("" = allowed). `newName` empty means remove.
+std::string checkParameterEdit(const core::Document& doc, const std::string& oldName, const std::string& newName);
+/// Undoable unit change that keeps the geometry: plain-number parameters used as lengths or
+/// angles (features and sketch dimensions) are pinned to the old unit. Null when unchanged.
+std::unique_ptr<core::UndoCommand> makeSetUnits(core::Document& doc, const core::UnitSystem& units);
 
 /// How to edit a feature: a tool id plus arguments.
 struct EditCommand {

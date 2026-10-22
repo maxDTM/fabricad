@@ -11,6 +11,7 @@
 #include <QFrame>
 #include <QStringList>
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -21,8 +22,12 @@ class QTreeWidgetItem;
 namespace fabricad::app {
 
 /// Ordered result ids for a query (empty query: pinned, then recent, deduplicated).
+/// `rank` (optional) buckets the matches, lower first, keeping the score order inside a bucket:
+/// the popup puts enabled tools of the current workspace first, then other enabled ones, then
+/// disabled ones (APP-10). Without it the registry's score order is kept.
 std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const std::string& query,
-                                          const QStringList& pinned, const QStringList& recent, int max = 20);
+                                          const QStringList& pinned, const QStringList& recent, int max = 20,
+                                          const std::function<int(const core::ITool*)>& rank = {});
 
 class CommandSearch : public QFrame {
   Q_OBJECT

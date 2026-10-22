@@ -592,6 +592,13 @@ void ViewerWidget::orbitBy(double yawDeg, double pitchDeg, bool animate) {
   animateCamera(cam, animate ? 0.15 : 0.0);
 }
 
+void ViewerWidget::zoomBy(double factor, bool animate) {
+  if (!d_->ready() || !(factor > 0)) return;
+  Handle(Graphic3d_Camera) cam = d_->cameraCopy();
+  cam->SetScale(cam->Scale() / factor);
+  animateCamera(cam, animate ? 0.15 : 0.0);
+}
+
 void ViewerWidget::rollBy(double deg, bool animate) {
   if (!d_->ready()) return;
   Handle(Graphic3d_Camera) cam = d_->cameraCopy();
@@ -1573,6 +1580,18 @@ std::vector<std::pair<ViewerWidget::CubeCtl, QRectF>> ViewerWidget::cubeControls
     out.push_back({CubeCtl::StepDown, box(c + QPointF(0, r))});
   }
   return out;
+}
+
+QRect ViewerWidget::viewCubeRect() const {
+  if (!d_->ready()) return {};
+  // The full control ring (home, roll and face-step arrows), whether or not the step arrows
+  // are shown right now: docked panels must not move when the view turns face-on.
+  const QPointF c = cubeCenter();
+  const double dpr = d_->view->devicePixelRatioF();
+  const double half = kCubeCtlRadius / dpr + 22.0 / 2;
+  QRectF r(c.x() - half, c.y() - half, 2 * half, 2 * half);
+  for (const auto& [ctl, box] : cubeControls()) r = r.united(box);
+  return r.toAlignedRect();
 }
 
 ViewerWidget::CubeCtl ViewerWidget::cubeControlAt(QPointF p) const {

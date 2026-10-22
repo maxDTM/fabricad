@@ -215,6 +215,11 @@ COMBINE, OFFSETFACE, DRAFT, PRESSPULL / PP, RECTPATTERN, CIRCPATTERN, MIRROR
 OFFSETPLANE 430  with a plane selected (flip=true for the other side); PLANEANGLE, MIDPLANE, PLANE3, AXIS, POINT
 EDITFEATURE <id> opens the feature's command in edit mode (same inputs, OK pushes one undo step)
 SET width=80 mm  create/change a parameter (undoable; the model follows; does not interrupt a command); PARAMETERS opens the dialog
+                 SET width=  removes it (refused while features or parameters use it); invalid names are refused
+UNITS in [deg]   document units (mm cm m in ft, deg rad; undoable); plain-number parameters used as lengths keep
+                 their size ("10" becomes "10 mm"). UNITS alone opens Preferences > Document; PREFS opens Preferences
+ZOOM E | ZOOM 2 | ZOOM 0.5 | ZOOM W   fit, zoom about the centre by a factor, drag-to-zoom mode (view command)
+APPEARANCE #ff8800   colour of the selected/preselected bodies or components (A without a colour opens the picker)
 MEASURE          with one or two entities selected
 UNDO / U, REDO, DELETE (selection), HIDE / SHOW, SHOWALL, COMPUTE
 ```
