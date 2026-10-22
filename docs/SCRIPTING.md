@@ -262,7 +262,8 @@ EXPORTSTL a.stl [deflection=0.05] [angle=20|0.2rad] [ascii]      selected bodies
                  meshes afresh, so earlier exports or the display mesh never leak into the file.
                  In the GUI, EXPORTSTL without arguments opens the dialog (file, deflections, format)
 IMPORT part.step / OK  (or IMPORT, filePath=part.step, OK): insert a STEP/STL as bodies (string
-                 properties are typed as name=value like the others); IMPORTFILE part.step inserts at once
+                 properties are typed as name=value like the others); IMPORTFILE part.step inserts at once.
+                 An assembly STEP becomes components and occurrences (keepStructure=false: flat bodies)
 SAVE a.fcad / SAVEAS a.fcad, OPEN a.fcad (new tab), NEW (new tab), CLOSE
 ```
 

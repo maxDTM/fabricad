@@ -31,6 +31,7 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Shell.hxx>
 #include <TopoDS_Solid.hxx>
+#include <gp_Quaternion.hxx>
 #include <TDF_Label.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <TDF_Tool.hxx>
@@ -155,7 +156,10 @@ struct StepAssemblyReader {
       // FabriCAD's own export writes the bodies of a component that also has child components as
       // an extra part instance "<name> bodies" at the identity: they belong to the component itself
       const std::string own = node.name + " bodies";
-      if (loc.IsIdentity() && !node.name.empty() && (protoName == own || instName == own)) {
+      const gp_Trsf& tr = child.placement;
+      const bool identity = tr.TranslationPart().Modulus() < 1e-9 && tr.GetRotation().GetRotationAngle() < 1e-12 &&
+                            std::abs(tr.ScaleFactor() - 1.0) < 1e-12;  // a STEP location is never IsIdentity()
+      if (identity && !node.name.empty() && (protoName == own || instName == own)) {
         ImportFeature::StepPart& p = out.parts[entry];
         if (p.bodyNames.size() == 1 && p.bodyNames.front() == own) p.bodyNames.front() = node.name;
         node.ownParts.push_back(entry);
