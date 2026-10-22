@@ -1527,7 +1527,7 @@ void MainWindow::deleteRefs(const std::vector<ShapeRef>& refs) {
       for (const std::string& n : plan.bodyNotes) q += "\n  " + n;
     }
     if (!plan.dependents.empty()) {
-      q += "\n\nThese later features use it and will fail:";
+      q += "\n\nThese later features use it and may fail:";
       for (size_t i = 0; i < plan.dependents.size() && i < 8; ++i) q += "\n  " + plan.dependents[i];
       if (plan.dependents.size() > 8) q += std::format("\n  and {} more", plan.dependents.size() - 8);
     }
