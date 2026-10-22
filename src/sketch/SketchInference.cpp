@@ -37,9 +37,25 @@ InferenceResult infer(const Sketch& sketch, const InferenceInput& in) {
   if (in.suppress) return r;
   const double tol = std::max(in.tolerance, 1e-9);
 
-  // 1. existing points (endpoints, centres, midpoints)
+  // 1. existing points (endpoints, centres, midpoints), then the sketch origin
   if (in.allowPoints) {
-    if (auto hit = sketch.hitPoint(in.cursor, tol, in.exclude)) {
+    auto hit = sketch.hitPoint(in.cursor, tol, in.exclude);
+    const Pt2 origin{0, 0};
+    const double dOrigin = in.cursor.distance(origin);
+    if (dOrigin <= tol && (!hit || dOrigin < hit->point.distance(in.cursor) - 1e-12) && !(in.from && in.from->near(origin, 1e-9))) {
+      r.point = origin;
+      r.onOrigin = true;
+      r.glyph = InferenceGlyph::Coincident;
+      if (in.from && in.allowDirections) {
+        Pt2 d = r.point - *in.from;
+        if (d.length() > tol) {
+          if (std::abs(d.y) < 1e-9) r.horizontal = true;
+          else if (std::abs(d.x) < 1e-9) r.vertical = true;
+        }
+      }
+      return r;
+    }
+    if (hit) {
       r.point = hit->point;
       r.onPoint = hit->ref;
       const Geometry* g = sketch.geometry(hit->ref.geo);
@@ -170,6 +186,9 @@ InferenceResult infer(const Sketch& sketch, const InferenceInput& in) {
 void applyInference(Sketch& sketch, const InferenceResult& r, const GeoRef& newPoint, int newLine) {
   if (r.onPoint && newPoint.isValid()) {
     sketch.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = newPoint, .b = *r.onPoint});
+  } else if (r.onOrigin && newPoint.isValid()) {
+    // the origin is not sketch geometry: pin the point there with a Fix shown as a coincident dot
+    sketch.addConstraint(Constraint{.type = ConstraintType::Fix, .a = newPoint, .name = kOriginFixName});
   } else if (r.onCurve && newPoint.isValid()) {
     sketch.addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = newPoint, .b = *r.onCurve});
   }

@@ -9,6 +9,7 @@
 #include "core/Selection.h"
 #include "core/UndoStack.h"
 #include "core/Units.h"
+#include "sketch/SketchInference.h"
 
 #include <QTimer>
 
@@ -490,7 +491,13 @@ void SketchSession::renderConstraints() {
       case ConstraintType::Concentric: text = "◎"; break;
       case ConstraintType::Collinear: text = "‖"; break;
       case ConstraintType::Midpoint: text = "△"; break;
-      case ConstraintType::Fix: text = "\U0001F512"; break;
+      case ConstraintType::Fix:
+        if (isOriginFix(c)) {
+          if (auto p = sk->pointOf(c.a)) coincidentPts.push_back(toWorld(*p));
+          break;
+        }
+        text = "\U0001F512";
+        break;
       case ConstraintType::Symmetric: text = "⇄"; break;
       default: break;
     }

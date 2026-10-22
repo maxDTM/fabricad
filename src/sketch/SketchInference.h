@@ -32,6 +32,7 @@ struct InferenceInput {
 struct InferenceResult {
   Pt2 point;                                   ///< snapped cursor
   std::optional<GeoRef> onPoint;               ///< coincident with this point
+  bool onOrigin = false;                       ///< snapped to the sketch origin (0,0)
   std::optional<GeoRef> onCurve;               ///< lies on this curve
   bool horizontal = false;                     ///< segment from->point is horizontal
   bool vertical = false;
@@ -41,10 +42,14 @@ struct InferenceResult {
   std::optional<GeoRef> alignedYWith;          ///< point.y == that point's y (horizontal tracking line)
   std::vector<std::pair<Pt2, Pt2>> guides;     ///< dashed tracking lines (sketch coords)
   InferenceGlyph glyph = InferenceGlyph::None;
-  bool snapped() const { return onPoint || onCurve || horizontal || vertical || parallelTo || perpendicularTo || alignedXWith || alignedYWith; }
+  bool snapped() const { return onPoint || onOrigin || onCurve || horizontal || vertical || parallelTo || perpendicularTo || alignedXWith || alignedYWith; }
 };
 
 InferenceResult infer(const Sketch& sketch, const InferenceInput& in);
+
+/// Name that marks the Fix constraint pinning a point to the sketch origin (drawn as a coincident dot).
+inline constexpr const char* kOriginFixName = "origin";
+inline bool isOriginFix(const Constraint& c) { return c.type == ConstraintType::Fix && c.name == kOriginFixName; }
 
 /// Constraints an inference result implies for a newly created point / line.
 /// `newPoint`: the created point (e.g. line end). `newLine`: the created line (for H/V/parallel), -1 if none.

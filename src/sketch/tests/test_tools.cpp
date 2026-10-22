@@ -237,7 +237,7 @@ class ToolsTest : public QObject {
     QCOMPARE(r.countType(ConstraintType::Horizontal), 2);
     QCOMPARE(r.countType(ConstraintType::Vertical), 2);
     QVERIFY(r.mgr.isActive());  // tool stays active after closing the loop
-    QCOMPARE(r.sk().dofs(), 4);
+    QCOMPARE(r.sk().dofs(), 2);  // the first corner is pinned to the origin (UX-29)
     QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
     QCOMPARE(r.doc.undoStack().count(), 5);  // create + 4 lines
     // every segment is one undo step
@@ -283,6 +283,37 @@ class ToolsTest : public QObject {
     QVERIFY(near(r.sk().geometry(a)->end(), {0, 30}));
     QVERIFY(near(r.sk().geometry(b)->end(), {50, 20}));
     QVERIFY(near(r.sk().geometry(b)->start(), {30, 5}));
+  }
+
+  /// UX-29: a line started on the sketch origin is pinned there (shown as a coincident dot).
+  void lineFromOriginIsPinned() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.line"));
+    r.click(0.3, 0.2);  // within the snap tolerance of the origin marker
+    r.click(20, 0.3);   // horizontal
+    r.key(Qt::Key_Escape);
+    QCOMPARE(r.sk().geometryCount(), 1);
+    QVERIFY(near(r.sk().geometry(1)->start(), {0, 0}));
+    int fixes = 0;
+    for (const auto& c : r.sk().constraints())
+      if (isOriginFix(c) && !c.internal && c.a == GeoRef{1, PointPos::Start}) ++fixes;
+    QCOMPARE(fixes, 1);
+    QCOMPARE(r.countType(ConstraintType::Horizontal), 1);
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {1}, .value = 25});
+    QVERIFY(r.sk().solve().ok());
+    QCOMPARE(r.sk().dofs(), 0);
+    QVERIFY(near(r.sk().geometry(1)->end(), {25, 0}));
+    // typed 0,0 pins the start as well
+    QVERIFY(r.mgr.runCommandLine("0,0"));
+    QVERIFY(r.mgr.runCommandLine("@0,30"));
+    QCOMPARE(r.sk().geometryCount(), 2);
+    // the existing point at the origin wins over the origin itself: coincident, not a second Fix
+    QVERIFY(r.sk().findConstraint(ConstraintType::Coincident, {2, PointPos::Start}, {1, PointPos::Start}) ||
+            r.sk().findConstraint(ConstraintType::Coincident, {1, PointPos::Start}, {2, PointPos::Start}));
+    QVERIFY(r.sk().solve().ok());
+    QCOMPARE(r.sk().dofs(), 0);  // the typed @0,30 dimensioned the second line
   }
 
   void lineTypedInputAndTangentArc() {
@@ -332,9 +363,9 @@ class ToolsTest : public QObject {
     QCOMPARE(r.sk().geometryCount(), 4);
     QCOMPARE(r.countType(ConstraintType::Horizontal), 2);
     QCOMPARE(r.countType(ConstraintType::Vertical), 2);
-    // the typed size became driving width / height dimensions: only the position is free
+    // the typed size became driving width / height dimensions
     QCOMPARE(r.countType(ConstraintType::Distance), 2);
-    QCOMPARE(r.sk().dofs(), 2);
+    QCOMPARE(r.sk().dofs(), 0);  // the first corner sits on the origin (UX-29)
     QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
     QVERIFY(near(r.sketchFeature()->profiles()[0].area, 600.0, 1e-6));
 
@@ -475,7 +506,7 @@ class ToolsTest : public QObject {
     QCOMPARE(d2->type, ConstraintType::Angle);
     QVERIFY(near(d2->value, 30.0));
     QVERIFY(!d2->driven);
-    QCOMPARE(r.sk().dofs(), 2);  // only the start point is free
+    QCOMPARE(r.sk().dofs(), 0);  // the start point is pinned to the origin (UX-29)
     // boxes are reset for the next segment; the angle is now relative to the previous line
     QVERIFY(!tool->values().hasUserInput());
     r.move(60, 40);
@@ -488,7 +519,7 @@ class ToolsTest : public QObject {
     QCOMPARE(r.countType(ConstraintType::Angle), 1);
     QVERIFY(near(r.sk().geometry(2)->length(), 20.0, 1e-6));
     QVERIFY(near(r.sk().dimensionByName("d3")->value, 20.0));
-    QCOMPARE(r.sk().dofs(), 2);
+    QCOMPARE(r.sk().dofs(), 0);
     SolveResult res = r.sk().solve();
     QVERIFY2(res.ok(), res.message.c_str());
     // Esc with typed text clears the box instead of ending the chain
@@ -542,7 +573,7 @@ class ToolsTest : public QObject {
     QVERIFY(near(r.sk().geometry(1)->length(), 30.0, 1e-9));
     QVERIFY(near(r.sk().geometry(2)->length(), 20.0, 1e-9));
     QCOMPARE(r.countType(ConstraintType::Distance), 2);
-    QCOMPARE(r.sk().dofs(), 2);
+    QCOMPARE(r.sk().dofs(), 0);  // first corner on the origin (UX-29)
     QVERIFY(near(r.sketchFeature()->profiles()[0].area, 600.0, 1e-6));
     // typed width only: the height follows the cursor
     r.mgr.run("sketch.rectangle-center");
