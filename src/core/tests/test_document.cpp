@@ -208,12 +208,24 @@ class DocumentTest : public QObject {
     QVERIFY(std::abs(volume(doc.bodyShape(bodyId)) - 10 * 20 * 30) < 1e-6);
     undo.redo();
     QVERIFY(std::abs(volume(doc.bodyShape(bodyId)) - 5 * 20 * 30) < 1e-6);
+    const std::string bodyName = doc.body(bodyId)->name;
+    doc.body(bodyId)->color = {1.0f, 0.0f, 0.0f, 1.0f};
+    doc.body(bodyId)->material = "ABS";
+    Feature* other = doc.addFeature(std::make_unique<BoxFeature>());  // takes the next name
+    doc.recompute();
     undo.push(std::make_unique<RemoveFeatureCommand>(doc, boxId));
-    QCOMPARE(doc.featureCount(), 0);
+    QCOMPARE(doc.featureCount(), 1);
     QVERIFY(!doc.body(bodyId));
     undo.undo();
-    QCOMPARE(doc.featureCount(), 1);
+    QCOMPARE(doc.featureCount(), 2);
     QVERIFY(doc.body(bodyId));
+    // DOC-07: the body comes back as it was, not as a fresh "Body2"
+    QCOMPARE(doc.body(bodyId)->name, bodyName);
+    QCOMPARE(doc.body(bodyId)->color[1], 0.0f);
+    QCOMPARE(doc.body(bodyId)->material, std::string("ABS"));
+    doc.takeFeature(other->id());
+    doc.recompute();
+    QCOMPARE(doc.featureCount(), 1);
     QVERIFY(std::abs(volume(doc.bodyShape(bodyId)) - 5 * 20 * 30) < 1e-6);
     undo.undo();  // modify
     undo.undo();  // add

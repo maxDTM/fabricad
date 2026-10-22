@@ -35,12 +35,21 @@ RemoveFeatureCommand::RemoveFeatureCommand(Document& doc, ObjectId id) : UndoCom
 void RemoveFeatureCommand::redo() {
   index_ = doc_.indexOf(id_);
   rollbackBefore_ = doc_.rollbackIndex();
+  // takeFeature drops the feature's body records; keep them so an undo brings the bodies back
+  // with their names, colours and materials instead of fresh ones (DOC-07)
+  bodies_.clear();
+  if (const Feature* f = doc_.feature(id_))
+    for (ObjectId b : f->createdBodies())
+      if (const Body* body = doc_.body(b)) bodies_.push_back(*body);
   feature_ = doc_.takeFeature(id_);
   doc_.recompute();
 }
 
 void RemoveFeatureCommand::undo() {
   if (!feature_) return;
+  for (const Body& b : bodies_)
+    if (!doc_.body(b.id)) doc_.addBody(b);
+  bodies_.clear();
   doc_.addFeature(std::move(feature_), index_);
   doc_.setRollbackIndex(rollbackBefore_);
   doc_.recompute();
