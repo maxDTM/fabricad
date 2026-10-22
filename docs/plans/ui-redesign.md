@@ -6,7 +6,7 @@ the core, sketch, part and drawing owners through `docs/integration-notes/*.md` 
 
 Reference: `docs/mockups/custom-ui-extrude-v5.png/.svg` (1920 × 1080) and `custom-ui-extrude-v6.png/.svg` (dark
 only, added 2026-10-22; it has no `data-region` ids, no light variant and no MORE ▾ section, and it uses Noto Sans
-Mono rather than the bundled JetBrains Mono). The user's v6 decisions override v5 where they differ: all UI text
+Mono rather than the bundled JetBrains Mono). The token-generated targets are `custom-ui-extrude-v6-tokens-dark.png/.svg` and `-light` (phase 0.4). The user's v6 decisions override v5 where they differ: all UI text
 bold monospace ALL CAPS, straight toolbar dividers and straight section-caption dropdowns. Regenerating v6 from the
 token file in both themes, with `data-region` ids, is task 0.4.
 
@@ -186,7 +186,7 @@ component or graphic (needs ≥ 3.0), **X** = exempt (disabled, decorative).
 | `text.primary` | `#F3F5F8` | `#171A20` | |
 | `text.secondary` | `#A7AEB9` | `#4A515D` | captions, keys, units |
 | `text.tertiary` | `#8E96A2` | `#5E6675` | counts, hints |
-| `text.disabled` | `#565E6A` | `#A7AEB9` | (X) |
+| `text.disabled` | `#6E7682` | `#8E96A2` | (X) |
 | `shadow.card` | `#000000` 55 %, 0/8/24 | `#1A1D22` 18 %, 0/6/18 | card drop shadow |
 
 Elevation comes from surface steps plus a 1 px `border.default` outline and a shadow on floating items only.
@@ -203,10 +203,10 @@ Elevation comes from surface steps plus a 1 px `border.default` outline and a sh
 | `accent.indicator` | `#8B5CF6` | `#6D3FE0` | 3 px row bar, underline of the active filter, step bar, brackets |
 | `accent.focus` | `#B49CFF` | `#6D3FE0` | 2 px focus ring, 1 px offset |
 | `accent.selFill` | `#2D2547` | `#ECE6FF` | selected row, selected chip background |
-| `live.base` | `#F5B700` | `#F5B700` | drag handle, preview edges (dark), value-box frame, active-command square |
+| `live.base` | `#F5B700` | `#F5B700` | drag handle, preview edges (dark), value-box frame, active-command square. **Light exception:** gold is only 1.8:1 on white, so every 1 px `live.base` border or hairline in this plan (5.3 chip, value box, 5.5 live field, 7.1 card hairline, step bar) is drawn 2 px in light, and gold fills always carry `live.ink` text or an ink edge (v6-tokens mockup). |
 | `live.bright` | `#FFD24D` | `#FFD24D` | hover and drag of a live handle, edited digits |
 | `live.ink` | `#1A1400` | `#1A1400` | text and outline on gold, the two-tone stroke's dark half |
-| `live.text` | `#FFD24D` | `#6B4A00` | gold text (`EDITING EXTRUDE 3`, the active row) |
+| `live.text` | `#FFD24D` | `#6B4A00` | gold text (`EDITING Extrude 3`: the caption is caps, the feature name keeps its case per decision 3; the active row) |
 | `live.fill` | `#3A3018` | `#FFF3CC` | active feature row, editing breadcrumb chip |
 | `live.outline` | `#F5B700` | `#6B4A00` | preview outline on the viewport background |
 
@@ -237,7 +237,7 @@ the normal, protan and deutan simulations. It pushed warning to orange-red (H �
 | text.primary / surface.raised | T | 14.79 | 17.43 |
 | text.secondary / surface.header | T | 7.23 | 6.75 |
 | text.tertiary / surface.header | T | 5.41 | 4.88 |
-| text.disabled / surface.panel | X | 2.66 | 2.05 |
+| text.disabled / surface.panel | X | 3.80 | 2.73 |
 | border.control / surface.panel | U | 3.80 | 3.33 |
 | border.control / surface.input | U | 4.08 | 3.63 |
 | accent.onSolid / accent.solid | T | 5.10 | 6.11 |
@@ -271,6 +271,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | `vp.gridMinor` / `vp.gridMajor` | `#2B2F36` / `#3A404A` | `#E1E5EA` / `#BCC3CC` | X (decorative) | Major every 5. The sketch grid uses the same tokens. |
 | `vp.originAxes` | axis colours at 70 % | same | — | |
 | `axis.x` / `axis.y` / `axis.z` | `#F0525F` / `#4CC27A` / `#5B8CFF` | `#C42B38` / `#1B7A43` / `#2F5FD9` | dark 4.17–7.97 · light 3.85–5.45 (U) | Always with the letters **X Y Z** (dial, triad, readout ticks). They are never the only cue. |
+| `axis.onAxis` | `#101217` | `#FFFFFF` | 5.42–8.30 · 5.37–5.60 (T) on the axis colours | letters on axis squares and tips (dial X/Y/Z). Added after the v6-tokens mockup. |
 | `body.default` | `#B4BAC4` | `#C9CDD2` | — | default body material (diffuse). Per-body colours from the document override it. |
 | `body.edge` | `#1A1D22` | `#1A1A1A` | 7.56 on the face | face boundaries |
 | `body.hiddenLine` | `#6E7682` dashed | `#5E6675` dashed | 3.14/3.92 · 5.63/4.15 (U) | HLR and "shaded + hidden" modes |
@@ -283,7 +284,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | `preview.newBody` | fill `#3CC8F0` 30 % | `#0A6F91` | | |
 | `manip.handle` | `#F5B700` diamond, `#1A1400` 1 px outline | same | | drag handle. `live.bright` on hover and drag, plus a 6 px glow. |
 | `manip.axisArrow` | axis colours | axis colours | | triad (Move), shown with letter labels |
-| `sk.free` | `#4775FF` | `#00248F` | 3.61/4.50 · 12.40/9.14 | under-constrained curves. Chosen in phase 0 (decision 8; was `#6FA8FF`/`#1E6FD9`): a darker azure keeps a lightness gap to the lavender selection under protan/deutan simulation. |
+| `sk.free` | `#4775FF` | `#1C469C` | 3.61/4.50 · 8.50/6.27 | under-constrained curves. Chosen in phase 0 (decision 8; was `#6FA8FF`/`#1E6FD9`): a darker azure keeps a lightness gap to the lavender selection under protan/deutan simulation. Light raised from `#00248F` after the v6 token mockup (at L\*21 it read as body-edge black). Sketch curves follow the 1px halo rule (dark `#4775FF` is only 1.5:1 on the lit body face). |
 | `sk.constrained` | `#E8ECF2` | `#171A20` | 12.15/15.16 · 16.97/12.51 | fully constrained (it inverts the usual "black" rule in dark) |
 | `sk.construction` | `#9AA2AE` dashed 6/4 | `#5E6675` dashed 6/4 | 5.59/6.98 · 5.63/4.15 | the dash is the cue (orange is no longer used, so it cannot be confused with gold or warning) |
 | `sk.projected` | `#3CC8F0` dash-dot | `#0A6F91` dash-dot | 7.35/9.17 · 5.53/4.08 | as in the mockup |
@@ -302,7 +303,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 
 | State | Dark | Light | Cue besides colour |
 |---|---|---|---|
-| Disabled control | text `#565E6A`, border `#2A2F37`, icon at 35 % | `#A7AEB9`, `#E1E4E8` | no hover and no focus |
+| Disabled control | text `#6E7682`, border `#2A2F37`, icon at 35 % | `#8E96A2`, `#E1E4E8` | no hover and no focus |
 | Suppressed feature or group | text `text.disabled`, struck through, icon at 40 % | same | unchecked box, `off` in the value column |
 | Rolled back (below the bar) | text `text.tertiary`, icon at 55 %, no strike | same | it sits below the ROLLBACK bar |
 | Hidden (eye off) | eye glyph crossed, row text `text.secondary` | same | |
@@ -321,7 +322,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | live vs error | 52.5 / 38.0 / 22.2 / 18.8 | 61.1 / 55.2 / 34.4 / 29.5 | pass |
 | warning vs error | 22.8 / 28.4 / 16.2 / **6.8** | 23.7 / 31.1 / 15.3 / **2.4** | tritan relies on shape (octagon vs triangle) |
 | light-theme thin ochre stroke `#8A5F00` vs warning | — | 23.6 / 5.8 / **2.0** / 13.2 | **fail**. Rule: gold in the light theme is always the bright `#F5B700` fill or halo with dark ink, never a thin ochre line alone. |
-| selection (`#B49CFF`) vs `sk.free` (`#4775FF` dark / `#00248F` light; was `#6FA8FF`: 16.9 / **0.7** / **2.9** / 21.9) | 19.0 / 12.3 / 16.2 / 22.3 | 17.5 / 16.8 / 17.9 / 15.7 | pass (decision 8, phase 0). Selection still adds a halo, endpoint grips and a profile tint. |
+| selection (`#B49CFF`) vs `sk.free` (`#4775FF` dark / `#1C469C` light; was `#6FA8FF`: 16.9 / **0.7** / **2.9** / 21.9) | 19.0 / 12.3 / 16.2 / 22.3 | 15.7 / 10.6 / 11.1 / 13.6 | pass (decision 8, phase 0). Selection still adds a halo, endpoint grips and a profile tint. |
 | selection vs preselect | 17.1 / 16.1 / 16.4 / 13.0 | width + halo | pass |
 
 **Decision test (gate G, phase 5)**. Gold stays unless one of these fails:
@@ -381,7 +382,7 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 
 | Component | Size | States | Notes |
 |---|---|---|---|
-| Breadcrumb bar | 28 h, `surface.panel` 92 %, 1 px border; crumbs separated by `>`; edit chip `live.fill` + 1 px `live.base` + gold square + `EDITING EXTRUDE 3` | crumbs hover `accent.text` | top-left at 16 px |
+| Breadcrumb bar | 28 h, `surface.panel` 92 %, 1 px border; crumbs separated by `>`; edit chip `live.fill` + 1 px `live.base` + gold square + `EDITING Extrude 3` (light: 2 px border, see `live.base`) | crumbs hover `accent.text` | top-left at 16 px |
 | Selection-filter bar | 28 h; filter icon + segments `BODIES FACES EDGES SKETCH PROFILES` (auto-hides segments that do not apply) | active: `accent.selFill` + 2 px `accent.indicator` underline | drives `ViewerWidget::setSelectionPriority`/`SelectionModel` filter. Tooltip shows the shortcut. |
 | Command card `#CommandDialog` | 360 w, header 40, step bar 22, rows 34–52, footer 52; padding 16 | active: corner brackets + gold hairline (7.1) | 5.4 |
 | Value box `#fcValueBox` | tag 16 h (`DIST`, `live.base` fill, `live.ink` caption) above a 30 h × ≥118 w box: `surface.input`, 1.5 px `live.base` border, value `value` 12.5, unit `text.secondary`, spinner ▴▾ 14 w | editing: digits on a `live.base` 30 % fill; invalid: border `status.error` + octagon | anchored to the handle with a 1 px gold leader line |
@@ -396,6 +397,8 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 | Toast | 32 h, `surface.overlay`, status icon + text, 4 s | — | for `showMessage` levels |
 
 ### 5.4 Command card body controls
+
+**Open (user decision, from the v6-tokens mockup):** in the 360 px card the 96 px label column leaves 58 px cells for the 4-way OPERATION control, and `INTERSECT` in `label.sm` (≈ 59 px) collides with `NEW BODY`. The mockup puts the label above segmented rows (DIRECTION, OPERATION) at full card width. Proposed: segmented rows always use label-above; alternative: change the card width.
 
 | Control | Spec |
 |---|---|
@@ -642,12 +645,12 @@ Changes (in phase 5):
 
 | Phase | Content | Milestone / exit check |
 |---|---|---|
-| **0 Foundations** | 0.1 colour audit + lint; 0.2 `tokens.json`, `gen_tokens.py`, `fabricad_theme`, contrast and CVD ctest; 0.3 `ThemeManager`, QSS template, font bundling, caps fonts; 0.4 **v6 mockup** dark + light generated with the token values (`docs/mockups/custom-ui-extrude-v6{,-light}.svg/png`, `data-region` ids) for user sign-off | App runs on tokens with today's layout in dark and light; `theme_tokens` green; user approves v6 |
+| **0 Foundations** | 0.1 colour audit + lint; 0.2 `tokens.json`, `gen_tokens.py`, `fabricad_theme`, contrast and CVD ctest; 0.3 `ThemeManager`, QSS template, font bundling, caps fonts; 0.4 **v6 mockup** dark + light generated with the token values (`docs/mockups/custom-ui-extrude-v6-tokens-{dark,light}.svg/png`; done 2026-10-22, `data-region` ids) for user sign-off | App runs on tokens with today's layout in dark and light; `theme_tokens` green; user approves v6 |
 | **1 Shell** | TitleBar + angled tabs + workspace selector; `MainToolbar` horizontal; status bar; `UiSettings`; Preferences Appearance/Layout pages; theme toggle live | All existing tests green; toolbar fits at 1280 px; theme switch < 150 ms |
 | **2 Sidebar** | `SidebarHost`, FEATURES (FeatureListWidget per the feature-list plan; data work done there), MODEL restyle, SELECTION panel, timeline-style toggle, sidebar side toggle | Feature-list plan tests + toggle tests |
 | **3 Card** | `CommandCard` (restyled `CommandDialog`), step indicator, segmented control, brackets/hairline, 3 placements + drag/free, collision layout | Extrude flow in all placements; tutorial anchors resolve |
 | **4 Viewport** | `ViewerPalette` + OCCT colours, two-tone previews, halo rule, manipulators, hex dial + ViewCube toggle, breadcrumb/filter bar, view-tool column, readouts, scale bar, quick toolbar, vertical toolbar | Screenshot compare vs v6 passes layout boxes; no colour literals in the viewer |
-| **5 Icons, light theme, verification** | Themed icon sets; light polish; drawing canvas; ui.sh/compare.py/cvd.py; gate G; Sonnet GUI passes; screenshot regeneration; HiDPI pass | Gate G pass (or fallback applied + re-pass); tester issues fixed |
+| **5 Icons, light theme, verification** | Themed icon sets (done early, merged with phase 0 from `ui/icons`; the mockup's filled glyph style is still open); light polish; drawing canvas; ui.sh/compare.py/cvd.py; gate G; Sonnet GUI passes; screenshot regeneration; HiDPI pass | Gate G pass (or fallback applied + re-pass); tester issues fixed |
 
 ### 10.1 Parallel agent workflow (git worktrees by area)
 

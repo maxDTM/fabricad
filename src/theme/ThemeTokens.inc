@@ -51,6 +51,7 @@ enum class Tok : std::uint16_t {
   AxisX,  // axis.x
   AxisY,  // axis.y
   AxisZ,  // axis.z
+  AxisOnAxis,  // axis.onAxis
   BodyDefault,  // body.default
   BodyEdge,  // body.edge
   BodyHiddenLine,  // body.hiddenLine
@@ -161,6 +162,7 @@ inline constexpr const char* kTokName[] = {
     "axis.x",
     "axis.y",
     "axis.z",
+    "axis.onAxis",
     "body.default",
     "body.edge",
     "body.hiddenLine",
@@ -224,7 +226,7 @@ inline constexpr std::uint32_t kDark[] = {
     0xF3F5F8FFu,  // text.primary
     0xA7AEB9FFu,  // text.secondary
     0x8E96A2FFu,  // text.tertiary
-    0x565E6AFFu,  // text.disabled
+    0x6E7682FFu,  // text.disabled
     0x0000008Cu,  // shadow.card
     0x7C4DEBFFu,  // accent.solid
     0x6F42E0FFu,  // accent.hover
@@ -257,6 +259,7 @@ inline constexpr std::uint32_t kDark[] = {
     0xF0525FFFu,  // axis.x
     0x4CC27AFFu,  // axis.y
     0x5B8CFFFFu,  // axis.z
+    0x101217FFu,  // axis.onAxis
     0xB4BAC4FFu,  // body.default
     0x1A1D22FFu,  // body.edge
     0x6E7682FFu,  // body.hiddenLine
@@ -320,7 +323,7 @@ inline constexpr std::uint32_t kLight[] = {
     0x171A20FFu,  // text.primary
     0x4A515DFFu,  // text.secondary
     0x5E6675FFu,  // text.tertiary
-    0xA7AEB9FFu,  // text.disabled
+    0x8E96A2FFu,  // text.disabled
     0x1A1D222Eu,  // shadow.card
     0x6D3FE0FFu,  // accent.solid
     0x5B2FCCFFu,  // accent.hover
@@ -353,6 +356,7 @@ inline constexpr std::uint32_t kLight[] = {
     0xC42B38FFu,  // axis.x
     0x1B7A43FFu,  // axis.y
     0x2F5FD9FFu,  // axis.z
+    0xFFFFFFFFu,  // axis.onAxis
     0xC9CDD2FFu,  // body.default
     0x1A1A1AFFu,  // body.edge
     0x5E6675FFu,  // body.hiddenLine
@@ -369,7 +373,7 @@ inline constexpr std::uint32_t kLight[] = {
     0x0A6F91FFu,  // preview.newBody.edge
     0xF5B700FFu,  // manip.handle
     0x1A1400FFu,  // manip.handleOutline
-    0x00248FFFu,  // sk.free
+    0x1C469CFFu,  // sk.free
     0x171A20FFu,  // sk.constrained
     0x5E6675FFu,  // sk.construction
     0x0A6F91FFu,  // sk.projected
@@ -527,6 +531,9 @@ inline constexpr Pair kPairs[] = {
     {Tok::AxisY, Tok::VpBgBottom, 3.0},  // ui
     {Tok::AxisZ, Tok::VpBgTop, 3.0},  // ui
     {Tok::AxisZ, Tok::VpBgBottom, 3.0},  // ui
+    {Tok::AxisOnAxis, Tok::AxisX, 4.5},  // text
+    {Tok::AxisOnAxis, Tok::AxisY, 4.5},  // text
+    {Tok::AxisOnAxis, Tok::AxisZ, 4.5},  // text
     {Tok::BodyEdge, Tok::BodyDefault, 3.0},  // ui
     {Tok::BodyHiddenLine, Tok::VpBgTop, 3.0},  // ui
     {Tok::BodyHiddenLine, Tok::VpBgBottom, 3.0},  // ui

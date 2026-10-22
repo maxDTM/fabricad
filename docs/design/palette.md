@@ -22,7 +22,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `text.primary` | `#F3F5F8` | `#171A20` |
 | `text.secondary` | `#A7AEB9` | `#4A515D` |
 | `text.tertiary` | `#8E96A2` | `#5E6675` |
-| `text.disabled` | `#565E6A` | `#A7AEB9` |
+| `text.disabled` | `#6E7682` | `#8E96A2` |
 | `shadow.card` | `#0000008C` | `#1A1D222E` |
 | `accent.solid` | `#7C4DEB` | `#6D3FE0` |
 | `accent.hover` | `#6F42E0` | `#5B2FCC` |
@@ -55,6 +55,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `axis.x` | `#F0525F` | `#C42B38` |
 | `axis.y` | `#4CC27A` | `#1B7A43` |
 | `axis.z` | `#5B8CFF` | `#2F5FD9` |
+| `axis.onAxis` | `#101217` | `#FFFFFF` |
 | `body.default` | `#B4BAC4` | `#C9CDD2` |
 | `body.edge` | `#1A1D22` | `#1A1A1A` |
 | `body.hiddenLine` | `#6E7682` | `#5E6675` |
@@ -71,7 +72,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `preview.newBody.edge` | `#3CC8F0` | `#0A6F91` |
 | `manip.handle` | `#F5B700` | `#F5B700` |
 | `manip.handleOutline` | `#1A1400` | `#1A1400` |
-| `sk.free` | `#4775FF` | `#00248F` |
+| `sk.free` | `#4775FF` | `#1C469C` |
 | `sk.constrained` | `#E8ECF2` | `#171A20` |
 | `sk.construction` | `#9AA2AE` | `#5E6675` |
 | `sk.projected` | `#3CC8F0` | `#0A6F91` |
@@ -155,7 +156,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `text.secondary` | `bg.app` | T | 8.38 | 6.75 | pass |
 | `text.tertiary` | `surface.header` | T | 5.41 | 4.88 | pass |
 | `text.tertiary` | `surface.panel` | T | 5.84 | 5.29 | pass |
-| `text.disabled` | `surface.panel` | X | 2.66 | 2.05 | pass |
+| `text.disabled` | `surface.panel` | X | 3.80 | 2.73 | pass |
 | `border.control` | `surface.panel` | U | 3.80 | 3.33 | pass |
 | `border.control` | `surface.input` | U | 4.08 | 3.63 | pass |
 | `border.control` | `surface.raised` | U | 3.52 | 3.63 | pass |
@@ -190,6 +191,9 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `axis.y` | `vp.bgBottom` | U | 7.97 | 3.85 | pass |
 | `axis.z` | `vp.bgTop` | U | 4.55 | 5.44 | pass |
 | `axis.z` | `vp.bgBottom` | U | 5.68 | 4.01 | pass |
+| `axis.onAxis` | `axis.x` | T | 5.42 | 5.60 | pass |
+| `axis.onAxis` | `axis.y` | T | 8.30 | 5.37 | pass |
+| `axis.onAxis` | `axis.z` | T | 5.92 | 5.59 | pass |
 | `body.edge` | `body.default` | U | 8.66 | 10.90 | pass |
 | `body.hiddenLine` | `vp.bgTop` | U | 3.14 | 5.63 | pass |
 | `body.hiddenLine` | `vp.bgBottom` | U | 3.92 | 4.15 | pass |
@@ -199,8 +203,8 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `pre.edge` | `vp.bgBottom` | U | 13.04 | 3.30 | pass |
 | `preview.live.edge` | `vp.bgTop` | U | 10.00 | 7.85 | pass |
 | `preview.live.edge` | `vp.bgBottom` | U | 12.48 | 5.79 | pass |
-| `sk.free` | `vp.bgTop` | U | 3.61 | 12.40 | pass |
-| `sk.free` | `vp.bgBottom` | U | 4.50 | 9.14 | pass |
+| `sk.free` | `vp.bgTop` | U | 3.61 | 8.50 | pass |
+| `sk.free` | `vp.bgBottom` | U | 4.50 | 6.27 | pass |
 | `sk.constrained` | `vp.bgTop` | U | 12.15 | 16.97 | pass |
 | `sk.constrained` | `vp.bgBottom` | U | 15.16 | 12.51 | pass |
 | `sk.construction` | `vp.bgTop` | U | 5.59 | 5.63 | pass |
@@ -257,13 +261,13 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `live.base` | `status.warning` | 35.9 / 24.1 / 14.5 / 21.5 | 42.8 / 38.5 / 28.5 / 31.4 | 10 / 10 / 10 / 6 | pass | gate G numeric: live vs warning |
 | `live.base` | `status.error` | 52.5 / 37.9 / 22.4 / 18.8 | 61.1 / 54.9 / 34.6 / 29.4 | 10 / 10 / 10 / 6 | pass | gate G numeric: live vs error |
 | `status.warning` | `status.error` | 22.8 / 28.3 / 16.3 / 6.9 | 23.7 / 31.1 / 15.3 / 2.3 | 10 / 10 / 10 / 0 | pass | tritan relies on shape (octagon vs triangle) |
-| `sel.edge` | `sk.free` | 19.0 / 12.3 / 16.2 / 22.3 | 17.5 / 16.8 / 17.9 / 15.7 | 10 / 10 / 10 / 6 | pass | decision 8: free curves vs selection |
-| `pre.edge` | `sk.free` | 33.2 / 27.7 / 31.5 / 32.3 | 24.1 / 23.3 / 24.8 / 23.1 | 10 / 10 / 10 / 6 | pass | free curves vs preselection |
-| `sk.free` | `sk.constrained` | 37.0 / 36.1 / 39.4 / 32.2 | 21.6 / 23.2 / 22.4 / 16.7 | 10 / 10 / 10 / 6 | pass | curve states |
-| `sk.free` | `sk.projected` | 29.5 / 21.5 / 19.6 / 19.3 | 26.2 / 18.4 / 17.3 / 20.3 | 10 / 10 / 10 / 6 | pass | curve states |
-| `sk.free` | `sk.fixed` | 53.0 / 53.6 / 51.1 / 18.8 | 52.6 / 52.7 / 49.8 / 24.5 | 10 / 10 / 10 / 6 | pass | curve states |
-| `sk.free` | `sk.conflict` | 38.1 / 23.2 / 46.2 / 67.5 | 35.8 / 16.5 / 45.8 / 53.1 | 10 / 10 / 10 / 6 | pass | curve states |
-| `sk.free` | `live.base` | 67.0 / 65.0 / 71.0 / 56.3 | 85.1 / 79.1 / 87.7 / 64.9 | 10 / 10 / 10 / 6 | pass | free curves vs the live handle |
+| `sel.edge` | `sk.free` | 19.0 / 12.3 / 16.2 / 22.3 | 15.7 / 10.6 / 11.1 / 13.6 | 10 / 10 / 10 / 6 | pass | decision 8: free curves vs selection |
+| `pre.edge` | `sk.free` | 33.2 / 27.7 / 31.5 / 32.3 | 19.8 / 16.3 / 17.4 / 19.8 | 10 / 10 / 10 / 6 | pass | free curves vs preselection |
+| `sk.free` | `sk.constrained` | 37.0 / 36.1 / 39.4 / 32.2 | 24.5 / 26.6 / 25.0 / 23.3 | 10 / 10 / 10 / 6 | pass | curve states |
+| `sk.free` | `sk.projected` | 29.5 / 21.5 / 19.6 / 19.3 | 18.1 / 13.5 / 10.9 / 11.8 | 10 / 10 / 10 / 6 | pass | curve states |
+| `sk.free` | `sk.fixed` | 53.0 / 53.6 / 51.1 / 18.8 | 47.6 / 47.7 / 45.0 / 16.6 | 10 / 10 / 10 / 6 | pass | curve states |
+| `sk.free` | `sk.conflict` | 38.1 / 23.2 / 46.2 / 67.5 | 36.2 / 15.8 / 40.9 / 58.7 | 10 / 10 / 10 / 6 | pass | curve states |
+| `sk.free` | `live.base` | 67.0 / 65.0 / 71.0 / 56.3 | 72.9 / 69.8 / 77.2 / 61.1 | 10 / 10 / 10 / 6 | pass | free curves vs the live handle |
 | `sel.edge` | `pre.edge` | 17.1 / 16.1 / 16.5 / 13.2 | 7.5 / 6.9 / 7.3 / 7.9 | 6 / 0 / 0 / 0 | pass | preselection also differs in width (1.5 vs 2.2-2.5 px) and halo |
 
 ## Text styles

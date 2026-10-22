@@ -17,13 +17,13 @@ more workflows (worktrees, `-j2` builds, Sonnet GUI testers through `tools/uites
 
 | Phase | Content | Gate to continue |
 |---|---|---|
-| 0 | colour audit + lint, `tokens.json` + generator + `fabricad_theme`, `ThemeManager`, fonts/caps, **v6 mockup regenerated** (dark + light, `data-region` ids) | **Gate 1a: user signs off v6**; `theme_tokens` ctest green. Gates everything else. |
+| 0 | colour audit + lint, `tokens.json` + generator + `fabricad_theme`, `ThemeManager`, fonts/caps, **v6 mockup regenerated** (`docs/mockups/custom-ui-extrude-v6-tokens-{dark,light}`, `data-region` ids). Built and merged 2026-10-22 (0.1–0.4, plus themed icons from phase 5) | **Gate 1a: user signs off v6**; `theme_tokens` ctest green. Gates everything else. |
 | 0 ∥ | feature-list **core part** (groups, commands, `.fcad`, scripting, `TimelineActions`, fixture `tests/e2e/bracket-v3.fcad`) | unit tests green; must merge before phase 2's widget work |
 | 1 | shell: title bar, angled tabs, workspace selector, `MainToolbar` (+ `toolId`/`toolbarTab`/`toolbarGroup` properties), MORE ▾, status bar, `UiSettings`, Preferences Appearance/Layout | all existing tests green; toolbar fits at 1280 px; theme switch < 150 ms |
 | 2 | sidebar: `SidebarHost`, FEATURES (`FeatureListWidget`, default), MODEL restyle, SELECTION, `ui/timelineStyle`, `ui/sidebarSide` | feature-list plan tests + toggle tests |
 | 3 | command card, step indicator, segmented control, placements, `OverlayLayout` | extrude in every placement; tutorial anchors resolve |
 | 4 | `ViewerPalette`, previews, halo, manipulators, hex dial + ViewCube toggle, overlays, `cameraChanged` | layout boxes match v6; no viewer colour literals |
-| 5 | themed icons, light polish, drawing canvas, harness (`ui.sh` start size/scale, per-display `XDG_CONFIG_HOME`, `prefs`, `cvd`; `compare.py`, `cvd.py`), **gate G** (gold vs warning/error), Sonnet passes T-mockup/T-toggles/T-keyboard/T-cvd/T-light | **Gate 1b: gate G (redesign 4.7) passes** (or teal fallback + re-pass), tester issues fixed |
+| 5 | light polish (themed icons already merged in phase 0), drawing canvas, harness (`ui.sh` start size/scale, per-display `XDG_CONFIG_HOME`, `prefs`, `cvd`; `compare.py`, `cvd.py`), **gate G** (gold vs warning/error), Sonnet passes T-mockup/T-toggles/T-keyboard/T-cvd/T-light | **Gate 1b: gate G (redesign 4.7) passes** (or teal fallback + re-pass), tester issues fixed |
 
 Phases 2, 3 and 4 run in parallel worktrees once phase 1 has merged (`ui-redesign.md` 10.1).
 
