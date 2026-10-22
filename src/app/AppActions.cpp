@@ -93,6 +93,12 @@ DeletePlan planDelete(const core::Document& doc, const std::vector<ShapeRef>& it
   std::sort(plan.features.begin(), plan.features.end(),
             [&](ObjectId a, ObjectId b) { return doc.indexOf(a) < doc.indexOf(b); });
   plan.components.assign(comps.begin(), comps.end());
+  // features that will fail once these are gone (the Delete prompt lists them, DOC-09)
+  std::set<ObjectId> listed;
+  for (ObjectId id : plan.features)
+    for (ObjectId d : doc.dependentsOf(id, true))
+      if (!feats.count(d) && listed.insert(d).second)
+        if (const core::Feature* f = doc.feature(d)) plan.dependents.push_back(f->name());
   return plan;
 }
 

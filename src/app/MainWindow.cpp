@@ -56,6 +56,8 @@
 #include <QTextEdit>
 #include <QDateTime>
 #include <QJsonDocument>
+#include <QLockFile>
+#include <QUuid>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTimer>
@@ -294,8 +296,15 @@ void MainWindow::buildFileMenu(QMenu* m) {
   QMenu* recent = m->addMenu("Open Recent");
   connect(recent, &QMenu::aboutToShow, this, [this, recent] {
     recent->clear();
+    recent->setToolTipsVisible(true);
+    // file names that occur more than once get their folder (DOC-11)
+    std::map<QString, int> names;
+    for (const QString& p : recent_.list()) ++names[QFileInfo(p).fileName()];
     for (const QString& p : recent_.list())
-      recent->addAction(QFileInfo(p).fileName(), this, [this, p] {
+      recent->addAction(names[QFileInfo(p).fileName()] > 1
+                            ? QString("%1 (%2)").arg(QFileInfo(p).fileName(), QFileInfo(QFileInfo(p).absolutePath()).fileName())
+                            : QFileInfo(p).fileName(),
+                        this, [this, p] {
         QString err;
         if (!openFile(p, &err)) {
           recent_.remove(p);
@@ -513,10 +522,23 @@ void MainWindow::syncActivePointers() {
 }
 
 void MainWindow::refreshTabBar() {
+  // Same-named tabs get their folder appended so they can be told apart (DOC-11)
+  auto plain = [](QString t) {
+    if (t.endsWith(" *")) t.chop(2);
+    return t;
+  };
+  std::map<QString, int> counts;
+  for (const auto& t : tabs_) ++counts[plain(t->title())];
   switchingTabs_ = true;
   for (int i = 0; i < tabCount(); ++i) {
-    tabBar_->setTabText(i, tabs_[static_cast<size_t>(i)]->title());
-    tabBar_->setTabToolTip(i, tabs_[static_cast<size_t>(i)]->tooltip());
+    const DocumentTab& t = *tabs_[static_cast<size_t>(i)];
+    QString text = t.title();
+    if (counts[plain(text)] > 1 && !t.document().filePath().empty()) {
+      const QString folder = QFileInfo(QFileInfo(core::qs(t.document().filePath())).absolutePath()).fileName();
+      text = QString("%1 (%2)%3").arg(plain(text), folder, text.endsWith(" *") ? " *" : "");
+    }
+    tabBar_->setTabText(i, text);
+    tabBar_->setTabToolTip(i, t.tooltip());
   }
   switchingTabs_ = false;
 }
@@ -554,6 +576,7 @@ void MainWindow::destroyTab(DocumentTab* tab) {
     active_ = nullptr;
     syncActivePointers();
   }
+  if (tab->documentPtr().use_count() == 1) failedFeatures_.erase(&tab->document());
   switchingTabs_ = true;
   tabBar_->removeTab(index);
   switchingTabs_ = false;
@@ -573,13 +596,70 @@ QString sanitizedFileStem(const std::string& name) {
 }
 }  // namespace
 
+namespace {
+constexpr const char* kRecoveryIdProperty = "fabricadRecoveryId";
+constexpr const char* kSessionLockName = "session.lock";
+
+// One id per document (a design and its drawing tabs share the document and its autosave).
+QString recoveryIdOf(const core::Document& doc) {
+  auto& d = const_cast<core::Document&>(doc);
+  QString id = d.property(kRecoveryIdProperty).toString();
+  if (id.isEmpty()) {
+    id = QUuid::createUuid().toString(QUuid::Id128).left(8);
+    d.setProperty(kRecoveryIdProperty, id);
+  }
+  return id;
+}
+
+void removeDirIfEmpty(const QString& path) {
+  QDir d(path);
+  if (d.exists() && d.isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System))
+    QDir().rmdir(path);
+}
+}  // namespace
+
 QString MainWindow::recoveryDirectory() {
   return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/recovery";
 }
 
+QString MainWindow::sessionRecoveryDirectory() const {
+  if (sessionId_.isEmpty()) const_cast<MainWindow*>(this)->sessionId_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
+  return recoveryDirectory() + "/" + sessionId_;
+}
+
+bool MainWindow::ensureSessionRecoveryDirectory() {
+  const QString dir = sessionRecoveryDirectory();
+  const QString lockPath = dir + "/" + kSessionLockName;
+  if (sessionLock_ && sessionLock_->isLocked() && QFileInfo::exists(lockPath)) return true;
+  // first autosave, or the folder was removed under us: (re)create it and take the lock again
+  if (sessionLock_) {
+    if (QFileInfo::exists(lockPath)) sessionLock_->unlock();
+    sessionLock_.reset();
+  }
+  if (!QDir().mkpath(dir)) return false;
+  sessionLock_ = std::make_unique<QLockFile>(lockPath);
+  sessionLock_->setStaleLockTime(0);  // stale only when the owning process is gone
+  if (!sessionLock_->tryLock(100)) {
+    FC_WARN("cannot lock the recovery folder {}", dir.toStdString());
+    sessionLock_.reset();
+  }
+  return true;
+}
+
+void MainWindow::releaseSessionRecoveryDirectory() {
+  const QString dir = sessionRecoveryDirectory();
+  if (sessionLock_) {
+    sessionLock_->unlock();
+    sessionLock_.reset();
+  }
+  removeDirIfEmpty(dir);
+}
+
 QString MainWindow::recoveryFilePath(const DocumentTab& tab) const {
-  // one file per document name; the original path travels inside the file ("recoveryOf")
-  return recoveryDirectory() + "/" + sanitizedFileStem(tab.document().name()) + ".fcad";
+  // one file per document (name for readability + per-document id); the original path travels
+  // inside the file ("recoveryOf")
+  return sessionRecoveryDirectory() + "/" + sanitizedFileStem(tab.document().name()) + "-" + recoveryIdOf(tab.document()) +
+         ".fcad";
 }
 
 QString MainWindow::recoveryFilePath() const { return active_ ? recoveryFilePath(*active_) : QString(); }
@@ -591,7 +671,7 @@ void MainWindow::scheduleAutosave() {
 bool MainWindow::autosave(DocumentTab& tab) {
   core::Document& doc = tab.document();
   if (!doc.isModified()) return false;
-  QDir().mkpath(recoveryDirectory());
+  if (!ensureSessionRecoveryDirectory()) return false;
   emit doc.aboutToSave();  // modules flush their extension data (drawing sheets, UI state)
   QJsonObject root = doc.toJson();
   root["recoveryOf"] = core::qs(doc.filePath());
@@ -603,6 +683,9 @@ bool MainWindow::autosave(DocumentTab& tab) {
   if (!file.commit()) return false;
   if (!tab.lastRecoveryFile.isEmpty() && tab.lastRecoveryFile != path) QFile::remove(tab.lastRecoveryFile);  // renamed document
   tab.lastRecoveryFile = path;
+  // the drawing tabs of this document share the file
+  for (const auto& t : tabs_)
+    if (&t->document() == &doc) t->lastRecoveryFile = path;
   return true;
 }
 
@@ -621,6 +704,8 @@ void MainWindow::clearRecoveryFile(DocumentTab& tab) {
   if (autosaveTimer_ && &tab == active_) autosaveTimer_->stop();
   QFile::remove(recoveryFilePath(tab));
   if (!tab.lastRecoveryFile.isEmpty()) QFile::remove(tab.lastRecoveryFile);
+  for (const auto& t : tabs_)
+    if (&t->document() == &tab.document()) t->lastRecoveryFile.clear();
   tab.lastRecoveryFile.clear();
 }
 
@@ -628,35 +713,68 @@ void MainWindow::clearRecoveryFile() {
   if (active_) clearRecoveryFile(*active_);
 }
 
-bool MainWindow::offerRecovery() {
-  if (!interactive_ || qEnvironmentVariableIntValue("FABRICAD_NO_RECOVERY") != 0) return false;
-  QDir dir(recoveryDirectory());
-  if (!dir.exists()) return false;
-  QFileInfoList files = dir.entryInfoList({"*.fcad"}, QDir::Files, QDir::Time);
-  if (files.isEmpty()) return false;
-  const QFileInfo newest = files.front();
-  QFile f(newest.absoluteFilePath());
-  if (!f.open(QIODevice::ReadOnly)) return false;
-  QJsonParseError perr;
-  QJsonDocument jd = QJsonDocument::fromJson(f.readAll(), &perr);
-  f.close();
-  if (perr.error != QJsonParseError::NoError || !jd.isObject()) {
-    QFile::remove(newest.absoluteFilePath());
+QStringList MainWindow::orphanedRecoveryFiles() const {
+  QDir root(recoveryDirectory());
+  if (!root.exists()) return {};
+  QFileInfoList found = root.entryInfoList({"*.fcad"}, QDir::Files);  // legacy flat files
+  const QString own = QFileInfo(sessionRecoveryDirectory()).fileName();
+  for (const QFileInfo& sub : root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+    if (sub.fileName() == own) continue;
+    const QString lockPath = sub.absoluteFilePath() + "/" + kSessionLockName;
+    if (QFileInfo::exists(lockPath)) {
+      // a lock we cannot take belongs to a running instance; a stale one (dead pid) is taken
+      // over and released again
+      QLockFile probe(lockPath);
+      probe.setStaleLockTime(0);
+      if (!probe.tryLock(0)) continue;
+      probe.unlock();
+    }
+    found += QDir(sub.absoluteFilePath()).entryInfoList({"*.fcad"}, QDir::Files);
+  }
+  std::sort(found.begin(), found.end(),
+            [](const QFileInfo& a, const QFileInfo& b) { return a.lastModified() > b.lastModified(); });
+  QStringList out;
+  for (const QFileInfo& fi : found) out << fi.absoluteFilePath();
+  return out;
+}
+
+namespace {
+void removeRecoveryFile(const QString& path) {
+  QFile::remove(path);
+  const QString dir = QFileInfo(path).absolutePath();
+  if (QDir(dir) != QDir(MainWindow::recoveryDirectory())) {
+    QFile::remove(dir + "/" + kSessionLockName);  // only reached for orphaned (unlocked) folders
+    removeDirIfEmpty(dir);
+  }
+}
+
+bool readRecoveryFile(const QString& path, QJsonObject* out, QString* error) {
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly)) {
+    if (error) *error = f.errorString();
     return false;
   }
-  QJsonObject root = jd.object();
+  QJsonParseError perr;
+  const QJsonDocument jd = QJsonDocument::fromJson(f.readAll(), &perr);
+  if (perr.error != QJsonParseError::NoError || !jd.isObject()) {
+    if (error) *error = "the autosave is damaged";
+    return false;
+  }
+  *out = jd.object();
+  return true;
+}
+}  // namespace
+
+bool MainWindow::recoverFile(const QString& path, QString* error) {
+  QJsonObject root;
+  QString why;
+  if (!readRecoveryFile(path, &root, &why)) {
+    if (QFileInfo::exists(path)) removeRecoveryFile(path);
+    if (error) *error = why;
+    return false;
+  }
   const QString name = root["name"].toString("Untitled");
   const QString original = root["recoveryOf"].toString();
-  const QString when = newest.lastModified().toString("yyyy-MM-dd hh:mm");
-  std::string question = std::format("FabriCAD did not close cleanly last time. An autosaved copy of '{}'{} from {} exists.\n\n"
-                                     "Recover it? (No deletes the autosave{})",
-                                     name.toStdString(), original.isEmpty() ? "" : " (" + original.toStdString() + ")",
-                                     when.toStdString(), files.size() > 1 ? "s" : "");
-  const bool yes = askYesNo("Recover unsaved work", question, true);
-  if (!yes) {
-    for (const QFileInfo& fi : files) QFile::remove(fi.absoluteFilePath());
-    return false;
-  }
   // recover into a fresh tab (or the pristine start-up tab)
   if (!active_ || !active_->isPristine()) addDesignTab();
   if (manager_->isActive()) manager_->cancel();
@@ -664,21 +782,63 @@ bool MainWindow::offerRecovery() {
   document_->clear();
   std::string err;
   if (!document_->fromJson(root, &err)) {
-    showMessage("Recovery failed: " + err, core::MessageLevel::Error);
+    if (error) *error = core::qs(err);
     document_->clear();
     afterDocumentReplaced();
+    removeRecoveryFile(path);
     return false;
   }
   document_->undoStack().clear();
   document_->setName(name.toStdString());
   document_->setModified(true);  // it only lives in memory: Save (As) stores it for good
   afterDocumentReplaced();
-  QFile::remove(newest.absoluteFilePath());
+  // keep a recovery copy at all times (DOC-02): write this session's copy first, then drop the
+  // orphaned one; if the write fails the old file stays and is offered again next time
+  if (autosave(*active_)) removeRecoveryFile(path);
   showMessage(original.isEmpty() ? "Recovered autosaved design; use Save As to keep it"
                                  : "Recovered autosaved changes of " + original.toStdString() + "; Save to keep them",
               core::MessageLevel::Warning);
-  echoCommand("recover " + newest.fileName().toStdString());
+  echoCommand("recover " + QFileInfo(path).fileName().toStdString());
   return true;
+}
+
+bool MainWindow::offerRecovery() {
+  if (!interactive_ || qEnvironmentVariableIntValue("FABRICAD_NO_RECOVERY") != 0) return false;
+  const QStringList files = orphanedRecoveryFiles();
+  if (files.isEmpty()) return false;
+  std::string list;
+  for (const QString& p : files) {
+    QJsonObject root;
+    const QString when = QFileInfo(p).lastModified().toString("yyyy-MM-dd hh:mm");
+    if (!readRecoveryFile(p, &root, nullptr)) {
+      list += std::format("\n  - (damaged autosave {}) from {}", QFileInfo(p).fileName().toStdString(), when.toStdString());
+      continue;
+    }
+    const QString name = root["name"].toString("Untitled");
+    const QString original = root["recoveryOf"].toString();
+    list += std::format("\n  - '{}'{} from {}", name.toStdString(), original.isEmpty() ? "" : " (" + original.toStdString() + ")",
+                        when.toStdString());
+  }
+  const bool one = files.size() == 1;
+  std::string question =
+      std::format("FabriCAD did not close cleanly last time. {} found:{}\n\nRecover {}? (No deletes {})",
+                  one ? "An autosaved copy was" : std::to_string(files.size()) + " autosaved copies were", list,
+                  one ? "it" : "them (each opens in its own tab)", one ? "the autosave" : "these autosaves");
+  const bool yes = askYesNo("Recover unsaved work", question, true);
+  if (!yes) {
+    for (const QString& p : files) removeRecoveryFile(p);
+    return false;
+  }
+  int recovered = 0;
+  QStringList failed;
+  for (const QString& p : files) {
+    QString err;
+    if (recoverFile(p, &err)) ++recovered;
+    else failed << QFileInfo(p).fileName() + ": " + err;
+  }
+  if (!failed.isEmpty())
+    showMessage("Could not recover " + failed.join("; ").toStdString(), core::MessageLevel::Error);
+  return recovered > 0;
 }
 
 // =========================================================================================
@@ -731,7 +891,10 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     if (tab == active_) updateTitle();
   });
   connect(d, &core::Document::unitsChanged, this, whenActive([this] { updateTitle(); }));
-  connect(d, &core::Document::recomputeFinished, this, whenActive([this] { scheduleStateRefresh(); }));
+  connect(d, &core::Document::recomputeFinished, this, whenActive([this] {
+            scheduleStateRefresh();
+            scheduleFailureReport();
+          }));
   connect(&d->undoStack(), &core::UndoStack::changed, this, whenActive([this] {
             updateUndoButtons();
             scheduleAutosave();
@@ -891,6 +1054,7 @@ void MainWindow::onToolFinished(const std::string& id, bool accepted) {
   layoutOverlays();
   acceptEnabled_ = true;
   scheduleStateRefresh();
+  scheduleFailureReport();
   // Fusion: "New Drawing" from a design opens the drawing document (its tab here)
   if (accepted && id == "drawing.create" && active_ && active_->isDesign()) {
     QTimer::singleShot(0, this, [this] {
@@ -921,6 +1085,35 @@ bool MainWindow::acceptActiveTool() {
   }
   manager_->accept();
   return true;
+}
+
+void MainWindow::scheduleFailureReport() {
+  if (failureReportPending_) return;
+  failureReportPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    failureReportPending_ = false;
+    reportNewFailures(true);
+  });
+}
+
+void MainWindow::reportNewFailures(bool announce) {
+  if (!document_) return;
+  // a running command recomputes its preview over and over: wait for its result (DOC-08)
+  if (announce && manager_ && manager_->isActive() && !isIdleTool()) return;
+  std::set<ObjectId> now;
+  const core::Feature* first = nullptr;
+  std::set<ObjectId>& before = failedFeatures_[document_];
+  for (int i = 0; i < document_->featureCount(); ++i) {
+    const core::Feature* f = document_->featureAt(i);
+    if (!f || f->status() != core::FeatureStatus::Error) continue;
+    now.insert(f->id());
+    if (!first && !before.count(f->id())) first = f;
+  }
+  before = std::move(now);
+  if (!announce || !first) return;
+  std::string msg = first->name() + " failed";
+  if (!first->statusMessage().empty()) msg += ": " + first->statusMessage();
+  showMessage(msg, core::MessageLevel::Error);
 }
 
 void MainWindow::scheduleStateRefresh() {
@@ -1146,6 +1339,32 @@ bool MainWindow::open() {
   return true;
 }
 
+namespace {
+// One spelling per file on disk (DOC-03): symlinks and "..", resolved; for a file that does not
+// exist yet (Save As) the folder is resolved and the name appended.
+QString canonicalPath(const QString& p) {
+  if (p.isEmpty()) return p;
+  const QFileInfo fi(p);
+  if (const QString c = fi.canonicalFilePath(); !c.isEmpty()) return c;
+  const QString dir = QFileInfo(fi.absolutePath()).canonicalFilePath();
+  return dir.isEmpty() ? fi.absoluteFilePath() : dir + "/" + fi.fileName();
+}
+
+// Features that did not compute after a load (errors, unknown types), for a notice (DOC-07).
+std::string failedFeatureSummary(const core::Document& doc) {
+  std::vector<std::string> names;
+  for (int i = 0; i < doc.featureCount(); ++i) {
+    const core::Feature* f = doc.featureAt(i);
+    if (f && f->status() == core::FeatureStatus::Error) names.push_back(f->name());
+  }
+  if (names.empty()) return {};
+  std::string list;
+  for (size_t i = 0; i < names.size() && i < 5; ++i) list += (i ? ", " : "") + names[i];
+  if (names.size() > 5) list += std::format(" and {} more", names.size() - 5);
+  return std::format("{} feature{} failed to compute: {}", names.size(), names.size() == 1 ? "" : "s", list);
+}
+}  // namespace
+
 bool MainWindow::openFile(const QString& path, QString* error) {
   const QString suffix = QFileInfo(path).suffix().toLower();
   if (!QFileInfo::exists(path)) {
@@ -1174,8 +1393,9 @@ bool MainWindow::openFile(const QString& path, QString* error) {
     return ok;
   }
   // already open in another tab: just go there (Fusion keeps one tab per document)
+  const QString canonical = canonicalPath(path);
   for (const auto& t : tabs_)
-    if (t->isDesign() && core::qs(t->document().filePath()) == QFileInfo(path).absoluteFilePath()) {
+    if (t->isDesign() && !t->document().filePath().empty() && canonicalPath(core::qs(t->document().filePath())) == canonical) {
       activateTab(t.get());
       return true;
     }
@@ -1185,7 +1405,7 @@ bool MainWindow::openFile(const QString& path, QString* error) {
   clearRecoveryFile();
   std::string err;
   if (viewer_) viewer_->setHiddenFeatures({});
-  if (!document_->load(QFileInfo(path).absoluteFilePath().toStdString(), &err)) {
+  if (!document_->load(canonical.toStdString(), &err)) {
     if (error) *error = core::qs(err);
     document_->clear();
     document_->setModified(false);
@@ -1195,10 +1415,14 @@ bool MainWindow::openFile(const QString& path, QString* error) {
   }
   if (document_->name().empty() || document_->name() == "Untitled") document_->setName(QFileInfo(path).completeBaseName().toStdString());
   document_->setModified(false);
-  recent_.add(path);
+  recent_.add(canonical);
   recent_.save();
   afterDocumentReplaced();
+  refreshTabBar();  // the tooltip shows the path now (DOC-11)
+  reportNewFailures(false);
   echoCommand("open " + path.toStdString());
+  if (const std::string failed = failedFeatureSummary(*document_); !failed.empty())
+    showMessage("Opened " + QFileInfo(path).fileName().toStdString() + " with problems: " + failed, core::MessageLevel::Warning);
   return true;
 }
 
@@ -1232,7 +1456,14 @@ bool MainWindow::saveAs() {
 bool MainWindow::saveTo(const QString& p, QString* error) {
   QString path = p;
   if (QFileInfo(path).suffix().isEmpty()) path += ".fcad";
-  if (document_->name() == "Untitled") document_->setName(QFileInfo(path).completeBaseName().toStdString());
+  path = canonicalPath(path);
+  // The document name follows the file (Fusion) unless the user gave it a name of its own: an
+  // automatic name is "Untitled" or the stem of the file it came from (DOC-06).
+  const std::string& name = document_->name();
+  const std::string oldStem =
+      document_->filePath().empty() ? std::string() : QFileInfo(core::qs(document_->filePath())).completeBaseName().toStdString();
+  if (name.empty() || name == "Untitled" || (!oldStem.empty() && name == oldStem))
+    document_->setName(QFileInfo(path).completeBaseName().toStdString());
   std::string err;
   if (!document_->save(path.toStdString(), &err)) {
     if (error) *error = core::qs(err);
@@ -1240,7 +1471,7 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
   }
   recent_.add(path);
   recent_.save();
-  updateTitle();
+  updateTitle();  // also refreshes the tab tooltips (path)
   clearRecoveryFile();
   showMessage("Saved " + path.toStdString(), core::MessageLevel::Info);
   return true;
@@ -1267,6 +1498,7 @@ void MainWindow::closeEvent(QCloseEvent* e) {
   s.setValue("ui/commandLine", commandLine_->isVisible());
   recent_.save();
   for (const auto& t : tabs_) clearRecoveryFile(*t);  // a clean close leaves nothing to recover
+  releaseSessionRecoveryDirectory();
   e->accept();
 }
 
@@ -1288,9 +1520,17 @@ void MainWindow::deleteRefs(const std::vector<ShapeRef>& refs) {
     if (!refs.empty()) showMessage("Nothing to delete in the selection", core::MessageLevel::Info);
     return;
   }
-  if (!plan.bodyNotes.empty()) {
-    std::string q = "Delete " + plan.summary(*document_) + "?\n\nDeleting a body removes the feature that created it:";
-    for (const std::string& n : plan.bodyNotes) q += "\n  " + n;
+  if (!plan.bodyNotes.empty() || !plan.dependents.empty()) {
+    std::string q = "Delete " + plan.summary(*document_) + "?";
+    if (!plan.bodyNotes.empty()) {
+      q += "\n\nDeleting a body removes the feature that created it:";
+      for (const std::string& n : plan.bodyNotes) q += "\n  " + n;
+    }
+    if (!plan.dependents.empty()) {
+      q += "\n\nThese later features use it and will fail:";
+      for (size_t i = 0; i < plan.dependents.size() && i < 8; ++i) q += "\n  " + plan.dependents[i];
+      if (plan.dependents.size() > 8) q += std::format("\n  and {} more", plan.dependents.size() - 8);
+    }
     if (!askYesNo("Delete", q, true)) return;
   }
   for (ObjectId id : plan.features) document_->selection().removeOwner(id);

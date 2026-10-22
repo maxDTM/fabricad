@@ -27,6 +27,8 @@
 #include <STEPControl_Writer.hxx>
 
 #include <QElapsedTimer>
+#include <QLockFile>
+#include <QSysInfo>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QDir>
@@ -438,7 +440,7 @@ class TestMainWindow : public QObject {
     QVERIFY(!doc.isModified());
     QCOMPARE(doc.name(), std::string("bracket"));
     QVERIFY(w_->windowTitle().startsWith("bracket"));
-    QCOMPARE(w_->recentFiles().list().front(), QFileInfo(path + ".fcad").absoluteFilePath());
+    QCOMPARE(w_->recentFiles().list().front(), QFileInfo(path + ".fcad").canonicalFilePath());
 
     // Fusion: New Design opens its own tab, the saved design stays open in its tab
     const int tabs = w_->tabCount();
@@ -546,6 +548,205 @@ class TestMainWindow : public QObject {
     QVERIFY(armed);
     doc.setModified(false);
     w_->clearRecoveryFile();
+  }
+
+  void recoveryPerDocumentAndSession() {
+    // DOC-01: two unsaved "Untitled" designs autosave to different files in this instance's
+    // own (locked) session folder
+    for (int i = w_->tabCount() - 1; i >= 0; --i)
+      if (w_->tabAt(i) != w_->activeTab()) QVERIFY(w_->closeTab(i));
+    QDir(app::MainWindow::recoveryDirectory()).removeRecursively();
+    QVERIFY(w_->newDocument());
+    app::DocumentTab* a = w_->activeTab();
+    addBox(a->document(), 11);
+    const QString recA = w_->recoveryFilePath();
+    QVERIFY(w_->newDocument());
+    app::DocumentTab* b = w_->activeTab();
+    addBox(b->document(), 13);
+    const QString recB = w_->recoveryFilePath();
+    QCOMPARE(a->document().name(), b->document().name());
+    QVERIFY(recA != recB);
+    QVERIFY(w_->autosaveNow());
+    QVERIFY(QFileInfo::exists(recA));
+    QVERIFY(QFileInfo::exists(recB));
+    QVERIFY(recA.startsWith(w_->sessionRecoveryDirectory() + "/"));
+    QVERIFY(QFileInfo::exists(w_->sessionRecoveryDirectory() + "/session.lock"));
+    // a design and its drawing share one recovery file
+    w_->setWorkspace(core::Workspace::Drawing);
+    QCOMPARE(w_->recoveryFilePath(), recB);
+    w_->setWorkspace(core::Workspace::Design);
+    // our own files are never offered
+    QVERIFY(w_->orphanedRecoveryFiles().isEmpty());
+
+    // another running instance: its lock is held, so its files are skipped
+    const QString root = app::MainWindow::recoveryDirectory();
+    const QString live = root + "/live-instance";
+    QVERIFY(QDir().mkpath(live));
+    QLockFile liveLock(live + "/session.lock");
+    QVERIFY(liveLock.tryLock(0));
+    QVERIFY(QFile::copy(recA, live + "/Other-11111111.fcad"));
+    // a crashed instance: its lock names a process that is gone
+    const QString dead = root + "/crashed-instance";
+    QVERIFY(QDir().mkpath(dead));
+    {
+      QFile lock(dead + "/session.lock");
+      QVERIFY(lock.open(QIODevice::WriteOnly));
+      lock.write("999999\nfabricad\n" + QSysInfo::machineHostName().toUtf8() + "\n");
+    }
+    QVERIFY(QFile::copy(recA, dead + "/Untitled-22222222.fcad"));
+    QVERIFY(QFile::copy(recB, dead + "/Untitled-33333333.fcad"));
+    // a legacy file directly in recovery/
+    QVERIFY(QFile::copy(recB, root + "/Legacy.fcad"));
+    const QStringList orphans = w_->orphanedRecoveryFiles();
+    QCOMPARE(orphans.size(), 3);  // both crashed files + the legacy one, not the live instance's
+    for (const QString& o : orphans) QVERIFY2(!o.startsWith(live), qPrintable(o));
+
+    // DOC-02: recovering keeps a copy on disk (this session's), the orphan goes away only then
+    const int tabs = w_->tabCount();
+    QString err;
+    QVERIFY2(w_->recoverFile(dead + "/Untitled-22222222.fcad", &err), qPrintable(err));
+    QCOMPARE(w_->tabCount(), tabs + 1);
+    QVERIFY(w_->document().isModified());
+    QCOMPARE(w_->document().featureCount(), 1);
+    QVERIFY(!QFileInfo::exists(dead + "/Untitled-22222222.fcad"));
+    QVERIFY2(QFileInfo::exists(w_->recoveryFilePath()), qPrintable(w_->recoveryFilePath()));
+    QVERIFY(w_->recoveryFilePath() != recA && w_->recoveryFilePath() != recB);
+    QVERIFY2(w_->recoverFile(dead + "/Untitled-33333333.fcad", &err), qPrintable(err));
+    QVERIFY(!QFileInfo::exists(dead));  // emptied crashed folder is removed
+    QVERIFY2(w_->recoverFile(root + "/Legacy.fcad", &err), qPrintable(err));
+    // a damaged autosave is removed with an error
+    {
+      QFile bad(root + "/Broken.fcad");
+      QVERIFY(bad.open(QIODevice::WriteOnly));
+      bad.write("{\"format\": \"fabri");
+    }
+    QVERIFY(!w_->recoverFile(root + "/Broken.fcad", &err));
+    QVERIFY(!err.isEmpty());
+    QVERIFY(!QFileInfo::exists(root + "/Broken.fcad"));
+    QVERIFY(w_->orphanedRecoveryFiles().isEmpty());  // only the live instance's file remains
+    QVERIFY(QFileInfo::exists(live + "/Other-11111111.fcad"));
+    liveLock.unlock();
+    QDir(live).removeRecursively();
+    // tidy up: discard the modified tabs
+    for (int i = w_->tabCount() - 1; i >= 0; --i)
+      if (w_->tabAt(i) != w_->activeTab()) QVERIFY(w_->closeTab(i));
+    w_->document().setModified(false);
+    w_->clearRecoveryFile();
+  }
+
+  void documentLifecycleFixes() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString err;
+    // DOC-05: undoing a snapshot command (e.g. a component delete) keeps the '*'
+    QVERIFY(w_->newDocument());
+    core::Document& doc = w_->document();
+    addBox(doc, 10);
+    QVERIFY(w_->saveTo(dir.filePath("snap.fcad"), &err));
+    QVERIFY(!doc.isModified());
+    doc.undoStack().push(std::make_unique<core::DocumentSnapshotCommand>(doc, "Edit", [&doc] { doc.setParameter("p1", "5 mm"); }));
+    QVERIFY(doc.isModified());
+    doc.setModified(false);  // e.g. saved again
+    doc.undoStack().undo();
+    QVERIFY(doc.isModified());
+    QVERIFY(w_->tabBar()->tabText(w_->indexOfTab(w_->activeTab())).endsWith(" *"));
+    doc.setModified(false);
+    doc.undoStack().redo();
+    QVERIFY(doc.isModified());
+    // a load still ends unmodified
+    core::Document fresh;
+    QVERIFY(fresh.load(dir.filePath("snap.fcad").toStdString(), nullptr));
+    QVERIFY(!fresh.isModified());
+
+    // DOC-06: the name follows the file on Save As unless the user chose a name
+    QVERIFY(w_->saveTo(dir.filePath("first.fcad"), &err));
+    QCOMPARE(doc.name(), std::string("first"));  // was "snap", the old file's stem
+    QVERIFY(w_->saveTo(dir.filePath("second.fcad"), &err));
+    QCOMPARE(doc.name(), std::string("second"));
+    doc.setName("My Bracket");
+    QVERIFY(w_->saveTo(dir.filePath("third.fcad"), &err));
+    QCOMPARE(doc.name(), std::string("My Bracket"));
+
+    // DOC-03: a path through a symlinked folder finds the open tab
+    QVERIFY(QDir().mkpath(dir.filePath("real")));
+    QVERIFY(QFile::link(dir.filePath("real"), dir.filePath("link")));
+    QVERIFY(w_->saveTo(dir.filePath("link/linked.fcad"), &err));
+    QCOMPARE(core::qs(doc.filePath()), QFileInfo(dir.filePath("real/linked.fcad")).canonicalFilePath());
+    app::DocumentTab* linkedTab = w_->activeTab();
+    QVERIFY(w_->newDocument());
+    const int tabs = w_->tabCount();
+    QVERIFY2(w_->openFile(dir.filePath("real/linked.fcad"), &err), qPrintable(err));
+    QCOMPARE(w_->activeTab(), linkedTab);
+    QVERIFY2(w_->openFile(dir.filePath("link/../link/linked.fcad"), &err), qPrintable(err));
+    QCOMPARE(w_->activeTab(), linkedTab);
+    QCOMPARE(w_->tabCount(), tabs);
+
+    // DOC-11: same-named files from two folders get their folder in the tab text
+    QVERIFY(QDir().mkpath(dir.filePath("a")));
+    QVERIFY(QDir().mkpath(dir.filePath("b")));
+    QVERIFY(w_->newDocument());
+    addBox(w_->document(), 5);
+    QVERIFY(w_->saveTo(dir.filePath("a/part.fcad"), &err));
+    QVERIFY(w_->newDocument());
+    addBox(w_->document(), 6);
+    QVERIFY(w_->saveTo(dir.filePath("b/part.fcad"), &err));
+    QCOMPARE(w_->tabBar()->tabText(w_->indexOfTab(w_->activeTab())), QString("part (b)"));
+    QVERIFY(w_->tabBar()->tabToolTip(w_->indexOfTab(w_->activeTab())).endsWith("b/part.fcad"));
+
+    // DOC-07: readable load errors
+    auto writeFile = [&](const QString& name, const QByteArray& data) {
+      QFile f(dir.filePath(name));
+      QVERIFY(f.open(QIODevice::WriteOnly));
+      f.write(data);
+    };
+    writeFile("empty.fcad", "");
+    writeFile("half.fcad", "{\"format\": \"fabricad\", \"features\": [");
+    writeFile("other.fcad", "[1, 2]");
+    writeFile("text.fcad", "hello world");
+    QVERIFY(!w_->openFile(dir.filePath("empty.fcad"), &err));
+    QCOMPARE(err, QString("the file is empty"));
+    QVERIFY(!w_->openFile(dir.filePath("half.fcad"), &err));
+    QVERIFY2(err.startsWith("the file is damaged or truncated"), qPrintable(err));
+    QVERIFY(!w_->openFile(dir.filePath("other.fcad"), &err));
+    QVERIFY2(err.startsWith("not a FabriCAD design"), qPrintable(err));
+    QVERIFY(!w_->openFile(dir.filePath("text.fcad"), &err));
+    QVERIFY2(err.startsWith("not a FabriCAD design"), qPrintable(err));
+    // a file with an unknown feature type opens with a notice
+    {
+      core::Document d;
+      addBox(d, 7);
+      QJsonObject root = d.toJson();
+      QJsonArray feats = root["features"].toArray();
+      QJsonObject f0 = feats[0].toObject();
+      f0["type"] = "NoSuchFeature";
+      feats[0] = f0;
+      root["features"] = feats;
+      writeFile("unknown.fcad", QJsonDocument(root).toJson());
+    }
+    QVERIFY2(w_->openFile(dir.filePath("unknown.fcad"), &err), qPrintable(err));
+    QVERIFY2(w_->messageText().contains("failed to compute"), qPrintable(w_->messageText()));
+
+    // tidy up
+    for (int i = w_->tabCount() - 1; i >= 0; --i)
+      if (w_->tabAt(i) != w_->activeTab()) QVERIFY(w_->closeTab(i));
+  }
+
+  void failedFeatureShowsMessage() {
+    // DOC-08: a feature that newly fails after a recompute is named in the status bar
+    QVERIFY(w_->newDocument());
+    core::Document& doc = w_->document();
+    const core::ObjectId f = addBox(doc, 10);
+    settle();
+    core::Feature* box = doc.feature(f);
+    const QJsonObject before = box->toJson();
+    box->prop("dx").setDouble(-5);  // invalid size
+    doc.undoStack().push(std::make_unique<core::ModifyFeatureCommand>(doc, f, before, box->toJson()));
+    settle();
+    QCOMPARE(box->status(), core::FeatureStatus::Error);
+    QVERIFY2(w_->messageText().startsWith(core::qs(box->name()) + " failed"), qPrintable(w_->messageText()));
+    doc.undoStack().undo();
+    settle();
+    w_->document().setModified(false);
   }
 
   void workspaceSwitch() {

@@ -294,7 +294,10 @@ TopoDS_Shape RecomputeContext::resolve(ShapeRef& ref) {
       return s;
     }
     if (ref.kind != ShapeKind::Body) {
-      if (!rr.exact) setWarning(std::format("reference re-matched by geometry: {}", ref.toString()));
+      // Only a switch to a different sub-shape is worth a warning: the same face whose geometry
+      // moved (an upstream sketch or dimension was edited, or that edit was undone) is the normal
+      // parametric case, not a lost reference (DOC-04).
+      if (!rr.exact && rr.index != ref.index) setWarning(std::format("reference re-matched by geometry: {}", ref.toString()));
       if (rr.ambiguous) setWarning(std::format("ambiguous reference: {}", ref.toString()));
       ref.index = rr.index;
       // Follow the geometry: the stored fingerprint tracks the shape it matched so the next

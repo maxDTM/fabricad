@@ -368,6 +368,23 @@ class TestAppLogic : public QObject {
     QVERIFY(app::makeDeleteCommand(doc, app::planDelete(doc, {ShapeRef::face(b2, 1)})) == nullptr);
   }
 
+  void deletePlanListsDependents() {
+    // DOC-09: a later feature reading the deleted one is listed (the Delete prompt names it)
+    core::Document doc;
+    const core::ObjectId f1 = addBox(doc);
+    const core::ObjectId b1 = doc.feature(f1)->createdBodies().front();
+    auto hole = std::make_unique<core::test::HoleFeature>();
+    hole->prop("body").setRef(ShapeRef::body(b1));
+    const std::string holeName = "Hole9";
+    hole->setName(holeName);
+    doc.undoStack().push(std::make_unique<core::AddFeatureCommand>(doc, std::move(hole)));
+    app::DeletePlan plan = app::planDelete(doc, {ShapeRef::feature(f1)});
+    QCOMPARE(plan.dependents, std::vector<std::string>{holeName});
+    // deleting both: nothing is left to fail
+    plan = app::planDelete(doc, {ShapeRef::feature(f1), ShapeRef::feature(doc.featureAt(1)->id())});
+    QVERIFY(plan.dependents.empty());
+  }
+
   void deleteComponent() {
     core::Document doc;
     core::Component& c = doc.addComponent("Bracket");

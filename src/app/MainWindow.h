@@ -28,12 +28,14 @@
 
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
 
 class QDockWidget;
 class QLabel;
+class QLockFile;
 class QMenu;
 class QStackedWidget;
 class QTabBar;
@@ -134,10 +136,21 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QString recoveryFilePath() const;
   /// Remove the active document's recovery copy (after a clean save / close).
   void clearRecoveryFile();
-  /// Offer to recover the newest autosave left behind by a previous session. Interactive only;
-  /// FABRICAD_NO_RECOVERY=1 disables it. Returns true when a document was recovered.
+  /// Offer to recover every autosave left behind by a previous (crashed) session, each into its
+  /// own tab. Interactive only; FABRICAD_NO_RECOVERY=1 disables it. Returns true when at least
+  /// one document was recovered.
   bool offerRecovery();
   static QString recoveryDirectory();
+  /// This instance's own recovery folder (recovery/<session id>/, guarded by a lock file so other
+  /// running instances leave it alone).
+  QString sessionRecoveryDirectory() const;
+  /// Recovery files of sessions that are no longer running (their lock is gone or stale), plus
+  /// legacy files directly in recoveryDirectory(); newest first. Live instances are skipped.
+  QStringList orphanedRecoveryFiles() const;
+  /// Recover one autosave into a tab (the pristine start-up tab or a new one). The recovered
+  /// document is marked modified and autosaved to this session right away; the old file is
+  /// removed only once that copy exists. Unreadable files are removed. True on success.
+  bool recoverFile(const QString& path, QString* error = nullptr);
 
   // --- commands used by app tools, browser, timeline, marking menu ----------------------
   void editFeature(core::ObjectId id);
@@ -211,6 +224,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void refreshTabBar();
   bool maybeSave(DocumentTab& tab);
   bool autosave(DocumentTab& tab);
+  bool ensureSessionRecoveryDirectory();
+  void releaseSessionRecoveryDirectory();
   QString recoveryFilePath(const DocumentTab& tab) const;
   void clearRecoveryFile(DocumentTab& tab);
   void onToolActivated(const std::string& id);
@@ -222,6 +237,9 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void scheduleSelectionStatus();
   void updateSketchStatus();
   void scheduleStateRefresh();
+  void scheduleFailureReport();
+  /// Show the first feature that newly failed since the last check in the status bar (DOC-08).
+  void reportNewFailures(bool announce);
   void applyUiState(DocumentTab& tab);
   void storeUiState(DocumentTab& tab);
   void scheduleAutosave();
@@ -266,6 +284,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QTimer* messageTimer_ = nullptr;
   QTimer* autosaveTimer_ = nullptr;     ///< single shot, 5 s after an undoable change
   QTimer* autosavePeriodic_ = nullptr;  ///< every 2 minutes
+  QString sessionId_;                   ///< names this instance's recovery folder
+  std::unique_ptr<QLockFile> sessionLock_;
   QPointer<QObject> sketchSession_;
   QMetaObject::Connection sketchConn_;
 
@@ -276,6 +296,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   bool interactive_ = true;
   bool acceptEnabled_ = true;
   bool stateRefreshPending_ = false;
+  bool failureReportPending_ = false;
+  std::map<const core::Document*, std::set<core::ObjectId>> failedFeatures_;  ///< DOC-08 baseline
   bool selectionStatusPending_ = false;  ///< coalesces rename/recompute -> status label
   bool glEnabled_ = false;        ///< initializeViewer() was called: new tabs get a GL view too
   bool browserDockWanted_ = true; ///< user's dock visibility (hidden automatically in drawing tabs)

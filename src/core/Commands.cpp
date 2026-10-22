@@ -143,11 +143,14 @@ void DocumentSnapshotCommand::redo() {
     after_ = doc_.toJson();
     return;
   }
-  std::string path = doc_.filePath();
   doc_.fromJson(after_);
+  doc_.setModified(true);  // fromJson keeps the flag; a redo is an edit (DOC-05)
 }
 
-void DocumentSnapshotCommand::undo() { doc_.fromJson(before_); }
+void DocumentSnapshotCommand::undo() {
+  doc_.fromJson(before_);
+  doc_.setModified(true);  // an undo is an edit too: the '*' must not disappear (DOC-05)
+}
 
 // --- helpers -----------------------------------------------------------------
 
