@@ -8,6 +8,8 @@
 // recompute) have settled before the next one. Every line is timed and logged together with the
 // messages the command produced; a line fails when the command was rejected or produced an
 // error message (CHECK failures are errors), and the run stops there unless keepGoing is set.
+// Queries (CHECK, INFO, LIST, ECHO, OPTIONS) post nothing and skip the settle; in batch mode
+// (core::isBatchMode) the settle is a single pass (backend-deferred "per-command settle floor").
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
@@ -23,7 +25,7 @@ class QTextStream;
 
 namespace fabricad::app {
 
-class MainWindow;
+class AppShell;
 
 class ScriptRunner : public QObject {
   Q_OBJECT
@@ -45,7 +47,8 @@ class ScriptRunner : public QObject {
     QString error;          ///< first error text when !ok
   };
 
-  explicit ScriptRunner(MainWindow& window, QObject* parent = nullptr);
+  /// `shell` is MainWindow (GUI run) or HeadlessHost (`--script --offscreen`, no widgets).
+  explicit ScriptRunner(AppShell& shell, QObject* parent = nullptr);
   ~ScriptRunner() override;
 
   void setOptions(const Options& o) { options_ = o; }
@@ -78,7 +81,7 @@ class ScriptRunner : public QObject {
   void pauseAfter(const QString& command);
   void onMessage(int level, const QString& text);
 
-  MainWindow& window_;
+  AppShell& shell_;
   Options options_;
   QStringList lines_;
   QString name_;

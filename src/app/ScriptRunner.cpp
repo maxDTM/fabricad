@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/ScriptRunner.h"
 
-#include "app/CommandLine.h"
-#include "app/MainWindow.h"
+#include "app/AppShell.h"
 #include "core/AppHost.h"
-#include "viewer/ViewerWidget.h"
+#include "core/Tool.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -21,9 +20,20 @@ namespace fabricad::app {
 
 namespace {
 
+// Let queued work of the line run (new tab, open, close, deferred recompute reports). A batch
+// run has no repaints to wait for: one pass. Interactive / watched runs keep three passes.
 void settle() {
   QCoreApplication::sendPostedEvents();
-  for (int i = 0; i < 3; ++i) QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  const int passes = core::isBatchMode() ? 1 : 3;
+  for (int i = 0; i < passes; ++i) QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+}
+
+/// Lines that only read the document or print: they post no events, so no settle is needed.
+bool isQuery(const QString& line) {
+  const QString verb = line.section(' ', 0, 0).trimmed().toUpper();
+  static const QStringList kQueries = {"CHECK", "ASSERT", "EXPECT", "INFO", "DESCRIBE", "WHAT", "LIST", "LS",
+                                       "ECHO",  "REM",    "OPTIONS", "OPTS", "?"};
+  return kQueries.contains(verb);
 }
 
 const char* levelName(int level) {
@@ -36,11 +46,11 @@ const char* levelName(int level) {
 
 }  // namespace
 
-ScriptRunner::ScriptRunner(MainWindow& window, QObject* parent) : QObject(parent), window_(window) {
-  connect(&window_, &MainWindow::messageShown, this, &ScriptRunner::onMessage);
+ScriptRunner::ScriptRunner(AppShell& shell, QObject* parent) : QObject(parent), shell_(shell) {
+  shell_.setScriptMessageSink([this](int level, const QString& text) { onMessage(level, text); });
 }
 
-ScriptRunner::~ScriptRunner() = default;
+ScriptRunner::~ScriptRunner() { shell_.setScriptMessageSink({}); }
 
 QString ScriptRunner::stripComment(const QString& line) {
   QString t = line;
@@ -98,8 +108,8 @@ ScriptRunner::LineResult ScriptRunner::runLine(const QString& rawLine, int lineN
   pendingError_.clear();
   QElapsedTimer t;
   t.start();
-  const bool accepted = window_.commandLine()->submit(r.text);
-  settle();
+  const bool accepted = shell_.submitCommandLine(r.text);
+  if (!isQuery(r.text)) settle();
   r.millis = static_cast<double>(t.nsecsElapsed()) / 1e6;
   r.messages = pending_;
   if (!accepted && pendingError_.isEmpty()) {
@@ -116,13 +126,7 @@ ScriptRunner::LineResult ScriptRunner::runLine(const QString& rawLine, int lineN
 void ScriptRunner::pauseAfter(const QString& command) {
   if (options_.stepDelayMs <= 0) return;
   if (command.startsWith("CHECK", Qt::CaseInsensitive)) return;  // checks change nothing visible
-  if (auto* v = window_.viewer()) {
-    // outside a sketch show the model from the home view (a finished sketch leaves the camera
-    // looking straight at its plane); inside a sketch keep the sketch camera
-    if (!v->inSketchMode()) v->setStandardView(core::StandardView::Home, false);
-    v->fitAll(false);
-  }
-  window_.update();
+  shell_.prepareStepPause();  // fit the 3D view, repaint
   QElapsedTimer t;
   t.start();
   while (t.elapsed() < options_.stepDelayMs)

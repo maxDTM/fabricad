@@ -32,6 +32,7 @@
 #include "app/TimelineActions.h"
 #include "app/ParametersDialog.h"
 #include "app/PreferencesDialog.h"
+#include "app/AppearancePicker.h"
 #include "assembly/AssemblyModule.h"
 #include "core/Commands.h"
 #include "core/Json.h"
@@ -751,6 +752,70 @@ DocumentTab* MainWindow::tabAt(int index) const {
   if (index < 0 || index >= tabCount()) return nullptr;
   return tabs_[static_cast<size_t>(index)].get();
 }
+
+AppShell::TabInfo MainWindow::tabInfo(int index) const {
+  TabInfo t;
+  if (const DocumentTab* tab = tabAt(index)) {
+    t.title = tab->title();
+    t.design = tab->isDesign();
+    t.filePath = tab->document().filePath();
+  }
+  return t;
+}
+
+void MainWindow::closeTabLater(int index) {
+  DocumentTab* tab = tabAt(index);
+  if (!tab) return;
+  QMetaObject::invokeMethod(this, [this, tab] {
+    if (indexOfTab(tab) >= 0) closeTab(tab);
+  }, Qt::QueuedConnection);
+}
+
+void MainWindow::activateTabLater(int index) {
+  DocumentTab* tab = tabAt(index);
+  if (!tab) return;
+  QMetaObject::invokeMethod(this, [this, tab] {
+    if (indexOfTab(tab) >= 0) activateTab(tab);
+  }, Qt::QueuedConnection);
+}
+
+bool MainWindow::submitCommandLine(const QString& text) { return commandLine_->submit(text); }
+
+QWidget* MainWindow::screenshotTarget(bool viewportOnly) {
+  if (viewportOnly && viewer_) return viewer_;
+  return this;
+}
+
+void MainWindow::prepareStepPause() {
+  if (viewer_) {
+    // outside a sketch show the model from the home view (a finished sketch leaves the camera
+    // looking straight at its plane); inside a sketch keep the sketch camera
+    if (!viewer_->inSketchMode()) viewer_->setStandardView(core::StandardView::Home, false);
+    viewer_->fitAll(false);
+  }
+  update();
+}
+
+void MainWindow::showPreferencesPage(int page) {
+  // the single modeless Preferences dialog of the window, bound to the active design
+  auto* dlg = findChild<PreferencesDialog*>();
+  if (!dlg) {
+    dlg = new PreferencesDialog(*document_, viewer_, this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+  } else {
+    dlg->setTarget(*document_, viewer_);
+  }
+  dlg->showPage(static_cast<PreferencesDialog::Page>(page));
+  dlg->show();
+  dlg->raise();
+  dlg->activateWindow();
+}
+
+void MainWindow::pickAppearanceFor(const std::vector<core::ObjectId>& bodies) {
+  if (document_) pickAppearance(this, *document_, bodies);
+}
+
+bool MainWindow::viewerInSketchMode() const { return viewer_ && viewer_->inSketchMode(); }
 
 int MainWindow::indexOfTab(const DocumentTab* tab) const {
   for (int i = 0; i < tabCount(); ++i)
@@ -1794,6 +1859,7 @@ void MainWindow::showMessage(const std::string& text, core::MessageLevel level) 
   if (level == core::MessageLevel::Error) FC_ERROR("{}", text);
   else if (level == core::MessageLevel::Warning) FC_WARN("{}", text);
   emit messageShown(static_cast<int>(level), q);
+  if (scriptSink_) scriptSink_(static_cast<int>(level), q);
 }
 
 bool MainWindow::askYesNo(const std::string& title, const std::string& question, bool defaultAnswer) {

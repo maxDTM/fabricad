@@ -9,13 +9,19 @@
 //   --script <file.fcs>   run the script (docs/SCRIPTING.md) after start-up and exit with its
 //                         status (0 ok, 1 a line failed, 2 unreadable); --keep-going continues
 //                         after failures, --stay leaves the window open afterwards
-//   --offscreen           headless (QT_QPA_PLATFORM=offscreen, no 3D view)
+//   --offscreen           headless (QT_QPA_PLATFORM=offscreen, no 3D view). With --script (and
+//                         without --stay / --step-delay) the script runs in the lightweight
+//                         headless runner: no MainWindow, no widget at all (HeadlessHost);
+//                         FABRICAD_SCRIPT_WINDOW=1 runs it in the (offscreen) window instead
+//   --batch <file.fcs>    the same as --script <file.fcs> --offscreen
 //   --log <file>          write the script log there (default: stdout); --quiet: no stdout copy
 //   --step-delay <ms>     pause (repaint + fit the view) after every command, to watch a run
 // SPDX-License-Identifier: LGPL-2.1-or-later
+#include "app/HeadlessHost.h"
 #include "app/MainWindow.h"
 #include "app/ScriptRunner.h"
 #include "app/ThemeManager.h"
+#include "core/Tool.h"
 #include "drawing/DrawingWorkspaceWidget.h"
 #include "viewer/ViewerWidget.h"
 
@@ -60,6 +66,9 @@ CommandLineOptions parseOptions(int argc, char** argv) {
     };
     if (std::strcmp(a, "--script") == 0 || std::strcmp(a, "-s") == 0) {
       if (const char* v = value(a)) o.script = QString::fromLocal8Bit(v);
+    } else if (std::strcmp(a, "--batch") == 0) {
+      if (const char* v = value(a)) o.script = QString::fromLocal8Bit(v);
+      o.offscreen = true;
     } else if (std::strcmp(a, "--log") == 0) {
       if (const char* v = value(a)) o.log = QString::fromLocal8Bit(v);
     } else if (std::strcmp(a, "--offscreen") == 0 || std::strcmp(a, "--headless") == 0) {
@@ -86,8 +95,10 @@ CommandLineOptions parseOptions(int argc, char** argv) {
 
 void printUsage() {
   std::fputs("usage: fabricad [--script file.fcs [--offscreen] [--log out.txt] [--keep-going] [--stay] [--step-delay ms] [--quiet]] [files...]\n"
+             "       fabricad --batch file.fcs [--log out.txt] [--keep-going] [--quiet] [files...]\n"
              "  --script    run a FabriCAD command script (docs/SCRIPTING.md) and exit with its status\n"
-             "  --offscreen headless run (no window, no 3D view)\n"
+             "  --offscreen headless run (no window, no 3D view; scripts use the lightweight runner)\n"
+             "  --batch     the same as --script <file> --offscreen\n"
              "  --log       write the per-command log to a file instead of stdout\n"
              "  --keep-going continue after a failed line (default: stop at the first error)\n"
              "  --stay      keep the window open after the script (interactive inspection)\n"
@@ -115,6 +126,14 @@ int main(int argc, char** argv) {
     return 2;
   }
   if (opts.offscreen) qputenv("QT_QPA_PLATFORM", "offscreen");
+  const bool scripted = !opts.script.isEmpty();
+  // Script mode computes each new feature once, at OK (core::isBatchMode): only when nobody
+  // watches the run (no --stay hand-over, no --step-delay pauses). Set here, not detected.
+  fabricad::core::setBatchMode(scripted && !opts.stay && opts.stepDelay == 0);
+  // The lightweight headless runner (backend-deferred "Headless runner"): no MainWindow
+  const bool headless = scripted && opts.offscreen && !opts.stay && opts.stepDelay == 0 &&
+                        qEnvironmentVariableIntValue("FABRICAD_SCRIPT_WINDOW") == 0 &&
+                        qEnvironmentVariableIsEmpty("FABRICAD_SCREENSHOT");
 
   // The system OCCT is an X11/GLX build: force Qt onto xcb (XWayland) unless the user
   // chose a platform explicitly (offscreen for tests, etc.). Also shares GL contexts and
@@ -128,7 +147,7 @@ int main(int argc, char** argv) {
     if (qpa.isEmpty() || (qpa.startsWith("wayland") && haveX && qEnvironmentVariableIntValue("FABRICAD_ALLOW_WAYLAND") == 0))
       qputenv("QT_QPA_PLATFORM", "xcb");
   }
-  fabricad::viewer::setupGlPlatform();
+  if (!headless) fabricad::viewer::setupGlPlatform();  // the headless runner has no 3D view
   // OCCT prints its STEP "Statistics on Transfer" banner and similar info through its default
   // messenger on stdout (even with --quiet); keep only warnings and errors there.
   if (Handle(Message_Messenger) messenger = Message::DefaultMessenger(); !messenger.IsNull())
@@ -142,6 +161,29 @@ int main(int argc, char** argv) {
   QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
   QApplication app(argc, argv);
   mark("QApplication");
+  if (headless) {
+    // QApplication (offscreen) rather than QGuiApplication: a tool that would open a message
+    // box must not crash the run. Nothing here creates a widget, the theme is not installed.
+    fabricad::app::HeadlessHost host;
+    mark("HeadlessHost constructed");
+    for (const QString& file : opts.files) {
+      QString err;
+      if (!host.openFile(file, &err))
+        host.showMessage("Cannot open " + file.toStdString() + ": " + err.toStdString(), fabricad::core::MessageLevel::Error);
+    }
+    fabricad::app::ScriptRunner runner(host);
+    fabricad::app::ScriptRunner::Options ro;
+    ro.logPath = opts.log;
+    ro.keepGoing = opts.keepGoing;
+    ro.quiet = opts.quiet;
+    runner.setOptions(ro);
+    QString err;
+    int code = 2;
+    if (!runner.loadFile(opts.script, &err)) std::fprintf(stderr, "fabricad: %s\n", err.toUtf8().constData());
+    else code = runner.run();
+    mark("script finished");
+    return code;
+  }
   // tokens: palette, fonts (JetBrains Mono, caps) and QSS for ui/theme, before any window exists so
   // the first frame is already in the right theme (the desktop's platform theme must not leak in)
   fabricad::app::ThemeManager::instance().install(app);
@@ -163,7 +205,6 @@ int main(int argc, char** argv) {
     const QStringList wh = size.split('x');
     if (wh.size() == 2 && wh[0].toInt() > 0 && wh[1].toInt() > 0) window.resize(wh[0].toInt(), wh[1].toInt());
   }
-  const bool scripted = !opts.script.isEmpty();
   if (scripted) window.setInteractive(false);  // no modal prompts while a script drives the app
   window.show();
   mark("shown");
@@ -195,6 +236,7 @@ int main(int argc, char** argv) {
       else code = runner->run();
       mark("script finished");
       if (opts.stay) {
+        fabricad::core::setBatchMode(false);  // the user takes over: live previews again
         window.setInteractive(true);
         window.showMessage(code == 0 ? "Script finished" : "Script failed: see the command history (F2 in the command line)",
                            code == 0 ? fabricad::core::MessageLevel::Info : fabricad::core::MessageLevel::Error);
