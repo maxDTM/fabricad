@@ -162,13 +162,22 @@ class FilletTool : public SketchTool {
     if (!sk || !session() || picks_.size() < 2) return;
     session()->beginEdit();
     auto arc = sk->fillet(picks_[0].first, picks_[0].second, picks_[1].first, picks_[1].second, radius_);
+    SolveResult solved;
+    if (arc) solved = sk->solve();
     if (!arc) {
       session()->cancelEdit();
       ctx.showMessage("Cannot fillet these curves with that radius", true);
+    } else if (!solved.ok()) {
+      // never commit an over-constrained / collapsed sketch: roll back (UX-22)
+      sk->takeDemotedDimensions();
+      sk->takeModifyNotes();
+      session()->cancelEdit();
+      ctx.showMessage("Fillet cancelled: the sketch constraints cannot hold it (" + solved.message + ")", true);
     } else {
       session()->commitEdit("Fillet");
       for (const std::string& n : sk->takeDemotedDimensions())
         ctx.showMessage(n + " is now a driven dimension (its corner was filleted)");
+      for (const std::string& n : sk->takeModifyNotes()) ctx.showMessage("Fillet: " + n);
     }
     picks_.clear();
     clearTemp();

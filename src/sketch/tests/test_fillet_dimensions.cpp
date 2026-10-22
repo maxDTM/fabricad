@@ -106,6 +106,94 @@ class FilletDimensionsTest : public QObject {
     QCOMPARE(demoted.front(), sk.constraint(d)->name);
     QVERIFY(sk.takeDemotedDimensions().empty());
   }
+
+  /// UX-22: a corner that other constraints still pin (a third curve's coincidence, an old hidden
+  /// alignment, a Dimension-tool point dimension) keeps them on a virtual-sharp construction point:
+  /// the solve succeeds, nothing moves, and the dimensions keep driving.
+  void filletKeepsCornerConstraintsOnVirtualSharp() {
+    Sketch sk;
+    int a = sk.addGeometry(Geometry::makeLine({0, 0}, {40, 0}));
+    int b = sk.addGeometry(Geometry::makeLine({40, 0}, {40, 30}));
+    int c = sk.addGeometry(Geometry::makeLine({40, 0}, {60, -10}));  // third curve at the corner
+    int d = sk.addGeometry(Geometry::makeLine({70, 0}, {80, 5}));    // a separate shape
+    sk.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {a, PointPos::End}, .b = {b, PointPos::Start}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {c, PointPos::Start}, .b = {a, PointPos::End}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a, PointPos::Start}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {c, PointPos::End}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {d}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = {a}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Vertical, .a = {b}});
+    // hidden alignment from an older document (UX-23) between the corner and the other shape
+    sk.addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = {b, PointPos::Start}, .b = {d, PointPos::Start}, .internal = true});
+    int dx = sk.addConstraint(Constraint{.type = ConstraintType::DistanceX, .a = {a, PointPos::Start}, .b = {b, PointPos::Start}, .value = 40});
+    int len = sk.addConstraint(Constraint{.type = ConstraintType::Distance, .a = {b}, .value = 30});
+    QVERIFY(sk.solve().ok());
+    const int before = sk.geometryCount();
+    auto arc = sk.fillet(a, {20, 0}, b, {40, 15}, 5);
+    QVERIFY(arc);
+    QVERIFY(sk.solve().ok());
+    QCOMPARE(sk.geometryCount(), before + 2);  // the arc and the sharp point
+    int sharp = -1;
+    for (const Geometry& g : sk.geometries())
+      if (g.type == GeomType::Point) sharp = g.id;
+    QVERIFY(sharp > 0);
+    QVERIFY(sk.geometry(sharp)->construction);
+    QVERIFY(near(sk.geometry(sharp)->center(), {40, 0}));
+    QVERIFY(near(sk.geometry(c)->start(), {40, 0}));  // the third curve still meets the corner
+    QVERIFY(near(sk.geometry(a)->end(), {35, 0}));
+    QVERIFY(near(sk.geometry(b)->start(), {40, 5}));
+    QVERIFY(!sk.constraint(dx)->driven);
+    QCOMPARE(sk.constraint(dx)->b.geo, sharp);
+    QVERIFY(!sk.constraint(len)->driven);
+    QVERIFY(sk.takeDemotedDimensions().empty());
+    QVERIFY(!sk.takeModifyNotes().empty());
+    // the point dimension still drives the corner
+    sk.constraint(dx)->value = 50;
+    QVERIFY(sk.solve().ok());
+    QVERIFY(near(sk.geometry(sharp)->center(), {50, 0}));
+    QVERIFY(near(sk.geometry(b)->start().x, 50));
+    QVERIFY(near(sk.geometry(c)->start(), {50, 0}));
+    QVERIFY(near(sk.geometry(*arc)->radius(), 5, 1e-6) || sk.geometry(*arc)->radius() > 0);
+  }
+
+  /// UX-22 / UX-27b: filleting one corner of a regular polygon keeps it regular (Equal moves onto
+  /// construction lines that stand in for the untrimmed sides).
+  void filletKeepsPolygonRegular() {
+    Sketch sk;
+    const int n = 5;  // odd: an equilateral tangential polygon is regular
+    const double R = 10;
+    std::vector<Pt2> vs;
+    for (int i = 0; i < n; ++i) vs.push_back(Pt2::polar(R / std::cos(kPi / n), 2 * kPi * i / n + kPi / n));
+    std::vector<int> l(n);
+    for (int i = 0; i < n; ++i) l[i] = sk.addGeometry(Geometry::makeLine(vs[i], vs[(i + 1) % n]));
+    Geometry circle = Geometry::makeCircle({0, 0}, R);
+    circle.construction = true;
+    int c = sk.addGeometry(circle);
+    for (int i = 0; i < n; ++i) {
+      sk.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {l[i], PointPos::End}, .b = {l[(i + 1) % n], PointPos::Start}});
+      if (i > 0) sk.addConstraint(Constraint{.type = ConstraintType::Equal, .a = {l[0]}, .b = {l[i]}});
+      sk.addConstraint(Constraint{.type = ConstraintType::Tangent, .a = {l[i]}, .b = {c}, .internal = true});
+    }
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {c, PointPos::Center}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Angle, .a = {l[0]}, .value = 90 + 360.0 / n});
+    int rad = sk.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {c}, .value = R});
+    QVERIFY(sk.solve().ok());
+    const double side = 2 * R * std::tan(kPi / n);
+    QVERIFY2(near(sk.geometry(l[3])->length(), side, 1e-6), std::to_string(sk.geometry(l[3])->length()).c_str());
+    auto arc = sk.fillet(l[0], sk.geometry(l[0])->midpoint(), l[1], sk.geometry(l[1])->midpoint(), 2);
+    QVERIFY(arc);
+    QVERIFY(sk.solve().ok());
+    for (int i = 2; i < n; ++i) QVERIFY(near(sk.geometry(l[i])->length(), side, 1e-6));
+    // change the size: every untrimmed side follows, the polygon stays regular
+    sk.constraint(rad)->value = 12;
+    QVERIFY(sk.solve().ok());
+    const double side12 = 2 * 12 * std::tan(kPi / n);
+    for (int i = 2; i < n; ++i) QVERIFY2(near(sk.geometry(l[i])->length(), side12, 1e-5), "regular after resize");
+    // the far ends of the filleted sides are still polygon vertices on the circumcircle
+    const double Rv = 12 / std::cos(kPi / n);
+    QVERIFY(near(sk.geometry(l[0])->start().length(), Rv, 1e-5));
+    QVERIFY(near(sk.geometry(l[1])->end().length(), Rv, 1e-5));
+  }
 };
 
 QTEST_GUILESS_MAIN(FilletDimensionsTest)

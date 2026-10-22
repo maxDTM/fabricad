@@ -140,11 +140,23 @@ class Sketch {
   /// chamfer): keep driving dimensions meaningful the way Fusion measures to the "virtual sharp".
   /// A length dimension on the line becomes the distance from its far end to the (perpendicular)
   /// adjacent line; a point-line dimension anchored at the trimmed end becomes a line-line distance
-  /// when the adjacent line is parallel to the reference line. Dimensions that cannot be re-expressed
-  /// are demoted to driven; their names are returned (and collected for takeDemotedDimensions()).
+  /// when the adjacent line is parallel to the reference line; other dimensions anchored at the
+  /// trimmed end stay on it for preserveTrimmedCorner() to move onto the virtual sharp. A length that
+  /// cannot be re-expressed (oblique corner) is demoted to driven; the names of demoted dimensions are
+  /// returned (and collected for takeDemotedDimensions()).
   std::vector<std::string> retargetTrimmedDimensions(int lineId, PointPos movedEnd, int otherId);
   /// Names of the dimensions demoted to driven by fillet()/chamfer since the last call (for messages).
   std::vector<std::string> takeDemotedDimensions();
+  /// After fillet()/chamfer trimmed the ends `m1` of `id1` and `m2` of `id2` back from their old
+  /// positions `old1` / `old2`: constraints that still pin a trimmed end to the old corner (a
+  /// coincidence with a third curve, Fix, Symmetric, alignment, point-on-circle ...) move onto a
+  /// construction point at the corner (the "virtual sharp", kept on both curves), and length-
+  /// dependent constraints on a trimmed line (Equal, Midpoint) move onto a construction line from
+  /// its far end to the sharp, so a filleted regular polygon stays regular. Adds nothing when no
+  /// such constraint exists (the plain rectangle corner). Returns the sharp point id or -1.
+  int preserveTrimmedCorner(int id1, PointPos m1, Pt2 old1, int id2, PointPos m2, Pt2 old2);
+  /// Notes about constraints moved by fillet()/chamfer since the last call (for messages).
+  std::vector<std::string> takeModifyNotes();
   /// Split a curve at a point into two (returns the new second piece id).
   std::optional<int> split(int curveId, Pt2 at);
 
@@ -166,6 +178,7 @@ class Sketch {
   std::vector<Constraint> constraints_;
   SolveResult last_;
   std::vector<std::string> demoted_;  ///< dimensions demoted by retargetTrimmedDimensions()
+  std::vector<std::string> notes_;    ///< messages from preserveTrimmedCorner()
 
   // drag state
   bool dragging_ = false;

@@ -860,6 +860,26 @@ class ToolsTest : public QObject {
     QVERIFY(near(r2.sk().geometry(3)->radius(), 2.0));
     QVERIFY(r2.sk().solve().ok());
 
+    // UX-22: a fillet that leaves the sketch unsolvable is rolled back instead of committed
+    Rig r5;
+    r5.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int m1 = r5.sk().addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    int m2 = r5.sk().addGeometry(Geometry::makeLine({10, 0}, {10, 10}));
+    r5.sk().addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {m1, PointPos::End}, .b = {m2, PointPos::Start}});
+    int e = r5.sk().addGeometry(Geometry::makeLine({30, 0}, {40, 0}));
+    r5.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {e}, .value = 10});
+    r5.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {e}, .value = 20});  // conflict
+    r5.session()->refresh();
+    const int undoCount = r5.doc.undoStack().count();
+    r5.mgr.run("sketch.fillet");
+    QVERIFY(r5.mgr.runCommandLine("2"));
+    r5.click(5, 0);
+    r5.click(10, 5);
+    QCOMPARE(r5.sk().geometryCount(), 3);  // no arc
+    QVERIFY(near(r5.sk().geometry(m1)->end(), {10, 0}));
+    QCOMPARE(r5.doc.undoStack().count(), undoCount);
+
     // offset a rectangle chain inward by a typed distance
     Rig r3;
     r3.mgr.run("sketch.create", {"XY"});
