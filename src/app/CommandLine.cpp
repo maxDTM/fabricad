@@ -129,7 +129,12 @@ bool CommandLine::eventFilter(QObject* o, QEvent* e) {
     if (k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter) {
       QAbstractItemView* popup = completer_->popup();
       const QModelIndex cur = popup->currentIndex();
-      const QString text = cur.isValid() ? cur.data(Qt::DisplayRole).toString() : edit_->text();
+      // the highlighted row, else the first match (unless the typed text is itself a command)
+      QString text = edit_->text();
+      if (cur.isValid()) text = cur.data(Qt::DisplayRole).toString();
+      else if (!completions_->stringList().contains(text.trimmed(), Qt::CaseInsensitive) &&
+               !completer_->currentCompletion().isEmpty())
+        text = completer_->currentCompletion();
       popup->hide();
       submit(text);
       return true;

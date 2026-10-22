@@ -1347,7 +1347,7 @@ void MainWindow::showShortcutsHelp() {
   auto* dlg = new QDialog(this);
   dlg->setAttribute(Qt::WA_DeleteOnClose);
   dlg->setWindowTitle("Keyboard Shortcuts");
-  dlg->resize(560, 520);
+  dlg->resize(700, 520);
   auto* v = new QVBoxLayout(dlg);
   auto* tree = new QTreeWidget(dlg);
   tree->setColumnCount(3);

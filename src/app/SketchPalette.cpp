@@ -259,6 +259,7 @@ void SketchPalette::reposition(const QWidget* above) {
     }
   }
   move(std::max(0, x), std::max(0, y));
+  clampToParent();
   raise();
 }
 

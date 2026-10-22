@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFont>
 #include <QStyleFactory>
+#include <QTimer>
 #include <QToolTip>
 
 namespace fabricad::app {
@@ -43,23 +44,40 @@ QPalette lightPalette() {
   return p;
 }
 
-void applyLightTheme(QApplication& app) {
-  app.setStyle(QStyleFactory::create("Fusion"));
-  const QPalette pal = lightPalette();
-  app.setPalette(pal);
-  // the platform theme's font (often monospace or very large) must not leak into the chrome
+namespace {
+
+QFont uiFont() {
   QFont f("Sans Serif");
   f.setStyleHint(QFont::SansSerif);
   f.setPointSizeF(9.0);
-  app.setFont(f);
+  return f;
+}
+
+void applyPaletteAndFonts() {
+  const QPalette pal = lightPalette();
+  QApplication::setPalette(pal);
+  const QFont f = uiFont();
+  QApplication::setFont(f);
   // platform themes also hand out per-class fonts (item views, menus, tabs...); override those
   for (const char* cls : {"QAbstractItemView", "QHeaderView", "QMenu", "QMenuBar", "QTabBar", "QLabel", "QPushButton",
                           "QToolButton", "QLineEdit", "QComboBox", "QAbstractSpinBox", "QCheckBox", "QRadioButton",
                           "QGroupBox", "QDockWidget", "QStatusBar", "QTextEdit", "QPlainTextEdit", "QMessageBox"})
     QApplication::setFont(f, cls);
-  if (QFile qss(":/theme-light.qss"); qss.open(QIODevice::ReadOnly)) app.setStyleSheet(QString::fromUtf8(qss.readAll()));
   QToolTip::setPalette(pal);
   QToolTip::setFont(f);
+}
+
+}  // namespace
+
+void applyLightTheme(QApplication& app) {
+  app.setStyle(QStyleFactory::create("Fusion"));
+  // the platform theme's palette and font (often dark, monospace or very large) must not
+  // leak into the chrome
+  applyPaletteAndFonts();
+  // qt6ct applies its own font/palette from a queued call made while QApplication was
+  // constructed; apply ours again once the event loop runs, after it
+  QTimer::singleShot(0, &app, [] { applyPaletteAndFonts(); });
+  if (QFile qss(":/theme-light.qss"); qss.open(QIODevice::ReadOnly)) app.setStyleSheet(QString::fromUtf8(qss.readAll()));
 }
 
 }  // namespace fabricad::app

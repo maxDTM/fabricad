@@ -42,7 +42,7 @@ QMenu::item:disabled { color: #A9AEB5; background: transparent; }
 QMenu::separator { height: 1px; background: #E1E4E8; margin: 4px 8px; }
 QMenu::indicator { width: 13px; height: 13px; left: 6px; }
 QMenu::indicator:non-exclusive:unchecked { image: none; }
-QMenu::indicator:non-exclusive:checked, QMenu::indicator:exclusive:checked { image: url(:/icons/app-check.svg); }
+QMenu::indicator:non-exclusive:checked, QMenu::indicator:exclusive:checked { image: url(:/ui/menu-check.svg); }
 QMenu::right-arrow { image: url(:/ui/arrow-right.svg); width: 10px; height: 10px; }
 QLabel#MenuHeader, QLabel#MenuHeader:disabled { color: #6B7079; font-weight: 700; font-size: 8pt; padding: 4px 12px 2px 12px; background: transparent; }
 
