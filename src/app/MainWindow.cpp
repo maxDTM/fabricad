@@ -47,6 +47,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QSettings>
@@ -255,6 +256,7 @@ QWidget* MainWindow::buildAppBar() {
     std::unique_ptr<DocumentTab> t = std::move(tabs_[static_cast<size_t>(from)]);
     tabs_.erase(tabs_.begin() + from);
     tabs_.insert(tabs_.begin() + to, std::move(t));
+    scheduleTabBarRefresh();  // labels, tooltips and the active tab once the move settles (DOC-11)
   });
   h->addWidget(tabBar_, 1);
   auto* newTab = appBarButton(bar, "new", "New Design (Ctrl+N)");
@@ -544,7 +546,35 @@ void MainWindow::syncActivePointers() {
   }
 }
 
+bool MainWindow::tabDragging() const {
+  // the button state guards against a release that never reached the tab bar
+  return tabDragActive_ && (QGuiApplication::mouseButtons() & Qt::LeftButton);
+}
+
+void MainWindow::scheduleTabBarRefresh() {
+  if (tabBarRefreshPending_) return;
+  tabBarRefreshPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    tabBarRefreshPending_ = false;
+    if (tabDragging()) {
+      tabBarRefreshDeferred_ = true;  // runs on release
+      return;
+    }
+    refreshTabBar();
+    switchingTabs_ = true;
+    if (active_) tabBar_->setCurrentIndex(indexOfTab(active_));
+    switchingTabs_ = false;
+    tabBar_->update();
+  });
+}
+
 void MainWindow::refreshTabBar() {
+  // Setting tab texts by index while a tab is being dragged paints the moving tab's label on
+  // the wrong slot: wait for the release (DOC-11)
+  if (tabDragging()) {
+    tabBarRefreshDeferred_ = true;
+    return;
+  }
   // Same-named tabs get their folder appended so they can be told apart (DOC-11)
   auto plain = [](QString t) {
     if (t.endsWith(" *")) t.chop(2);
@@ -1892,6 +1922,17 @@ void closeMenus(const std::vector<QMenu*>& menus) {
 }  // namespace
 
 bool MainWindow::eventFilter(QObject* o, QEvent* e) {
+  if (o == tabBar_) {
+    if (e->type() == QEvent::MouseButtonPress && static_cast<QMouseEvent*>(e)->button() == Qt::LeftButton)
+      tabDragActive_ = true;
+    else if (e->type() == QEvent::MouseButtonRelease && tabDragActive_) {
+      tabDragActive_ = false;
+      if (tabBarRefreshDeferred_) {
+        tabBarRefreshDeferred_ = false;
+        scheduleTabBarRefresh();
+      }
+    }
+  }
   if (viewer_ && o == viewer_ && e->type() == QEvent::Resize) QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
   // DOC-12: without a pointer/keyboard grab (XWayland, no window manager) a click on the main
   // window or a key typed into it does not reach the open menu, so the menu would stay up and

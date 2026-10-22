@@ -233,6 +233,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QString recoveryFilePath(const DocumentTab& tab) const;
   void clearRecoveryFile(DocumentTab& tab);
   void clearStatusMessage();
+  void scheduleTabBarRefresh();
+  bool tabDragging() const;
   void closeOneTab(DocumentTab* tab);  ///< close one tab without prompting
   void onToolActivated(const std::string& id);
   void onToolFinished(const std::string& id, bool accepted);
@@ -288,6 +290,9 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   const core::Document* failureDoc_ = nullptr;  ///< feature failure on display (cleared once fixed)
   core::ObjectId failureFeature_ = core::kInvalidId;
   QString failureText_;
+  bool tabDragActive_ = false;          ///< left button down on the tab bar (a tab may be dragged)
+  bool tabBarRefreshDeferred_ = false;  ///< a tab bar refresh waits for the release
+  bool tabBarRefreshPending_ = false;
   QLabel* selectionLabel_ = nullptr;
   QLabel* sketchLabel_ = nullptr;
   QLabel* unitsLabel_ = nullptr;

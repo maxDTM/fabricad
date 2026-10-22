@@ -894,6 +894,28 @@ class TestMainWindow : public QObject {
     QVERIFY(!w_->browserDock()->isHidden());
   }
 
+  void tabMoveKeepsLabels() {
+    // DOC-11: after a tab is moved the labels and the active tab follow the documents
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    QVERIFY(w_->newDocument());
+    app::DocumentTab* b = w_->activeTab();
+    b->document().setName("Second");
+    w_->activateTab(0);
+    app::DocumentTab* a = w_->activeTab();
+    a->document().setName("First");
+    settle();
+    w_->tabBar()->moveTab(0, 1);
+    settle();
+    QCOMPARE(w_->tabAt(0), b);
+    QCOMPARE(w_->tabAt(1), a);
+    QVERIFY(w_->tabBar()->tabText(0).startsWith("Second"));
+    QVERIFY(w_->tabBar()->tabText(1).startsWith("First"));
+    QCOMPARE(w_->tabBar()->currentIndex(), w_->indexOfTab(w_->activeTab()));
+    QCOMPARE(w_->activeTab(), a);
+    a->document().setModified(false);
+    b->document().setModified(false);
+  }
+
   void tabsOwnTheirState() {
     // every tab has its own document, undo stack, selection, tool manager and camera
     app::DocumentTab* a = w_->activeTab();
