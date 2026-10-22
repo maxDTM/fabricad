@@ -1171,20 +1171,38 @@ std::optional<Geometry> offsetSampled(const Geometry& g, bool reversed, double d
     if (inward && std::abs(d) >= f.b * f.b / std::max(f.a, 1e-12) - 1e-9) return std::nullopt;
   }
   auto [u0, u1] = g.paramRange();
-  const int n = closed ? 64 : std::max(24, g.isSpline() ? g.vertexCount() * 12 : 48);
+  const double sgn = reversed && !closed ? -1.0 : 1.0;
+  auto offsetAt = [&](double u) { return g.pointAt(u) + leftNormalAt(g, u, false) * (side * sgn); };
+  // as few fit points as keep the spline within ~0.1% of the size of the true offset
+  auto [bmin, bmax] = g.bbox();
+  const double tolDev = 1e-3 * std::max(1.0, bmax.distance(bmin));
   std::vector<Pt2> pts;
-  std::vector<Pt2> src;
-  for (int i = 0; i < n; ++i) {
-    double u = u0 + (u1 - u0) * i / (closed ? n : n - 1);
-    Pt2 q = g.pointAt(u);
-    Pt2 nrm = leftNormalAt(g, u, false);
-    src.push_back(q);
-    pts.push_back(q + nrm * side * (reversed && !closed ? -1.0 : 1.0));
+  for (int n = 12; n <= 192; n *= 2) {
+    pts.clear();
+    std::vector<Pt2> src;
+    for (int i = 0; i < n; ++i) {
+      double u = u0 + (u1 - u0) * i / (closed ? n : n - 1);
+      src.push_back(g.pointAt(u));
+      pts.push_back(offsetAt(u));
+    }
+    if (closed) {
+      pts.push_back(pts.front());
+      src.push_back(src.front());
+    }
+    // a fold (a segment reversing against the original) means the offset is too large
+    for (size_t i = 0; i + 1 < src.size(); ++i)
+      if ((pts[i + 1] - pts[i]).dot(src[i + 1] - src[i]) <= 0) return std::nullopt;
+    Geometry trial = Geometry::makeFitSpline(pts);
+    BSpline2 sp = trial.bspline();
+    double worst = 0;
+    const int segs = closed ? n : n - 1;
+    for (int i = 0; i < segs; ++i) {
+      double um = u0 + (u1 - u0) * (i + 0.5) / segs;
+      Pt2 want = offsetAt(um);
+      worst = std::max(worst, sp.value(sp.closestParam(want)).distance(want));
+    }
+    if (worst <= tolDev) break;
   }
-  if (closed) pts.push_back(pts.front());
-  // a fold (a segment reversing against the original) means the offset is too large
-  for (size_t i = 0; i + 1 < src.size(); ++i)
-    if ((pts[i + 1] - pts[i]).dot(src[i + 1] - src[i]) <= 0) return std::nullopt;
   Geometry o = Geometry::makeFitSpline(pts);
   o.construction = g.construction;
   return o;
