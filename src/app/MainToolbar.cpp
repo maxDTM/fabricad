@@ -349,13 +349,39 @@ MainToolbar::Page* MainToolbar::buildVerticalPage(bool sketch) {
   // a label is shown under the icon when it fits the button at 9 px (caption style)
   const QFont labelFont = theme::font(theme::TextStyle::Caption);
   const QFontMetrics fm(labelFont);
+  // long names (PRESS PULL, INTERFERE, MIDPLANE: p4-check L3) keep their label: the caption
+  // without its tracking, on two lines at a space or hyphen when one line is still too wide
+  QFont tight = labelFont;
+  tight.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+  const QFontMetrics tfm(tight);
+  const int room = buttonW - 6;
+  auto twoLines = [&tfm, room](const QString& label) -> QString {
+    const QString up = label.toUpper();
+    for (int i = up.size() / 2, d = 0; d <= up.size() / 2; ++d)
+      for (int at : {i - d, i + d}) {
+        if (at <= 0 || at >= up.size() - 1 || (up[at] != ' ' && up[at] != '-')) continue;
+        const QString a = up.left(up[at] == '-' ? at + 1 : at), b = up.mid(at + 1);
+        if (tfm.horizontalAdvance(a) <= room && tfm.horizontalAdvance(b) <= room) return label.left(a.size()) + '\n' + label.mid(at + 1);
+      }
+    return {};
+  };
   auto styleButton = [&](QToolButton* b, const QString& label) {
     b->setIconSize(QSize(kVIcon, kVIcon));
     b->setFixedSize(buttonW, kVButtonH);
     b->setProperty("vertical", true);
-    if (!label.isEmpty() && fm.horizontalAdvance(label.toUpper()) <= buttonW - 6) {
+    if (!label.isEmpty() && fm.horizontalAdvance(label.toUpper()) <= room) {
       b->setProperty("textStyle", "caption");
       b->setText(label);
+      b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    } else if (!label.isEmpty() && tfm.horizontalAdvance(label.toUpper()) <= room) {
+      b->setFont(tight);  // a font set here wins over the theme's text style
+      b->setText(label);
+      b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    } else if (const QString wrapped = label.isEmpty() ? QString() : twoLines(label); !wrapped.isEmpty()) {
+      b->setFont(tight);
+      b->setText(wrapped);
+      b->setProperty("fullLabel", label);
+      b->setFixedSize(buttonW, kVButtonH + tfm.lineSpacing());
       b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     } else {
       b->setText(label);  // kept for tests and the tooltip
@@ -509,7 +535,7 @@ void MainToolbar::fitVertical() {
       s.buttonRow->ensurePolished();
       f.buttonWidths = {s.buttonRow->sizeHint().height()};
     } else {
-      f.buttonWidths.assign(s.buttons.size(), kVButtonH);
+      for (QToolButton* b : s.buttons) f.buttonWidths.push_back(b->height());  // two-line labels are taller
     }
     in.push_back(f);
   }

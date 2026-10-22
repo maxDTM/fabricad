@@ -31,30 +31,34 @@ using core::Vec3;
 namespace {
 std::unique_ptr<SketchSession> g_session;
 
-PreviewStyle lineStyle(const std::array<float, 4>& color, float width, bool dashed) {
-  PreviewStyle s;
-  s.color = color;
+PreviewStyle lineStyle(core::ColorRole role, float width, bool dashed) {
+  PreviewStyle s = roleStyle(role);
   s.lineWidth = width;
   s.shaded = false;
   s.dashed = dashed;
   s.onTop = true;
   return s;
 }
-PreviewStyle pointStyle(const std::array<float, 4>& color, float size) {
-  PreviewStyle s;
-  s.color = color;
+PreviewStyle pointStyle(core::ColorRole role, float size) {
+  PreviewStyle s = roleStyle(role);
   s.pointSize = size;
   s.onTop = true;
   return s;
 }
-PreviewStyle textStyle(const std::array<float, 4>& color, float height) {
-  PreviewStyle s;
-  s.color = color;
+PreviewStyle textStyle(core::ColorRole role, float height) {
+  PreviewStyle s = roleStyle(role);
   s.textHeight = height;
   s.onTop = true;
   return s;
 }
 }  // namespace
+
+PreviewStyle roleStyle(core::ColorRole role) {
+  // SketchFree keeps the preset colour: the viewer reads a changed colour as a custom one
+  PreviewStyle s = role == core::ColorRole::SketchFree ? PreviewStyle::sketchLine() : PreviewStyle{};
+  s.role = role;
+  return s;
+}
 
 SketchSession* SketchSession::current() { return g_session.get(); }
 
@@ -465,21 +469,21 @@ void SketchSession::renderGeometry() {
   for (const Geometry& g : sk.geometries()) {
     if (g.isOriginHelper()) continue;  // hidden: the origin / axis it stands for is drawn already
     GeometryStatus st = sk.statusOf(g.id);
-    std::array<float, 4> color = colors::kFree;
+    core::ColorRole color = core::ColorRole::SketchFree;
     switch (st) {
-      case GeometryStatus::Free: color = colors::kFree; break;
-      case GeometryStatus::FullyConstrained: color = colors::kConstrained; break;
-      case GeometryStatus::Fixed: color = colors::kFixed; break;
-      case GeometryStatus::Projected: color = colors::kProjected; break;
-      case GeometryStatus::Conflicting: color = colors::kConflict; break;
+      case GeometryStatus::Free: color = core::ColorRole::SketchFree; break;
+      case GeometryStatus::FullyConstrained: color = core::ColorRole::SketchConstrained; break;
+      case GeometryStatus::Fixed: color = core::ColorRole::SketchFixed; break;
+      case GeometryStatus::Projected: color = core::ColorRole::SketchProjected; break;
+      case GeometryStatus::Conflicting: color = core::ColorRole::SketchConflict; break;
     }
     bool dashed = false;
     if (g.construction && st != GeometryStatus::Conflicting) {
-      color = colors::kConstruction;
+      color = core::ColorRole::SketchConstruction;
       dashed = true;
     }
     bool selected = selCurves.count(g.id) > 0;
-    if (selected) color = colors::kSelected;
+    if (selected) color = core::ColorRole::SketchSelected;
     if (g.type == GeomType::Point) {
       Vec3 p = toWorld(g.center());
       if (selected) selPts.push_back(p);
@@ -496,7 +500,7 @@ void SketchSession::renderGeometry() {
       // control polygon (thin dashed), Fusion shows it for control-point splines
       std::vector<Vec3> poly;
       for (int i = 0; i < g.vertexCount(); ++i) poly.push_back(toWorld(g.vertex(i)));
-      addPolyline(poly, lineStyle(colors::kGlyph, 1.0f, true));
+      addPolyline(poly, lineStyle(core::ColorRole::SketchGlyph, 1.0f, true));
     }
     if (showPoints_) {
       for (const GeoRef& pr : g.pointRefs()) {
@@ -509,11 +513,11 @@ void SketchSession::renderGeometry() {
       }
     }
   }
-  addPoints(freePts, pointStyle(colors::kFree, 6.0f));
-  addPoints(fixedPts, pointStyle(colors::kConstrained, 6.0f));
-  addPoints(selPts, pointStyle(colors::kSelected, 8.0f));
-  // origin point of the sketch (red, Fusion style)
-  addPoints({toWorld({0, 0})}, pointStyle({0.85f, 0.15f, 0.15f, 1.0f}, 7.0f));
+  addPoints(freePts, pointStyle(core::ColorRole::SketchFree, 6.0f));
+  addPoints(fixedPts, pointStyle(core::ColorRole::SketchConstrained, 6.0f));
+  addPoints(selPts, pointStyle(core::ColorRole::SketchSelected, 8.0f));
+  // origin point of the sketch
+  addPoints({toWorld({0, 0})}, pointStyle(core::ColorRole::SketchOrigin, 7.0f));
 }
 
 void SketchSession::renderConstraints() {
@@ -587,10 +591,10 @@ void SketchSession::renderConstraints() {
     glyphAt(curveLabelPos(c.a.geo, 0.35), shape, c.id);
     if (c.b.isValid() && !c.b.isPoint()) glyphAt(curveLabelPos(c.b.geo, 0.35), shape, c.id);
   }
-  addLines(glyphSegs, lineStyle(colors::kGlyph, 1.0f, false));
-  addLines(fixSegs, lineStyle(colors::kFixed, 1.5f, false));
-  addLines(selectedSegs, lineStyle(colors::kSelected, 1.5f, false));
-  addPoints(coincidentPts, pointStyle(colors::kGlyph, 4.0f));
+  addLines(glyphSegs, lineStyle(core::ColorRole::SketchGlyph, 1.0f, false));
+  addLines(fixSegs, lineStyle(core::ColorRole::SketchFixed, 1.5f, false));
+  addLines(selectedSegs, lineStyle(core::ColorRole::SketchSelected, 1.5f, false));
+  addPoints(coincidentPts, pointStyle(core::ColorRole::SketchGlyph, 4.0f));
 }
 
 std::string SketchSession::dimensionText(const Constraint& c) const {
@@ -629,8 +633,8 @@ void SketchSession::drawDimension(const Constraint& c) {
   if (!ga) return;
   const Geometry* gb = c.b.isValid() ? sk->geometry(c.b.geo) : nullptr;
   bool selected = selectedConstraints_.count(c.id) > 0;
-  PreviewStyle ls = lineStyle(selected ? colors::kSelected : colors::kDimension, 1.0f, false);
-  PreviewStyle ts = textStyle(selected ? colors::kSelected : colors::kDimension, 12.0f);
+  PreviewStyle ls = lineStyle(selected ? core::ColorRole::SketchSelected : core::ColorRole::Dimension, 1.0f, false);
+  PreviewStyle ts = textStyle(selected ? core::ColorRole::SketchSelected : core::ColorRole::Dimension, 12.0f);
   Pt2 label = c.hasLabelPos ? c.labelPos : sk->defaultLabelPos(c);
   std::vector<Vec3> segs;
   auto seg = [&](Pt2 a, Pt2 b) {
@@ -768,8 +772,7 @@ void SketchSession::drawDimension(const Constraint& c) {
 void SketchSession::renderProfiles() {
   SketchFeature* f = feature();
   if (!f) return;
-  PreviewStyle st;
-  st.color = colors::kProfile;
+  PreviewStyle st = roleStyle(core::ColorRole::SketchProfile);
   st.shaded = true;
   for (const ProfileRegion& r : f->regions()) {
     if (!viewer_) break;

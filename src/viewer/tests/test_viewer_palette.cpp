@@ -109,6 +109,33 @@ class ViewerPaletteTest : public QObject {
     QVERIFY(!same(l.preview(core::PreviewStyle::join()).edge, p.preview(core::PreviewStyle::join()).edge));
   }
 
+  void sketchSessionRoles() {
+    // phase 5: the open sketch draws through roles, so it follows the theme (no Fusion literals)
+    using core::ColorRole;
+    auto role = [](ColorRole r) {
+      core::PreviewStyle s;
+      s.role = r;
+      return s;
+    };
+    for (Theme th : {Theme::Dark, Theme::Light}) {
+      const ViewerPalette p = ViewerPalette::fromTokens(th);
+      QVERIFY(same(p.preview(role(ColorRole::SketchConstrained)).edge, p.skConstrained));
+      QVERIFY(same(p.preview(role(ColorRole::SketchConstruction)).edge, p.skConstruction));
+      QVERIFY(same(p.preview(role(ColorRole::SketchProjected)).edge, p.skProjected));
+      QVERIFY(same(p.preview(role(ColorRole::SketchFixed)).edge, p.skFixed));
+      QVERIFY(same(p.preview(role(ColorRole::SketchConflict)).edge, p.skConflict));
+      QVERIFY(same(p.preview(role(ColorRole::SketchSelected)).edge, p.select));
+      QVERIFY(same(p.preview(role(ColorRole::SketchGlyph)).edge, theme::rgba(Tok::TextSecondary, th)));
+      QVERIFY(same(p.preview(role(ColorRole::SketchProfile)).fill, p.profileFill));
+      QVERIFY(same(p.preview(role(ColorRole::Preselect)).edge, p.preselect));
+      QVERIFY(same(p.preview(role(ColorRole::SketchOrigin)).edge, p.originPoint));
+      // the role wins over whatever colour the style carries
+      core::PreviewStyle odd = role(ColorRole::SketchFixed);
+      odd.color = {0.1f, 0.2f, 0.3f, 1.0f};
+      QVERIFY(same(p.preview(odd).edge, p.skFixed));
+    }
+  }
+
   void manipulatorColours() {
     using core::ManipulatorHandle;
     using core::ManipulatorKind;

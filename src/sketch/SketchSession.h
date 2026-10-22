@@ -31,20 +31,11 @@ class ToolManager;
 
 namespace fabricad::sketch {
 
-/// Fusion 360 light-theme sketch colours (RGBA 0..1).
-namespace colors {
-constexpr std::array<float, 4> kFree{0.118f, 0.435f, 0.851f, 1.0f};         // #1E6FD9
-constexpr std::array<float, 4> kConstrained{0.0f, 0.0f, 0.0f, 1.0f};        // #000000
-constexpr std::array<float, 4> kConstruction{0.898f, 0.541f, 0.0f, 1.0f};   // #E58A00
-constexpr std::array<float, 4> kProjected{0.608f, 0.188f, 0.851f, 1.0f};    // #9B30D9
-constexpr std::array<float, 4> kFixed{0.180f, 0.620f, 0.180f, 1.0f};        // #2E9E2E
-constexpr std::array<float, 4> kConflict{0.878f, 0.125f, 0.125f, 1.0f};     // #E02020
-constexpr std::array<float, 4> kSelected{0.043f, 0.424f, 1.0f, 1.0f};       // #0B6CFF
-constexpr std::array<float, 4> kDimension{0.30f, 0.30f, 0.30f, 1.0f};
-constexpr std::array<float, 4> kGlyph{0.35f, 0.35f, 0.35f, 1.0f};
-constexpr std::array<float, 4> kProfile{1.0f, 0.788f, 0.541f, 0.4f};        // #FFC98A
-constexpr std::array<float, 4> kTrim{0.878f, 0.125f, 0.125f, 1.0f};
-}  // namespace colors
+/// Sketch colours are roles (core::ColorRole): the viewer resolves them from the theme tokens
+/// (sk.free, sk.constrained, sk.construction, ... in docs/plans/ui-redesign.md 4.5), so the open
+/// sketch follows the dark and light themes like finished sketches do.
+/// A preview style of `role` (colour = the role's headless fallback, PreviewStyle's default).
+core::PreviewStyle roleStyle(core::ColorRole role);
 
 class SketchSession : public QObject {
   Q_OBJECT

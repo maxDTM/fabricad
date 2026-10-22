@@ -291,3 +291,5 @@ QPlainTextEdit#CommandHistory { background: @{surface.panel}; border: none; colo
 #fcValueField QLineEdit { background: transparent; border: none; color: @{text.primary}; min-width: 96px; selection-background-color: @{live.base}; selection-color: @{live.ink}; }
 #fcValueBox[locked="true"] #fcValueField QLineEdit { color: @{text.secondary}; }
 #fcValueField QLabel { background: transparent; border: none; color: @{text.secondary}; }
+/* leader from the value box to its handle (5.3): gold with a dark-ink halo in both themes (4.7: never a thin gold line alone) */
+#fcValueLeader { background: transparent; qproperty-lineColor: @{live.base}; qproperty-haloColor: @{live.ink}; }

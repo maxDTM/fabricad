@@ -272,14 +272,14 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | `vp.originAxes` | axis colours at 70 % | same | — | |
 | `axis.x` / `axis.y` / `axis.z` | `#F0525F` / `#4CC27A` / `#5B8CFF` | `#C42B38` / `#1B7A43` / `#2F5FD9` | dark 4.17–7.97 · light 3.85–5.45 (U) | Always with the letters **X Y Z** (dial, triad, readout ticks). They are never the only cue. |
 | `axis.onAxis` | `#101217` | `#FFFFFF` | 5.42–8.30 · 5.37–5.60 (T) on the axis colours | letters on axis squares and tips (dial X/Y/Z). Added after the v6-tokens mockup. |
-| `body.default` | `#B4BAC4` | `#C9CDD2` | — | default body material (diffuse). Per-body colours from the document override it. |
+| `body.default` | `#9BA0A9` | `#BFC3C8` | 6.84/5.48 · 1.72/1.27 (S) | default body material: the colour of the best-lit face (`ViewerPalette` material gain ≈ 1), the mockup's top face. Per-body colours from the document override it. Phase 5 (p4-check M1): was `#B4BAC4` / `#C9CDD2`, lit to `#E3E7EB` in light (1.2:1 on the viewport). **Shape rule**: body vs both gradient ends ≥ 1.25:1 (`S` pairs in `theme_tokens`), so the silhouette reads without its edge lines. |
 | `body.edge` | `#1A1D22` | `#1A1A1A` | 7.56 on the face | face boundaries |
 | `body.hiddenLine` | `#6E7682` dashed | `#5E6675` dashed | 3.14/3.92 · 5.63/4.15 (U) | HLR and "shaded + hidden" modes |
 | `body.ghost` | body at 25 % | body at 25 % | — | ghosted components, rolled-back preview |
 | `sel.edge` / `sel.fill` | `#B49CFF` 2.2 px / `#8B5CF6` 22 % | `#6D3FE0` 2.5 px / `#6D3FE0` 18 % | 6.27/7.82 · 5.95/4.38 | |
 | `pre.edge` | `#E0D6FF` 1.5 px | `#8257F0` 1.5 px | 10.45/13.04 · 4.47/3.30 | hover (preselection) |
 | `halo.dark` / `halo.light` | `#0E0A1F` / — | — / `#FFFFFF` | — | **Halo rule**: any accent line drawn over shaded bodies gets a 1 px halo. Purple and gold on the grey body give only 1.03 and 1.24 without one. With the halo, ink on the face is ≥ 7:1. |
-| `preview.live` | fill `#F5B700` 40 %, edges `#FFD24D` 1.8 px + `#1A1400` halo | fill `#F5B700` 45 %, edges `#6B4A00` 1.8 px + `#FFFFFF` halo | ≥ 7.8 | extrude, revolve and the like (role `Live`) |
+| `preview.live` | fill `#F5B700` 50 %, edges `#FFD24D` 1.8 px + `#1A1400` halo | fill `#F5B700` 55 %, edges `#6B4A00` 1.8 px + `#FFFFFF` halo | ≥ 7.8 | extrude, revolve and the like (role `Live`). Fill raised in phase 5 (p4-check L5: 40 / 45 % read as a pale tan). |
 | `preview.cut` | fill `#FF5C8A` 30 %, edges `#FF5C8A` dashed | `#C4125E` | 4.90 · 5.69 | Cut keeps the error hue, with a dashed edge as its cue |
 | `preview.newBody` | fill `#3CC8F0` 30 % | `#0A6F91` | | |
 | `manip.handle` | `#F5B700` diamond, `#1A1400` 1 px outline | same | | drag handle. `live.bright` on hover and drag, plus a 6 px glow. |
@@ -291,7 +291,7 @@ Fixed during the check (light hidden lines `#7E8794` also failed at 2.61 and bec
 | `sk.fixed` | `#4CC27A` + lock glyph | `#1E7F45` + lock glyph | 6.38 · 4.89 | |
 | `sk.conflict` | `#FF5C8A` 2.5 px + `⚠` glyph | `#C4125E` | 4.90/6.12 · 5.69/4.19 | over-constrained or failed |
 | `sk.point` | as curve state, 5 px squares | | | |
-| `sk.profileFill` | `#8B5CF6` 14 % (purple when selected), otherwise `#A7AEB9` 8 % | `#6D3FE0` 10 % / `#4A515D` 6 % | X | closed-profile tint |
+| `sk.profileFill` | `#8B5CF6` 14 % (purple when selected), otherwise `#A7AEB9` 14 % | `#6D3FE0` 10 % / `#4A515D` 12 % | X | closed-profile tint (phase 5, p4-check L4: was 8 % / 6 %, nearly invisible in light) |
 | `sk.constraintGlyph` | chip `surface.overlay`, glyph `text.secondary`, border `border.default` | chip `#FFFFFF`, glyph `#4A515D` | glyph 6.46 · 7.32 (T) | selected chip: `accent.selFill` + `accent.text`; conflicting chip: `status.errorFill` + `status.error` |
 | `dim.line` / `dim.text` | `#3CC8F0` / `#F3F5F8` on chip `#171A20` with a `#3CC8F0` 1 px border | `#0A6F91` / `#171A20` on `#FFFFFF` | 9.17 · 4.08 | driving dimension. A driven (reference) dimension is shown in parentheses in `text.secondary`. |
 | `vp.rubberBand` | `#B49CFF` line, `#8B5CF6` 14 % (window), dashed (crossing) | `#6D3FE0` | | |

@@ -57,6 +57,17 @@ enum class ColorRole : std::uint8_t {
   SketchFree,  ///< rubber-band / under-constrained sketch curve
   Inference,   ///< guide lines and glyphs (neutral)
   Dimension,   ///< dimension lines and text
+  // sketch session (curve states by constraint status, docs/plans/ui-redesign.md 4.5 sk.*)
+  SketchConstrained,   ///< fully constrained curve or point
+  SketchConstruction,  ///< construction curve (dashed)
+  SketchProjected,     ///< projected / referenced geometry
+  SketchFixed,         ///< fixed (locked) geometry
+  SketchConflict,      ///< over-constrained or failed; also the trim/remove preview
+  SketchSelected,      ///< selected curve, point or dimension (selection edge)
+  SketchGlyph,         ///< constraint glyphs, spline control polygons, dynamic text (neutral)
+  SketchProfile,       ///< closed-profile tint inside the open sketch (no boundary lines)
+  SketchOrigin,        ///< the sketch origin point
+  Preselect,           ///< hover highlight and snap marker (preselection edge)
 };
 
 /// Appearance of a preview item.

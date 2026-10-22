@@ -8,14 +8,25 @@
 // click) is pushed back into the model through textEdited. Works without widgets too: when
 // the viewer has no QWidget (headless), nothing is created and the tool falls back to a
 // preview text label built from ValueInputModel::summary().
+//
+// Keep-out (phase 5, p4-check M3): the boxes stay clear of the viewport overlays the app
+// publishes on the parent widget as the dynamic property `fcOverlayKeepOut` (a QVariantList of
+// QRect: command card, orientation widget, tool column, breadcrumb row, readouts...). A box whose
+// anchor sits behind the card moves beside the card instead of covering it, and a 1 px gold
+// leader line (`#fcValueLeader`, colours from the theme QSS) ties the active box to its anchor.
+// Without a screen position (no 3D view, e.g. offscreen) the boxes centre in the viewport.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include "sketch/ValueInput.h"
 
 #include <QObject>
+#include <QColor>
 #include <QPointer>
+#include <QRect>
 #include <QTimer>
+#include <QVector>
+#include <QWidget>
 
 #include <functional>
 #include <vector>
@@ -23,13 +34,36 @@
 class QFrame;
 class QLabel;
 class QLineEdit;
-class QWidget;
-
 namespace fabricad::core {
 class IViewerContext;
 }
 
 namespace fabricad::sketch {
+
+/// The gold leader from a value box to its anchor (handle): a mouse-transparent child of the
+/// viewport that paints one line with a 1 px halo on each side (the halo rule, 4.5).
+class ValueLeader : public QWidget {
+  Q_OBJECT
+  Q_PROPERTY(QColor lineColor READ lineColor WRITE setLineColor)
+  Q_PROPERTY(QColor haloColor READ haloColor WRITE setHaloColor)
+ public:
+  explicit ValueLeader(QWidget* parent);
+  /// Line from `from` (the anchor) to `to` (the box edge), in parent coordinates.
+  void setLine(QPoint from, QPoint to);
+  QPoint from() const { return from_; }
+  QPoint to() const { return to_; }
+  QColor lineColor() const { return line_; }
+  void setLineColor(const QColor& c) { line_ = c; update(); }
+  QColor haloColor() const { return halo_; }
+  void setHaloColor(const QColor& c) { halo_ = c; update(); }
+
+ protected:
+  void paintEvent(QPaintEvent*) override;
+
+ private:
+  QPoint from_, to_;
+  QColor line_{Qt::darkYellow}, halo_{Qt::transparent};  // the theme QSS sets both
+};
 
 class ValueInputOverlay : public QObject {
   Q_OBJECT
@@ -55,6 +89,12 @@ class ValueInputOverlay : public QObject {
   int boxCount() const { return static_cast<int>(boxes_.size()); }
   QLineEdit* editAt(int fieldIndex) const;
   QFrame* frameAt(int fieldIndex) const;
+  ValueLeader* leader() const { return leader_; }
+
+  /// Place a box of `size` near the screen point `anchor`: right/below by `offset`, else the
+  /// other three corners, else beside whichever keep-out rect it hits; always inside `bounds`.
+  /// Pure geometry (tested).
+  static QRect placeClear(QPoint anchor, QSize size, QPoint offset, const QVector<QRect>& keepOut, const QRect& bounds);
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -69,11 +109,13 @@ class ValueInputOverlay : public QObject {
   };
   void ensureBoxes();
   void applyStyle(Box& b, const ValueField& f, bool active);
+  QVector<QRect> keepOut() const;
 
   ValueInputModel& model_;
   core::IViewerContext* viewer_ = nullptr;
   QPointer<QWidget> parent_;
   std::vector<Box> boxes_;
+  QPointer<ValueLeader> leader_;
   std::function<void(int, int, const std::string&)> forward_;
   QTimer repositionTimer_;
   bool visible_ = true;

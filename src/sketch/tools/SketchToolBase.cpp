@@ -452,8 +452,7 @@ void SketchTool::showInference(const InferenceResult& r) {
 void SketchTool::showDynamicText(Pt2 near, const std::string& text) {
   if (!session()) return;
   const double off = tol(near, 16.0);
-  PreviewStyle st;
-  st.color = {0.15f, 0.15f, 0.15f, 1.0f};
+  PreviewStyle st = roleStyle(core::ColorRole::SketchGlyph);
   st.textHeight = 12.0f;
   st.onTop = true;
   previewText(near + Pt2{off, -off}, text, st);
@@ -466,24 +465,21 @@ PreviewStyle SketchTool::rubberStyle() { return PreviewStyle::sketchLine(); }
 PreviewStyle SketchTool::guideStyle() { return PreviewStyle::inference(); }
 
 PreviewStyle SketchTool::glyphStyle() {
-  PreviewStyle s;
-  s.color = {0.25f, 0.25f, 0.25f, 1.0f};
+  PreviewStyle s = roleStyle(core::ColorRole::SketchGlyph);
   s.textHeight = 11.0f;
   s.onTop = true;
   return s;
 }
 
 PreviewStyle SketchTool::markerStyle() {
-  PreviewStyle s;
-  s.color = {0.95f, 0.55f, 0.1f, 1.0f};
+  PreviewStyle s = roleStyle(core::ColorRole::Preselect);
   s.pointSize = 9.0f;
   s.onTop = true;
   return s;
 }
 
 PreviewStyle SketchTool::highlightStyle() {
-  PreviewStyle s;
-  s.color = {0.95f, 0.55f, 0.1f, 1.0f};
+  PreviewStyle s = roleStyle(core::ColorRole::Preselect);
   s.lineWidth = 3.0f;
   s.shaded = false;
   s.onTop = true;
@@ -491,8 +487,7 @@ PreviewStyle SketchTool::highlightStyle() {
 }
 
 PreviewStyle SketchTool::removeStyle() {
-  PreviewStyle s;
-  s.color = colors::kTrim;
+  PreviewStyle s = roleStyle(core::ColorRole::SketchConflict);
   s.lineWidth = 3.5f;
   s.shaded = false;
   s.onTop = true;
@@ -500,8 +495,7 @@ PreviewStyle SketchTool::removeStyle() {
 }
 
 PreviewStyle SketchTool::constructionStyle() {
-  PreviewStyle s;
-  s.color = colors::kConstruction;
+  PreviewStyle s = roleStyle(core::ColorRole::SketchConstruction);
   s.lineWidth = 1.5f;
   s.shaded = false;
   s.dashed = true;

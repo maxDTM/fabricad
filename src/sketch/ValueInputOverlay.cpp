@@ -12,9 +12,11 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QWidget>
 
 #include <algorithm>
+#include <cmath>
 
 namespace fabricad::sketch {
 
@@ -30,7 +32,90 @@ void repolish(QWidget* w) {
   }
   w->update();
 }
+/// Point of `r` nearest to `p`.
+QPoint nearestOn(const QRect& r, QPoint p) {
+  return {std::clamp(p.x(), r.left(), r.right()), std::clamp(p.y(), r.top(), r.bottom())};
+}
 }  // namespace
+
+// ---- ValueLeader ------------------------------------------------------------------------------
+
+ValueLeader::ValueLeader(QWidget* parent) : QWidget(parent) {
+  setObjectName("fcValueLeader");
+  setAttribute(Qt::WA_TransparentForMouseEvents);
+  setAttribute(Qt::WA_NoSystemBackground);
+  setFocusPolicy(Qt::NoFocus);
+  hide();
+}
+
+void ValueLeader::setLine(QPoint from, QPoint to) {
+  if (from == from_ && to == to_ && !geometry().isEmpty()) return;  // no repaint loop with the parent
+  from_ = from;
+  to_ = to;
+  setGeometry(QRect(from, to).normalized().adjusted(-3, -3, 3, 3));
+  update();
+}
+
+void ValueLeader::paintEvent(QPaintEvent*) {
+  QPainter p(this);
+  p.setRenderHint(QPainter::Antialiasing);
+  const QPointF a = from_ - pos(), b = to_ - pos();
+  if (halo_.alpha() > 0) {
+    p.setPen(QPen(halo_, 3.0, Qt::SolidLine, Qt::RoundCap));
+    p.drawLine(a, b);
+  }
+  p.setPen(QPen(line_, 1.0, Qt::SolidLine, Qt::RoundCap));
+  p.drawLine(a, b);
+  // a small dot on the anchor end, like the mockup's tick at the handle
+  p.setPen(Qt::NoPen);
+  p.setBrush(line_);
+  p.drawEllipse(a, 1.8, 1.8);
+}
+
+// ---- ValueInputOverlay ------------------------------------------------------------------------
+
+QRect ValueInputOverlay::placeClear(QPoint anchor, QSize size, QPoint offset, const QVector<QRect>& keepOut,
+                                    const QRect& bounds) {
+  auto clampIn = [&bounds](QRect r) {
+    r.moveLeft(std::clamp(r.left(), bounds.left(), std::max(bounds.left(), bounds.right() + 1 - r.width())));
+    r.moveTop(std::clamp(r.top(), bounds.top(), std::max(bounds.top(), bounds.bottom() + 1 - r.height())));
+    return r;
+  };
+  auto clear = [&keepOut](const QRect& r) {
+    return std::none_of(keepOut.begin(), keepOut.end(), [&r](const QRect& k) { return k.intersects(r); });
+  };
+  const int w = size.width(), h = size.height(), dx = offset.x(), dy = offset.y();
+  std::vector<QRect> candidates{QRect(anchor.x() + dx, anchor.y() + dy, w, h), QRect(anchor.x() - dx - w, anchor.y() + dy, w, h),
+                                QRect(anchor.x() + dx, anchor.y() - dy - h, w, h), QRect(anchor.x() - dx - w, anchor.y() - dy - h, w, h)};
+  for (QRect& c : candidates) c = clampIn(c);
+  for (const QRect& c : candidates)
+    if (clear(c)) return c;
+  // the anchor is behind an overlay (the card): beside the overlay the first choice hits, the
+  // clear spot nearest to that choice
+  const QRect first = candidates.front();
+  constexpr int kGap = 8;
+  std::vector<QRect> beside;
+  for (const QRect& k : keepOut) {
+    if (!k.intersects(first)) continue;
+    beside.push_back(clampIn(QRect(k.left() - kGap - w, first.top(), w, h)));
+    beside.push_back(clampIn(QRect(k.right() + 1 + kGap, first.top(), w, h)));
+    beside.push_back(clampIn(QRect(first.left(), k.bottom() + 1 + kGap, w, h)));
+    beside.push_back(clampIn(QRect(first.left(), k.top() - kGap - h, w, h)));
+  }
+  auto dist = [&first](const QRect& r) { return (r.topLeft() - first.topLeft()).manhattanLength(); };
+  std::sort(beside.begin(), beside.end(), [&dist](const QRect& a, const QRect& b) { return dist(a) < dist(b); });
+  for (const QRect& c : beside)
+    if (clear(c)) return c;
+  return first;  // nowhere clear (a tiny viewport): as before
+}
+
+QVector<QRect> ValueInputOverlay::keepOut() const {
+  QVector<QRect> out;
+  if (!parent_) return out;
+  for (const QVariant& v : parent_->property("fcOverlayKeepOut").toList())
+    if (const QRect r = v.toRect(); r.isValid()) out.push_back(r);
+  return out;
+}
 
 ValueInputOverlay::ValueInputOverlay(ValueInputModel& model, core::IViewerContext* viewer, QWidget* parent)
     : QObject(parent), model_(model), viewer_(viewer), parent_(parent) {
@@ -45,6 +130,7 @@ ValueInputOverlay::~ValueInputOverlay() {
   for (Box& b : boxes_)
     if (b.frame) b.frame->deleteLater();
   boxes_.clear();
+  if (leader_) leader_->deleteLater();
 }
 
 QLineEdit* ValueInputOverlay::editAt(int fieldIndex) const {
@@ -149,26 +235,66 @@ void ValueInputOverlay::sync() {
 void ValueInputOverlay::reposition() {
   if (!parent_ || !viewer_) return;
   // Fusion stacks the boxes under each other at the first anchor that has a position; a field
-  // with its own anchor (e.g. the arc radius at the arc centre) is placed there instead.
+  // with its own anchor (e.g. the arc radius at the arc centre) is placed there instead. Boxes
+  // keep clear of the published overlays (card, dial, tool column, top row, readouts).
+  const QVector<QRect> keep = keepOut();
+  const QRect bounds = parent_->rect();
   bool havePrev = false;
   double prevSx = 0, prevSy = 0;
-  int nextY = 0;
+  QRect prev;
+  QPoint leaderFrom, leaderTo;
+  bool leaderOn = false;
   for (Box& b : boxes_) {
     if (!b.frame || !b.frame->isVisible() || b.fieldIndex >= model_.fieldCount()) continue;
     const ValueField& f = model_.field(b.fieldIndex);
     double sx = 0, sy = 0;
-    if (!viewer_->worldToScreen(f.anchor.toPnt(), sx, sy)) continue;
-    int x = static_cast<int>(sx) + dx_, y = static_cast<int>(sy) + dy_;
-    if (havePrev && std::abs(sx - prevSx) < 4 && std::abs(sy - prevSy) < 4) y = nextY;  // same anchor: stack below
-    const int w = b.frame->width(), h = std::max(b.frame->height(), b.frame->sizeHint().height());
-    x = std::clamp(x, 0, std::max(0, parent_->width() - w));
-    y = std::clamp(y, 0, std::max(0, parent_->height() - h));
-    b.frame->move(x, y);
+    const bool onScreen = viewer_->worldToScreen(f.anchor.toPnt(), sx, sy);
+    if (!onScreen) {
+      // no 3D view (offscreen, GL not ready): the viewport centre, not its top-left corner
+      sx = parent_->width() / 2.0;
+      sy = parent_->height() / 2.0;
+    }
+    const QSize size(b.frame->width(), std::max(b.frame->height(), b.frame->sizeHint().height()));
+    const QPoint anchor(static_cast<int>(sx), static_cast<int>(sy));
+    QRect r;
+    if (havePrev && std::abs(sx - prevSx) < 4 && std::abs(sy - prevSy) < 4) {
+      // same anchor: stack below the previous box, still clear of the overlays
+      r = QRect(QPoint(prev.left(), prev.bottom() + 1 + 2), size);
+      const bool hits = std::any_of(keep.begin(), keep.end(), [&r](const QRect& k) { return k.intersects(r); });
+      if (hits || !bounds.contains(r)) r = placeClear(r.topLeft(), size, QPoint(0, 0), keep, bounds);
+    } else {
+      r = placeClear(anchor, size, QPoint(dx_, dy_), keep, bounds);
+    }
+    b.frame->move(r.topLeft());
     b.frame->raise();
+    if (onScreen && (!leaderOn || b.fieldIndex == model_.activeIndex())) {
+      leaderOn = true;
+      leaderFrom = anchor;
+      leaderTo = nearestOn(r, anchor);
+    }
     havePrev = true;
     prevSx = sx;
     prevSy = sy;
-    nextY = y + h + 2;
+    prev = r;
+  }
+  // the gold leader (5.3): only when the box sits away from its anchor, and not from an anchor
+  // hidden behind an overlay (it would cross the card)
+  const bool anchorHidden =
+      std::any_of(keep.begin(), keep.end(), [&leaderFrom](const QRect& k) { return k.contains(leaderFrom); });
+  if (leaderOn && !anchorHidden && (leaderTo - leaderFrom).manhattanLength() > 6) {
+    if (!leader_) leader_ = new ValueLeader(parent_);
+    leader_->setLine(leaderFrom, leaderTo);
+    if (leader_->isHidden()) {
+      leader_->show();
+      // under the boxes, above the GL view (restacked only when it appears: no paint loop)
+      for (Box& b : boxes_)
+        if (b.frame && b.frame->isVisible()) {
+          leader_->stackUnder(b.frame);
+          break;
+        }
+    }
+  } else if (leader_) {
+    leader_->hide();
   }
 }
 
@@ -186,6 +312,7 @@ bool ValueInputOverlay::eventFilter(QObject* watched, QEvent* event) {
       case QEvent::Wheel:
       case QEvent::MouseMove:
       case QEvent::MouseButtonRelease:
+      case QEvent::DynamicPropertyChange:  // fcOverlayKeepOut republished (card moved, resized)
         if (!repositionTimer_.isActive()) repositionTimer_.start();
         break;
       default: break;

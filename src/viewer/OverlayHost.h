@@ -20,6 +20,9 @@ class OverlayHost : public QObject {
  public:
   /// The host of `viewport` (created on first use, owned by the viewport).
   static OverlayHost* of(QWidget* viewport);
+  /// publish() also stores the occupied rects on the viewport as this dynamic property (a
+  /// QVariantList of QRect), read by sketch::ValueInputOverlay.
+  static constexpr const char* kKeepOutProperty = "fcOverlayKeepOut";
 
   void publish(const OverlayLayout& layout);
   const OverlayLayout& layout() const { return layout_; }

@@ -8,6 +8,9 @@
 //   SelectionFilterBar  #SelectionFilterBar  BODIES FACES EDGES SKETCH PROFILES (selection priority)
 //   CoordReadout        #CoordReadout     X / Y / Z of the point under the cursor + unit cell
 //   ScaleBar            #ScaleBar         1-2-5 ruler at the view centre
+//   EdgeRuler           #EdgeRulerTop / #EdgeRulerLeft  sketch mode only (7.3): ticks at the grid
+//                                         step along the viewport top and left, sketch-plane
+//                                         coordinates as caption labels (face-on views)
 //
 // All are children of ViewerWidget, placed by it (ViewerWidget::layoutOverlayWidgets) and reported
 // to OverlayLayout as fixed regions (ViewerWidget::addOverlayRegions), so the command card, the
@@ -207,6 +210,38 @@ class ScaleBar : public QWidget {
  private:
   ViewerWidget& viewer_;
   double length_ = 0.0, pixels_ = 0.0;
+};
+
+// ---------------------------------------------------------------------------------------------
+class EdgeRuler : public QWidget {
+  Q_OBJECT
+ public:
+  static constexpr int kThickness = 14;
+  struct Tick {
+    double pos;    ///< px along the ruler
+    double value;  ///< sketch coordinate in mm
+    bool major;    ///< every 5th step: longer, labelled
+  };
+  /// Ticks at multiples of `step` between the ruler ends, whose sketch coordinates are c0 (at 0 px)
+  /// and c1 (at `length` px). Steps closer than 6 px are thinned to every 5th (then every 25th).
+  static std::vector<Tick> ticks(double c0, double c1, double length, double step);
+
+  EdgeRuler(ViewerWidget& viewer, Qt::Orientation o);
+  /// Recompute from the view: shown in sketch mode with a face-on view, when enabled.
+  void refresh();
+  void setEnabledByUser(bool on);
+  bool isShown() const { return shown_; }
+  double startValue() const { return c0_; }
+  double endValue() const { return c1_; }
+
+ protected:
+  void paintEvent(QPaintEvent*) override;
+
+ private:
+  ViewerWidget& viewer_;
+  Qt::Orientation orient_;
+  bool enabled_ = true, shown_ = false;
+  double c0_ = 0.0, c1_ = 0.0;
 };
 
 }  // namespace fabricad::viewer

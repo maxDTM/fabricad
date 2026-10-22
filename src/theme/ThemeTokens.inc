@@ -272,14 +272,14 @@ inline constexpr std::uint32_t kDark[] = {
     0x4CC27AFFu,  // axis.y
     0x5B8CFFFFu,  // axis.z
     0x101217FFu,  // axis.onAxis
-    0xB4BAC4FFu,  // body.default
+    0x9BA0A9FFu,  // body.default
     0x1A1D22FFu,  // body.edge
     0x6E7682FFu,  // body.hiddenLine
     0xB49CFFFFu,  // sel.edge
     0x8B5CF638u,  // sel.fill
     0xE0D6FFFFu,  // pre.edge
     0x0E0A1FFFu,  // halo
-    0xF5B70066u,  // preview.live.fill
+    0xF5B70080u,  // preview.live.fill
     0xFFD24DFFu,  // preview.live.edge
     0x1A1400FFu,  // preview.live.halo
     0xFF5C8A4Du,  // preview.cut.fill
@@ -294,7 +294,7 @@ inline constexpr std::uint32_t kDark[] = {
     0x3CC8F0FFu,  // sk.projected
     0x4CC27AFFu,  // sk.fixed
     0xFF5C8AFFu,  // sk.conflict
-    0xA7AEB914u,  // sk.profileFill
+    0xA7AEB924u,  // sk.profileFill
     0x8B5CF624u,  // sk.profileFillSel
     0x3CC8F0FFu,  // dim.line
     0xF3F5F8FFu,  // dim.text
@@ -367,20 +367,20 @@ inline constexpr std::uint32_t kLight[] = {
     0x6D3FE01Au,  // vp.rubberBandFill
     0x4A515DFFu,  // vp.overlayText
     0xFFFFFFFFu,  // vp.light
-    0xE4E8EEFFu,  // vp.cube.face
+    0xC3CAD3FFu,  // vp.cube.face
     0x7E8794FFu,  // vp.cube.edge
     0xC42B38FFu,  // axis.x
     0x1B7A43FFu,  // axis.y
     0x2F5FD9FFu,  // axis.z
     0xFFFFFFFFu,  // axis.onAxis
-    0xC9CDD2FFu,  // body.default
+    0xBFC3C8FFu,  // body.default
     0x1A1A1AFFu,  // body.edge
     0x5E6675FFu,  // body.hiddenLine
     0x6D3FE0FFu,  // sel.edge
     0x6D3FE02Eu,  // sel.fill
     0x8257F0FFu,  // pre.edge
     0xFFFFFFFFu,  // halo
-    0xF5B70073u,  // preview.live.fill
+    0xF5B7008Cu,  // preview.live.fill
     0x6B4A00FFu,  // preview.live.edge
     0xFFFFFFFFu,  // preview.live.halo
     0xC4125E4Du,  // preview.cut.fill
@@ -395,7 +395,7 @@ inline constexpr std::uint32_t kLight[] = {
     0x0A6F91FFu,  // sk.projected
     0x1E7F45FFu,  // sk.fixed
     0xC4125EFFu,  // sk.conflict
-    0x4A515D0Fu,  // sk.profileFill
+    0x4A515D1Fu,  // sk.profileFill
     0x6D3FE01Au,  // sk.profileFillSel
     0x0A6F91FFu,  // dim.line
     0x171A20FFu,  // dim.text
@@ -553,6 +553,8 @@ inline constexpr Pair kPairs[] = {
     {Tok::AxisOnAxis, Tok::AxisY, 4.5},  // text
     {Tok::AxisOnAxis, Tok::AxisZ, 4.5},  // text
     {Tok::BodyEdge, Tok::BodyDefault, 3.0},  // ui
+    {Tok::BodyDefault, Tok::VpBgTop, 1.25},  // shape
+    {Tok::BodyDefault, Tok::VpBgBottom, 1.25},  // shape
     {Tok::BodyHiddenLine, Tok::VpBgTop, 3.0},  // ui
     {Tok::BodyHiddenLine, Tok::VpBgBottom, 3.0},  // ui
     {Tok::SelEdge, Tok::VpBgTop, 3.0},  // ui
