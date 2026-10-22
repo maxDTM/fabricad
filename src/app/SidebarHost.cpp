@@ -313,8 +313,11 @@ void SidebarHost::applyLayout() {
     panels_[0]->setMinimumHeight(PanelHeader::kHeight);
     panels_[0]->setMaximumHeight(panels_[0]->isCollapsed() ? PanelHeader::kHeight : QWIDGETSIZE_MAX);
   }
-  panels_[1]->setCollapsed(collapsed_[1]);
-  panels_[2]->setCollapsed(collapsed_[2]);
+  // a docked card plus an expanded FEATURES (feature-selection input) need the room: MODEL and
+  // SELECTION fold to their headers meanwhile (the user's state is kept and comes back)
+  const bool makeRoom = docked && fs && showFeatures;
+  panels_[1]->setCollapsed(collapsed_[1] || makeRoom);
+  panels_[2]->setCollapsed(collapsed_[2] || makeRoom);
   cardSlot_->setVisible(docked);
 
   // sizes: the panels' remembered sizes; a docked card takes what FEATURES gives up
@@ -331,6 +334,15 @@ void SidebarHost::applyLayout() {
     } else {
       cardH = std::min(want, total / 2);
       if (showFeatures && fs) s[0] = std::max(s[0], (total - cardH) * 3 / 5);
+    }
+    // MODEL and SELECTION give way to the card (down to their headers), never FEATURES' live row
+    const int rest = std::max(0, total - cardH - s[0] - 2 * splitter_->handleWidth());
+    if (s[1] + s[2] > rest) {
+      const int minimum = 2 * PanelHeader::kHeight;
+      const int avail = std::max(rest, minimum);
+      const int sum = std::max(1, s[1] + s[2]);
+      s[1] = std::max(PanelHeader::kHeight, s[1] * avail / sum);
+      s[2] = std::max(PanelHeader::kHeight, avail - s[1]);
     }
   }
   splitter_->setSizes({cardH, s[0], s[1], s[2]});

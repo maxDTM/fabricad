@@ -45,9 +45,12 @@ class PanelHeader : public QWidget {
   void keyPressEvent(QKeyEvent* e) override;
   void enterEvent(QEnterEvent* e) override;
   void leaveEvent(QEvent* e) override;
+  void focusInEvent(QFocusEvent* e) override;
+  void focusOutEvent(QFocusEvent* e) override;
 
  private:
   int toolsLeft() const;
+  bool keyFocus_ = false;  ///< focus came from the keyboard: show the ring
   QString title_;
   QString glyph_;
   int count_ = -1;

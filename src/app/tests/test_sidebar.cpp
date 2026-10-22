@@ -96,6 +96,7 @@ class TestSidebar : public QObject {
     QSettings().clear();
     fixture_ = QFINDTESTDATA("../../../tests/e2e/bracket-v3.fcad");
     QVERIFY2(!fixture_.isEmpty(), "tests/e2e/bracket-v3.fcad missing");
+    app::ThemeManager::instance().install(*qApp, /*readSettings=*/false);
     w_ = std::make_unique<app::MainWindow>();
     w_->setInteractive(false);
     w_->resize(1600, 1000);
@@ -151,7 +152,8 @@ class TestSidebar : public QObject {
       const QFont hf = theme::font(theme::TextStyle::Header);
       const QFont rf = theme::font(theme::TextStyle::Value);
       QVERIFY(hf.weight() > rf.weight());
-      QVERIFY(hf.pixelSize() >= 12);
+      QVERIFY(QFontInfo(hf).pixelSize() >= 12);
+      QVERIFY(QFontInfo(hf).pixelSize() >= QFontInfo(rf).pixelSize() - 1);
       QVERIFY(hf.capitalization() == QFont::AllUppercase);
       // the title is never cut at the minimum sidebar width
       QVERIFY(h->titleRect().right() < SidebarHost::kMinWidth - 80);
@@ -572,11 +574,18 @@ class TestSidebar : public QObject {
     settle();
     QVERIFY(host()->featureSelectionActive());
     QVERIFY(!list()->isCompact());
-    QVERIFY(features->height() > app::PanelHeader::kHeight + 4 * FeatureListWidget::kRowH);
+    {
+      QStringList sz;
+      for (int x : host()->splitter()->sizes()) sz << QString::number(x);
+      QVERIFY2(features->height() > app::PanelHeader::kHeight + 4 * FeatureListWidget::kRowH,
+               qPrintable(sz.join(',') + " card " + QString::number(card->height())));
+    }
     QVERIFY(card->isVisible());
+    QVERIFY(host()->isPanelCollapsed(SidebarHost::Panel::Model));  // made room for FEATURES
     doc().selection().setFilter(core::kAllKinds);
     settle();
     QVERIFY(!host()->featureSelectionActive());
+    QVERIFY(!host()->isPanelCollapsed(SidebarHost::Panel::Model));  // the user's state is back
     QVERIFY(list()->isCompact());
     QCOMPARE(fsel.count(), 2);
     // the forced flag (card side) works the same, also when the user collapsed FEATURES

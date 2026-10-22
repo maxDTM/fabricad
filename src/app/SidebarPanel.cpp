@@ -7,6 +7,7 @@
 #include "theme/Tokens.h"
 
 #include <QHBoxLayout>
+#include <QFocusEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -133,7 +134,7 @@ void PanelHeader::paintEvent(QPaintEvent*) {
   }
   p.setBrush(Qt::NoBrush);
   p.drawPath(path);
-  if (hasFocus()) {
+  if (hasFocus() && keyFocus_) {
     p.setRenderHint(QPainter::Antialiasing, false);
     p.setPen(QPen(theme::color(Tok::AccentFocus), 2));
     p.drawRect(QRectF(r).adjusted(1, 1, -1, -1));
@@ -153,6 +154,18 @@ void PanelHeader::keyPressEvent(QKeyEvent* e) {
     return;
   }
   QWidget::keyPressEvent(e);
+}
+
+void PanelHeader::focusInEvent(QFocusEvent* e) {
+  keyFocus_ = e->reason() == Qt::TabFocusReason || e->reason() == Qt::BacktabFocusReason;
+  update();
+  QWidget::focusInEvent(e);
+}
+
+void PanelHeader::focusOutEvent(QFocusEvent* e) {
+  keyFocus_ = false;
+  update();
+  QWidget::focusOutEvent(e);
 }
 
 void PanelHeader::enterEvent(QEnterEvent* e) {
