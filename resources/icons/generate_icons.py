@@ -526,6 +526,11 @@ I["search"] = C(10.5, 10.5, 6.5) + P("M15.3 15.3 L20.5 20.5", s=UI)
 I["settings"] = (C(12, 12, 3, s=UI) +
                  P("M12 2.5 V5 M12 19 V21.5 M2.5 12 H5 M19 12 H21.5 M5.3 5.3 L7 7 M17 17 L18.7 18.7 M5.3 18.7 L7 17 M17 7 L18.7 5.3") +
                  C(12, 12, 7))
+# G2: Units (ruler with ticks) and Appearance (paint drop over a body)
+I["app-units"] = (R(2.5, 8, 19, 8, 1, f=WH) +
+                  P("M6 8 V11.5 M9.5 8 V10.5 M13 8 V11.5 M16.5 8 V10.5 M20 8 V11.5", s=UI))
+I["app-appearance"] = (cube(10, 13, 0.8, fill=BODY) +
+                       P("M18 3 C18 3 21.5 7.5 21.5 9.8 A3.5 3.5 0 0 1 14.5 9.8 C14.5 7.5 18 3 18 3 Z", s=UI, f=UI, fo="0.85"))
 I["file-menu"] = P("M4 6 H20 M4 12 H20 M4 18 H20")
 I["workspace-design"] = cube(12, 12, 1.1, fill=WH, stroke=UI)
 I["eye"] = eye()

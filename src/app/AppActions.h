@@ -6,6 +6,7 @@
 
 #include "core/ShapeRef.h"
 #include "core/Types.h"
+#include "core/Units.h"
 #include "core/UndoStack.h"
 
 #include <array>
