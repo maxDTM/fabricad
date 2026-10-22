@@ -17,7 +17,8 @@
 #
 # Each display has its own settings and data: XDG_CONFIG_HOME=$UI_LOGDIR/cfg-N and
 # XDG_DATA_HOME=$UI_LOGDIR/data-N (UI_LOGDIR defaults to /tmp/fabricad-uitest). The binary defaults to
-# $UI_BIN or the main checkout's build/bin/fabricad.
+# $UI_BIN or the main checkout's build/bin/fabricad; $UI_ARGS is appended to its command line
+# (e.g. UI_ARGS="--script scene.fcs --stay file.fcad").
 #
 # Input: use xdotool with DISPLAY=:N, e.g.
 #   DISPLAY=:N xdotool mousemove 640 400 click 1
@@ -53,7 +54,7 @@ case $cmd in
     rm -f "$geo"
     XDG_CONFIG_HOME="$cfg" XDG_DATA_HOME="$data" QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$scale" \
       FABRICAD_GEOMETRY_DUMP="$geo" \
-      setsid bash -c "exec -a fabricad-ui-$n '$bin'" >"$logdir/fabricad-$n.log" 2>&1 &
+      setsid bash -c "exec -a fabricad-ui-$n '$bin' ${UI_ARGS:-}" >"$logdir/fabricad-$n.log" 2>&1 &
     w=
     for _ in $(seq 60); do
       w=$(xdotool search --name FabriCAD 2>/dev/null | head -1 || true)
