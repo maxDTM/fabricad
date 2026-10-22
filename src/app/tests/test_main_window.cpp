@@ -30,6 +30,7 @@
 #include <QElapsedTimer>
 #include <QLockFile>
 #include <QSysInfo>
+#include <QDockWidget>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QDir>
