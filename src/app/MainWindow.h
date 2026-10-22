@@ -66,6 +66,8 @@ class SketchPalette;
 class StatusCell;
 class StatusCommandCell;
 class TimelineWidget;
+class FeatureListWidget;
+class SidebarHost;
 
 class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   Q_OBJECT
@@ -91,6 +93,10 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   WorkspaceSelector* workspaceSelector() const { return workspaceSelector_; }
   BrowserTree* browser() const { return browser_; }
   TimelineWidget* timeline() const { return timeline_; }
+  /// The FEATURES list of the active design tab (null in drawing tabs).
+  FeatureListWidget* featureList() const { return featureList_; }
+  /// The sidebar in #BrowserDock (FEATURES, MODEL, SELECTION and the command card slot).
+  SidebarHost* sidebarHost() const { return sidebar_; }
   CommandDialog* commandDialog() const { return dialog_; }
   CommandLine* commandLine() const { return commandLine_; }
   CommandSearch* commandSearch() const { return search_; }
@@ -246,6 +252,14 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void updateViewCells();
   void updateWorkspaceSelector();
   void applyUiSetting(const QString& key);
+  /// ui/sidebarSide: move #BrowserDock to the left or right dock area (keeps its width).
+  void applySidebarSide();
+  /// ui/timelineStyle: FEATURES list in the sidebar or the bottom strip.
+  void applyTimelineStyle();
+  void updateTimelineDock();
+  void updateCardDockAvailability();
+  /// Live row of the FEATURES list: the feature being edited or the command creating one.
+  void updateLiveRow();
   void ensureTimelineHeight();
   void applyResponsiveChrome();
   void buildFileMenu(QMenu* menu);
@@ -299,6 +313,9 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   viewer::ViewerWidget* viewer_ = nullptr;
   BrowserTree* browser_ = nullptr;
   TimelineWidget* timeline_ = nullptr;
+  FeatureListWidget* featureList_ = nullptr;
+  SidebarHost* sidebar_ = nullptr;
+  core::ObjectId editingFeature_ = core::kInvalidId;  ///< editFeature() started the active command
   CommandDialog* dialog_ = nullptr;
   NavBar* navBar_ = nullptr;
   SketchPalette* palette_ = nullptr;

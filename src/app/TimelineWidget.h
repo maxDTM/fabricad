@@ -25,6 +25,8 @@ class Document;
 
 namespace fabricad::app {
 
+class TimelineActions;
+
 class TimelineStrip : public QWidget {
   Q_OBJECT
  public:
@@ -35,6 +37,16 @@ class TimelineStrip : public QWidget {
   /// Selected/highlighted entry (feature id) for painting.
   void setHighlightedFeature(core::ObjectId id);
   core::ObjectId highlightedFeature() const { return highlighted_; }
+  /// The context menu and commands shared with the FEATURES list.
+  TimelineActions* actions() const { return actions_; }
+  /// Group brackets drawn under the icons (read-only, accent.indicator): entry ranges per group,
+  /// outer groups first (depth 0 = top level).
+  struct Bracket {
+    core::ObjectId group = core::kInvalidId;
+    int first = 0, last = 0;  ///< entry indices
+    int depth = 0;
+  };
+  const std::vector<Bracket>& brackets() const { return brackets_; }
 
  signals:
   void editRequested(fabricad::core::ObjectId id);
@@ -66,6 +78,8 @@ class TimelineStrip : public QWidget {
   QPoint pressPos_;
   bool dragStarted_ = false;
   core::ObjectId highlighted_ = core::kInvalidId;
+  TimelineActions* actions_ = nullptr;
+  std::vector<Bracket> brackets_;
 };
 
 class TimelineWidget : public QWidget {

@@ -1,4 +1,5 @@
-// FabriCAD app: Browser tree dock (ux.md section 3).
+// FabriCAD app: the MODEL tree of the sidebar (ux.md section 3; restyled in redesign phase 2,
+// docs/plans/ui-redesign.md 5.2: 28 px rows, eye at the right edge, counts, ACTIVE badge).
 //
 //   v (o) Part1                 root component (radio = active component)
 //     > Origin            (eye) O, X, Y, Z, XY, XZ, YZ
@@ -38,7 +39,10 @@ class BrowserTree : public QTreeWidget {
  public:
   enum ItemKind { KindRoot = 1, KindFolder, KindBody, KindFeature, KindComponent, KindOrigin,
                   KindOccurrenceBody };  ///< read-only body row of an occurrence (RoleId = occurrence)
-  enum Roles { RoleKind = Qt::UserRole + 1, RoleId, RoleKey, RoleFolder, RoleOrigin };
+  enum Roles { RoleKind = Qt::UserRole + 1, RoleId, RoleKey, RoleFolder, RoleOrigin,
+               RoleMeta,    ///< right-aligned meta text (count, PART, SOLID), caps
+               RoleBadge }; ///< badge text (ACTIVE)
+  static constexpr int kRowH = 28;
 
   BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWidget* parent = nullptr);
 
@@ -66,6 +70,8 @@ class BrowserTree : public QTreeWidget {
   void keyboardSearch(const QString& search) override;
   void leaveEvent(QEvent* e) override;
   void closeEditor(QWidget* editor, QAbstractItemDelegate::EndEditHint hint) override;
+  /// Full-width row background (hover, selected with the 3 px accent bar, redesign 5.2).
+  void drawRow(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 
  public:
   /// Inline rename of a row (F2, context menu, double-click on bodies/components). Components

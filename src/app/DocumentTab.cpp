@@ -6,6 +6,7 @@
 
 #include "app/BrowserTree.h"
 #include "app/CommandDialog.h"
+#include "app/FeatureListWidget.h"
 #include "app/NavBar.h"
 #include "app/SketchPalette.h"
 #include "app/TimelineWidget.h"
@@ -37,6 +38,8 @@ DocumentTab::DocumentTab(Kind kind, std::shared_ptr<core::Document> doc, core::T
     if (hosts_.browser) hosts_.browser->addWidget(browser_);
     timeline_ = new TimelineWidget(*doc_, hosts_.timeline);
     if (hosts_.timeline) hosts_.timeline->addWidget(timeline_);
+    featureList_ = new FeatureListWidget(*doc_, hosts_.features);
+    if (hosts_.features) hosts_.features->addWidget(featureList_);
   } else {
     if (drawingFactory) drawingPage_ = drawingFactory(*doc_, *manager_, hosts_.central);
     if (!drawingPage_) {
@@ -62,6 +65,7 @@ DocumentTab::~DocumentTab() {
   delete dialog_;
   delete browser_;
   delete timeline_;
+  delete featureList_;
   delete viewer_;
   delete drawingPage_;
   manager_.reset();  // disconnects from the document before it may be destroyed

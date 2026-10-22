@@ -23,9 +23,14 @@
 #include "app/ShortcutRouter.h"
 #include "app/SketchPalette.h"
 #include "app/TimelineWidget.h"
+#include "app/FeatureListWidget.h"
+#include "app/SidebarHost.h"
+#include "app/SidebarPanel.h"
+#include "app/TimelineActions.h"
 #include "app/ParametersDialog.h"
 #include "app/PreferencesDialog.h"
 #include "assembly/AssemblyModule.h"
+#include "core/Commands.h"
 #include "core/Json.h"
 #include "core/Log.h"
 #include "core/Registry.h"
@@ -154,7 +159,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   if (s.contains("window/state")) restoreState(s.value("window/state").toByteArray(), kLayoutVersion);
   toolbarHost_->show();  // never hidden by a restored state
   browserDockWanted_ = !browserDock_->isHidden();
-  timelineDockWanted_ = !timelineDock_->isHidden();
+  timelineDockWanted_ = s.value("window/stripVisible", true).toBool();
+  // phase 2: sidebar side and timeline style from ui/* (the dock state may say otherwise)
+  applySidebarSide();
+  applyTimelineStyle();
   // p0-check 4: a restored zero-height timeline was "shown" but invisible
   QTimer::singleShot(0, this, [this] { ensureTimelineHeight(); });
 
@@ -171,9 +179,67 @@ void MainWindow::applyUiSetting(const QString& key) {
     updateWorkspaceSelector();
   } else if (key == "ui/commandLine") {
     commandLine_->setVisible(ui.flag(key));
+  } else if (key == "ui/sidebarSide") {
+    applySidebarSide();
+  } else if (key == "ui/timelineStyle") {
+    applyTimelineStyle();
   }
-  // ui/toolbarArea, sidebarSide, cardPlacement, quickToolbar, orientation, timelineStyle are
-  // stored now and applied by phases 2-4 (the toolbar stays at the top in phase 1)
+  // ui/toolbarArea, cardPlacement, quickToolbar, orientation are stored now and applied by
+  // phases 3-4 (the toolbar stays at the top)
+}
+
+void MainWindow::applySidebarSide() {
+  const Qt::DockWidgetArea area =
+      UiSettings::instance().string("ui/sidebarSide") == "right" ? Qt::RightDockWidgetArea : Qt::LeftDockWidgetArea;
+  const int width = browserDock_->width() >= SidebarHost::kMinWidth ? browserDock_->width() : SidebarHost::kDefaultWidth;
+  const bool moved = dockWidgetArea(browserDock_) != area;
+  if (moved) {
+    const bool wanted = browserDockWanted_;
+    removeDockWidget(browserDock_);
+    addDockWidget(area, browserDock_);
+    browserDock_->setVisible(wanted && active_ && active_->isDesign());
+  }
+  browserDock_->setProperty("side", area == Qt::RightDockWidgetArea ? "right" : "left");
+  browserDock_->style()->unpolish(browserDock_);
+  browserDock_->style()->polish(browserDock_);
+  if (moved || browserDock_->width() < SidebarHost::kMinWidth) resizeDocks({browserDock_}, {width}, Qt::Horizontal);
+}
+
+void MainWindow::applyTimelineStyle() {
+  const bool strip = UiSettings::instance().string("ui/timelineStyle") == "strip";
+  sidebar_->setTimelineStyle(strip ? SidebarHost::TimelineStyle::Strip : SidebarHost::TimelineStyle::FeatureList);
+  updateTimelineDock();
+}
+
+void MainWindow::updateTimelineDock() {
+  const bool strip = sidebar_->timelineStyle() == SidebarHost::TimelineStyle::Strip;
+  timelineDock_->setVisible(strip && active_ && active_->isDesign() && timelineDockWanted_);
+  if (strip) QTimer::singleShot(0, this, [this] { ensureTimelineHeight(); });
+}
+
+void MainWindow::updateCardDockAvailability() {
+  sidebar_->setCardDockAllowed(active_ && active_->isDesign() && browserDockWanted_ && !browserDock_->isHidden());
+}
+
+void MainWindow::updateLiveRow() {
+  if (!featureList_ || !manager_) return;
+  core::ObjectId live = core::kInvalidId;
+  std::optional<FeatureListModel::PendingLive> pending;
+  if (manager_->isActive()) {
+    if (editingFeature_ != core::kInvalidId && document_->feature(editingFeature_)) live = editingFeature_;
+    if (sketch::SketchSession* s = sketch::SketchSession::current(); live == core::kInvalidId && s && s->manager() == manager_)
+      live = s->sketchId();
+    const core::ITool* t = manager_->activeTool();
+    if (live == core::kInvalidId && t && !isIdleTool()) {
+      const core::ToolInfo& i = t->info();
+      const bool creates = !i.hidden && !i.keepsActiveTool && !i.checked && i.workspace == core::Workspace::Design &&
+                           i.tab != "SKETCH" && i.tab != "TOOLS" && i.tab != "INSPECT" && i.group != "INSPECT" &&
+                           !i.id.starts_with("app.") && !i.id.starts_with("view.");
+      if (creates) pending = FeatureListModel::PendingLive{core::qs(i.name), i.icon, {}};
+    }
+  }
+  featureList_->setLiveFeature(live);
+  featureList_->setPendingLive(pending);
 }
 
 void MainWindow::ensureTimelineHeight() {
@@ -215,14 +281,31 @@ void MainWindow::buildUi() {
   setCentralWidget(central_);
 
   // --- browser (left dock) --------------------------------------------------------------------
-  browserDock_ = new QDockWidget("BROWSER", this);
+  // --- sidebar (redesign 6.2): FEATURES, MODEL, SELECTION and the card slot in #BrowserDock;
+  // no title bar, not floatable; left or right from ui/sidebarSide (applySidebarSide)
+  browserDock_ = new QDockWidget("SIDEBAR", this);
   browserDock_->setObjectName("BrowserDock");
-  browserDock_->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable |
-                            QDockWidget::DockWidgetClosable);
-  browserStack_ = new QStackedWidget(browserDock_);
-  browserDock_->setWidget(browserStack_);
+  browserDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
+  browserDock_->setTitleBarWidget(new QWidget(browserDock_));
+  sidebar_ = new SidebarHost(browserDock_);
+  browserStack_ = sidebar_->modelStack();
+  browserDock_->setWidget(sidebar_);
   addDockWidget(Qt::LeftDockWidgetArea, browserDock_);
-  resizeDocks({browserDock_}, {260}, Qt::Horizontal);
+  resizeDocks({browserDock_}, {SidebarHost::kDefaultWidth}, Qt::Horizontal);
+  connect(sidebar_, &SidebarHost::masterEyeRequested, this, [this] {
+    if (!document_) return;
+    bool anyVisible = false;
+    for (const core::Body* b : document_->bodies())
+      if (b->visible && !document_->bodyShape(b->id).IsNull()) anyVisible = true;
+    if (!anyVisible) {
+      showAllObjects();
+      return;
+    }
+    auto macro = std::make_unique<core::MacroCommand>("Hide all bodies");
+    for (const core::Body* b : document_->bodies())
+      if (b->visible) macro->add(core::makeBodyEditCommand(*document_, b->id, [](core::Body& body) { body.visible = false; }));
+    if (!macro->empty()) document_->undoStack().push(std::move(macro));
+  });
 
   // --- timeline (bottom dock spanning the full width) -------------------------------------------
   timelineDock_ = new QDockWidget("TIMELINE", this);
@@ -477,14 +560,21 @@ void MainWindow::buildFileMenu(QMenu* m) {
   connect(panels, &QMenu::aboutToShow, this, [this, browserToggle, timelineToggle] {
     const bool design = active_ && active_->isDesign();
     browserToggle->setChecked(design ? !browserDock_->isHidden() : browserDockWanted_);
-    timelineToggle->setChecked(timelineDockWanted_);
+    timelineToggle->setChecked(sidebar_->timelineStyle() == SidebarHost::TimelineStyle::FeatureList
+                                   ? !browserDock_->isHidden() && !sidebar_->isPanelCollapsed(SidebarHost::Panel::Features)
+                                   : timelineDockWanted_);
     timelineToggle->setEnabled(design);
   });
   connect(browserToggle, &QAction::triggered, this, [this](bool on) { setBrowserVisible(on); });
   connect(timelineToggle, &QAction::triggered, this, [this](bool on) {
+    // feature-list style: the FEATURES panel opens or folds; strip style: the bottom dock
+    if (sidebar_->timelineStyle() == SidebarHost::TimelineStyle::FeatureList) {
+      if (on) setBrowserVisible(true);
+      sidebar_->setPanelCollapsed(SidebarHost::Panel::Features, !on);
+      return;
+    }
     timelineDockWanted_ = on;
-    timelineDock_->setVisible(on && active_ && active_->isDesign());
-    QTimer::singleShot(0, this, [this] { ensureTimelineHeight(); });
+    updateTimelineDock();
   });
   m->addSeparator();
   m->addAction("Exit", this, [this] { close(); });
@@ -585,7 +675,7 @@ DocumentTab* MainWindow::findTab(const std::string& spec) const {
 }
 
 DocumentTab* MainWindow::createTab(DocumentTab::Kind kind, std::shared_ptr<core::Document> doc) {
-  DocumentTab::Hosts hosts{central_, browserStack_, timelineStack_};
+  DocumentTab::Hosts hosts{central_, browserStack_, timelineStack_, sidebar_->featureStack()};
   auto tab = std::make_unique<DocumentTab>(kind, std::move(doc), registry_, hosts, drawingFactory(), this);
   DocumentTab* raw = tab.get();
   raw->manager().setHost(this);
@@ -643,7 +733,9 @@ void MainWindow::activateTab(DocumentTab* tab) {
   if (previous && previous->isDesign()) browserDockWanted_ = !browserDock_->isHidden();
   if (tab->isDesign()) browserDock_->setVisible(browserDockWanted_);
   else browserDock_->hide();
-  timelineDock_->setVisible(tab->isDesign() && timelineDockWanted_);
+  sidebar_->setActive(tab->isDesign() ? &tab->document() : nullptr, tab->featureList(), tab->browser());
+  updateTimelineDock();
+  updateCardDockAvailability();
   if (tab->isDesign() && glEnabled_ && isVisible()) tab->initializeViewer();
 
   const core::Workspace ws = tab->workspace();
@@ -667,6 +759,7 @@ void MainWindow::activateTab(DocumentTab* tab) {
 void MainWindow::setBrowserVisible(bool on) {
   browserDockWanted_ = on;
   browserDock_->setVisible(on);
+  updateCardDockAvailability();
 }
 
 void MainWindow::syncActivePointers() {
@@ -675,6 +768,7 @@ void MainWindow::syncActivePointers() {
   viewer_ = active_ ? active_->viewer() : nullptr;
   browser_ = active_ ? active_->browser() : nullptr;
   timeline_ = active_ ? active_->timeline() : nullptr;
+  featureList_ = active_ ? active_->featureList() : nullptr;
   dialog_ = active_ ? active_->dialog() : nullptr;
   navBar_ = active_ ? active_->navBar() : nullptr;
   palette_ = active_ ? active_->palette() : nullptr;
@@ -1134,14 +1228,53 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     connect(browser, &BrowserTree::runToolRequested, this, [this](const std::string& id) { runCommand(id); });
     connect(browser, &BrowserTree::findInTimelineRequested, this, [this](ObjectId id) {
       timelineFrameFollowsSelection_ = false;  // a "find" frame stays until something else happens
-      if (timeline_) timeline_->scrollToFeature(id);
+      if (sidebar_->timelineStyle() == SidebarHost::TimelineStyle::FeatureList && featureList_) {
+        sidebar_->setPanelCollapsed(SidebarHost::Panel::Features, false);
+        featureList_->scrollToFeature(id);
+        featureList_->setFocus();
+      } else if (timeline_) {
+        timeline_->scrollToFeature(id);
+      }
     });
     connect(browser, &BrowserTree::suppressRequested, this, [this](ObjectId id, bool s) {
       if (auto c = makeSuppress(*document_, id, s)) document_->undoStack().push(std::move(c));
     });
   }
+  if (FeatureListWidget* list = tab->featureList()) {
+    connect(list, &FeatureListWidget::editRequested, this, &MainWindow::editFeature);
+    connect(list, &FeatureListWidget::deleteRequested, this, [this](const std::vector<ObjectId>& ids) {
+      std::vector<ShapeRef> refs;
+      for (ObjectId id : ids)
+        if (const core::Feature* f = document_->feature(id)) refs.push_back(featureRef(*f));
+      deleteRefs(refs);
+    });
+    connect(list, &FeatureListWidget::findInBrowserRequested, this, [this](ObjectId id) {
+      browserDock_->show();
+      sidebar_->setPanelCollapsed(SidebarHost::Panel::Model, false);
+      if (browser_) browser_->scrollToFeature(id);
+    });
+    // + INSERT FEATURE AT ROLLBACK: the command search; new features go in at the rollback bar
+    connect(list, &FeatureListWidget::insertRequested, this, [this] {
+      search_->setRecent(recentCommands_);
+      FeatureListWidget* l = featureList_;
+      const QRect r = l ? l->rowRect(l->model().insertRow()) : QRect();
+      search_->popup(l && !r.isNull() ? l->viewport()->mapToGlobal(r.bottomLeft()) : QCursor::pos());
+    });
+    connect(list, &FeatureListWidget::messageRequested, this, [this](const QString& text, int level) {
+      showMessage(text.toStdString(), static_cast<core::MessageLevel>(level));
+    });
+  }
   if (TimelineWidget* timeline = tab->timeline()) {
     TimelineStrip* strip = timeline->strip();
+    connect(strip->actions(), &TimelineActions::deleteRequested, this, [this](const std::vector<ObjectId>& ids) {
+      std::vector<ShapeRef> refs;
+      for (ObjectId id : ids)
+        if (const core::Feature* f = document_->feature(id)) refs.push_back(featureRef(*f));
+      deleteRefs(refs);
+    });
+    connect(strip->actions(), &TimelineActions::messageRequested, this, [this](const QString& text, int level) {
+      showMessage(text.toStdString(), static_cast<core::MessageLevel>(level));
+    });
     connect(strip, &TimelineStrip::editRequested, this, &MainWindow::editFeature);
     connect(strip, &TimelineStrip::deleteRequested, this, [this](ObjectId id) {
       if (const core::Feature* f = document_->feature(id)) deleteRefs({featureRef(*f)});
@@ -1280,6 +1413,7 @@ void MainWindow::clearTimelineFrameUnlessSelected() {
 
 void MainWindow::onToolFinished(const std::string& id, bool accepted) {
   ++activation_;  // invalidate a pending dialog build
+  editingFeature_ = core::kInvalidId;
   clearTimelineFrameUnlessSelected();
   dialog_->dismiss();
   layoutOverlays();
@@ -1371,6 +1505,7 @@ void MainWindow::scheduleStateRefresh() {
     if (!active_) return;
     ribbon_->refreshStates();
     updateSketchStatus();
+    updateLiveRow();
     updateUndoButtons();
     updateKeyHints();
     updateViewCells();
@@ -1859,6 +1994,9 @@ void MainWindow::closeEvent(QCloseEvent* e) {
   // a drawing tab hides the browser only for itself: store the design layout (DOC-02)
   if (active_ && !active_->isDesign() && browserDockWanted_) browserDock_->show();
   s.setValue("window/state", saveState(kLayoutVersion));
+  // the strip dock is hidden in the feature-list style: its own wish is stored apart
+  s.setValue("window/stripVisible", timelineDockWanted_);
+  sidebar_->saveState();
   s.setValue("search/recent", recentCommands_);
   UiSettings::instance().set("ui/commandLine", commandLine_->isVisible());
   recent_.save();
@@ -1875,8 +2013,12 @@ void MainWindow::editFeature(ObjectId id) {
   const core::Feature* f = document_->feature(id);
   if (!f) return;
   const EditCommand cmd = editCommandFor(registry_, *f);
-  if (!cmd.valid() || !manager_->run(cmd.toolId, cmd.args))
+  editingFeature_ = id;  // the FEATURES list shows it as the live row while the edit runs
+  if (!cmd.valid() || !manager_->run(cmd.toolId, cmd.args)) {
+    editingFeature_ = core::kInvalidId;
     showMessage("'" + f->name() + "' cannot be edited", core::MessageLevel::Warning);
+  }
+  scheduleStateRefresh();
 }
 
 void MainWindow::deleteRefs(const std::vector<ShapeRef>& refs) {
@@ -2082,6 +2224,7 @@ bool MainWindow::isCanvasFocus(QWidget* focus) const {
   if (dialog_ && (focus == dialog_ || dialog_->isAncestorOf(focus))) return false;
   if (viewer_ && (focus == viewer_ || viewer_->isAncestorOf(focus))) return true;
   if (browser_ && (focus == browser_ || browser_->isAncestorOf(focus))) return !isTextInput(focus);
+  if (featureList_ && (focus == featureList_ || featureList_->isAncestorOf(focus))) return !isTextInput(focus);
   if (timeline_ && (focus == timeline_ || timeline_->isAncestorOf(focus))) return true;
   if (QWidget* page = active_ ? active_->drawingPage() : nullptr; page && (focus == page || page->isAncestorOf(focus)))
     return !isTextInput(focus);
@@ -2089,6 +2232,10 @@ bool MainWindow::isCanvasFocus(QWidget* focus) const {
 }
 
 bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, bool autoRepeat, QWidget* focus) {
+  // the FEATURES list keeps its own keys (arrows, F2, Space = suppress, Enter = edit, Del)
+  if (featureList_ && focus && (focus == featureList_ || featureList_->isAncestorOf(focus)) && !isTextInput(focus) &&
+      FeatureListWidget::handlesKey(key, modifiers))
+    return false;
   KeyContext kc;
   kc.canvasFocus = isCanvasFocus(focus);
   kc.textInput = isTextInput(focus);

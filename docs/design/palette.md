@@ -19,6 +19,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `border.subtle` | `#2A2F37` | `#E1E4E8` |
 | `border.default` | `#343A44` | `#D3D7DD` |
 | `border.control` | `#6E7682` | `#7E8794` |
+| `border.strong` | `#4F5763` | `#AEB5BF` |
 | `text.primary` | `#F3F5F8` | `#171A20` |
 | `text.secondary` | `#A7AEB9` | `#4A515D` |
 | `text.tertiary` | `#8E96A2` | `#5E6675` |
@@ -157,6 +158,8 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `text.tertiary` | `surface.header` | T | 5.41 | 4.88 | pass |
 | `text.tertiary` | `surface.panel` | T | 5.84 | 5.29 | pass |
 | `text.disabled` | `surface.panel` | X | 3.80 | 2.73 | pass |
+| `text.primary` | `surface.header` | T | 14.79 | 14.72 | pass |
+| `border.strong` | `surface.panel` | X | 2.39 | 1.89 | pass |
 | `border.control` | `surface.panel` | U | 3.80 | 3.33 | pass |
 | `border.control` | `surface.input` | U | 4.08 | 3.63 | pass |
 | `border.control` | `surface.raised` | U | 3.52 | 3.63 | pass |
@@ -279,7 +282,7 @@ Families: JetBrains Mono, Noto Sans Mono, DejaVu Sans Mono, monospace.
 | `caption` | 9 | 700 | +1 | CAPS |
 | `label.sm` | 10.5 | 700 | +0.3 | CAPS |
 | `body` | 12 | 700 | +0 | CAPS |
-| `header` | 11 | 800 | +1.2 | CAPS |
+| `header` | 12 | 800 | +1.5 | CAPS |
 | `title` | 13 | 800 | +0.6 | CAPS |
 | `value` | 12.5 | 500 | +0 | as typed |
 | `keycap` | 9.5 | 700 | +0.5 | CAPS |
