@@ -89,14 +89,7 @@ const InterferenceReport& InterferenceTool::compute(ToolContext& ctx) {
 
 void InterferenceTool::showResults(ToolContext& ctx) {
   Document& doc = *ctx.document;
-  if (ctx.viewer) {
-    for (core::PreviewHandle h : previews_) ctx.viewer->removePreview(h);
-    previews_.clear();
-    PreviewStyle red = PreviewStyle::cut();
-    red.color = {0.95f, 0.15f, 0.15f, 0.75f};
-    for (const auto& p : report_.pairs) previews_.push_back(ctx.viewer->showPreviewShape(p.shape, red));
-    ctx.viewer->requestRedraw();
-  }
+  showPreviews(ctx, -1);
   std::string summary = report_.pairs.empty()
                             ? std::format("No interference ({} bodies, {} pairs tested)", report_.instances, report_.pairsTested)
                             : std::format("{} interfering pair(s), total {:.3f} mm3", report_.pairs.size(), report_.totalVolume());
@@ -113,15 +106,42 @@ void InterferenceTool::showResults(ToolContext& ctx) {
       };
       table_->setItem(i, 0, new QTableWidgetItem(core::qs(nameOf(p.a))));
       table_->setItem(i, 1, new QTableWidgetItem(core::qs(nameOf(p.b))));
-      table_->setItem(i, 2, new QTableWidgetItem(core::qs(std::format("{:.3f}", p.volume))));
+      auto* vol = new QTableWidgetItem(core::qs(std::format("{:.2f}", p.volume)));
+      vol->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+      table_->setItem(i, 2, vol);
     }
   }
+}
+
+void InterferenceTool::showPreviews(ToolContext& ctx, int selectedRow) {
+  if (!ctx.viewer) return;
+  for (core::PreviewHandle h : previews_) ctx.viewer->removePreview(h);
+  previews_.clear();
+  // The common volumes lie inside both (opaque) bodies: draw them on top so they are visible
+  // (APP-11). The selected pair is bright and opaque, the others dimmer.
+  for (int i = 0; i < static_cast<int>(report_.pairs.size()); ++i) {
+    PreviewStyle red = PreviewStyle::cut();
+    red.onTop = true;
+    const bool sel = i == selectedRow;
+    red.color = sel ? std::array<float, 4>{1.0f, 0.1f, 0.1f, 0.95f}
+                    : std::array<float, 4>{0.95f, 0.15f, 0.15f, selectedRow < 0 ? 0.8f : 0.35f};
+    previews_.push_back(ctx.viewer->showPreviewShape(report_.pairs[static_cast<size_t>(i)].shape, red));
+    if (sel) {
+      PreviewStyle edges = red;
+      edges.shaded = false;
+      edges.lineWidth = 2.5f;
+      edges.color = {0.6f, 0.0f, 0.0f, 1.0f};
+      previews_.push_back(ctx.viewer->showPreviewShape(report_.pairs[static_cast<size_t>(i)].shape, edges));
+    }
+  }
+  ctx.viewer->requestRedraw();
 }
 
 void InterferenceTool::highlightRow(ToolContext& ctx, int row) {
   if (!ctx.viewer || row < 0 || row >= static_cast<int>(report_.pairs.size())) return;
   const auto& p = report_.pairs[static_cast<size_t>(row)];
   ctx.viewer->setHighlighted({ShapeRef::body(p.a.body), ShapeRef::body(p.b.body)});
+  showPreviews(ctx, row);
 }
 
 QWidget* InterferenceTool::createDialog(ToolContext& ctx, QWidget* parent) {
@@ -137,8 +157,16 @@ QWidget* InterferenceTool::createDialog(ToolContext& ctx, QWidget* parent) {
   summaryLabel_ = new QLabel(w);
   v->addWidget(summaryLabel_);
   table_ = new QTableWidget(0, 3, w);
-  table_->setHorizontalHeaderLabels({"Body 1", "Body 2", "Volume [mm3]"});
-  table_->horizontalHeader()->setStretchLastSection(true);
+  table_->setHorizontalHeaderLabels({"Body 1", "Body 2", QString::fromUtf8("Volume (mm\u00B3)")});
+  // APP-11: names share the width (elided), the volume column always fits its numbers
+  table_->verticalHeader()->hide();
+  table_->setTextElideMode(Qt::ElideRight);
+  table_->setWordWrap(false);
+  table_->horizontalHeader()->setStretchLastSection(false);
+  table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+  table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+  table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+  table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   table_->setSelectionBehavior(QAbstractItemView::SelectRows);
   table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
   QObject::connect(table_, &QTableWidget::currentCellChanged, this, [this](int row, int, int, int) {

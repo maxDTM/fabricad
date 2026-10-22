@@ -25,6 +25,12 @@ namespace {
 constexpr int kWidth = 230;
 constexpr int kRightMargin = 12;
 constexpr int kTop = 150;
+
+/// Dock top below the ViewCube and its step arrows (APP-12): at least kTop.
+int dockTopBelowCube(const viewer::ViewerWidget& v) {
+  const QRect cube = v.viewCubeRect();
+  return cube.isEmpty() ? kTop : std::max(kTop, cube.bottom() + 8);
+}
 }  // namespace
 
 SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& manager)
@@ -149,7 +155,7 @@ bool SketchPalette::eventFilter(QObject* o, QEvent* e) {
   if (o == parentWidget() && e->type() == QEvent::Resize) {
     if (isVisible()) {
       if (userMoved_) clampToParent();
-      else move(std::max(0, parentWidget()->width() - width() - kRightMargin), pos().y());
+      else move(std::max(0, parentWidget()->width() - width() - kRightMargin), std::max(pos().y(), dockTopBelowCube(viewer_)));
     }
     return false;
   }
@@ -246,14 +252,15 @@ void SketchPalette::reposition(const QWidget* above) {
     return;
   }
   int x = p->width() - width() - kRightMargin;
-  int y = kTop;
+  const int top = dockTopBelowCube(viewer_);
+  int y = top;
   // the command dialog also docks top-right: stack below it, or go left of it when no room
   if (above && above->isVisible()) {
     const QRect a = above->geometry();
     if (a.right() >= x && a.left() <= x + width() && a.top() < y + height() && a.bottom() > y) {
       y = a.bottom() + 8;
       if (y + height() > p->height() - 50) {  // no room below: go left of it instead
-        y = kTop;
+        y = top;
         x = a.left() - width() - 8;
       }
     }

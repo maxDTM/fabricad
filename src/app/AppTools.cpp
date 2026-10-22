@@ -3,17 +3,23 @@
 #include "app/AppTools.h"
 
 #include "app/AppActions.h"
+#include "app/AppearancePicker.h"
+#include "app/PreferencesDialog.h"
 
 #include "app/MainWindow.h"
 #include "app/PropertyEditor.h"
 #include "core/AppHost.h"
 #include "core/Commands.h"
 #include "core/Document.h"
+#include "core/Expression.h"
 #include "core/GeometryRefs.h"
 #include "core/Selection.h"
 #include "core/UndoStack.h"
 #include "viewer/ViewerWidget.h"
 
+#include <QColor>
+
+#include <array>
 #include <cctype>
 #include <format>
 #include <functional>
@@ -39,6 +45,31 @@ ToolInfo info(const std::string& id, const std::string& name, const std::string&
   i.icon = icon;
   i.repeatable = false;
   return i;
+}
+
+/// The single modeless Preferences dialog of the window, bound to the active design.
+void showPreferences(MainWindow* win, PreferencesDialog::Page page) {
+  auto* dlg = win->findChild<PreferencesDialog*>();
+  if (!dlg) {
+    dlg = new PreferencesDialog(win->document(), win->viewer(), win);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+  } else {
+    dlg->setTarget(win->document(), win->viewer());
+  }
+  dlg->showPage(page);
+  dlg->show();
+  dlg->raise();
+  dlg->activateWindow();
+}
+
+std::string upper(std::string s) {
+  for (char& ch : s) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  return s;
+}
+
+std::string lowerStr(std::string s) {
+  for (char& ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  return s;
 }
 
 }  // namespace
@@ -165,7 +196,22 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
           std::string name = line.substr(0, eq), expr = line.substr(eq + 1);
           while (!name.empty() && name.back() == ' ') name.pop_back();
           while (!expr.empty() && expr.front() == ' ') expr.erase(expr.begin());
-          // undoable (SetParameterCommand recomputes); an invalid name is reported by the document
+          // APP-02/05: validate before pushing; never remove a parameter that is in use
+          if (!core::isValidParameterName(name)) {
+            c.showMessage("invalid parameter name: " + name, true);
+            return;
+          }
+          if (expr.empty()) {
+            if (!c.document->parameter(name)) {
+              c.showMessage("no parameter named " + name, true);
+              return;
+            }
+            if (const std::string why = checkParameterEdit(*c.document, name, ""); !why.empty()) {
+              c.showMessage(why, true);
+              return;
+            }
+          }
+          // undoable (SetParameterCommand recomputes)
           if (c.undo) {
             auto cmd = std::make_unique<core::SetParameterCommand>(*c.document, name, expr);
             c.undo->push(std::move(cmd));
@@ -186,6 +232,81 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     });
   }
   reg.registerTool(std::make_unique<EditPropertiesTool>());
+
+  // --- appearance (A, SOLID > MODIFY, APP-04) ---------------------------------------------------
+  {
+    ToolInfo i = info("app.appearance", "Appearance", "Colour of the selected bodies or components", "A",
+                      {"APPEARANCE"}, "display");
+    i.tab = "SOLID";
+    i.group = "MODIFY";
+    i.order = 910;
+    add(i,
+        [win](ToolContext& c) {
+          if (!c.document) return;
+          std::vector<core::ShapeRef> items = c.preselection;
+          if (items.empty() && c.selection) items = c.selection->items();
+          const std::vector<core::ObjectId> bodies = appearanceTargets(*c.document, items);
+          if (bodies.empty()) {
+            c.showMessage("Select bodies or components, then press A", true);
+            return;
+          }
+          // scripts/tests: "APPEARANCE #rrggbb" sets the colour without the modal dialog
+          if (!c.args.empty()) {
+            const QColor col(QString::fromStdString(c.args[0]));
+            if (!col.isValid()) {
+              c.showMessage("APPEARANCE: expected a colour like #ff8800, got " + c.args[0], true);
+              return;
+            }
+            const std::array<float, 4> rgba{static_cast<float>(col.redF()), static_cast<float>(col.greenF()),
+                                            static_cast<float>(col.blueF()), 1.0f};
+            if (auto cmd = makeSetBodiesColor(*c.document, bodies, rgba)) {
+              if (c.undo) c.undo->push(std::move(cmd));
+              else cmd->redo();
+            }
+            return;
+          }
+          // the colour dialog is modal: open it after the tool has finished
+          QMetaObject::invokeMethod(win, [win, bodies] { pickAppearance(win, win->document(), bodies); },
+                                    Qt::QueuedConnection);
+        },
+        [win](const ToolContext& c) { return c.document && !(win->viewer() && win->viewer()->inSketchMode()); });
+  }
+
+  // --- preferences / units (TOOLS > UTILITIES, APP-03 / APP-09) -------------------------------------
+  {
+    ToolInfo i = info("app.preferences", "Preferences", "Units, zoom direction and other settings", "",
+                      {"PREFERENCES", "PREFS"}, "settings");
+    i.needsDocument = false;
+    i.tab = "TOOLS";
+    i.group = "UTILITIES";
+    i.order = 20;  // not promoted: the group shows its first two (Change Parameters, Preferences)
+    add(i, [win](ToolContext&) { showPreferences(win, PreferencesDialog::Page::General); });
+  }
+  {
+    ToolInfo i = info("app.units", "Units", "Units of the active design: UNITS mm|cm|m|in|ft [deg|rad]", "",
+                      {"UNITS", "UN"}, "settings");
+    add(i, [win](ToolContext& c) {
+      if (c.args.empty() || !c.document) {
+        showPreferences(win, PreferencesDialog::Page::Document);
+        return;
+      }
+      core::UnitSystem u = c.document->units();
+      for (const std::string& a : c.args) {
+        const std::string t = lowerStr(a);
+        if (auto l = core::lengthUnitFromSymbol(t)) u.length = *l;
+        else if (auto g = core::angleUnitFromSymbol(t)) u.angle = *g;
+        else {
+          c.showMessage("UNITS: unknown unit '" + a + "' (mm, cm, m, in, ft, deg, rad)", true);
+          return;
+        }
+      }
+      if (auto cmd = makeSetUnits(*c.document, u)) {
+        if (c.undo) c.undo->push(std::move(cmd));
+        else cmd->redo();
+      }
+      c.showMessage(std::format("Units: {}, {}", core::lengthUnitSymbol(u.length), core::angleUnitSymbol(u.angle)));
+    });
+  }
 
   // --- shell ---------------------------------------------------------------------------------
   {
@@ -218,6 +339,41 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
   // --- view ------------------------------------------------------------------------------------
   view(info("view.fit", "Fit", "Fit the whole model in the view", "F6", {"FIT", "ZOOMEXTENTS", "ZE"}, "fit"),
        [](viewer::ViewerWidget& v) { v.fitAll(true); });
+  {
+    // ZOOM E|A fits, ZOOM <factor> zooms about the centre, ZOOM W = nav-bar zoom drag (APP-09).
+    // No "Z" alias: keepsActiveTool verbs are never offered to the active tool, so a "Z"
+    // answer in a prompt (axis, keyword) would be swallowed.
+    ToolInfo i = info("view.zoom", "Zoom", "ZOOM E (extents) | ZOOM <factor> | ZOOM W (drag to zoom)", "", {"ZOOM"},
+                      "zoom");
+    i.needsDocument = false;
+    i.keepsActiveTool = true;
+    add(i, [win](ToolContext& c) {
+      viewer::ViewerWidget* v = win->viewer();
+      if (!v) return;
+      const std::string a = c.args.empty() ? "E" : upper(c.args[0]);
+      if (a == "E" || a == "A" || a == "EXTENTS" || a == "ALL") {
+        v->fitAll(true);
+        return;
+      }
+      if (a == "W" || a == "WINDOW") {
+        v->setLeftButtonNavigation(viewer::NavAction::Zoom);
+        c.showMessage("Drag with the left button to zoom, Esc to stop");
+        return;
+      }
+      std::string num = a;
+      if (!num.empty() && num.back() == 'X') num.pop_back();
+      try {
+        size_t used = 0;
+        const double f = std::stod(num, &used);
+        if (used == num.size() && f > 0) {
+          v->zoomBy(f, true);
+          return;
+        }
+      } catch (...) {
+      }
+      c.showMessage("ZOOM: expected E, W or a factor such as 2 or 0.5", true);
+    });
+  }
   view(info("view.home", "Home View", "Go to the home view", "Home", {"HOME"}, "home"),
        [](viewer::ViewerWidget& v) { v.setStandardView(core::StandardView::Home, true); });
   struct Std {

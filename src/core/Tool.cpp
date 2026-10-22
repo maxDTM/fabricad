@@ -31,23 +31,45 @@ std::string normalizedShortcut(const std::string& s) {
   return lower(seq.toString(QKeySequence::PortableText).toStdString());
 }
 
-/// Subsequence fuzzy score: higher is better, <0 = no match.
-int fuzzyScore(const std::string& queryLower, const std::string& textLower) {
+bool isWordStart(const std::string& t, size_t i) {
+  if (i == 0) return true;
+  const unsigned char p = static_cast<unsigned char>(t[i - 1]);
+  return !std::isalnum(p);
+}
+
+/// Fuzzy score: higher is better, <0 = no match. Exact > prefix > substring > subsequence.
+/// A subsequence only counts when it is tight (total gaps <= query length) or every matched
+/// character starts a word (acronym, "ep" -> "Extrude Profile"), so "appear" no longer matches
+/// "Search all commands" (APP-10).
+int fuzzyScore(const std::string& queryLower, const std::string& textLower, bool allowSubsequence = true) {
   if (queryLower.empty()) return 0;
   if (textLower == queryLower) return 1000;
   if (textLower.rfind(queryLower, 0) == 0) return 800 - static_cast<int>(textLower.size());
   size_t pos = textLower.find(queryLower);
-  if (pos != std::string::npos) return 600 - static_cast<int>(pos) - static_cast<int>(textLower.size());
+  if (pos != std::string::npos)
+    return (isWordStart(textLower, pos) ? 700 : 600) - static_cast<int>(pos) - static_cast<int>(textLower.size());
+  if (!allowSubsequence) return -1;
   // subsequence
   size_t ti = 0;
   int gaps = 0;
+  bool acronym = true;
   for (char qc : queryLower) {
     size_t found = textLower.find(qc, ti);
     if (found == std::string::npos) return -1;
     gaps += static_cast<int>(found - ti);
+    if (!isWordStart(textLower, found)) acronym = false;
     ti = found + 1;
   }
-  return 300 - gaps - static_cast<int>(textLower.size());
+  if (!acronym && gaps > static_cast<int>(queryLower.size())) return -1;
+  return (acronym ? 400 : 300) - gaps - static_cast<int>(textLower.size());
+}
+
+/// Tooltip match: substring at a word start only, and only for queries of 3+ characters.
+int tooltipScore(const std::string& queryLower, const std::string& textLower) {
+  if (queryLower.size() < 3) return -1;
+  for (size_t pos = textLower.find(queryLower); pos != std::string::npos; pos = textLower.find(queryLower, pos + 1))
+    if (isWordStart(textLower, pos)) return 300 - static_cast<int>(pos);
+  return -1;
 }
 }  // namespace
 
@@ -143,8 +165,8 @@ std::vector<ITool*> ToolRegistry::search(const std::string& query, int maxResult
     if (i.hidden) continue;
     int best = fuzzyScore(q, lower(i.name));
     for (const auto& a : i.aliases) best = std::max(best, fuzzyScore(q, lower(a)) - 10);
-    best = std::max(best, fuzzyScore(q, lower(i.id)) - 50);
-    if (!i.tooltip.empty()) best = std::max(best, fuzzyScore(q, lower(i.tooltip)) - 200);
+    best = std::max(best, fuzzyScore(q, lower(i.id), false) - 50);
+    if (!i.tooltip.empty()) best = std::max(best, tooltipScore(q, lower(i.tooltip)) - 200);
     if (best >= 0) scored.emplace_back(best, t.get());
   }
   std::stable_sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) { return a.first > b.first; });

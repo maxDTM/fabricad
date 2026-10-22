@@ -8,11 +8,15 @@
 #include <QAbstractItemView>
 #include <QCompleter>
 #include <QHBoxLayout>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMetaMethod>
 #include <QPlainTextEdit>
 #include <QStringListModel>
+#include <QTimer>
 #include <QToolButton>
 
 #include <algorithm>
@@ -94,15 +98,33 @@ void CommandLine::setPrompt(const QString& prompt) {
 }
 
 bool CommandLine::submit(const QString& text) {
-  const QString t = text.trimmed();
-  edit_->clear();
+  QString t = text.trimmed();
+  // safety net for APP-07: the ':' shortcut character is never part of a command
+  while (t.startsWith(':')) t = t.mid(1).trimmed();
+  edit_->setText(QString());  // unlike clear(), resets the line edit's undo history (APP-08)
   typedPos_ = -1;
+  swallowColon_ = false;
+  if (t.isEmpty() && manager_->isActive()) {
+    // APP-06: an empty Enter belongs to the active tool (accept / next step), not repeatLast()
+    // which would restart a command and cancel the running one.
+    if (isSignalConnected(QMetaMethod::fromSignal(&CommandLine::emptyEnter))) {
+      emit emptyEnter();
+      return true;
+    }
+    return false;
+  }
   if (!t.isEmpty()) {
     typed_.removeAll(t);
     typed_.append(t);
     appendHistory("cmd> " + t);
   }
   return manager_->runCommandLine(t.toStdString());
+}
+
+void CommandLine::focusForTyping() {
+  swallowColon_ = true;
+  QTimer::singleShot(200, this, [this] { swallowColon_ = false; });
+  edit_->setFocus(Qt::ShortcutFocusReason);
 }
 
 void CommandLine::toggleHistoryPane() {
@@ -140,10 +162,42 @@ bool CommandLine::eventFilter(QObject* o, QEvent* e) {
       return true;
     }
   }
+  if (o == edit_ && e->type() == QEvent::InputMethod && swallowColon_) {
+    auto* im = static_cast<QInputMethodEvent*>(e);
+    if (im->commitString() == ":") {
+      swallowColon_ = false;
+      return true;
+    }
+  }
+  if (o == edit_ && e->type() == QEvent::ShortcutOverride) {
+    // keep Ctrl+Z/Y in the box (QLineEdit accepts them anyway); handled on KeyPress below
+    auto* k = static_cast<QKeyEvent*>(e);
+    if (k->matches(QKeySequence::Undo) || k->matches(QKeySequence::Redo) ||
+        (k->key() == Qt::Key_Y && k->modifiers() == Qt::ControlModifier)) {
+      e->accept();
+      return true;
+    }
+  }
   if (o == edit_ && e->type() == QEvent::KeyPress) {
     auto* k = static_cast<QKeyEvent*>(e);
+    if (swallowColon_) {
+      swallowColon_ = false;
+      if (k->text() == ":") return true;
+    }
+    // APP-08: with nothing typed to undo, Ctrl+Z / Ctrl+Y undo / redo the model
+    const bool undoKey = k->matches(QKeySequence::Undo);
+    const bool redoKey = k->matches(QKeySequence::Redo) || (k->key() == Qt::Key_Y && k->modifiers() == Qt::ControlModifier);
+    // same path as the key on the canvas (ToolManager shortcut dispatch)
+    if (undoKey && !edit_->isUndoAvailable()) {
+      manager_->triggerShortcut("Ctrl+Z");
+      return true;
+    }
+    if (redoKey && !edit_->isRedoAvailable()) {
+      manager_->triggerShortcut("Ctrl+Y");
+      return true;
+    }
     if (k->key() == Qt::Key_Escape) {
-      edit_->clear();
+      edit_->setText(QString());
       if (manager_->isActive()) manager_->cancel();
       edit_->clearFocus();
       return true;

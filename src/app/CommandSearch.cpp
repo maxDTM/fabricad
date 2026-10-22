@@ -4,6 +4,7 @@
 
 #include "app/Icons.h"
 #include "app/ToolbarModel.h"
+#include "core/AppHost.h"
 #include "core/Json.h"
 
 #include <QGuiApplication>
@@ -21,7 +22,8 @@
 namespace fabricad::app {
 
 std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const std::string& query,
-                                          const QStringList& pinned, const QStringList& recent, int max) {
+                                          const QStringList& pinned, const QStringList& recent, int max,
+                                          const std::function<int(const core::ITool*)>& rank) {
   std::vector<std::string> out;
   auto push = [&](const std::string& id) {
     const core::ITool* t = reg.tool(id);
@@ -34,7 +36,10 @@ std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const s
     for (const QString& r : recent) push(r.toStdString());
     return out;
   }
-  for (core::ITool* t : reg.search(query, max)) push(t->info().id);
+  std::vector<core::ITool*> found = reg.search(query, rank ? max * 3 : max);
+  if (rank)
+    std::stable_sort(found.begin(), found.end(), [&](const core::ITool* a, const core::ITool* b) { return rank(a) < rank(b); });
+  for (core::ITool* t : found) push(t->info().id);
   return out;
 }
 
@@ -102,7 +107,13 @@ std::vector<std::string> CommandSearch::results() const {
 void CommandSearch::updateResults() {
   list_->clear();
   const core::ToolContext ctx = manager_->makeContext();
-  for (const std::string& id : searchCommandIds(manager_->registry(), edit_->text().toStdString(), pinned_, recent_)) {
+  const core::Workspace ws = ctx.host ? ctx.host->workspace() : core::Workspace::Design;
+  auto rank = [&ctx, ws](const core::ITool* t) {
+    if (!t->isEnabled(ctx)) return 2;
+    return t->info().workspace == ws ? 0 : 1;
+  };
+  for (const std::string& id :
+       searchCommandIds(manager_->registry(), edit_->text().toStdString(), pinned_, recent_, 20, rank)) {
     core::ITool* t = manager_->registry().tool(id);
     const core::ToolInfo& info = t->info();
     auto* it = new QTreeWidgetItem(list_);

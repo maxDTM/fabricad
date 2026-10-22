@@ -63,6 +63,7 @@ class BrowserTree : public QTreeWidget {
  protected:
   void contextMenuEvent(QContextMenuEvent* e) override;
   void keyPressEvent(QKeyEvent* e) override;
+  void keyboardSearch(const QString& search) override;
   void leaveEvent(QEvent* e) override;
   void closeEditor(QWidget* editor, QAbstractItemDelegate::EndEditHint hint) override;
 

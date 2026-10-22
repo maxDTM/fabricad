@@ -35,6 +35,8 @@ class InterferenceTool : public QObject, public core::ToolBase {
  private:
   void showResults(core::ToolContext& ctx);
   void highlightRow(core::ToolContext& ctx, int row);
+  /// Common-volume previews, drawn on top; `selectedRow` (>= 0) is emphasised.
+  void showPreviews(core::ToolContext& ctx, int selectedRow);
   std::vector<core::ObjectId> components_;
   InterferenceReport report_;
   std::vector<core::PreviewHandle> previews_;

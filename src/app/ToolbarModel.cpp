@@ -15,6 +15,15 @@ std::vector<std::string> ordered(std::vector<std::string> names, const std::vect
     if (std::find(out.begin(), out.end(), n) == out.end()) out.push_back(n);
   return out;
 }
+
+/// Tools shown in a second ribbon place besides their own tab/group (ux.md: TOOLS has
+/// Parameters, Preferences, Export). The tool is not duplicated, only listed twice. APP-03.
+struct ExtraPlacement {
+  const char* id;
+  const char* tab;
+  const char* group;
+};
+constexpr ExtraPlacement kExtraPlacements[] = {{"app.parameters", "TOOLS", "UTILITIES"}};
 }  // namespace
 
 bool isContextualTab(const std::string& tab) { return tab == "SKETCH"; }
@@ -28,7 +37,7 @@ std::vector<std::string> orderedTabs(std::vector<std::string> tabs) {
 std::vector<std::string> orderedGroups(std::vector<std::string> groups) {
   static const std::vector<std::string> kPreferred = {
       "CREATE",     "MODIFY",  "ASSEMBLE",   "CONSTRUCT", "CONSTRAINTS", "GEOMETRY", "DIMENSIONS", "TEXT",
-      "SYMBOLS",    "TABLES",  "INSPECT",    "INSERT",    "EXPORT",      "SELECT",   "FINISH SKETCH", "FINISH"};
+      "SYMBOLS",    "TABLES",  "INSPECT",    "INSERT",    "UTILITIES", "EXPORT",      "SELECT",   "FINISH SKETCH", "FINISH"};
   return ordered(std::move(groups), kPreferred);
 }
 
@@ -42,6 +51,12 @@ std::vector<ToolbarTab> buildToolbarModel(const core::ToolRegistry& registry, co
       ToolbarGroup g;
       g.name = groupName;
       g.all = registry.toolsFor(ws, tabName, groupName);
+      for (auto it = std::rbegin(kExtraPlacements); it != std::rend(kExtraPlacements); ++it) {
+        if (tabName != it->tab || groupName != it->group) continue;
+        core::ITool* t = registry.tool(it->id);
+        if (!t || t->info().hidden || t->info().workspace != ws) continue;
+        if (std::find(g.all.begin(), g.all.end(), t) == g.all.end()) g.all.insert(g.all.begin(), t);
+      }
       for (core::ITool* t : g.all)
         if (t->info().promoted) g.promoted.push_back(t);
       if (g.promoted.empty())

@@ -99,7 +99,26 @@ class SetParameterCommand : public UndoCommand {
   Document& doc_;
   std::string name_, expr_, comment_;
   bool existed_ = false;
+  bool failed_ = false;  ///< redo could not set it (invalid name)
   std::string oldExpr_, oldComment_;
+};
+
+/// Change the document's units (UNITS command, Preferences > Document). Bare numbers in
+/// parameter expressions are read in the display unit, so plain-number parameters that are
+/// used as lengths (angles) are rewritten with the old unit appended ("10" -> "10 mm") to
+/// keep the geometry unchanged. Parameters used by feature properties are found here;
+/// callers add names used elsewhere (sketch dimensions) through `lengthParams`/`angleParams`.
+class SetUnitsCommand : public UndoCommand {
+ public:
+  SetUnitsCommand(Document& doc, UnitSystem units, std::vector<std::string> lengthParams = {},
+                  std::vector<std::string> angleParams = {});
+  void redo() override;
+  void undo() override;
+
+ private:
+  Document& doc_;
+  UnitSystem old_, new_;
+  std::vector<std::pair<std::string, std::string>> oldExprs_, newExprs_;  ///< rewritten parameters
 };
 
 /// Generic fallback: snapshot the whole document before/after an arbitrary edit.
