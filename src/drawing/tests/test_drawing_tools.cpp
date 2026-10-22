@@ -18,6 +18,10 @@
 #include "drawing/tools/ViewTools.h"
 
 #include <QFile>
+#include <QListWidget>
+#include <QPushButton>
+#include <QTabBar>
+#include <QToolButton>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
@@ -579,6 +583,59 @@ class ToolsTest : public QObject {
     QCOMPARE(fx.canvas->sheetId(), fx.model->sheets()[0].id);
     QVERIFY(fx.manager->run("drawing.delete-sheet"));
     QCOMPARE(fx.model->sheets().size(), size_t(1));
+  }
+
+  void sheetPanelFollowsUndo() {
+    // DOC-03: after an undo of a sheet delete the panel, the sheet tabs and the canvas agree,
+    // and "-" deletes the sheet selected in the panel
+    Fixture fx;
+    auto* list = fx.widget->findChild<QListWidget*>();
+    auto* tabs = fx.widget->findChild<QTabBar*>();
+    QVERIFY(list && tabs);
+    // no sheet: an empty state with a Create Drawing button instead of a blank page (DOC-10)
+    auto* create = fx.widget->findChild<QPushButton*>("CreateDrawingButton");
+    QVERIFY(create);
+    QVERIFY(create->isVisible());
+    QVERIFY(!fx.canvas->isVisible());
+    create->click();
+    QCOMPARE(fx.model->sheets().size(), size_t(1));
+    QVERIFY(fx.canvas->isVisible());
+    QVERIFY(!create->isVisible());
+    QVERIFY(fx.manager->run("drawing.new-sheet"));
+    QVERIFY(fx.manager->run("drawing.new-sheet"));
+    QCOMPARE(fx.model->sheets().size(), size_t(3));
+    const core::ObjectId third = fx.model->sheets()[2].id;
+    QCOMPARE(fx.canvas->sheetId(), third);
+    QVERIFY(fx.manager->run("drawing.delete-sheet"));
+    QCOMPARE(fx.model->sheets().size(), size_t(2));
+    fx.doc.undoStack().undo();
+    QCOMPARE(fx.model->sheets().size(), size_t(3));
+    auto agree = [&] {
+      QCOMPARE(list->count(), static_cast<int>(fx.model->sheets().size()));
+      QCOMPARE(tabs->count(), static_cast<int>(fx.model->sheets().size()));
+      for (int i = 0; i < tabs->count(); ++i)
+        QCOMPARE(tabs->tabText(i), QString::fromStdString(fx.model->sheets()[static_cast<size_t>(i)].name));
+      QCOMPARE(fx.canvas->sheetId(), fx.model->activeSheetId());
+      QCOMPARE(list->currentItem()->data(Qt::UserRole).toULongLong(), static_cast<qulonglong>(fx.canvas->sheetId()));
+      QCOMPARE(tabs->tabData(tabs->currentIndex()).toULongLong(), static_cast<qulonglong>(fx.canvas->sheetId()));
+    };
+    agree();
+    QCOMPARE(fx.canvas->sheetId(), third);
+    // the panel's row says which sheet "-" deletes
+    const core::ObjectId second = fx.model->sheets()[1].id;
+    {
+      const QSignalBlocker b(list);
+      list->setCurrentRow(1);
+    }
+    QToolButton* minus = nullptr;
+    for (QToolButton* t : fx.widget->findChildren<QToolButton*>())
+      if (t->text() == "-") minus = t;
+    QVERIFY(minus);
+    minus->click();
+    QCOMPARE(fx.model->sheets().size(), size_t(2));
+    QVERIFY(!fx.model->sheet(second));
+    QVERIFY(fx.model->sheet(third));
+    agree();
   }
 
   void exportTools() {

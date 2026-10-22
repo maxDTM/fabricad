@@ -59,6 +59,7 @@ class DrawingWorkspaceWidget : public QWidget {
 
  private:
   void refreshSheets();
+  void rebuildSheetList();
   void onSheetTabChanged(int index);
   void onAddSheet();
   void onRemoveSheet();
@@ -76,6 +77,8 @@ class DrawingWorkspaceWidget : public QWidget {
   QLabel* coords_ = nullptr;
   QWidget* browser_ = nullptr;
   bool refreshing_ = false;
+  bool refreshAgain_ = false;
+  QWidget* emptyState_ = nullptr;  ///< shown instead of the canvas while there is no sheet
   QString busyText_;
   std::vector<QMetaObject::Connection> modelConnections_;
 };
