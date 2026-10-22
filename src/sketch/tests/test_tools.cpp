@@ -761,6 +761,37 @@ class ToolsTest : public QObject {
     QVERIFY(r.doc.undoStack().count() >= 5);
   }
 
+  /// UX-25: typing right after placing a dimension (keys reaching the viewer) sets its value,
+  /// Enter commits; the same for Edit Dimension.
+  void dimensionValueTypedWithKeys() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    auto ids = addRectangle(r.sk(), {10, 10}, {40, 30});
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Fix, .a = {ids[0], PointPos::Start}});
+    r.session()->refresh();
+    r.mgr.run("sketch.dimension");
+    r.click(25, 10);  // bottom line
+    r.click(25, 2);   // place below: the value editor opens
+    QVERIFY(r.sk().dimensionByName("d1"));
+    typeKeys(r, "60");
+    r.key(Qt::Key_Return);
+    QVERIFY(near(r.sk().dimensionByName("d1")->value, 60.0));
+    QVERIFY(near(r.sk().geometry(ids[0])->length(), 60.0, 1e-6));
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.dimension"));  // ready for the next one
+    r.key(Qt::Key_Escape);
+    // Edit Dimension: keys + Enter change the value (Backspace edits)
+    QVERIFY(r.mgr.run("sketch.dimension-edit", {"d1"}));
+    typeKeys(r, "455");
+    core::ViewerKeyEvent bs;
+    bs.key = Qt::Key_Backspace;
+    r.mgr.keyPress(bs);
+    r.key(Qt::Key_Return);
+    QVERIFY(near(r.sk().dimensionByName("d1")->value, 45.0));
+    QVERIFY(near(r.sk().geometry(ids[0])->length(), 45.0, 1e-6));
+    QVERIFY(!r.mgr.isActive() || r.mgr.activeToolId() != "sketch.dimension-edit");
+  }
+
   void dimensionToolAndEdit() {
     Rig r;
     r.mgr.run("sketch.create", {"XY"});
