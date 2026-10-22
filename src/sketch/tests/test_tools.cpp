@@ -115,6 +115,29 @@ struct Rig {
 class ToolsTest : public QObject {
   Q_OBJECT
  private slots:
+  // SK-01: the idle select tool leaves Ctrl+Enter to the Finish Sketch shortcut;
+  // SK-10: Ctrl+A selects every sketch entity without ending the active tool
+  void ctrlEnterAndSelectAll() {
+    Rig r;
+    QVERIFY(r.mgr.run("sketch.create", {"XY"}));
+    Rig::pump();
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.select"));
+    core::ViewerKeyEvent e;
+    e.key = Qt::Key_Return;
+    QVERIFY(r.mgr.keyPress(e));  // plain Enter: a no-op the tool eats
+    e.modifiers = core::ModCtrl;
+    QVERIFY(!r.mgr.keyPress(e));
+    e.key = Qt::Key_Enter;
+    QVERIFY(!r.mgr.keyPress(e));
+    addRectangle(r.sk(), {0, 0}, {20, 10});
+    r.session()->refresh();
+    QVERIFY(r.mgr.run("sketch.line"));
+    QVERIFY(r.mgr.triggerShortcut("Ctrl+A"));
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.line"));
+    QCOMPARE(r.doc.selection().count(), r.sk().geometryCount());
+    QVERIFY(r.doc.selection().count() >= 4);
+  }
+
   void registration() {
     Rig r;
     QVERIFY(r.registry.has("sketch.create"));
@@ -314,6 +337,26 @@ class ToolsTest : public QObject {
             r.sk().findConstraint(ConstraintType::Coincident, {1, PointPos::Start}, {2, PointPos::Start}));
     QVERIFY(r.sk().solve().ok());
     QCOMPARE(r.sk().dofs(), 0);  // the typed @0,30 dimensioned the second line
+  }
+
+  // SK-12: a segment straight back over the previous one is rejected; the chain goes on
+  void lineRetraceRejected() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.mgr.run("sketch.line");
+    QVERIFY(r.mgr.runCommandLine("0,0"));
+    QVERIFY(r.mgr.runCommandLine("@20<0"));
+    QCOMPARE(r.sk().geometryCount(), 1);
+    const int dims = r.countType(ConstraintType::Distance);
+    r.mgr.runCommandLine("@20<180");
+    QCOMPARE(r.sk().geometryCount(), 1);
+    QCOMPARE(r.countType(ConstraintType::Distance), dims);
+    r.mgr.runCommandLine("@-5,0");  // partial retrace: also an overlap
+    QCOMPARE(r.sk().geometryCount(), 1);
+    QVERIFY(r.mgr.runCommandLine("@0,10"));
+    QCOMPARE(r.sk().geometryCount(), 2);
+    QVERIFY(near(r.sk().geometry(2)->start(), {20, 0}));
   }
 
   void lineTypedInputAndTangentArc() {
@@ -955,6 +998,34 @@ class ToolsTest : public QObject {
     QCOMPARE(r2.sk().geometryCount(), 3);
     QVERIFY(near(r2.sk().geometry(3)->radius(), 2.0));
     QVERIFY(r2.sk().solve().ok());
+    // SK-06: the fillet gets a Radius dimension (same undo step)
+    QCOMPARE(r2.countType(ConstraintType::Radius), 1);
+    for (const auto& c : r2.sk().constraints())
+      if (c.type == ConstraintType::Radius) QVERIFY(near(c.value, 2.0) && !c.driven);
+
+    // SK-06: digits typed in the canvas go to the radius box; Enter sets the radius
+    Rig r6;
+    r6.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int k1 = r6.sk().addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    int k2 = r6.sk().addGeometry(Geometry::makeLine({10, 0}, {10, 10}));
+    r6.sk().addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {k1, PointPos::End}, .b = {k2, PointPos::Start}});
+    r6.session()->refresh();
+    r6.mgr.run("sketch.fillet");
+    r6.move(3, 3);
+    for (char ch : std::string("3")) {
+      core::ViewerKeyEvent ke;
+      ke.key = Qt::Key_3;
+      ke.text = std::string(1, ch);
+      r6.mgr.keyPress(ke);
+    }
+    r6.key(Qt::Key_Return);
+    QCOMPARE(r6.mgr.activeToolId(), std::string("sketch.fillet"));  // Enter with a typed value does not exit
+    r6.click(5, 0);
+    r6.click(10, 5);
+    QCOMPARE(r6.sk().geometryCount(), 3);
+    QVERIFY(near(r6.sk().geometry(3)->radius(), 3.0));
+    QCOMPARE(r6.countType(ConstraintType::Radius), 1);
 
     // UX-22: a fillet that leaves the sketch unsolvable is rolled back instead of committed
     Rig r5;

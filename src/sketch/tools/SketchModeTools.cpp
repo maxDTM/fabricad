@@ -403,7 +403,7 @@ class SelectTool : public SketchTool {
       return true;
     }
     // plain Enter is a no-op here; Ctrl+Enter (Finish Sketch) and other combos stay shortcuts (SK-01)
-    if ((e.key == Qt::Key_Return || e.key == Qt::Key_Enter) && !(e.modifiers & (ModCtrl | ModAlt))) return true;
+    if ((e.key == Qt::Key_Return || e.key == Qt::Key_Enter) && !(e.modifiers & (core::ModCtrl | core::ModAlt))) return true;
     return false;
   }
 
@@ -458,6 +458,32 @@ void registerModeTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<EditSketchTool>());
   reg.registerTool(std::make_unique<FinishSketchTool>());
   reg.registerTool(std::make_unique<SelectTool>());
+  // Ctrl+A: select every sketch entity (SK-10); runs beside the active tool
+  reg.registerTool(std::make_unique<core::LambdaTool>(
+      ToolInfo{.id = "sketch.select-all",
+               .name = "Select All",
+               .tooltip = "Select every curve and point of the sketch",
+               .icon = "select",
+               .shortcut = "Ctrl+A",
+               .aliases = {"SELECTALL"},
+               .tab = "SKETCH",
+               .group = "SELECT",
+               .order = 2,
+               .repeatable = false,
+               .hidden = true,
+               .keepsActiveTool = true},
+      [](ToolContext& ctx) {
+        SketchSession* s = SketchSession::current();
+        Sketch* sk = s ? s->sketch() : nullptr;
+        if (!sk || !ctx.selection) return;
+        std::vector<ShapeRef> refs;
+        for (const Geometry& g : sk->geometries())
+          if (!g.projected) refs.push_back(s->toShapeRef({g.id, PointPos::None}));
+        ctx.selection->set(refs);
+        s->render();
+        ctx.showMessage(std::format("{} sketch entities selected", refs.size()));
+      },
+      [](const ToolContext& ctx) { return ctx.document && SketchSession::current(); }));
   reg.registerTool(paletteToggle("sketch.look-at", "Look At", "Look straight at the sketch plane", 1,
                                  [](SketchSession& s, ToolContext& ctx) {
                                    if (ctx.viewer) ctx.viewer->lookAt(s.feature() ? s.feature()->plane() : gp_Ax3(), true);
