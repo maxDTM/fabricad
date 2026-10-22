@@ -9,7 +9,9 @@
 # no longer generates (except the logo). Output is deterministic: same script, same bytes.
 # The rules (checked by src/app/tests/test_icons.cpp) are documented in README.md here.
 # SPDX-License-Identifier: LGPL-2.1-or-later
+import json
 import os
+import runpy
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -17,18 +19,29 @@ QRC = os.path.join(HERE, "..", "fabricad.qrc")
 KEEP = {"fabricad.svg"}  # hand-made, not generated
 
 # --- palette (README.md) ----------------------------------------------------------------
-INK = "#3C4148"    # outlines
-GREY = "#9AA0A8"   # secondary / hidden / reference lines
-WH = "#FFFFFF"     # paper, knock-outs
-BODY = "#C9CDD2"   # solid body fill
-SK = "#1F74D1"     # sketch
-OR = "#E8811A"     # solid feature accent
-AS = "#2E9E4F"     # assembly
-CO = "#E5A100"     # construction geometry
-IN = "#8E44AD"     # inspect
-UI = "#0696D7"     # view / application accent
-DR = "#00838F"     # drawing
-RED = "#D93A3A"    # error / remove / cut
+# One drawing set, two colour sets: the colours come from resources/theme/icon-palette.json
+# (written by tools/theme/gen_tokens.py from tokens.json). main() runs this file once per theme
+# with THEME preset, so every drawing below is evaluated with that theme's palette.
+THEMES = ("dark", "light")
+try:
+    THEME
+except NameError:
+    THEME = "light"
+with open(os.path.join(HERE, "..", "theme", "icon-palette.json"), encoding="utf-8") as _f:
+    PAL = json.load(_f)[THEME]
+
+INK = PAL["icon.ink"]            # outlines
+GREY = PAL["icon.grey"]          # secondary / hidden / reference lines
+WH = PAL["icon.paper"]           # paper, knock-outs
+BODY = PAL["icon.body"]          # solid body fill
+SK = PAL["icon.badge.blue"]      # sketch
+OR = PAL["icon.orange"]          # solid feature accent
+AS = PAL["icon.badge.green"]     # assembly
+CO = PAL["icon.badge.amber"]     # construction geometry
+IN = PAL["icon.badge.violet"]    # inspect
+UI = PAL["icon.badge.cyan"]      # view / application accent
+DR = PAL["icon.badge.teal"]      # drawing
+RED = PAL["icon.badge.red"]      # error / remove / cut
 
 HEADER = ('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" '
           'fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' % INK)
@@ -718,6 +731,24 @@ I["app-tab"] = (R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=UI, f
                 P("M11 8.5 V5.5 H17 V8.5", s=INK))
 I["app-close"] = R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=INK) + cross(12, 14.5, RED, 3)
 
+
+# ===== hand-drawn icons, kept as literal SVG bodies; {NAME} placeholders take the theme palette =====
+LITERAL = {
+    'app-isolate': '<path d="M2 12 s4 -6.5 10 -6.5 10 6.5 10 6.5 -4 6.5 -10 6.5 S2 12 2 12 z" stroke="{GREY}"/><circle cx="12" cy="12" r="3.5" fill="{UI}" stroke="{UI}"/>',
+    'assembly-ground-toggle': '<path d="M4.4 5.8 L10 3 L15.6 5.8 L15.6 12.2 L10 15 L4.4 12.2 Z" fill="{WH}" stroke="{AS}"/><path d="M4.4 5.8 L10 8.6 L15.6 5.8 M10 8.6 L10 15" stroke="{AS}"/><path d="M2 18.5 H18 M5 21.5 H15" stroke="{AS}"/><path d="M10 15 V18.5" stroke="{AS}"/><path d="M20 4 V11 M18.2 6 L20 4 L21.8 6 M18.2 9 L20 11 L21.8 9" stroke="{INK}"/>',
+    'select-filter-all': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M13 16 L15.5 18.5 L21 12.5" stroke="{UI}"/>',
+    'select-filter-bodies': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M13 13 L17 11 L21 13 V18 L17 20 L13 18 Z" stroke="{UI}"/><path d="M13 13 L17 15 L21 13 M17 15 V20" stroke="{UI}"/>',
+    'select-filter-components': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><rect x="12.5" y="11.5" width="8.5" height="8.5" rx="1.5" stroke="{UI}"/><path d="M15 15 H18.5 M15 17.5 H18.5" stroke="{UI}"/>',
+    'select-filter-construction': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M12 18 L15 12 H22 L19 18 Z" stroke="{CO}"/>',
+    'select-filter-edges': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M12.5 20 L21 11.5" stroke="{UI}"/>',
+    'select-filter-faces': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M13 12 H21 V20 H13 Z" fill="{BODY}" stroke="{UI}"/>',
+    'select-filter-sketches': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><path d="M12.5 19.5 H21 M12.5 19.5 L16.5 12 L21 19.5" stroke="{UI}"/>',
+    'select-filter-vertices': '<path d="M2.5 3.5 H13.5 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="{WH}"/><circle cx="17" cy="16" r="2.6" fill="{UI}" stroke="{UI}"/>',
+    'sketch-select-all': '<rect x="2.5" y="2.5" width="19" height="19" rx="1.5" stroke-dasharray="2.5 2.5"/><path d="M6 17 L11 7 L18 15" stroke="{UI}"/><circle cx="6" cy="17" r="1.3" fill="{UI}" stroke="{UI}"/><circle cx="11" cy="7" r="1.3" fill="{UI}" stroke="{UI}"/><circle cx="18" cy="15" r="1.3" fill="{UI}" stroke="{UI}"/>',
+}
+for _n, _body in LITERAL.items():
+    I[_n] = _body.format(INK=INK, GREY=GREY, WH=WH, BODY=BODY, SK=SK, OR=OR, AS=AS, CO=CO, IN=IN, UI=UI, DR=DR, RED=RED)
+
 # ===== feature types (browser / timeline items) ==============================================
 FEATURES = {
     "extrude": EXTRUDE, "revolve": REVOLVE, "sweep": SWEEP, "loft": LOFT, "hole": HOLE, "fillet": FILLET,
@@ -737,25 +768,40 @@ def main():
     bad = [n for n in I if not n.replace("-", "").isalnum() or n != n.lower()]
     if bad:
         sys.exit("bad icon names: %s" % bad)
-    written = set()
-    for name in sorted(I):
-        fn = name + ".svg"
-        with open(os.path.join(HERE, fn), "w", encoding="utf-8", newline="\n") as f:
-            f.write(HEADER + I[name] + "</svg>\n")
-        written.add(fn)
+    names = sorted(I)
+    for th in THEMES:
+        d = os.path.join(HERE, th)
+        os.makedirs(d, exist_ok=True)
+        for name in names:
+            with open(os.path.join(d, name + ".svg"), "w", encoding="utf-8", newline="\n") as f:
+                f.write(THEME_SETS[th][name])
+    written = {n + ".svg" for n in names}
+    for th in THEMES:
+        d = os.path.join(HERE, th)
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith(".svg") and fn not in written:
+                os.remove(os.path.join(d, fn))
+                print("removed", th + "/" + fn)
+    # flat SVGs of the pre-theme layout
     for fn in sorted(os.listdir(HERE)):
-        if fn.endswith(".svg") and fn not in written and fn not in KEEP:
+        if fn.endswith(".svg") and fn not in KEEP:
             os.remove(os.path.join(HERE, fn))
-            print("removed", fn)
     # qrc: keep non-icon entries, regenerate the icons/ block (sorted)
     with open(QRC, encoding="utf-8") as f:
         lines = f.read().splitlines()
     head = [l for l in lines if "<file>icons/" not in l and "</qresource>" not in l and "</RCC>" not in l]
-    icons = ["  <file>icons/%s</file>" % fn for fn in sorted(written | KEEP)]
+    icons = ["  <file>icons/%s</file>" % fn for fn in sorted(KEEP)]
+    icons += ["  <file>icons/%s/%s</file>" % (th, fn) for th in THEMES for fn in sorted(written)]
     with open(QRC, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(head + icons + ["</qresource>", "</RCC>"]) + "\n")
-    print("%d icons written" % len(written))
+    print("%d icons x %d themes written" % (len(written), len(THEMES)))
 
 
 if __name__ == "__main__":
+    # evaluate the drawings once per theme (the palette is read at import of each run)
+    THEME_SETS = {}
+    for _th in THEMES:
+        g = runpy.run_path(__file__, init_globals={"THEME": _th}, run_name="icons_" + _th)
+        THEME_SETS[_th] = {n: g["HEADER"] + g["I"][n] + "</svg>\n" for n in g["I"]}
+    I = {n: None for n in THEME_SETS[THEMES[0]]}
     main()

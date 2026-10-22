@@ -10,7 +10,11 @@
     "icon.badge.slate": "#A7AEB9",
     "icon.badge.teal": "#3CC8C0",
     "icon.badge.violet": "#B49CFF",
+    "icon.body": "#5C6470",
+    "icon.grey": "#8A93A0",
     "icon.ink": "#C3C9D2",
+    "icon.orange": "#FF9A3D",
+    "icon.paper": "#262B33",
     "live.base": "#F5B700",
     "live.ink": "#1A1400"
   },
@@ -25,7 +29,11 @@
     "icon.badge.slate": "#4F5D6E",
     "icon.badge.teal": "#00737C",
     "icon.badge.violet": "#7A3FB8",
+    "icon.body": "#C9CDD2",
+    "icon.grey": "#6F7886",
     "icon.ink": "#3C4148",
+    "icon.orange": "#B8560A",
+    "icon.paper": "#FFFFFF",
     "live.base": "#F5B700",
     "live.ink": "#1A1400"
   }

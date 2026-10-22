@@ -95,6 +95,10 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `icon.badge.red` | `#FF7A8F` | `#B0293A` |
 | `icon.badge.slate` | `#A7AEB9` | `#4F5D6E` |
 | `icon.badge.cyan` | `#3CC8F0` | `#0A6F91` |
+| `icon.grey` | `#8A93A0` | `#6F7886` |
+| `icon.orange` | `#FF9A3D` | `#B8560A` |
+| `icon.paper` | `#262B33` | `#FFFFFF` |
+| `icon.body` | `#5C6470` | `#C9CDD2` |
 | `tutorial.dim` | `#05060899` | `#1A1D2266` |
 
 ## Aliases
@@ -223,6 +227,28 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `icon.badge.red` | `surface.panel` | U | 7.00 | 5.96 | pass |
 | `icon.badge.slate` | `surface.panel` | U | 7.80 | 6.16 | pass |
 | `icon.badge.cyan` | `surface.panel` | U | 8.89 | 5.20 | pass |
+| `icon.ink` | `surface.header` | U | 9.69 | 8.68 | pass |
+| `icon.grey` | `surface.header` | U | 5.20 | 3.77 | pass |
+| `icon.orange` | `surface.header` | U | 7.64 | 4.05 | pass |
+| `icon.badge.blue` | `surface.header` | U | 6.11 | 5.14 | pass |
+| `icon.badge.green` | `surface.header` | U | 7.16 | 4.25 | pass |
+| `icon.badge.amber` | `surface.header` | U | 7.18 | 5.00 | pass |
+| `icon.badge.violet` | `surface.header` | U | 7.03 | 5.49 | pass |
+| `icon.badge.teal` | `surface.header` | U | 7.86 | 4.74 | pass |
+| `icon.badge.red` | `surface.header` | U | 6.48 | 5.50 | pass |
+| `icon.badge.cyan` | `surface.header` | U | 8.24 | 4.80 | pass |
+| `icon.ink` | `surface.raised` | U | 9.69 | 10.28 | pass |
+| `icon.grey` | `surface.raised` | U | 5.20 | 4.46 | pass |
+| `icon.orange` | `surface.raised` | U | 7.64 | 4.80 | pass |
+| `icon.badge.blue` | `surface.raised` | U | 6.11 | 6.08 | pass |
+| `icon.badge.green` | `surface.raised` | U | 7.16 | 5.03 | pass |
+| `icon.badge.amber` | `surface.raised` | U | 7.18 | 5.93 | pass |
+| `icon.badge.violet` | `surface.raised` | U | 7.03 | 6.50 | pass |
+| `icon.badge.teal` | `surface.raised` | U | 7.86 | 5.61 | pass |
+| `icon.badge.red` | `surface.raised` | U | 6.48 | 6.51 | pass |
+| `icon.badge.cyan` | `surface.raised` | U | 8.24 | 5.68 | pass |
+| `icon.grey` | `surface.panel` | U | 5.61 | 4.09 | pass |
+| `icon.orange` | `surface.panel` | U | 8.25 | 4.40 | pass |
 
 ## Colour vision (ΔE00 normal / protan / deutan / tritan; floor in brackets, 0 = not gated)
 

@@ -7,9 +7,12 @@
 // then "feature-<type lowercase>", then folder fallbacks (construction/joints). Only when
 // none exists (plug-in tools without artwork) a generated badge (rounded square with the
 // label's initials) is used; test_icons fails if any registered tool or feature type gets
-// one. Icons are cached; QIcon renders SVGs lazily at the requested size.
+// one. Icons are cached; their ThemedSvgIconEngine picks resources/icons/<dark|light>/ at paint
+// time from theme::current(), so a theme switch needs no setIcon calls.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
+
+#include "theme/Tokens.h"
 
 #include <QColor>
 #include <QIcon>
@@ -27,6 +30,10 @@ class Feature;
 
 namespace fabricad::app {
 
+/// Concrete resource of a logical icon path for `th` (":/icons/save.svg" -> ":/icons/dark/save.svg").
+/// The logo (":/icons/fabricad.svg") and paths that are already themed or not under ":/icons/" pass
+/// through unchanged. Icons returned by this module resolve the theme at paint time through this.
+QString themedIconPath(const QString& logicalPath, theme::Theme th);
 /// Resource icon by bare name ("save") or path; null QIcon if it does not exist.
 QIcon resourceIcon(const QString& nameOrPath);
 /// Resource path for a bare name or path (":/icons/save.svg"); empty if it does not exist.

@@ -91,6 +91,10 @@ enum class Tok : std::uint16_t {
   IconBadgeRed,  // icon.badge.red
   IconBadgeSlate,  // icon.badge.slate
   IconBadgeCyan,  // icon.badge.cyan
+  IconGrey,  // icon.grey
+  IconOrange,  // icon.orange
+  IconPaper,  // icon.paper
+  IconBody,  // icon.body
   TutorialDim,  // tutorial.dim
   Count
 };
@@ -197,6 +201,10 @@ inline constexpr const char* kTokName[] = {
     "icon.badge.red",
     "icon.badge.slate",
     "icon.badge.cyan",
+    "icon.grey",
+    "icon.orange",
+    "icon.paper",
+    "icon.body",
     "tutorial.dim",
 };
 
@@ -289,6 +297,10 @@ inline constexpr std::uint32_t kDark[] = {
     0xFF7A8FFFu,  // icon.badge.red
     0xA7AEB9FFu,  // icon.badge.slate
     0x3CC8F0FFu,  // icon.badge.cyan
+    0x8A93A0FFu,  // icon.grey
+    0xFF9A3DFFu,  // icon.orange
+    0x262B33FFu,  // icon.paper
+    0x5C6470FFu,  // icon.body
     0x05060899u,  // tutorial.dim
 };
 
@@ -381,6 +393,10 @@ inline constexpr std::uint32_t kLight[] = {
     0xB0293AFFu,  // icon.badge.red
     0x4F5D6EFFu,  // icon.badge.slate
     0x0A6F91FFu,  // icon.badge.cyan
+    0x6F7886FFu,  // icon.grey
+    0xB8560AFFu,  // icon.orange
+    0xFFFFFFFFu,  // icon.paper
+    0xC9CDD2FFu,  // icon.body
     0x1A1D2266u,  // tutorial.dim
 };
 
@@ -548,6 +564,28 @@ inline constexpr Pair kPairs[] = {
     {Tok::IconBadgeRed, Tok::SurfacePanel, 3.0},  // ui
     {Tok::IconBadgeSlate, Tok::SurfacePanel, 3.0},  // ui
     {Tok::IconBadgeCyan, Tok::SurfacePanel, 3.0},  // ui
+    {Tok::IconInk, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconGrey, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconOrange, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeBlue, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeGreen, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeAmber, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeViolet, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeTeal, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeRed, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconBadgeCyan, Tok::SurfaceHeader, 3.0},  // ui
+    {Tok::IconInk, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconGrey, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconOrange, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeBlue, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeGreen, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeAmber, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeViolet, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeTeal, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeRed, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconBadgeCyan, Tok::SurfaceRaised, 3.0},  // ui
+    {Tok::IconGrey, Tok::SurfacePanel, 3.0},  // ui
+    {Tok::IconOrange, Tok::SurfacePanel, 3.0},  // ui
 };
 
 struct CvdRow {
