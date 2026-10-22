@@ -89,3 +89,80 @@ Alias note: the Box default issue is **ASM-CORE-13** in asm-core.md. ASM-CORE-12
   - optional app/PropertyEditor.cpp
 - Not touched: PartTools.cpp (G3), core/Feature.cpp and GeometryRefs (G1).
 - Verify with `ctest` (part + assembly suites), then retest in the app: qty 100000 shows an error, shell 50 on a 20 mm box shows an error, chamfer 3/8 shows an error, the face cut shows an error and auto-flips, the box shows New Body.
+
+## Done
+
+Branch `fn/G2-part` (worktree `fabricad-wt/fn-G2-part`). Full `ctest` (QT_QPA_PLATFORM=offscreen): 56/56 pass.
+GUI retest on display :42 with the worktree binary; screenshots in
+`fabricad/docs/tests/functional/fixes/G2-part/`.
+
+**PART-01: pattern quantity cap**
+- `Pattern.cpp`: `kMaxPatternInstances = 1000`. Compute rejects each direction > 1000, the total
+  `off1.size()*off2.size()` (symmetric counted) > 1000, and the circular count (symmetric type: 2n-1)
+  with "pattern too large (max 1000 instances)". It covers component patterns, scripts and loaded files.
+- `core/Property.h`: `PropertyFlags::intMin/intMax` (header only, not serialised, defaults ±1e6).
+  The quantity properties get 1..1000 (circular 2..1000).
+- `PropertyPanel.cpp` and `app/PropertyEditor.cpp`: spinbox range from the flags, `setKeyboardTracking(false)`.
+- Deviation: kept 1000 (not 500). 1000 body instances at 20 mm spacing previewed in under 4 s in the GUI.
+- Tests: `patternQuantityIsCapped` (test_construction_pattern), `patternQuantitySpinboxBounded` (test_tools).
+- GUI: typing 100000 clamps to 1000 and the app stays responsive at about 230 MB RSS.
+  1000 x 2 gives the red error and OK disabled.
+- Seen, not fixed (not in this group): after picking Direction 2 the Quantity 2 / Distance 2 rows
+  only appear after the next enum change. Selecting a ref does not rebuild the panel when
+  hidden flags change.
+
+**PART-02: shell too thick**
+- `Shell.cpp`: a `plausible()` check on both branches (faces removed and hollow body). Requires a
+  BRepCheck-valid result, `sameKindSolid`, positive volume, a volume change (relative 1e-6), v1 < v0 for
+  Inside, and no removed face still present. Otherwise error "thickness too large for the geometry".
+- Test: `shellTooThickIsError` covers 50 mm on a 20x20x10 box, hollow 50 mm, and a 4.5 mm wall that still works.
+- GUI: 50 mm on a 20x20x30 box with the top face removed shows the error and OK disabled. 2 mm still previews.
+
+**PART-03: corrupted chamfer accepted**
+- `PartUtils`: new `sameKindSolid(before, after)` (same solid count, closed shells, every solid with
+  positive volume) and `hasSelfIntersection()` (BOPAlgo_ArgumentAnalyzer, self-intersection only).
+- `Fillet.cpp`: chamfer and fillet results must pass both checks. Chamfer also needs 0.5·v0 < v1 < v0
+  and fillet |v1-v0| < 0.5·v0.
+- Deviation: the reported repro (two-distance 3/8 on a top edge next to a 5 mm fillet) passes
+  BRepCheck, is closed and has a plausible volume. The chamfer runs along the tangent chain (top
+  edge, fillet arc, vertical edge) and the result folds over itself. Only the self-intersection
+  check catches it, so I added that check on top of the plan.
+- Tests: `sameKindSolidRejectsBrokenResults` (inverted, open shell, extra solid, null) and
+  `twoDistanceChamferNextToFillet` (the repro must be an error or a clean solid; the same chamfer
+  on the opposite edge must give the exact volume). test_chair_split and the chair script/spec pass.
+- GUI: before the fix the result had a visible folded patch and was accepted. Now the dialog says
+  "chamfer produced an invalid shape". With Flip on, the chamfer gives a clean result.
+
+**PART-04: cut that removes nothing; default Cut direction**
+- `PartUtils.cpp applyTool`: for Cut, a participant whose volume does not change (relative 1e-7) is
+  left alone. If no body changes, error "the cut does not remove material from any body".
+  Volumes are computed only for Cut.
+- `FeatureTool`: `materialFraction()` is factored out of `autoOperation`. `autoFlipForCut()` runs
+  only when the user picks Cut in the dialog (not in edit mode, not for `operation=Cut` from the
+  command line). It applies only to a one-side distance Extrude whose tool is under 1% inside material:
+  it sets Flip and keeps it only if the tool then goes into material. `undoAutoFlip()` clears an
+  automatic flip when the operation leaves Cut. A manual Flip toggle (`flipUser_`) disables both.
+- `PropertyPanel::refresh()` now also syncs enum combos and bool checkboxes, so programmatic
+  changes (auto flip, auto operation) show without a panel rebuild.
+- Tests: `extrudeCutTouchingOnlyIsError` (test_extrude_revolve) and `cutOnTopFaceFlipsIntoBody`
+  (test_tools; covers the scripted path with no flip plus error, the dialog auto flip, undoing the flip
+  on Join, and the volume after accept). No existing fixture relied on a cut that changed nothing.
+- GUI: box below XY, circle sketch on XY (the box top face). Extrude defaults to Join. Picking Cut
+  ticks Flip and shows a valid red cut. Unticking Flip by hand gives "the cut does not remove
+  material from any body".
+
+**PART-05 (ASM-CORE-13): Box default operation**
+- `FeatureTool::autoPrimitiveOperation()`: for `PrimitiveFeature`, while the operation is still
+  automatic and no explicit targets are set, it sets New Body when the shape touches no body in
+  scope and Join when it does. This runs in `updatePreview` and recomputes once when the value
+  changes. The combo is synced through `refresh()` with no rebuild, so focus is not lost.
+  `applyDefaultsForNewFeature` is unchanged.
+- Test: `boxOperationFollowsContact` covers overlap (Join), far away (New Body), face contact
+  (Join), and a chosen operation that is kept.
+- GUI: a Box over the existing body shows Join. Position X = 100 switches it to New Body.
+
+Harness notes: the scratchpad directory is shared between agents. Another agent overwrote my
+first helper script `shot.sh`, and running it once wrote a stray `s7.png` into
+`fixes/G1-doc/` (screenshot only, nothing else touched). The recovery autosave directory is also
+shared. I started the app with a private `XDG_DATA_HOME` after a recovery prompt offered another
+agent's autosave.
