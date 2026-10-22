@@ -9,7 +9,9 @@
 # no longer generates (except the logo). Output is deterministic: same script, same bytes.
 # The rules (checked by src/app/tests/test_icons.cpp) are documented in README.md here.
 # SPDX-License-Identifier: LGPL-2.1-or-later
+import json
 import os
+import runpy
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -17,18 +19,29 @@ QRC = os.path.join(HERE, "..", "fabricad.qrc")
 KEEP = {"fabricad.svg"}  # hand-made, not generated
 
 # --- palette (README.md) ----------------------------------------------------------------
-INK = "#3C4148"    # outlines
-GREY = "#9AA0A8"   # secondary / hidden / reference lines
-WH = "#FFFFFF"     # paper, knock-outs
-BODY = "#C9CDD2"   # solid body fill
-SK = "#1F74D1"     # sketch
-OR = "#E8811A"     # solid feature accent
-AS = "#2E9E4F"     # assembly
-CO = "#E5A100"     # construction geometry
-IN = "#8E44AD"     # inspect
-UI = "#0696D7"     # view / application accent
-DR = "#00838F"     # drawing
-RED = "#D93A3A"    # error / remove / cut
+# One drawing set, two colour sets: the colours come from resources/theme/icon-palette.json
+# (written by tools/theme/gen_tokens.py from tokens.json). main() runs this file once per theme
+# with THEME preset, so every drawing below is evaluated with that theme's palette.
+THEMES = ("dark", "light")
+try:
+    THEME
+except NameError:
+    THEME = "light"
+with open(os.path.join(HERE, "..", "theme", "icon-palette.json"), encoding="utf-8") as _f:
+    PAL = json.load(_f)[THEME]
+
+INK = PAL["icon.ink"]            # outlines
+GREY = PAL["icon.grey"]          # secondary / hidden / reference lines
+WH = PAL["icon.paper"]           # paper, knock-outs
+BODY = PAL["icon.body"]          # solid body fill
+SK = PAL["icon.badge.blue"]      # sketch
+OR = PAL["icon.orange"]          # solid feature accent
+AS = PAL["icon.badge.green"]     # assembly
+CO = PAL["icon.badge.amber"]     # construction geometry
+IN = PAL["icon.badge.violet"]    # inspect
+UI = PAL["icon.badge.cyan"]      # view / application accent
+DR = PAL["icon.badge.teal"]      # drawing
+RED = PAL["icon.badge.red"]      # error / remove / cut
 
 HEADER = ('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" '
           'fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' % INK)
@@ -737,25 +750,40 @@ def main():
     bad = [n for n in I if not n.replace("-", "").isalnum() or n != n.lower()]
     if bad:
         sys.exit("bad icon names: %s" % bad)
-    written = set()
-    for name in sorted(I):
-        fn = name + ".svg"
-        with open(os.path.join(HERE, fn), "w", encoding="utf-8", newline="\n") as f:
-            f.write(HEADER + I[name] + "</svg>\n")
-        written.add(fn)
+    names = sorted(I)
+    for th in THEMES:
+        d = os.path.join(HERE, th)
+        os.makedirs(d, exist_ok=True)
+        for name in names:
+            with open(os.path.join(d, name + ".svg"), "w", encoding="utf-8", newline="\n") as f:
+                f.write(THEME_SETS[th][name])
+    written = {n + ".svg" for n in names}
+    for th in THEMES:
+        d = os.path.join(HERE, th)
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith(".svg") and fn not in written:
+                os.remove(os.path.join(d, fn))
+                print("removed", th + "/" + fn)
+    # flat SVGs of the pre-theme layout
     for fn in sorted(os.listdir(HERE)):
-        if fn.endswith(".svg") and fn not in written and fn not in KEEP:
+        if fn.endswith(".svg") and fn not in KEEP:
             os.remove(os.path.join(HERE, fn))
-            print("removed", fn)
     # qrc: keep non-icon entries, regenerate the icons/ block (sorted)
     with open(QRC, encoding="utf-8") as f:
         lines = f.read().splitlines()
     head = [l for l in lines if "<file>icons/" not in l and "</qresource>" not in l and "</RCC>" not in l]
-    icons = ["  <file>icons/%s</file>" % fn for fn in sorted(written | KEEP)]
+    icons = ["  <file>icons/%s</file>" % fn for fn in sorted(KEEP)]
+    icons += ["  <file>icons/%s/%s</file>" % (th, fn) for th in THEMES for fn in sorted(written)]
     with open(QRC, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(head + icons + ["</qresource>", "</RCC>"]) + "\n")
-    print("%d icons written" % len(written))
+    print("%d icons x %d themes written" % (len(written), len(THEMES)))
 
 
 if __name__ == "__main__":
+    # evaluate the drawings once per theme (the palette is read at import of each run)
+    THEME_SETS = {}
+    for _th in THEMES:
+        g = runpy.run_path(__file__, init_globals={"THEME": _th}, run_name="icons_" + _th)
+        THEME_SETS[_th] = {n: g["HEADER"] + g["I"][n] + "</svg>\n" for n in g["I"]}
+    I = {n: None for n in THEME_SETS[THEMES[0]]}
     main()

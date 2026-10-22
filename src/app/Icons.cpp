@@ -15,7 +15,10 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QRegularExpression>
+#include <QSvgRenderer>
 #include <QStringList>
+
+#include <memory>
 
 namespace fabricad::app {
 
@@ -69,6 +72,42 @@ class BadgeEngine : public QIconEngine {
   theme::Tok tok_;
 };
 
+/// SVG icon whose artwork is chosen per paint: the logical path ":/icons/x.svg" resolves to
+/// ":/icons/<dark|light>/x.svg" for theme::current(). Renderers are created lazily per theme.
+class ThemedSvgIconEngine : public QIconEngine {
+ public:
+  explicit ThemedSvgIconEngine(QString logical) : logical_(std::move(logical)) {}
+  void paint(QPainter* p, const QRect& rect, QIcon::Mode mode, QIcon::State) override {
+    QSvgRenderer* r = renderer(theme::current());
+    if (!r || !r->isValid()) return;
+    p->save();
+    if (mode == QIcon::Disabled) p->setOpacity(p->opacity() * 0.4);
+    r->render(p, QRectF(rect));
+    p->restore();
+  }
+  QPixmap pixmap(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+    QPixmap pm(size);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    paint(&p, QRect(QPoint(0, 0), size), mode, state);
+    return pm;
+  }
+  QSize actualSize(const QSize& size, QIcon::Mode, QIcon::State) override { return size; }
+  bool isNull() override { return logical_.isEmpty(); }
+  QIconEngine* clone() const override { return new ThemedSvgIconEngine(logical_); }
+  QString key() const override { return QStringLiteral("fabricad-themed-svg"); }
+
+ private:
+  QSvgRenderer* renderer(theme::Theme th) {
+    auto& r = renderers_[th == theme::Theme::Dark ? 0 : 1];
+    if (!r) r = std::make_unique<QSvgRenderer>(themedIconPath(logical_, th));
+    return r.get();
+  }
+  QString logical_;
+  std::unique_ptr<QSvgRenderer> renderers_[2];
+};
+
 QHash<QString, QIcon>& cache() {
   static QHash<QString, QIcon> c;
   return c;
@@ -88,11 +127,19 @@ QString badgeText(const QString& label) {
 
 QColor badgeColor(const QString& key) { return theme::color(badgeToken(key)); }
 
+QString themedIconPath(const QString& logicalPath, theme::Theme th) {
+  static const QString kRoot = QStringLiteral(":/icons/");
+  if (!logicalPath.startsWith(kRoot)) return logicalPath;
+  const QString rest = logicalPath.mid(kRoot.size());
+  if (rest.contains('/') || rest == QLatin1String("fabricad.svg")) return logicalPath;
+  return kRoot + QString::fromLatin1(theme::themeName(th)) + '/' + rest;
+}
+
 QString resourceIconPath(const QString& nameOrPath) {
   if (nameOrPath.isEmpty()) return {};
   const QString path = nameOrPath.startsWith(':') || nameOrPath.contains('/') ? nameOrPath
                                                                               : ":/icons/" + nameOrPath + ".svg";
-  return QFile::exists(path) ? path : QString();
+  return QFile::exists(themedIconPath(path, theme::Theme::Dark)) ? path : QString();
 }
 
 QIcon resourceIcon(const QString& nameOrPath) {
@@ -102,7 +149,7 @@ QIcon resourceIcon(const QString& nameOrPath) {
   if (auto it = c.find(key); it != c.end()) return *it;
   const QString path = resourceIconPath(nameOrPath);
   QIcon icon;
-  if (!path.isEmpty()) icon = QIcon(path);
+  if (!path.isEmpty()) icon = QIcon(new ThemedSvgIconEngine(path));
   c.insert(key, icon);
   return icon;
 }

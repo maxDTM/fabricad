@@ -6,17 +6,17 @@
 //   Inputs   - the tool registry and feature factory exactly as the application builds them
 //              (MainWindow registers sketch, part, assembly, drawing, then the app tools),
 //              the joint types 0..kJointTypeCount-1, the fixed browser/timeline/UI icon list
-//              kUiIcons below, and every *.svg under resources/icons (source tree, found
-//              relative to this file) and :/icons (compiled qrc).
+//              kUiIcons below, and every *.svg under resources/icons/{dark,light} (source tree, found
+//              relative to this file) and :/icons/{dark,light} (compiled qrc).
 //   Order    - all collections are sorted by id/name before checking, so messages and the
 //              contact sheet never depend on registration or hash order.
 //   Checks   - each check collects ALL offenders and fails once with the full sorted list.
 //   Rendering- QSvgRenderer into ARGB32_Premultiplied QImages, transparent background, no
 //              QIcon pixmap cache or platform theme involved; sizes kRenderSizes; thresholds
 //              are the named constants below.
-//   Output   - the contact sheet is written to $FABRICAD_ICON_SHEET if set (use
-//              docs/screenshots/icons.png to refresh the committed copy), else to
-//              icons-contact-sheet.png next to the test binary. It is rendered twice and
+//   Output   - the contact sheets icons-dark.png / icons-light.png are written to
+//              $FABRICAD_ICON_SHEET_DIR if set (use docs/screenshots to refresh the committed
+//              copies), else next to the test binary. It is rendered twice and
 //              must be pixel-identical (labels use a fixed pixel-size font).
 // No QSettings, documents, timing or network are involved; the test needs only
 // QT_QPA_PLATFORM=offscreen.
@@ -28,6 +28,7 @@
 #include "core/Feature.h"
 #include "core/Registry.h"
 #include "core/Tool.h"
+#include "theme/Tokens.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -63,21 +64,40 @@ const QString kStrokeWidth = "1.5";
 /// filled, gradient badge by design. It must still parse and render.
 const QSet<QString> kStyleExempt = {"fabricad.svg"};
 
-/// The palette of resources/icons/README.md. Anything else is a style violation.
-const std::set<QString> kPalette = {
-    "#3C4148",  // ink: outlines
-    "#9AA0A8",  // secondary grey: hidden / reference lines
-    "#FFFFFF",  // white fill (paper, knock-outs)
-    "#C9CDD2",  // body fill (solid features, bodies)
-    "#1F74D1",  // sketch blue
-    "#E8811A",  // solid feature accent orange
-    "#2E9E4F",  // assembly green
-    "#E5A100",  // construction orange-yellow
-    "#8E44AD",  // inspect purple
-    "#0696D7",  // view / application accent
-    "#00838F",  // drawing teal
-    "#D93A3A",  // error / cut / delete red
-};
+constexpr theme::Theme kThemes[] = {theme::Theme::Dark, theme::Theme::Light};
+/// Minimum WCAG contrast (non-text, 3:1) of every colour an icon draws marks with, against the
+/// surfaces icons sit on: toolbar / ribbon (header), sidebar (panel) and raised cards.
+constexpr double kMinMarkContrast = 3.0;
+constexpr theme::Tok kIconSurfaces[] = {theme::Tok::SurfaceHeader, theme::Tok::SurfacePanel, theme::Tok::SurfaceRaised};
+
+/// The icon palette of a theme (tokens icon.*; resources/icons/README.md). Anything else is a
+/// style violation. Fills only (paper, body) may be low-contrast: they are always outlined.
+std::set<QString> paletteOf(theme::Theme th) {
+  using T = theme::Tok;
+  std::set<QString> s;
+  for (T t : {T::IconInk, T::IconGrey, T::IconPaper, T::IconBody, T::IconBadgeBlue, T::IconOrange, T::IconBadgeGreen,
+              T::IconBadgeAmber, T::IconBadgeViolet, T::IconBadgeCyan, T::IconBadgeTeal, T::IconBadgeRed})
+    s.insert(theme::color(t, th).name().toUpper());
+  return s;
+}
+/// Palette colours that are fills only.
+std::set<QString> fillOnlyOf(theme::Theme th) {
+  return {theme::color(theme::Tok::IconPaper, th).name().toUpper(), theme::color(theme::Tok::IconBody, th).name().toUpper()};
+}
+
+double luminance(const QColor& c) {
+  auto lin = [](double v) { return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * lin(c.redF()) + 0.7152 * lin(c.greenF()) + 0.0722 * lin(c.blueF());
+}
+double contrast(const QColor& a, const QColor& b) {
+  double la = luminance(a), lb = luminance(b);
+  if (la < lb) std::swap(la, lb);
+  return (la + 0.05) / (lb + 0.05);
+}
+
+QString themeDirName(theme::Theme th) { return QString::fromLatin1(theme::themeName(th)); }
+/// Source / compiled directory of a theme's SVGs.
+QString qrcDir(theme::Theme th) { return ":/icons/" + themeDirName(th); }
 
 /// Icons the shell uses directly (browser, timeline, nav bar, app bar, menus, dialogs).
 const QStringList kUiIcons = {
@@ -114,7 +134,9 @@ QString normColor(QString c) {
 }
 
 /// Style violations of one SVG source (empty = ok).
-QStringList lintSvg(const QByteArray& data) {
+QStringList lintSvg(const QByteArray& data, theme::Theme th) {
+  const std::set<QString> kPalette = paletteOf(th);
+  const QString ink = theme::color(theme::Tok::IconInk, th).name().toUpper();
   QStringList bad;
   QXmlStreamReader x(data);
   bool root = true;
@@ -130,6 +152,7 @@ QStringList lintSvg(const QByteArray& data) {
         bad << "width/height must be 24";
       if (a.value("stroke-width") != kStrokeWidth) bad << "root stroke-width must be " + kStrokeWidth;
       if (a.value("fill") != QLatin1String("none")) bad << "root fill must be none";
+      if (normColor(a.value("stroke").toString()) != ink) bad << "root stroke must be icon.ink " + ink;
       if (a.value("stroke-linecap") != QLatin1String("round") || a.value("stroke-linejoin") != QLatin1String("round"))
         bad << "root needs round caps and joins";
     }
@@ -188,16 +211,36 @@ struct SheetEntry {
   QString path;   ///< resolved resource path
 };
 
+/// Colours an SVG draws marks with (strokes, and fills of elements without a stroke), uppercase.
+std::set<QString> markColours(const QByteArray& data) {
+  std::set<QString> out;
+  QXmlStreamReader x(data);
+  bool root = true;
+  while (!x.atEnd()) {
+    if (x.readNext() != QXmlStreamReader::StartElement) continue;
+    const QXmlStreamAttributes a = x.attributes();
+    if (root) {
+      root = false;
+      out.insert(normColor(a.value("stroke").toString()));
+      continue;
+    }
+    const QString st = a.value("stroke").toString(), fi = a.value("fill").toString();
+    if (!st.isEmpty() && st != "none") out.insert(normColor(st));
+    if (!fi.isEmpty() && fi != "none" && st == "none") out.insert(normColor(fi));
+  }
+  return out;
+}
+
 /// Deterministic contact sheet: sections in the given order, entries as given (callers sort),
 /// 4 columns of 262x44 cells, each with the 32 px and 16 px rendering and the label.
-QImage contactSheet(const std::vector<std::pair<QString, std::vector<SheetEntry>>>& sections) {
+QImage contactSheet(const std::vector<std::pair<QString, std::vector<SheetEntry>>>& sections, theme::Theme th) {
   constexpr int kCols = 4, kCellW = 262, kCellH = 44, kHeadH = 30, kMargin = 12;
   int rows = 0;
   for (const auto& s : sections) rows += int((s.second.size() + kCols - 1) / kCols);
   const int w = kMargin * 2 + kCols * kCellW;
   const int h = kMargin * 2 + int(sections.size()) * kHeadH + rows * kCellH;
   QImage img(w, h, QImage::Format_ARGB32_Premultiplied);
-  img.fill(QColor("#FFFFFF"));
+  img.fill(theme::color(theme::Tok::SurfacePanel, th));
   QPainter p(&img);
   p.setRenderHint(QPainter::Antialiasing);
   p.setRenderHint(QPainter::TextAntialiasing);
@@ -211,20 +254,20 @@ QImage contactSheet(const std::vector<std::pair<QString, std::vector<SheetEntry>
   int y = kMargin;
   for (const auto& [title, entries] : sections) {
     p.setFont(head);
-    p.setPen(QColor("#3C4148"));
+    p.setPen(theme::color(theme::Tok::TextPrimary, th));
     p.drawText(QRect(kMargin, y, w - 2 * kMargin, kHeadH), Qt::AlignLeft | Qt::AlignVCenter,
                QString("%1 (%2)").arg(title).arg(entries.size()));
-    p.setPen(QColor("#C9CDD2"));
+    p.setPen(theme::color(theme::Tok::BorderDefault, th));
     p.drawLine(kMargin, y + kHeadH - 3, w - kMargin, y + kHeadH - 3);
     y += kHeadH;
     for (size_t i = 0; i < entries.size(); ++i) {
       const int cx = kMargin + int(i % kCols) * kCellW;
       const int cy = y + int(i / kCols) * kCellH;
-      QSvgRenderer r(entries[i].path);
+      QSvgRenderer r(app::themedIconPath(entries[i].path, th));
       r.render(&p, QRectF(cx + 4, cy + 6, 32, 32));
       r.render(&p, QRectF(cx + 42, cy + 14, 16, 16));
       p.setFont(label);
-      p.setPen(QColor("#3C4148"));
+      p.setPen(theme::color(theme::Tok::TextPrimary, th));
       p.drawText(QRect(cx + 64, cy, kCellW - 68, kCellH), Qt::AlignLeft | Qt::AlignVCenter, entries[i].label);
     }
     y += int((entries.size() + kCols - 1) / kCols) * kCellH;
@@ -267,7 +310,10 @@ class TestIcons : public QObject {
     }
   }
 
-  void cleanupTestCase() { w_.reset(); }
+  void cleanupTestCase() {
+    theme::setCurrent(theme::Theme::Dark);
+    w_.reset();
+  }
 
   /// The badge fallback itself still works (plug-in tools without artwork).
   void badgeFallback() {
@@ -294,7 +340,7 @@ class TestIcons : public QObject {
     for (const auto& [id, info] : tools_) {
       const QString path = app::toolIconPath(info);
       if (path.isEmpty()) continue;  // reported by everyToolHasAnIcon
-      QFile f(path);
+      QFile f(app::themedIconPath(path, theme::Theme::Dark));
       QVERIFY(f.open(QIODevice::ReadOnly));
       byHash[QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha1).toHex()].insert(
           QString::fromStdString(id));
@@ -334,52 +380,113 @@ class TestIcons : public QObject {
     QVERIFY2(missing.empty(), qPrintable("UI icons missing:\n  " + joinSorted(missing)));
   }
 
-  /// resources/icons/*.svg and the compiled :/icons are the same set (qrc kept in sync).
+  /// resources/icons/<theme>/*.svg and the compiled :/icons/<theme> are the same set (qrc kept in
+  /// sync), and both themes have exactly the same icon names.
   void qrcMatchesSourceTree() {
-    std::set<QString> src, qrc;
-    for (const QString& f : QDir(sourceIconDir()).entryList({"*.svg"}, QDir::Files)) src.insert(f);
-    for (const QString& f : QDir(":/icons").entryList({"*.svg"}, QDir::Files)) qrc.insert(f);
-    QVERIFY2(!src.empty(), qPrintable("no SVGs found in " + sourceIconDir()));
-    std::set<QString> onlySrc, onlyQrc;
-    std::set_difference(src.begin(), src.end(), qrc.begin(), qrc.end(), std::inserter(onlySrc, onlySrc.end()));
-    std::set_difference(qrc.begin(), qrc.end(), src.begin(), src.end(), std::inserter(onlyQrc, onlyQrc.end()));
-    QVERIFY2(onlySrc.empty(), qPrintable("not listed in resources/fabricad.qrc:\n  " + joinSorted(onlySrc)));
-    QVERIFY2(onlyQrc.empty(), qPrintable("in the qrc but not in resources/icons:\n  " + joinSorted(onlyQrc)));
+    std::map<theme::Theme, std::set<QString>> names;
+    for (theme::Theme th : kThemes) {
+      std::set<QString> src, qrc;
+      for (const QString& f : QDir(sourceIconDir() + "/" + themeDirName(th)).entryList({"*.svg"}, QDir::Files)) src.insert(f);
+      for (const QString& f : QDir(qrcDir(th)).entryList({"*.svg"}, QDir::Files)) qrc.insert(f);
+      QVERIFY2(!src.empty(), qPrintable("no SVGs found in " + sourceIconDir() + "/" + themeDirName(th)));
+      std::set<QString> onlySrc, onlyQrc;
+      std::set_difference(src.begin(), src.end(), qrc.begin(), qrc.end(), std::inserter(onlySrc, onlySrc.end()));
+      std::set_difference(qrc.begin(), qrc.end(), src.begin(), src.end(), std::inserter(onlyQrc, onlyQrc.end()));
+      QVERIFY2(onlySrc.empty(), qPrintable("not listed in resources/fabricad.qrc (" + themeDirName(th) + "):\n  " + joinSorted(onlySrc)));
+      QVERIFY2(onlyQrc.empty(), qPrintable("in the qrc but not in resources/icons (" + themeDirName(th) + "):\n  " + joinSorted(onlyQrc)));
+      names[th] = src;
+    }
+    std::set<QString> diff;
+    std::set_symmetric_difference(names[theme::Theme::Dark].begin(), names[theme::Theme::Dark].end(),
+                                  names[theme::Theme::Light].begin(), names[theme::Theme::Light].end(),
+                                  std::inserter(diff, diff.end()));
+    QVERIFY2(diff.empty(), qPrintable("dark and light sets differ:\n  " + joinSorted(diff)));
+    QVERIFY2(QFile::exists(":/icons/fabricad.svg"), "logo missing");
+    QVERIFY2(QDir(":/icons").entryList({"*.svg"}, QDir::Files).size() == 1, "only the logo may sit at the :/icons root");
   }
 
   void svgStyleRules() {
     std::set<QString> bad;
-    QDirIterator it(":/icons", {"*.svg"}, QDir::Files);
-    while (it.hasNext()) {
-      const QString path = it.next();
-      if (kStyleExempt.contains(QFileInfo(path).fileName())) continue;
-      QFile f(path);
-      QVERIFY(f.open(QIODevice::ReadOnly));
-      const QStringList issues = lintSvg(f.readAll());
-      if (!issues.isEmpty()) bad.insert(QFileInfo(path).fileName() + ": " + issues.join("; "));
+    for (theme::Theme th : kThemes) {
+      QDirIterator it(qrcDir(th), {"*.svg"}, QDir::Files);
+      while (it.hasNext()) {
+        const QString path = it.next();
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QStringList issues = lintSvg(f.readAll(), th);
+        if (!issues.isEmpty()) bad.insert(themeDirName(th) + "/" + QFileInfo(path).fileName() + ": " + issues.join("; "));
+      }
     }
     QVERIFY2(bad.empty(), qPrintable("SVG style violations:\n  " + joinSorted(bad)));
   }
 
-  void rendersLegiblyAtAllSizes() {
+  /// Every colour an icon draws marks with reads against toolbar, sidebar and card surfaces
+  /// (3:1), in both themes. Paper and body are fills that are always outlined, so they are exempt.
+  void markColoursContrastWithSurfaces() {
     std::set<QString> bad;
-    QStringList files = QDir(":/icons").entryList({"*.svg"}, QDir::Files, QDir::Name);
-    for (const QString& fn : files) {
-      QSvgRenderer r(":/icons/" + fn);
-      if (!r.isValid()) {
-        bad.insert(fn + ": QSvgRenderer cannot parse it");
-        continue;
+    for (theme::Theme th : kThemes) {
+      const std::set<QString> fillOnly = fillOnlyOf(th);
+      std::set<QString> used;
+      QDirIterator it(qrcDir(th), {"*.svg"}, QDir::Files);
+      while (it.hasNext()) {
+        QFile f(it.next());
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        for (const QString& c : markColours(f.readAll())) used.insert(c);
       }
-      for (int s : kRenderSizes) {
-        const QImage a = renderSvg(r, s);
-        const Coverage c = coverage(a);
-        if (c.ink < kMinInk)
-          bad.insert(QString("%1 @%2px: too faint (ink %3 < %4)").arg(fn).arg(s).arg(c.ink, 0, 'f', 3).arg(kMinInk));
-        if (c.cover > kMaxCover && !kStyleExempt.contains(fn))
-          bad.insert(QString("%1 @%2px: too solid (cover %3 > %4)").arg(fn).arg(s).arg(c.cover, 0, 'f', 3).arg(kMaxCover));
-        if (renderSvg(r, s) != a) bad.insert(QString("%1 @%2px: rendering not deterministic").arg(fn).arg(s));
+      for (const QString& c : used) {
+        if (fillOnly.count(c)) continue;
+        for (theme::Tok surf : kIconSurfaces) {
+          const double r = contrast(QColor(c), theme::color(surf, th));
+          if (r < kMinMarkContrast)
+            bad.insert(QString("%1: %2 on %3 = %4:1").arg(themeDirName(th), c, theme::color(surf, th).name()).arg(r, 0, 'f', 2));
+        }
       }
     }
+    QVERIFY2(bad.empty(), qPrintable("icon colours below 3:1 on UI surfaces:\n  " + joinSorted(bad)));
+  }
+
+  /// The icons handed out by Icons.cpp follow theme::current() at paint time: the same QIcon
+  /// object yields different pixels after setCurrent(), with no setIcon / reload.
+  void iconFollowsThemeAtPaintTime() {
+    const QIcon ic = app::resourceIcon("save");
+    QVERIFY(!ic.isNull());
+    theme::setCurrent(theme::Theme::Dark);
+    const QImage dark = ic.pixmap(32, 32).toImage();
+    theme::setCurrent(theme::Theme::Light);
+    const QImage light = ic.pixmap(32, 32).toImage();
+    QVERIFY2(dark != light, "same pixels in both themes");
+    theme::setCurrent(theme::Theme::Dark);
+    QCOMPARE(ic.pixmap(32, 32).toImage(), dark);
+    QCOMPARE(app::themedIconPath(":/icons/save.svg", theme::Theme::Light), QString(":/icons/light/save.svg"));
+    QCOMPARE(app::themedIconPath(":/icons/fabricad.svg", theme::Theme::Light), QString(":/icons/fabricad.svg"));
+    // the logical path (what ToolInfo / tests see) still resolves
+    QCOMPARE(app::resourceIconPath("save"), QString(":/icons/save.svg"));
+  }
+
+  void rendersLegiblyAtAllSizes() {
+    std::set<QString> bad;
+    for (theme::Theme th : kThemes) {
+      const QStringList files = QDir(qrcDir(th)).entryList({"*.svg"}, QDir::Files, QDir::Name);
+      for (const QString& fn : files) {
+        const QString label = themeDirName(th) + "/" + fn;
+        QSvgRenderer r(qrcDir(th) + "/" + fn);
+        if (!r.isValid()) {
+          bad.insert(label + ": QSvgRenderer cannot parse it");
+          continue;
+        }
+        for (int s : kRenderSizes) {
+          const QImage a = renderSvg(r, s);
+          const Coverage c = coverage(a);
+          if (c.ink < kMinInk)
+            bad.insert(QString("%1 @%2px: too faint (ink %3 < %4)").arg(label).arg(s).arg(c.ink, 0, 'f', 3).arg(kMinInk));
+          if (c.cover > kMaxCover)
+            bad.insert(QString("%1 @%2px: too solid (cover %3 > %4)").arg(label).arg(s).arg(c.cover, 0, 'f', 3).arg(kMaxCover));
+          if (renderSvg(r, s) != a) bad.insert(QString("%1 @%2px: rendering not deterministic").arg(label).arg(s));
+        }
+      }
+    }
+    QSvgRenderer logo(":/icons/fabricad.svg");
+    QVERIFY2(logo.isValid(), "logo does not parse");
     QVERIFY2(bad.empty(), qPrintable("rendering problems:\n  " + joinSorted(bad)));
   }
 
@@ -416,14 +523,18 @@ class TestIcons : public QObject {
     for (auto& s : sections)
       for (const SheetEntry& e : s.second) QVERIFY2(!e.path.isEmpty(), qPrintable(e.label + " has no icon"));
 
-    const QImage a = ::contactSheet(sections);
-    const QImage b = ::contactSheet(sections);
-    QVERIFY2(a == b, "contact sheet rendering is not deterministic");
-    QString out = qEnvironmentVariable("FABRICAD_ICON_SHEET");
-    if (out.isEmpty()) out = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("icons-contact-sheet.png");
-    QVERIFY2(a.save(out), qPrintable("cannot write " + out));
-    qInfo("contact sheet: %s (%dx%d, %zu tools, %zu feature types)", qPrintable(out), a.width(), a.height(),
-          tools_.size(), features_.size());
+    // one sheet per theme: icons-dark.png / icons-light.png in $FABRICAD_ICON_SHEET_DIR (else next to the binary)
+    QString dir = qEnvironmentVariable("FABRICAD_ICON_SHEET_DIR");
+    if (dir.isEmpty()) dir = QCoreApplication::applicationDirPath();
+    for (theme::Theme th : kThemes) {
+      const QImage a = ::contactSheet(sections, th);
+      const QImage b = ::contactSheet(sections, th);
+      QVERIFY2(a == b, "contact sheet rendering is not deterministic");
+      const QString out = QDir(dir).absoluteFilePath("icons-" + themeDirName(th) + ".png");
+      QVERIFY2(a.save(out), qPrintable("cannot write " + out));
+      qInfo("contact sheet: %s (%dx%d, %zu tools, %zu feature types)", qPrintable(out), a.width(), a.height(),
+            tools_.size(), features_.size());
+    }
   }
 };
 
