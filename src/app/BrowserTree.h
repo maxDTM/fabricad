@@ -63,6 +63,14 @@ class BrowserTree : public QTreeWidget {
   void contextMenuEvent(QContextMenuEvent* e) override;
   void keyPressEvent(QKeyEvent* e) override;
   void leaveEvent(QEvent* e) override;
+  void closeEditor(QWidget* editor, QAbstractItemDelegate::EndEditHint hint) override;
+
+ public:
+  /// Inline rename of a row (F2, context menu, double-click on bodies/components). Components
+  /// show "Name:1" but the editor starts with the bare name.
+  void startRename(QTreeWidgetItem* item);
+
+ protected:
 
  private:
   void scheduleRebuild();

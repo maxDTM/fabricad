@@ -23,6 +23,12 @@ class QSpinBox;
 
 namespace fabricad::drawing {
 
+class DrawingModel;
+struct Sheet;
+/// Text anchor for a new dimension moved outward (away from the measured geometry) until its
+/// text clears section-line letters, view labels and other dimension texts (UX-43).
+Point2 declutterDimensionText(const DrawingModel& model, const Sheet& sheet, const DrawingView& view, Dimension d);
+
 /// Dimension (D): click projected geometry (1 or 2 picks), click to place the text. Type is
 /// inferred (line -> linear, circle -> diameter, arc -> radius, two lines -> angle/distance,
 /// two points -> distance). Stays active until Esc.

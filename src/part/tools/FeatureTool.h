@@ -18,6 +18,7 @@
 #include <QJsonObject>
 #include <QPointer>
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <string>
@@ -70,6 +71,7 @@ class FeatureTool : public core::ToolBase {
     core::ManipulatorId id = core::kInvalidManipulator;
     std::string property;
     double scale = 1.0;  ///< gizmo value = property * scale
+    bool triad = false;  ///< Move triad: drives dx/dy/dz/rx/ry/rz by handle (see onManipulatorEvent)
   };
   const std::vector<ManipulatorLink>& manipulatorLinks() const { return manipulators_; }
   const ManipulatorLink* manipulatorFor(const std::string& property) const;
@@ -115,6 +117,7 @@ class FeatureTool : public core::ToolBase {
   std::vector<ManipulatorLink> manipulators_;
   bool manipulatorDragging_ = false;
   bool operationAuto_ = true;  ///< the user has not chosen an operation explicitly yet
+  std::array<double, 6> triadStart_{};  ///< dx dy dz rx ry rz when a triad drag began
 };
 
 /// Press Pull (Q): context command. Face -> Offset Face, edge -> Fillet, profile -> Extrude.

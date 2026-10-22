@@ -142,6 +142,20 @@ class NewComponentFeature : public core::Feature {
   void setComponent(core::ObjectId id);
 };
 
+/// Timeline record of a Move Component (Fusion "Position"): the world placements of the moved
+/// components after the move. recompute() re-applies them (components driven by a joint are left
+/// to the joint solver), so a replay of the timeline keeps the moved positions. The components are
+/// Component refs, so deleting one of them deletes the record with it.
+class PositionFeature : public core::Feature {
+ public:
+  static constexpr const char* kType = "Position";
+  PositionFeature();
+  std::string iconName() const override { return "assembly-move"; }
+  void recompute(core::RecomputeContext& ctx) override;
+  void setPlacements(const std::map<core::ObjectId, gp_Trsf>& world);
+  std::map<core::ObjectId, gp_Trsf> placements() const;
+};
+
 class InsertDesignFeature : public core::Feature {
  public:
   static constexpr const char* kType = "InsertDesign";

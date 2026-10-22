@@ -323,6 +323,27 @@ MoveBodyFeature::MoveBodyFeature() : PartFeature(kType) {
   updatePropertyFlags();
 }
 
+void MoveBodyFeature::applyDefaultsForNewFeature(const core::Document&) {
+  prop("moveType").setEnum(static_cast<int>(Free));
+  updatePropertyFlags();
+}
+
+gp_Pnt MoveBodyFeature::pivot(core::RecomputeContext& ctx) {
+  gp_Pnt pivot(0, 0, 0);
+  const int pt = enumIndex("pivotType");
+  if (pt == 2) {
+    pivot = gp_Pnt(ctx.length("px"), ctx.length("py"), ctx.length("pz"));
+  } else if (pt == 0) {
+    std::vector<TopoDS_Shape> sel;
+    for (auto& r : prop("bodies").refs())
+      if (r.kind == core::ShapeKind::Body && !ctx.bodyShape(r.owner).IsNull()) sel.push_back(ctx.bodyShape(r.owner));
+    core::Vec3 mn, mx;
+    if (!sel.empty() && core::bbox(compoundOf(sel), mn, mx))
+      pivot = gp_Pnt((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, (mn.z + mx.z) / 2);
+  }
+  return pivot;
+}
+
 void MoveBodyFeature::updatePropertyFlags() {
   int t = enumIndex("moveType");
   for (const char* n : {"dx", "dy", "dz"}) prop(n).flags().hidden = t != Translate && t != Free;
@@ -361,19 +382,7 @@ void MoveBodyFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
       break;
     }
     case Free: {
-      gp_Pnt pivot(0, 0, 0);
-      int pt = enumIndex("pivotType");
-      if (pt == 2) {
-        pivot = gp_Pnt(ctx.length("px"), ctx.length("py"), ctx.length("pz"));
-      } else if (pt == 0) {
-        std::vector<TopoDS_Shape> sel;
-        for (auto& r : prop("bodies").refs())
-          if (r.kind == core::ShapeKind::Body && !ctx.bodyShape(r.owner).IsNull()) sel.push_back(ctx.bodyShape(r.owner));
-        core::Vec3 mn, mx;
-        if (!sel.empty() && core::bbox(compoundOf(sel), mn, mx))
-          pivot = gp_Pnt((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, (mn.z + mx.z) / 2);
-      }
-      trsf = freeMoveTransform(pivot, ctx.angle("rx"), ctx.angle("ry"), ctx.angle("rz"),
+      trsf = freeMoveTransform(pivot(ctx), ctx.angle("rx"), ctx.angle("ry"), ctx.angle("rz"),
                                gp_Vec(ctx.length("dx"), ctx.length("dy"), ctx.length("dz")));
       break;
     }

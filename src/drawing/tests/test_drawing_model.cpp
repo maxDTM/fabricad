@@ -546,6 +546,26 @@ class ModelTest : public QObject {
     // restricted to one component
     DrawingView& only = fx.model->addBaseView(s, {core::ShapeRef::component(bracket.id)}, ViewOrientation::Front, 1.0, {80, 80});
     QCOMPARE(fx.model->bom(&only).size(), size_t(1));
+    // UX-37: a view made from a body preselection still lists the whole design
+    const core::ObjectId bracketBody = fx.doc.bodiesOf(bracket.id).front();
+    DrawingView& bodyView =
+        fx.model->addBaseView(s, {core::ShapeRef::body(bracketBody)}, ViewOrientation::Front, 1.0, {80, 200});
+    QCOMPARE(fx.model->bom(&bodyView).size(), size_t(2));
+    // a parts list placed past the frame edge is pulled inside it
+    const BBox2 frame = s.frameRect();
+    PartsList edge;
+    edge.position = {frame.max.x - 5, frame.max.y - 5};
+    {
+      const PartsList& e = fx.model->addPartsList(s, edge);
+      QVERIFY(e.position.x + e.width() <= frame.max.x + 1e-6);
+      QVERIFY(e.position.y + e.height() <= frame.max.y + 1e-6);
+    }
+    // wider than the frame: the columns shrink to fit
+    PartsList wide;
+    for (double& c : wide.columnWidths) c *= 20;
+    const PartsList& w = fx.model->addPartsList(s, wide);
+    QVERIFY(w.width() <= frame.width() + 1e-6);
+    QVERIFY(w.position.x >= frame.min.x - 1e-6);
   }
 
   void centerMarksAndNotes() {

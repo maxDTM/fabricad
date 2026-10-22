@@ -219,4 +219,8 @@ class DrawingSnapshotCommand : public core::UndoCommand {
   int mergeKey_;
 };
 
+/// Keep a parts list inside the sheet frame: shift it in, and shrink the columns (and text) when
+/// it is wider than the frame (UX-37). Applied on placement and on every annotation refresh.
+void fitPartsListInFrame(const Sheet& sheet, PartsList& list);
+
 }  // namespace fabricad::drawing

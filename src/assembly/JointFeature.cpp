@@ -537,6 +537,53 @@ void NewComponentFeature::recompute(core::RecomputeContext& ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// PositionFeature
+// ---------------------------------------------------------------------------
+
+PositionFeature::PositionFeature() : Feature(kType) {
+  Property& c = addRefs("components", core::mask(ShapeKind::Component));
+  c.setLabel("Components");
+  c.flags().readOnly = true;
+  Property& p = addProperty(Property("placements", core::PropertyType::Json));
+  p.setLabel("Placements");
+  p.flags().hidden = true;
+}
+
+void PositionFeature::setPlacements(const std::map<ObjectId, gp_Trsf>& world) {
+  std::vector<ShapeRef> refs;
+  QJsonArray arr;
+  for (const auto& [id, t] : world) {
+    refs.push_back(ShapeRef::component(id));
+    arr.append(core::trsfToJson(t));
+  }
+  prop("components").setRefs(refs);
+  prop("placements").setJson(arr);
+}
+
+std::map<ObjectId, gp_Trsf> PositionFeature::placements() const {
+  std::map<ObjectId, gp_Trsf> out;
+  const auto& refs = prop("components").refs();
+  const QJsonArray arr = prop("placements").json().toArray();
+  for (size_t i = 0; i < refs.size() && i < static_cast<size_t>(arr.size()); ++i)
+    out[refs[i].owner] = core::trsfFromJson(arr[static_cast<qsizetype>(i)]);
+  return out;
+}
+
+void PositionFeature::recompute(core::RecomputeContext& ctx) {
+  Document& doc = ctx.document();
+  int missing = 0;
+  for (const auto& [id, world] : placements()) {
+    if (!doc.component(id)) {
+      ++missing;
+      continue;
+    }
+    if (isJointed(doc, id)) continue;  // the joint solver owns this placement
+    setWorldPlacement(doc, id, world, 1e-9);
+  }
+  if (missing) ctx.setWarning("a moved component was deleted");
+}
+
+// ---------------------------------------------------------------------------
 // InsertDesignFeature
 // ---------------------------------------------------------------------------
 

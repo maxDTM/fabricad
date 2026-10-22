@@ -50,6 +50,9 @@ std::unique_ptr<core::UndoCommand> makeDeleteCommand(core::Document& doc, const 
 /// sketch/construction/joint features (viewer display state, applied immediately).
 std::unique_ptr<core::UndoCommand> toggleVisibility(core::Document& doc, viewer::ViewerWidget* viewer,
                                                     const std::vector<core::ShapeRef>& items);
+/// Isolate (Fusion): hide every body and component except the given bodies/components (and the
+/// components that contain them). Undoable; Show All undoes the effect. Null if nothing to do.
+std::unique_ptr<core::UndoCommand> isolate(core::Document& doc, const std::vector<core::ShapeRef>& items);
 /// Show every body, component and feature output. Returns the command for bodies/components.
 std::unique_ptr<core::UndoCommand> showAll(core::Document& doc, viewer::ViewerWidget* viewer);
 

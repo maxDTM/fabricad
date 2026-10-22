@@ -19,6 +19,8 @@
 #include "part/tools/PropertyPanel.h"
 
 #include <BRepAlgoAPI_Common.hxx>
+#include <QApplication>
+#include <QWidget>
 #include <Standard_Failure.hxx>
 
 #include <algorithm>
@@ -324,9 +326,12 @@ void FeatureTool::syncManipulators(core::ToolContext& ctx, core::RecomputeContex
     ManipulatorLink link;
     link.property = b.property;
     link.scale = b.scale;
+    link.triad = b.spec.kind == core::ManipulatorKind::Triad;
     if (const ManipulatorLink* old = manipulatorFor(b.property); old && viewer.manipulators().has(old->id)) {
       link.id = old->id;
-      viewer.updateManipulator(link.id, b.spec);
+      // a triad reports its drag relative to the frame where the drag began: keep it there
+      // until the drag ends (it then follows the moved bodies)
+      if (!(link.triad && manipulatorDragging_)) viewer.updateManipulator(link.id, b.spec);
     } else {
       link.id = viewer.showManipulator(b.spec, [this, pctx](const core::ManipulatorEvent& e) { onManipulatorEvent(*pctx, e); });
     }
@@ -349,24 +354,66 @@ void FeatureTool::onManipulatorEvent(core::ToolContext& ctx, const core::Manipul
   for (const auto& l : manipulators_)
     if (l.id == e.id) link = &l;
   if (!link) return;
+  static constexpr const char* kTriadProps[6] = {"dx", "dy", "dz", "rx", "ry", "rz"};
   switch (e.phase) {
     case ManipulatorPhase::Hover:
     case ManipulatorPhase::Leave: return;
     case ManipulatorPhase::DragBegin:
       manipulatorDragging_ = true;
       if (ctx.selection) ctx.selection->setEnabled(false);
+      if (link->triad)
+        for (int i = 0; i < 6; ++i) {
+          const core::Property* tp = f->property(kTriadProps[i]);
+          triadStart_[i] = tp && tp->isNumeric() ? tp->toDouble() : 0.0;
+        }
       return;
     case ManipulatorPhase::Drag:
     case ManipulatorPhase::DragEnd:
     case ManipulatorPhase::DragCancel: break;
   }
-  core::Property* p = f->property(link->property);
-  const double scale = std::abs(link->scale) > 1e-12 ? link->scale : 1.0;
-  const double value = e.value / scale;
   bool changed = false;
-  if (p && p->isNumeric() && (std::abs(p->toDouble() - value) > 1e-9 || !p->expression().empty())) {
-    p->setDouble(value);  // a drag replaces an expression with the dragged number (Fusion)
-    changed = true;
+  auto setValue = [&](core::Property* p, double value) {
+    if (p && p->isNumeric() && (std::abs(p->toDouble() - value) > 1e-9 || !p->expression().empty())) {
+      p->setDouble(value);  // a drag replaces an expression with the dragged number (Fusion)
+      changed = true;
+    }
+  };
+  if (link->triad) {
+    // Move triad (UX-32): the handle picks the property; values are start-of-drag + amount
+    std::array<double, 6> v = triadStart_;
+    std::array<bool, 6> touched{};
+    if (e.phase != ManipulatorPhase::DragCancel) {
+      using core::ManipulatorHandle;
+      auto add = [&](int i, double d) {
+        v[i] += d;
+        touched[i] = true;
+      };
+      switch (e.handle) {
+        case ManipulatorHandle::MoveX: add(0, e.value); break;
+        case ManipulatorHandle::MoveY: add(1, e.value); break;
+        case ManipulatorHandle::MoveZ: add(2, e.value); break;
+        case ManipulatorHandle::RotX: add(3, e.value); break;
+        case ManipulatorHandle::RotY: add(4, e.value); break;
+        case ManipulatorHandle::RotZ: add(5, e.value); break;
+        case ManipulatorHandle::PlaneXY:
+        case ManipulatorHandle::PlaneYZ:
+        case ManipulatorHandle::PlaneZX: {
+          const gp_XYZ t = e.transform.TranslationPart();
+          add(0, t.X());
+          add(1, t.Y());
+          add(2, t.Z());
+          break;
+        }
+        default: break;
+      }
+    } else {
+      touched.fill(true);
+    }
+    for (int i = 0; i < 6; ++i)
+      if (touched[i]) setValue(f->property(kTriadProps[i]), v[i]);
+  } else {
+    const double scale = std::abs(link->scale) > 1e-12 ? link->scale : 1.0;
+    setValue(f->property(link->property), e.value / scale);
   }
   const bool ending = e.phase != ManipulatorPhase::Drag;
   if (ending) {
@@ -462,6 +509,13 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
 }
 
 bool FeatureTool::keyPress(core::ToolContext& ctx, const core::ViewerKeyEvent& e) {
+  // UX-33: keys typed into a field of the dialog belong to that field, not to the on-canvas
+  // value box of the primary numeric (Enter / Esc still reach the router: OK / Cancel).
+  if (panel_ && e.key != Qt::Key_Return && e.key != Qt::Key_Enter && e.key != Qt::Key_Escape) {
+    QWidget* focus = QApplication::focusWidget();
+    if (!focus && panel_->window()) focus = panel_->window()->focusWidget();
+    if (focus && (focus == panel_ || panel_->isAncestorOf(focus))) return false;
+  }
   return valueBox_ && valueBox_->keyPress(ctx, e);
 }
 
@@ -625,6 +679,20 @@ void FeatureTool::accept(core::ToolContext& ctx) {
     return;
   }
   std::string text = std::format("{}", working_->name());
+  // UX-42: a sketch consumed by a new Extrude / Revolve / Sweep / Loft is hidden afterwards
+  // (Fusion). This is the browser-eye state, so the user can show it again; not on Edit.
+  std::vector<core::ObjectId> consumedSketches;
+  if (const std::string& t = working_->type(); t == "Extrude" || t == "Revolve" || t == "Sweep" || t == "Loft") {
+    for (const auto& p : working_->properties()) {
+      std::vector<core::ShapeRef> refs;
+      if (p.type() == core::PropertyType::Ref) refs.push_back(p.ref());
+      else if (p.type() == core::PropertyType::RefList) refs = p.refs();
+      for (const core::ShapeRef& r : refs)
+        if (r.kind == core::ShapeKind::Profile && ctx.document->feature(r.owner) &&
+            std::find(consumedSketches.begin(), consumedSketches.end(), r.owner) == consumedSketches.end())
+          consumedSketches.push_back(r.owner);
+    }
+  }
   if (prepare && ctx.undo) ctx.undo->beginMacro(text);
   if (prepare) working_->prepareCommit(*ctx.document, ctx.undo);
   auto cmd = std::make_unique<core::AddFeatureCommand>(*ctx.document, std::move(working_));
@@ -635,6 +703,8 @@ void FeatureTool::accept(core::ToolContext& ctx) {
     cmd->redo();
   }
   if (prepare && ctx.undo) ctx.undo->endMacro();
+  if (ctx.viewer)
+    for (core::ObjectId sk : consumedSketches) ctx.viewer->setFeatureHidden(sk, true);
   ctx.finish();
 }
 

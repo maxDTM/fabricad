@@ -40,7 +40,10 @@ struct MarkingMenuModel {
 struct MarkingContext {
   bool toolActive = false;
   std::string activeToolName;  ///< for "OK"/"Cancel" labels
-  std::string lastToolId;      ///< "Repeat <name>"
+  std::string lastToolId;      ///< "Repeat <name>" (the #repeat pseudo command repeats this one)
+  /// Last command outside the SKETCH tab. Outside a sketch, Repeat names this one (Fusion repeats
+  /// the last solid command); when it differs from lastToolId the entry runs it by id.
+  std::string lastModelToolId;
   bool inSketch = false;
   std::vector<core::ShapeKind> selectionKinds;  ///< kinds of the selected items
 };

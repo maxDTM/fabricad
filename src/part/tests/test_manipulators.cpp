@@ -22,6 +22,7 @@
 #include "support/TestSketch.h"
 
 #include <QtTest/QtTest>
+#include <QLineEdit>
 
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
@@ -504,6 +505,100 @@ class ManipulatorsTest : public QObject {
     QVERIFY(near(tool->feature()->length("thickness"), t0 + 3));
     QVERIFY(tool->isValid());
     rig.manager.cancel();
+  }
+
+  // UX-33: values typed into the Box dialog fields reach the feature and the preview; keys typed
+  // into a field never go to the on-canvas Height box.
+  void boxDialogTypedValues() {
+    Rig rig;
+    rig.doc.selection().set(core::ShapeRef::originPlane("XY"));
+    QVERIFY(rig.manager.run("part.box"));
+    FeatureTool* tool = rig.tool();
+    std::unique_ptr<QWidget> w(tool->createDialog(rig.ctx(), nullptr));
+    QVERIFY(w);
+    w->show();
+    QApplication::setActiveWindow(w.get());
+    auto* length = w->findChild<QLineEdit*>("prop_length");
+    auto* width = w->findChild<QLineEdit*>("prop_width");
+    QVERIFY(length && width);
+    const double h0 = tool->feature()->length("height");
+    length->setFocus();
+    length->selectAll();
+    QTest::keyClicks(length, "40");
+    QTest::keyClick(length, Qt::Key_Tab);
+    QVERIFY(near(tool->feature()->length("length"), 40));
+    width->setFocus();
+    width->selectAll();
+    QTest::keyClicks(width, "25");
+    // the same digit as a viewer key while the field has focus: not consumed by the value box
+    core::ViewerKeyEvent ev;
+    ev.key = Qt::Key_7;
+    ev.text = "7";
+    QVERIFY(!tool->keyPress(rig.ctx(), ev));
+    QTest::keyClick(width, Qt::Key_Tab);
+    QVERIFY(near(tool->feature()->length("width"), 25));
+    QVERIFY(near(tool->feature()->length("height"), h0));
+    QVERIFY(tool->isValid());
+    QVERIFY(!tool->lastOutcome().previews.empty());
+    QVERIFY(near(core::volume(tool->lastOutcome().previews.front().shape), 40.0 * 25.0 * h0, 1e-6));
+    rig.manager.accept();
+    QVERIFY(near(core::volume(rig.doc.bodyShape(rig.lastFeature()->createdBodies().front())), 40.0 * 25.0 * h0, 1e-6));
+  }
+
+  // UX-32: Move/Copy shows a triad at the selection centre (Free Move by default); its handles
+  // drive dx/dy/dz and rx/ry/rz and it follows the moved bodies.
+  void moveBodyTriad() {
+    Rig rig;
+    QVERIFY(hasManipulatorProvider("MoveBody"));
+    const core::ObjectId body = rig.makeBox();
+    rig.doc.selection().set(core::ShapeRef::body(body));
+    QVERIFY(rig.manager.run("part.move"));
+    FeatureTool* tool = rig.tool();
+    QVERIFY(tool);
+    QCOMPARE(tool->feature()->prop("moveType").toInt(), 3);  // Free Move
+    const ManipulatorModel* t = rig.gizmo("dx");
+    QVERIFY(t);
+    QCOMPARE(t->spec().kind, ManipulatorKind::Triad);
+    QVERIFY(near(t->spec().frame.Location(), gp_Pnt(5, 5, 5)));
+    QVERIFY(t->spec().handles & core::kHandleRotZ);
+    // a real drag of the X arrow (Ctrl: no snapping)
+    const double px = rig.viewer.pixelSize(gp_Pnt(5, 5, 5));
+    const gp_Pnt tip = t->handlePoint(ManipulatorHandle::MoveX, px);
+    QVERIFY(rig.drag(tip, tip.Translated(gp_Vec(6, 0, 0))));
+    QVERIFY(near(tool->feature()->length("dx"), 6, 0.2));
+    QVERIFY(near(tool->feature()->length("dy"), 0));
+    // the triad moved with the body after the drag
+    QVERIFY(near(rig.gizmo("dx")->spec().frame.Location().X(), 5 + tool->feature()->length("dx"), 1e-6));
+    // events: Z ring, then a cancelled Y drag that restores the start values
+    const FeatureTool::ManipulatorLink* link = tool->manipulatorFor("dx");
+    QVERIFY(link && link->triad);
+    core::ManipulatorEvent e;
+    e.id = link->id;
+    e.phase = core::ManipulatorPhase::DragBegin;
+    e.handle = ManipulatorHandle::RotZ;
+    tool->onManipulatorEvent(rig.ctx(), e);
+    e.phase = core::ManipulatorPhase::Drag;
+    e.value = 90;
+    tool->onManipulatorEvent(rig.ctx(), e);
+    e.phase = core::ManipulatorPhase::DragEnd;
+    tool->onManipulatorEvent(rig.ctx(), e);
+    QVERIFY(near(tool->feature()->angle("rz"), 90));
+    e.phase = core::ManipulatorPhase::DragBegin;
+    e.handle = ManipulatorHandle::MoveY;
+    tool->onManipulatorEvent(rig.ctx(), e);
+    e.phase = core::ManipulatorPhase::Drag;
+    e.value = 4;
+    tool->onManipulatorEvent(rig.ctx(), e);
+    QVERIFY(near(tool->feature()->length("dy"), 4));
+    e.phase = core::ManipulatorPhase::DragCancel;
+    tool->onManipulatorEvent(rig.ctx(), e);
+    QVERIFY(near(tool->feature()->length("dy"), 0));
+    QVERIFY(tool->isValid());
+    const double dx = tool->feature()->length("dx");
+    rig.manager.accept();
+    core::Vec3 mn, mx;
+    QVERIFY(core::bbox(rig.doc.bodyShape(body), mn, mx));
+    QVERIFY(near(mn.x, dx, 1e-6) && near(mx.x, 10 + dx, 1e-6));  // a square turned 90 deg about its centre
   }
 };
 

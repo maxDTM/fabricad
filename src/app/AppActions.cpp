@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/AppActions.h"
 
+#include "assembly/ComponentOps.h"
+
 #include "core/Commands.h"
 #include "core/Document.h"
 #include "core/Materials.h"
@@ -136,6 +138,46 @@ std::unique_ptr<core::UndoCommand> toggleVisibility(core::Document& doc, viewer:
                viewer) {
       viewer->setOriginVisible(!viewer->isOriginVisible());
     }
+  }
+  if (macro->empty()) return nullptr;
+  return macro;
+}
+
+std::unique_ptr<core::UndoCommand> isolate(core::Document& doc, const std::vector<ShapeRef>& items) {
+  std::set<ObjectId> keepBodies, keepComps, pathComps;
+  auto addPath = [&](ObjectId comp) {
+    for (ObjectId p = comp; p != core::kInvalidId;) {
+      pathComps.insert(p);
+      const core::Component* c = doc.component(p);
+      p = c ? c->parent : core::kInvalidId;
+    }
+  };
+  for (const ShapeRef& r : items) {
+    if (r.kind == ShapeKind::Body) {
+      if (const core::Body* b = doc.body(r.owner)) {
+        keepBodies.insert(b->id);
+        addPath(b->component);
+      }
+    } else if (r.kind == ShapeKind::Component && doc.component(r.owner)) {
+      keepComps.insert(r.owner);
+      for (ObjectId d : assembly::descendants(doc, r.owner)) keepComps.insert(d);
+      addPath(r.owner);
+    }
+  }
+  if (keepBodies.empty() && keepComps.empty()) return nullptr;
+  auto macro = std::make_unique<core::MacroCommand>("Isolate");
+  for (const core::Body* b : std::as_const(doc).bodies()) {
+    const bool keep = keepBodies.count(b->id) || keepComps.count(b->component);
+    if (keep && !b->visible && keepBodies.count(b->id))
+      macro->add(core::makeBodyEditCommand(doc, b->id, [](core::Body& body) { body.visible = true; }));
+    else if (!keep && b->visible)
+      macro->add(core::makeBodyEditCommand(doc, b->id, [](core::Body& body) { body.visible = false; }));
+  }
+  for (const core::Component* c : std::as_const(doc).components()) {
+    if (c->isRoot()) continue;
+    const bool keep = keepComps.count(c->id) || pathComps.count(c->id);
+    if (keep != c->visible)
+      macro->add(core::makeComponentEditCommand(doc, c->id, [keep](core::Component& comp) { comp.visible = keep; }));
   }
   if (macro->empty()) return nullptr;
   return macro;

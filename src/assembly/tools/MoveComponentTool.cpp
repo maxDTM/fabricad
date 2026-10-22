@@ -424,7 +424,20 @@ void MoveComponentTool::accept(ToolContext& ctx) {
                                          placementsBefore_.at(id).GetRotation().IsEqual(p.GetRotation())))
       changed = true;
   if (changed) {
+    // one undo step: the placements plus a "Position" timeline record (Fusion records moves in
+    // the timeline); a driven joint is its own record
+    ctx.undo->beginMacro("Move component");
     ctx.undo->push(makePlacementsCommand(doc, placementsBefore_, after, "Move component"));
+    if (!joint_) {
+      std::map<ObjectId, gp_Trsf> world;
+      for (ObjectId c : components_)
+        if (doc.component(c)) world[c] = doc.worldPlacement(c);
+      auto pos = std::make_unique<PositionFeature>();
+      pos->setName(doc.uniqueFeatureName("Position"));
+      pos->setPlacements(world);
+      ctx.undo->push(std::make_unique<core::AddFeatureCommand>(doc, std::move(pos)));
+    }
+    ctx.undo->endMacro();
     // joints referencing moved free components are re-solved (body features do not depend on placements)
     recomputeJoints(doc);
   }

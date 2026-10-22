@@ -39,7 +39,13 @@ class SelectionModel : public QObject {
   /// Kinds the user may currently pick (tools set this while active; viewer honours it).
   ShapeKindMask filter() const { return filter_; }
   void setFilter(ShapeKindMask m);
-  bool isAllowed(const ShapeRef& r) const { return hasKind(filter_, r.kind); }
+  /// User selection filters (SELECT > Selection Filters): kinds switched off here cannot be picked
+  /// while no tool restricts the filter itself; a tool's own filter always wins, so a filter never
+  /// blocks the input a command asks for.
+  ShapeKindMask userFilter() const { return userFilter_; }
+  void setUserFilter(ShapeKindMask m);
+  ShapeKindMask effectiveFilter() const { return filter_ == kAllKinds ? userFilter_ : filter_; }
+  bool isAllowed(const ShapeRef& r) const { return hasKind(effectiveFilter(), r.kind); }
 
   /// Hover highlight (not part of the selection).
   const std::optional<ShapeRef>& preselection() const { return preselection_; }
@@ -58,6 +64,7 @@ class SelectionModel : public QObject {
   std::vector<ShapeRef> items_;
   std::optional<ShapeRef> preselection_;
   ShapeKindMask filter_ = kAllKinds;
+  ShapeKindMask userFilter_ = kAllKinds;
   bool enabled_ = true;
 };
 

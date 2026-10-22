@@ -70,6 +70,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
   ctx.features.registerType(JointFeature::kType, [] { return std::make_unique<JointFeature>(); });
   ctx.features.registerType(RigidGroupFeature::kType, [] { return std::make_unique<RigidGroupFeature>(); });
   ctx.features.registerType(NewComponentFeature::kType, [] { return std::make_unique<NewComponentFeature>(); });
+  ctx.features.registerType(PositionFeature::kType, [] { return std::make_unique<PositionFeature>(); });
   ctx.features.registerType(InsertDesignFeature::kType, [] { return std::make_unique<InsertDesignFeature>(); });
 
   // --- interactive tools -------------------------------------------------------------

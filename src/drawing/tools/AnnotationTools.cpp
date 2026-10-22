@@ -97,7 +97,62 @@ bool parseDimType(const std::string& text, DimensionType& out) {
   return false;
 }
 
+/// Axis-aligned box of a display text (rough width estimate, quarter turns only).
+BBox2 textBox(const DisplayText& t) {
+  const double w = SheetRenderer::textWidth(t.text, t.height), h = t.height;
+  const bool vertical = std::abs(std::remainder(t.angle, 180.0)) > 45.0;
+  const double bw = vertical ? h : w, bh = vertical ? w : h;
+  double x0 = t.pos.x - bw / 2, y0 = t.pos.y - bh / 2;
+  if (!vertical) {
+    if (t.halign == HAlign::Left) x0 = t.pos.x;
+    else if (t.halign == HAlign::Right) x0 = t.pos.x - bw;
+    if (t.valign == VAlign::Top) y0 = t.pos.y;
+    else if (t.valign == VAlign::Bottom) y0 = t.pos.y - bh;
+  }
+  BBox2 b;
+  b.add(Point2{x0, y0});
+  b.add(Point2{x0 + bw, y0 + bh});
+  return b;
+}
+
+bool overlap(const BBox2& a, const BBox2& b) {
+  return a.isValid() && b.isValid() && a.min.x < b.max.x && b.min.x < a.max.x && a.min.y < b.max.y && b.min.y < a.max.y;
+}
+
 }  // namespace
+
+/// UX-43: move a new dimension's text outward (away from the measured geometry) until it
+/// no longer overlaps section-line letters, view labels or other dimension texts.
+Point2 declutterDimensionText(const DrawingModel& model, const Sheet& sheet, const DrawingView& view, Dimension d) {
+  SheetRenderer r(model.style(), model.document().units());
+  DisplayList obstacles;
+  for (const DrawingView& v : sheet.views) r.addViewDecorations(obstacles, sheet, v);
+  for (const Dimension& o : sheet.dimensions)
+    if (const DrawingView* ov = sheet.view(o.viewId)) r.addDimension(obstacles, *ov, o);
+  std::vector<BBox2> boxes;
+  for (const DisplayText& t : obstacles.texts) boxes.push_back(textBox(t).expanded(0.5));
+  if (boxes.empty()) return d.textPos;
+  updateDimension(d, view);
+  DimGeometry g;
+  Point2 dir{0, -1};
+  if (measureDimension(d, view, g)) {
+    const Point2 mid = d.type == DimensionType::Angle ? view.toSheet(g.apex) : (view.toSheet(g.p1) + view.toSheet(g.p2)) * 0.5;
+    if (const Point2 off = d.textPos - mid; off.length() > 1e-6) dir = off.normalized();
+  }
+  const double step = model.style().dimTextHeight * 1.5;
+  const Point2 start = d.textPos;
+  for (int i = 0; i < 12; ++i) {
+    DisplayList dl;
+    r.addDimension(dl, view, d);
+    bool clear = true;
+    for (const DisplayText& t : dl.texts)
+      for (const BBox2& b : boxes)
+        if (overlap(textBox(t), b)) clear = false;
+    if (clear) return d.textPos;
+    d.textPos = start + dir * (step * (i + 1));
+  }
+  return start;
+}
 
 // ---------------------------------------------------------------------------------------
 // DimensionTool
@@ -232,6 +287,7 @@ bool DimensionTool::placeAt(core::ToolContext& ctx, const Point2& sheet) {
   if (!m || !s) return false;
   Dimension d;
   if (!buildDimension(d, sheet)) return false;
+  if (const DrawingView* v = s->view(d.viewId)) d.textPos = declutterDimensionText(*m, *s, *v, d);
   ObjectId sheetId = s->id, created = core::kInvalidId;
   m->edit("Dimension", ctx.undo, [&]() {
     Sheet* sh = m->sheet(sheetId);
@@ -1021,6 +1077,7 @@ void PartsListTool::canvasPreview(const DrawingCanvas& c, DisplayList& out) {
   SheetRenderer r(c.model()->style(), c.model()->document().units());
   PartsList tmp = preview_;
   tmp.position = cursor_;
+  if (const Sheet* s = c.sheet()) fitPartsListInFrame(*s, tmp);  // the preview shows where it lands
   r.addPartsList(out, tmp);
 }
 

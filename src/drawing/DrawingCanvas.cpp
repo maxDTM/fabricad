@@ -21,6 +21,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <format>
 #include <cmath>
 
 namespace fabricad::drawing {
@@ -368,7 +369,18 @@ void DrawingCanvas::mirrorSelection() {
   for (ObjectId id : selection_) {
     const bool isView = s && s->view(id) != nullptr;
     auto it = items_.find(id);
-    const char* kindName = it != items_.end() ? hitKindName(it->second->kind()) : (isView ? "View" : "Entity");
+    std::string kindName = it != items_.end() ? hitKindName(it->second->kind()) : (isView ? "View" : "Entity");
+    if (isView) {
+      // status-bar text (UX-43): "VIEW1 (Front)", "Section A-A", "Detail B"
+      const DrawingView& v = *s->view(id);
+      const std::string label = v.label.empty() ? std::format("View {}", id) : v.label;
+      switch (v.type) {
+        case ViewType::Base: kindName = std::format("{} ({})", label, viewOrientationName(v.orientation)); break;
+        case ViewType::Projected: kindName = std::format("{} (Projected)", label); break;
+        case ViewType::Section: kindName = label.starts_with("Section") ? label : "Section " + label; break;
+        case ViewType::Detail: kindName = label.starts_with("Detail") || label.starts_with("DETAIL") ? label : "Detail " + label; break;
+      }
+    }
     refs.push_back(core::ShapeRef::make(id, isView ? core::ShapeKind::DrawingView : core::ShapeKind::DrawingEntity, 0, kindName));
   }
   model_->document().selection().set(std::move(refs));

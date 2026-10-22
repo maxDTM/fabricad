@@ -209,6 +209,15 @@ bool restrictedTo(const std::vector<core::ShapeRef>& sources, const core::Docume
   if (sources.empty()) return true;
   for (const auto& r : sources) {
     if (r.kind == core::ShapeKind::Body && r.owner == bodyId) return true;
+    if (r.kind == core::ShapeKind::Body && bodyId == core::kInvalidId) {
+      // assembly rows: a body source selects the component chain that owns it
+      const core::Body* b = doc.body(r.owner);
+      for (core::ObjectId c = b ? b->component : core::kInvalidId; c != core::kInvalidId;) {
+        if (c == componentId) return true;
+        const core::Component* comp = doc.component(c);
+        c = comp ? comp->parent : core::kInvalidId;
+      }
+    }
     if (r.kind == core::ShapeKind::Component) {
       // componentId or any ancestor equals r.owner
       core::ObjectId c = componentId;
