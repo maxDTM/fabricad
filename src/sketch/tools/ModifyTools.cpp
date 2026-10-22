@@ -680,6 +680,16 @@ class MirrorTool : public SketchTool {
       } else if (!lineMode_) {
         previewGeometry(*g, highlightStyle());
       }
+    } else if (lineMode_) {
+      if (auto axis = axisAt(*c)) {
+        // an origin axis as the mirror line (SK-10): real curves win the pick above
+        Pt2 d = *axis == OriginRef::XAxis ? Pt2{1, 0} : Pt2{0, 1};
+        double ext = tol(*c) * 40;
+        previewLines({d * -ext, d * ext}, highlightStyle());
+        Sketch copy = *sk;
+        for (int id : copy.mirror(ids_, Pt2{0, 0}, d))
+          if (const Geometry* m = copy.geometry(id)) previewGeometry(*m, rubberStyle());
+      }
     }
     return true;
   }
@@ -690,6 +700,22 @@ class MirrorTool : public SketchTool {
     Sketch* sk = sketch();
     if (!c || !sk || !session()) return true;
     auto hit = sk->hitCurve(*c, tol(*c));
+    if (!hit && lineMode_) {
+      if (auto axis = axisAt(*c)) {
+        clearTemp();
+        session()->beginEdit();
+        int line = sk->originHelper(*axis);  // one hidden fixed line per axis, reused
+        auto out = sk->mirror(ids_, line, true);
+        if (out.empty()) {
+          session()->cancelEdit();
+          ctx.showMessage("Nothing to mirror", true);
+          return true;
+        }
+        session()->commitEdit("Mirror");
+        ctx.finish();
+        return true;
+      }
+    }
     if (!hit) return true;
     if (!lineMode_) {
       auto it = std::find(ids_.begin(), ids_.end(), hit->ref.geo);
@@ -728,7 +754,16 @@ class MirrorTool : public SketchTool {
  private:
   std::string prompt() const {
     if (!lineMode_) return ids_.empty() ? "Select curves to mirror" : "Select more curves, or press Enter to pick the mirror line";
-    return "Select the mirror line";
+    return "Select the mirror line (a line or an origin axis)";
+  }
+  /// An origin axis under the cursor (not the origin point itself).
+  std::optional<OriginRef> axisAt(Pt2 c) const {
+    auto r = originRefAt(c, tol(c));
+    if (r == OriginRef::Point) {
+      // at the origin: the axis the cursor is closer to
+      r = std::abs(c.y) <= std::abs(c.x) ? OriginRef::XAxis : OriginRef::YAxis;
+    }
+    return r;
   }
   std::vector<int> ids_;
   bool lineMode_ = false;
@@ -1075,13 +1110,7 @@ class DimensionTool : public SketchTool {
   }
 
   /// The sketch origin or an origin axis under the cursor (when no sketch entity is).
-  std::optional<OriginRef> originAt(Pt2 c) const {
-    double t = tol(c);
-    if (c.length() <= t) return OriginRef::Point;
-    if (std::abs(c.y) <= t * 0.75) return OriginRef::XAxis;
-    if (std::abs(c.x) <= t * 0.75) return OriginRef::YAxis;
-    return std::nullopt;
-  }
+  std::optional<OriginRef> originAt(Pt2 c) const { return originRefAt(c, tol(c)); }
 
   std::string prompt() const {
     switch (phase_) {

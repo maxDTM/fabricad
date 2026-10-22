@@ -1357,6 +1357,41 @@ class ToolsTest : public QObject {
     QCOMPARE(r.sketchFeature()->regions().size(), size_t(1));
     QVERIFY(r.mgr.isActive());  // ready for the next spline
   }
+
+  // SK-10: an origin axis can be the mirror line (constrained through a hidden fixed helper).
+  void mirrorAboutOriginAxis() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int ln = r.sk().addGeometry(Geometry::makeLine({2, 3}, {6, 8}));
+    r.session()->refresh();
+    r.mgr.run("sketch.mirror");
+    r.click(4, 5.5);
+    r.key(Qt::Key_Return);
+    r.click(20, 0.3);  // on the X axis, nothing else there
+    int helper = r.sk().findOriginHelper(OriginRef::XAxis);
+    QVERIFY(helper >= 0);
+    QCOMPARE(r.sk().geometryCount(), 3);  // line, mirrored line, helper
+    const Geometry* m = nullptr;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.id != ln && g.id != helper) m = &g;
+    QVERIFY(m);
+    QVERIFY(near(m->start(), {2, -3}, 1e-6));
+    QVERIFY(near(m->end(), {6, -8}, 1e-6));
+    QCOMPARE(r.countType(ConstraintType::Symmetric), 2);
+    // the constraints hold when the original moves; the axis helper is reused
+    r.sk().geometry(ln)->setStart({3, 4});
+    r.sk().solve();
+    r.mgr.run("sketch.mirror");
+    r.click(4.5, 6);
+    r.key(Qt::Key_Return);
+    r.click(-30, -0.2);
+    QCOMPARE(r.sk().findOriginHelper(OriginRef::XAxis), helper);
+    int helpers = 0;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.isOriginHelper()) ++helpers;
+    QCOMPARE(helpers, 1);
+  }
 };
 
 QTEST_GUILESS_MAIN(ToolsTest)
