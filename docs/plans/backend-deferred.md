@@ -151,3 +151,12 @@ Status table: `docs/tests/drawing/ISSUES.md`. These items were not fixed on `be/
   the name.
 - asm-output tester, unverified: Block and Pin sketches started by clicking the plate's top face
   ended up at z = 0.
+
+## be merges (2026-10-22): flaky timing test
+
+### `fabricad_app_test_theme_manager` / `themeSwitchIsFast` fails under machine load
+`src/app/tests/test_theme_manager.cpp:192` asserts `worst < 150` ms. With load average ~10 on
+8 threads (parallel builds) it measured 158-262 ms and failed about half the runs; it passes
+on reruns when quieter. Seen identically after each of the be/perf, be/logic and be/drawing
+merges, so not caused by them. Suggest a looser bound, a median instead of the worst run, or
+a skip/label (`timing`) so `ctest -LE timing` can exclude it on busy machines.
