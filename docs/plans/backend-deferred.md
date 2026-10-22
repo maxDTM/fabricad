@@ -160,3 +160,31 @@ Status table: `docs/tests/drawing/ISSUES.md`. These items were not fixed on `be/
 on reruns when quieter. Seen identically after each of the be/perf, be/logic and be/drawing
 merges, so not caused by them. Suggest a looser bound, a median instead of the worst run, or
 a skip/label (`timing`) so `ctest -LE timing` can exclude it on busy machines.
+
+## ui/app4 (2026-10-22): app-side items done
+
+- **Batch mode set by the app.** `src/app/main.cpp` calls `core::setBatchMode(scripted && !stay &&
+  stepDelay == 0)` (and `false` again where `--stay` hands the window back). `detectBatchMode()` in
+  `src/core/Tool.cpp` reads only `FABRICAD_BATCH`; the command-line sniffing is gone.
+- **Headless runner.** `HeadlessHost` (`src/app/HeadlessHost.*`) runs `--script --offscreen` (and the
+  new `--batch file.fcs`) without `MainWindow`: modules, app and script verbs, and one
+  `Document` / `ToolManager` / `NullViewerContext` per tab (NEW, OPEN, DRAWING, TAB, CLOSE work).
+  The verbs reach the shell through `AppShell` (`src/app/AppShell.h`), which `MainWindow` implements
+  too. `FABRICAD_SCRIPT_WINDOW=1`, `--stay`, `--step-delay` and `FABRICAD_SCREENSHOT` use the window.
+  Numbers: `docs/comparison/COMPARISON.md` "Headless runner".
+- **Per-command settle floor.** Query lines (`CHECK`, `INFO`, `LIST`, `ECHO`, `OPTIONS`) skip the
+  settle; batch runs settle in one pass. The browser, timeline, feature list and selection panel
+  already coalesce their rebuilds through zero-timers. The rest of the floor (about 4.7 ms per
+  `SELECT` in the window) is the window's own reaction and is gone in the headless runner
+  (0.7 ms).
+- **test_main_window warning** fixed (`Qt::NoModifier`).
+- **Theme-switch timing test**: best of six < 150 ms and median < 400 ms. It runs as its own
+  ctest entry `fabricad_app_test_theme_manager_timing` with the label `timing`
+  (`ctest -LE timing` skips it). The main entry skips it through `FABRICAD_SKIP_TIMING=1`.
+- **DOC-06**: a STEP/STL opened into an Untitled design names the design after the file.
+- **NEW-PART-CORE-1**: the failure report also runs after every undo-stack change, so an undo that
+  removes the failed feature without a recompute clears its message.
+- **Functional DOC-11**: `RecentFiles::labels()` adds as many parent folders as needed to tell
+  same-named files apart (`chair.fcad (a/chair)` / `chair.fcad (b/chair)`).
+- Still open from this file for the app: APP-10 (disabled tools in fuzzy search) and NEW-ASM-CORE-2
+  (Ground / Unground label).

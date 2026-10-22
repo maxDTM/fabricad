@@ -836,6 +836,7 @@ void FeatureListWidget::mouseReleaseEvent(QMouseEvent* e) {
       selectRow(dragRow_, {});
     dragStarted_ = false;
     viewport()->update();
+    if (e->button() == Qt::LeftButton && d == Drag::Row) emit rowClicked();
     return;
   }
   dragStarted_ = false;
@@ -900,7 +901,9 @@ bool FeatureListWidget::viewportEvent(QEvent* e) {
       tip = r->name;
       if (r->suppressed) tip += " (suppressed)";
       else if (r->rolledBack) tip += " (rolled back)";
-      if (!r->statusMessage.isEmpty()) tip += "\n" + r->statusMessage;
+      // p2p3-check 8: the status line only when it says more than the state in brackets
+      const QString status = r->statusMessage.trimmed();
+      if (!status.isEmpty() && !tip.contains("(" + status + ")", Qt::CaseInsensitive)) tip += "\n" + status;
     } else if (r && r->kind == Kind::Group) {
       if (checkBoxRect(row).contains(he->pos()))
         tip = r->groupState == core::GroupSuppression::None ? "Untick to suppress the group" : "Tick to include the group";
@@ -1046,6 +1049,7 @@ void FeatureListWidget::keyPressEvent(QKeyEvent* e) {
 }
 
 void FeatureListWidget::contextMenuEvent(QContextMenuEvent* e) {
+  hideTip();  // p2p3-check 8: the GROUP SUPPRESSED tip does not stay behind the menu
   const QPoint pos = e->reason() == QContextMenuEvent::Keyboard ? e->pos() : viewport()->mapFrom(this, e->pos());
   const int row = rowAt(pos);
   const FeatureRow* r = model_.row(row);

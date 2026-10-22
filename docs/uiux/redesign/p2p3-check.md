@@ -52,3 +52,18 @@ Environment note: Hyprland tiled the private Xwayland window to **945 x 490**. T
 ## Compared with the mockups
 
 Sidebar (dark and light, `80-offscreen-*` against the mockups): row structure, group chevron / folder / count / tri-state box, value column, `off` for suppressed rows, live row, ROLLBACK bar with its label, dashed insert button, SELECTION key/value grid, MODEL eyes and caption meta match. Deliberate differences: panel headers are bands with strong rules and an accent tick (the mockup headers are thin), per the user feedback in 5.2. Card (`40`, `61`, `77`, `79`): title with key chip, step tabs `01 PROFILES / 02 DISTANCE / 03 CONFIRM`, field list, Cancel (Esc) / Apply (Enter) match; the 480 px window shows it scrolled.
+
+## Fixes (ui/app4, 2026-10-22)
+
+| # | Status | Change |
+|---|---|---|
+| 1 | fixed | While a command runs, Enter typed with the focus in FEATURES goes to the command (Apply). A click on a row during a command also hands the keyboard back to the viewport. Checked on display :82: Extrude, Sketch3 picked in the list, `25`, Enter gives Extrude4 at 25 mm. Test: `test_command_card enterInFeatureListAppliesTheCommand`. |
+| 2, 3 | fixed | A docked card has no fixed height. Its minimum is the chrome plus about 2 body rows, its body scrolls, and Cancel / Apply stay visible. MODEL and SELECTION may shrink to their headers, and they fold when fewer than 2 rows fit. A sidebar too short for that makes the card float (the 6.4 fallback, setting unchanged), and it docks again when the window grows. Checked on :82 at 945x490 (docked, footer visible, window not grown) and 945x400 (floats). Test: `dockedCardFitsShortWindows`. |
+| 4 | by design | Enter with no command repeats the last one (Fusion). |
+| 5 | fixed | Drop-target captions that would overlap move to another corner of their target. |
+| 6 | data | The ACTIVE badge and component rows appear when the design has components. The fixture has none. |
+| 7 | open | The fold state is document data (core). |
+| 8 | fixed | The tip text stays on one line when it fits in 300 px, and the tip hides when a context menu opens. A row tooltip no longer repeats the state as its status. |
+| 9 | fixed | The strip's context menu has Insert Feature After. |
+| 10 | fixed | The Layout note is complete. The preview draws the strip, the panel headers and a docked card. |
+| 11 | not reproduced | Strip style with MODEL collapsed: SELECTION takes the rest. |

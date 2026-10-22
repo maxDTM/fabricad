@@ -26,11 +26,13 @@
 #include "app/SketchPalette.h"
 #include "app/TimelineWidget.h"
 #include "app/FeatureListWidget.h"
+#include "app/QuickToolbar.h"
 #include "app/SidebarHost.h"
 #include "app/SidebarPanel.h"
 #include "app/TimelineActions.h"
 #include "app/ParametersDialog.h"
 #include "app/PreferencesDialog.h"
+#include "app/AppearancePicker.h"
 #include "assembly/AssemblyModule.h"
 #include "core/Commands.h"
 #include "core/Json.h"
@@ -117,6 +119,8 @@ int coreModifiers(int qtMods) {
   return m;
 }
 
+bool isEnterKey(int key) { return key == Qt::Key_Return || key == Qt::Key_Enter; }
+
 bool isTextInput(QWidget* w) {
   if (!w) return false;
   if (qobject_cast<QLineEdit*>(w) || qobject_cast<QAbstractSpinBox*>(w) || qobject_cast<QTextEdit*>(w) ||
@@ -161,11 +165,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // a layout stored by another shell version (the ribbon era) is ignored: defaults (6.5)
   if (s.contains("window/state")) restoreState(s.value("window/state").toByteArray(), kLayoutVersion);
   toolbarHost_->show();  // never hidden by a restored state
+  applyToolbarArea();     // ui/toolbarArea wins over the restored dock state
   browserDockWanted_ = !browserDock_->isHidden();
   timelineDockWanted_ = s.value("window/stripVisible", true).toBool();
   // phase 2: sidebar side and timeline style from ui/* (the dock state may say otherwise)
   applySidebarSide();
   applyTimelineStyle();
+  applyQuickToolbar();
   // p0-check 4: a restored zero-height timeline was "shown" but invisible
   QTimer::singleShot(0, this, [this] { ensureTimelineHeight(); });
 
@@ -191,9 +197,58 @@ void MainWindow::applyUiSetting(const QString& key) {
   } else if (key == "ui/cardPlacement" || key == "ui/cardFreePos") {
     for (const auto& t : tabs_)
       if (t->dialog()) applyCardSettings(t->dialog());
+  } else if (key == "ui/toolbarArea") {
+    applyToolbarArea();
+  } else if (key == "ui/quickToolbar") {
+    applyQuickToolbar();
   }
-  // ui/toolbarArea, quickToolbar, orientation are stored now and applied by phase 4 (the
-  // toolbar stays at the top)
+  // ui/orientation is applied by the viewport (phase 4)
+}
+
+void MainWindow::applyToolbarArea() {
+  const QString a = UiSettings::instance().string("ui/toolbarArea");
+  const Qt::ToolBarArea area = a == "left" ? Qt::LeftToolBarArea : a == "right" ? Qt::RightToolBarArea : Qt::TopToolBarArea;
+  if (toolBarArea(toolbarHost_) != area || toolbarHost_->isHidden()) {
+    removeToolBar(toolbarHost_);
+    addToolBar(area, toolbarHost_);
+  }
+  toolbarHost_->setOrientation(area == Qt::TopToolBarArea ? Qt::Horizontal : Qt::Vertical);
+  ribbon_->setOrientation(area == Qt::TopToolBarArea ? Qt::Horizontal : Qt::Vertical);
+  toolbarHost_->setProperty("area", area == Qt::TopToolBarArea ? "top" : a);
+  toolbarHost_->style()->unpolish(toolbarHost_);
+  toolbarHost_->style()->polish(toolbarHost_);
+  toolbarHost_->show();
+  QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
+}
+
+QuickToolbar* MainWindow::ensureQuickToolbar() {
+  if (quick_ || !manager_) return quick_;
+  // floating quick toolbar (ui/quickToolbar): one strip, moved into the active viewport
+  quick_ = new QuickToolbar(*manager_, this);
+  connect(quick_, &QuickToolbar::toolTriggered, this, [this](const std::string& id) { runCommand(id); });
+  connect(quick_, &QuickToolbar::repeatRequested, this, [this] {
+    if (manager_ && (!manager_->isActive() || isIdleTool())) manager_->repeatLast();
+  });
+  return quick_;
+}
+
+void MainWindow::applyQuickToolbar() {
+  const QString side = UiSettings::instance().string("ui/quickToolbar");
+  const bool show = side != "off" && active_ && active_->isDesign() && viewer_;
+  if (!show) {
+    if (quick_) quick_->hide();
+  } else {
+    ensureQuickToolbar();
+    if (quick_->parentWidget() != viewer_) quick_->setParent(viewer_);
+    quick_->setProperty("side", side);
+    quick_->rebuild(workspace_, ribbon_->currentTab() == "SKETCH");
+    quick_->adjustSize();
+    quick_->show();
+    quick_->raise();
+  }
+  layoutOverlays();
+  // a floating card moves aside (6.4: card and quick toolbar share a side)
+  if (dialog_ && dialog_->isPresenting()) dialog_->reposition();
 }
 
 void MainWindow::applySidebarSide() {
@@ -336,6 +391,9 @@ void MainWindow::buildUi() {
       if (dialog_) dialog_->reposition();
     });
   });
+  // a sidebar card floats while the window is too short for it and docks again when it grows
+  // (p2p3-check 2); coalesced, a window drag sends many resizes
+  connect(sidebar_, &SidebarHost::heightChanged, this, [this](int) { scheduleSidebarCardRefit(); });
   addDockWidget(Qt::LeftDockWidgetArea, browserDock_);
   resizeDocks({browserDock_}, {SidebarHost::kDefaultWidth}, Qt::Horizontal);
   connect(sidebar_, &SidebarHost::masterEyeRequested, this, [this] {
@@ -385,7 +443,8 @@ void MainWindow::buildUi() {
   toolbarHost_->setContextMenuPolicy(Qt::PreventContextMenu);
   toolbarHost_->toggleViewAction()->setVisible(false);
   toolbarHost_->addWidget(ribbon_);
-  addToolBar(Qt::TopToolBarArea, toolbarHost_);
+  addToolBar(Qt::TopToolBarArea, toolbarHost_);  // applyToolbarArea() moves it (ui/toolbarArea)
+
   commandLine_ = new CommandLine(m, statusBar());
   commandLine_->setVisible(UiSettings::instance().flag("ui/commandLine"));
   addStatusCells();
@@ -541,21 +600,18 @@ void MainWindow::buildFileMenu(QMenu* m) {
   connect(recent, &QMenu::aboutToShow, this, [this, recent] {
     recent->clear();
     recent->setToolTipsVisible(true);
-    // file names that occur more than once get their folder (DOC-11)
-    std::map<QString, int> names;
-    for (const QString& p : recent_.list()) ++names[QFileInfo(p).fileName()];
-    for (const QString& p : recent_.list())
-      recent->addAction(names[QFileInfo(p).fileName()] > 1
-                            ? QString("%1 (%2)").arg(QFileInfo(p).fileName(), QFileInfo(QFileInfo(p).absolutePath()).fileName())
-                            : QFileInfo(p).fileName(),
-                        this, [this, p] {
+    // file names that occur more than once get as many folders as tell them apart (DOC-11)
+    const QStringList paths = recent_.list();
+    const QStringList labels = RecentFiles::labels(paths);
+    for (qsizetype i = 0; i < paths.size(); ++i)
+      recent->addAction(labels[i], this, [this, p = paths[i]] {
         QString err;
         if (!openFile(p, &err)) {
           recent_.remove(p);
           recent_.save();
           showMessage("Cannot open " + p.toStdString() + ": " + err.toStdString(), core::MessageLevel::Error);
         }
-      })->setToolTip(p);
+      })->setToolTip(paths[i]);
     if (recent_.list().isEmpty()) recent->addAction("(none)")->setEnabled(false);
     else {
       recent->addSeparator();
@@ -690,6 +746,70 @@ DocumentTab* MainWindow::tabAt(int index) const {
   return tabs_[static_cast<size_t>(index)].get();
 }
 
+AppShell::TabInfo MainWindow::tabInfo(int index) const {
+  TabInfo t;
+  if (const DocumentTab* tab = tabAt(index)) {
+    t.title = tab->title();
+    t.design = tab->isDesign();
+    t.filePath = tab->document().filePath();
+  }
+  return t;
+}
+
+void MainWindow::closeTabLater(int index) {
+  DocumentTab* tab = tabAt(index);
+  if (!tab) return;
+  QMetaObject::invokeMethod(this, [this, tab] {
+    if (indexOfTab(tab) >= 0) closeTab(tab);
+  }, Qt::QueuedConnection);
+}
+
+void MainWindow::activateTabLater(int index) {
+  DocumentTab* tab = tabAt(index);
+  if (!tab) return;
+  QMetaObject::invokeMethod(this, [this, tab] {
+    if (indexOfTab(tab) >= 0) activateTab(tab);
+  }, Qt::QueuedConnection);
+}
+
+bool MainWindow::submitCommandLine(const QString& text) { return commandLine_->submit(text); }
+
+QWidget* MainWindow::screenshotTarget(bool viewportOnly) {
+  if (viewportOnly && viewer_) return viewer_;
+  return this;
+}
+
+void MainWindow::prepareStepPause() {
+  if (viewer_) {
+    // outside a sketch show the model from the home view (a finished sketch leaves the camera
+    // looking straight at its plane); inside a sketch keep the sketch camera
+    if (!viewer_->inSketchMode()) viewer_->setStandardView(core::StandardView::Home, false);
+    viewer_->fitAll(false);
+  }
+  update();
+}
+
+void MainWindow::showPreferencesPage(int page) {
+  // the single modeless Preferences dialog of the window, bound to the active design
+  auto* dlg = findChild<PreferencesDialog*>();
+  if (!dlg) {
+    dlg = new PreferencesDialog(*document_, viewer_, this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+  } else {
+    dlg->setTarget(*document_, viewer_);
+  }
+  dlg->showPage(static_cast<PreferencesDialog::Page>(page));
+  dlg->show();
+  dlg->raise();
+  dlg->activateWindow();
+}
+
+void MainWindow::pickAppearanceFor(const std::vector<core::ObjectId>& bodies) {
+  if (document_) pickAppearance(this, *document_, bodies);
+}
+
+bool MainWindow::viewerInSketchMode() const { return viewer_ && viewer_->inSketchMode(); }
+
 int MainWindow::indexOfTab(const DocumentTab* tab) const {
   for (int i = 0; i < tabCount(); ++i)
     if (tabs_[static_cast<size_t>(i)].get() == tab) return i;
@@ -798,6 +918,7 @@ void MainWindow::activateTab(DocumentTab* tab) {
   updateUndoButtons();
   updateSelectionStatus();
   setPrompt({});
+  applyQuickToolbar();
   scheduleStateRefresh();
   QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
   emit activeTabChanged(tab);
@@ -823,6 +944,7 @@ void MainWindow::syncActivePointers() {
   if (dialog_) dialog_->setSlotAllowed(active_ && active_->isDesign());
   if (manager_) {
     ribbon_->setToolManager(manager_);
+    if (quick_) quick_->setToolManager(manager_);
     commandLine_->setToolManager(manager_);
     search_->setToolManager(manager_);
   }
@@ -1229,13 +1351,14 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     // phase 3 card: sidebar slot, overlay regions, placement memory, pin
     dlg->setSlotAllowed(false);  // only the active design tab docks (syncActivePointers)
     dlg->setSlotHost(cardSlotHost_);
-    dlg->setOverlayRegions([tab](viewer::OverlayLayout& l) {
+    dlg->setOverlayRegions([this, tab](viewer::OverlayLayout& l) {
       if (NavBar* nb = tab->navBar(); nb && nb->isVisible()) {
         viewer::OverlayLayout::Item it;
         it.slot = viewer::OverlayLayout::Slot::NavBar;
         it.fixed = nb->geometry();
         l.add(it);
       }
+      addQuickToolbarItem(l, tab->viewer());
     });
     applyCardSettings(dlg);
     connect(dlg, &CommandCard::placementChosen, this,
@@ -1271,6 +1394,9 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
   connect(&d->undoStack(), &core::UndoStack::changed, this, whenActive([this] {
             updateUndoButtons();
             scheduleAutosave();
+            // NEW-PART-CORE-1: an undo that removes a failed feature recomputes nothing (only its
+            // dependants replay), so the failure text must also go from here
+            scheduleFailureReport();
           }));
   connect(&d->selection(), &core::SelectionModel::changed, this, whenActive([this] {
             updateSelectionStatus();
@@ -1330,6 +1456,12 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     connect(list, &FeatureListWidget::messageRequested, this, [this](const QString& text, int level) {
       showMessage(text.toStdString(), static_cast<core::MessageLevel>(level));
     });
+    // p2p3-check 1: a pick in the list for a running command hands the keyboard back to the
+    // viewport, so typed values and Enter go to the command, not to the list
+    connect(list, &FeatureListWidget::rowClicked, this, [this, list] {
+      if (!manager_ || !manager_->isActive() || isIdleTool() || list != featureList_) return;
+      if (viewer_ && list->hasFocus()) viewer_->setFocus(Qt::OtherFocusReason);
+    });
   }
   if (TimelineWidget* timeline = tab->timeline()) {
     TimelineStrip* strip = timeline->strip();
@@ -1338,6 +1470,10 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
       for (ObjectId id : ids)
         if (const core::Feature* f = document_->feature(id)) refs.push_back(featureRef(*f));
       deleteRefs(refs);
+    });
+    connect(strip, &TimelineStrip::insertRequested, this, [this] {
+      search_->setRecent(recentCommands_);
+      search_->popup(QCursor::pos());
     });
     connect(strip->actions(), &TimelineActions::messageRequested, this, [this](const QString& text, int level) {
       showMessage(text.toStdString(), static_cast<core::MessageLevel>(level));
@@ -1439,6 +1575,7 @@ void MainWindow::onToolActivated(const std::string& id) {
     presentDialog();
   });
   if (const core::ITool* t = registry_.tool(id); t && !t->info().hidden) {
+    if (interactive_) QuickToolbar::noteUsed(t->info());  // scripts do not train the quick toolbar
     recentCommands_.removeAll(core::qs(id));
     recentCommands_.prepend(core::qs(id));
     while (recentCommands_.size() > 12) recentCommands_.removeLast();
@@ -1469,6 +1606,23 @@ void MainWindow::presentDialog() {
   updateKeyHints();
 }
 
+void MainWindow::addQuickToolbarItem(viewer::OverlayLayout& l, QWidget* viewport) const {
+  // priority 6 (6.3): placed by the layout before the card, so a floating card on the same side
+  // sits beside it (6.4: tool column, quick toolbar, card from the edge)
+  if (!quick_ || !viewport || quick_->parentWidget() != viewport || quick_->isHidden()) return;
+  viewer::OverlayLayout::Item it;
+  it.slot = viewer::OverlayLayout::Slot::QuickToolbar;
+  it.right = quick_->property("side").toString() != "left";
+  // a short viewport: the strip starts below the orientation widget on the right (6.3) and
+  // shows fewer tools rather than running off the bottom
+  const int margin = l.options().margin;
+  int top = margin;
+  if (auto* v = qobject_cast<viewer::ViewerWidget*>(viewport); v && it.right)
+    if (const QRect cube = v->viewCubeRect(); !cube.isEmpty()) top = cube.bottom() + l.options().gap + 1;
+  it.size = quick_->fitToHeight(viewport->height() - margin - top);
+  l.add(it);
+}
+
 void MainWindow::layoutOverlays() {
   // One OverlayLayout for the active viewport (6.3): the card placed itself (priority 4); the
   // sketch palette (5) stacks below it on a shared side or takes the free side. The result is
@@ -1491,6 +1645,7 @@ void MainWindow::layoutOverlays() {
   };
   if (const QRect cube = viewer_->viewCubeRect(); !cube.isEmpty()) fixed(OverlayLayout::Slot::Orientation, cube);
   if (navBar_ && navBar_->isVisible()) fixed(OverlayLayout::Slot::NavBar, navBar_->geometry());
+  addQuickToolbarItem(l, viewer_);
   const bool cardFloats = dialog_ && dialog_->isVisible() && !dialog_->isDocked() && dialog_->parentWidget() == viewer_;
   if (cardFloats) fixed(OverlayLayout::Slot::Card, dialog_->geometry());
   if (palette_ && palette_->isVisible()) {
@@ -1503,6 +1658,11 @@ void MainWindow::layoutOverlays() {
     l.add(it);
   }
   l.compute();
+  if (quick_ && quick_->isVisible() && quick_->parentWidget() == viewer_)
+    if (const QRect r = l.rect(OverlayLayout::Slot::QuickToolbar); r.isValid()) {
+      quick_->setGeometry(r);
+      quick_->raise();
+    }
   if (palette_ && palette_->isVisible()) {
     if (palette_->isUserMoved()) palette_->reposition(nullptr);  // clamps where the user put it
     else if (const QRect r = l.rect(OverlayLayout::Slot::SketchPalette); r.isValid()) {
@@ -1541,6 +1701,10 @@ void MainWindow::onToolFinished(const std::string& id, bool accepted) {
     } else {
       pinnedToolId_.clear();
     }
+  }
+  if (quick_ && quick_->isVisible()) {
+    quick_->rebuild(workspace_, ribbon_->currentTab() == "SKETCH");
+    quick_->adjustSize();
   }
   layoutOverlays();
   acceptEnabled_ = true;
@@ -1639,6 +1803,7 @@ void MainWindow::scheduleStateRefresh() {
     stateRefreshPending_ = false;
     if (!active_) return;
     ribbon_->refreshStates();
+    if (quick_ && quick_->isVisible()) quick_->refreshStates();
     updateSketchStatus();
     updateLiveRow();
     updateUndoButtons();
@@ -1696,6 +1861,7 @@ void MainWindow::showMessage(const std::string& text, core::MessageLevel level) 
   if (level == core::MessageLevel::Error) FC_ERROR("{}", text);
   else if (level == core::MessageLevel::Warning) FC_WARN("{}", text);
   emit messageShown(static_cast<int>(level), q);
+  if (scriptSink_) scriptSink_(static_cast<int>(level), q);
 }
 
 bool MainWindow::askYesNo(const std::string& title, const std::string& question, bool defaultAnswer) {
@@ -1741,6 +1907,12 @@ void MainWindow::updateWorkspaceSelector() {
 
 void MainWindow::setContextualTab(const std::string& tabName, bool active) {
   ribbon_->setContextualTab(tabName, active);
+  // the quick toolbar follows the sketch context (sketch tools and Finish Sketch, 5.3)
+  if (quick_ && quick_->isVisible() && tabName == "SKETCH" && quick_->isSketching() != active) {
+    quick_->rebuild(workspace_, active);
+    quick_->adjustSize();
+    QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
+  }
   scheduleStateRefresh();
 }
 
@@ -2011,6 +2183,8 @@ bool MainWindow::openFile(const QString& path, QString* error) {
     if (!active_ || !active_->isDesign()) addDesignTab();
     const bool ok = manager_->run("part.import-file", {path.toStdString()});
     if (ok) {
+      // DOC-06: the design takes the file's name, as an opened .fcad does (Untitled tabs only)
+      if (isAutoDocumentName(document_->name())) document_->setName(QFileInfo(path).completeBaseName().toStdString());
       echoCommand("import " + path.toStdString());
       viewer::ViewerWidget* v = viewer_;
       QTimer::singleShot(0, this, [this, v] {
@@ -2118,6 +2292,18 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
 void MainWindow::resizeEvent(QResizeEvent* e) {
   QMainWindow::resizeEvent(e);
   applyResponsiveChrome();
+  if (e->oldSize().height() != e->size().height()) scheduleSidebarCardRefit();
+}
+
+void MainWindow::scheduleSidebarCardRefit() {
+  // a sidebar card floats while the window is too short for it and docks again when it grows
+  // (p2p3-check 2); coalesced, a window drag sends many resizes
+  if (sidebarRefitPending_) return;
+  sidebarRefitPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    sidebarRefitPending_ = false;
+    if (dialog_ && dialog_->requestedPlacement() == viewer::CardPlacement::Sidebar) dialog_->reposition();
+  });
 }
 
 void MainWindow::applyResponsiveChrome() {
@@ -2398,9 +2584,10 @@ bool MainWindow::isCanvasFocus(QWidget* focus) const {
 }
 
 bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, bool autoRepeat, QWidget* focus) {
-  // the FEATURES list keeps its own keys (arrows, F2, Space = suppress, Enter = edit, Del)
+  // the FEATURES list keeps its own keys (arrows, F2, Space = suppress, Enter = edit, Del);
+  // p2p3-check 1: while a command runs, Enter belongs to the command (Apply), never to the list
   if (featureList_ && focus && (focus == featureList_ || featureList_->isAncestorOf(focus)) && !isTextInput(focus) &&
-      FeatureListWidget::handlesKey(key, modifiers))
+      FeatureListWidget::handlesKey(key, modifiers) && !(isEnterKey(key) && manager_->isActive() && !isIdleTool()))
     return false;
   KeyContext kc;
   kc.canvasFocus = isCanvasFocus(focus);

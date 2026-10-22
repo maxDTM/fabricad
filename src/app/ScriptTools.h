@@ -22,9 +22,10 @@ class Document;
 
 namespace fabricad::app {
 
-class MainWindow;
+class AppShell;
 
-void registerScriptTools(MainWindow& w, core::ToolRegistry& reg);
+/// `w` is MainWindow or the HeadlessHost of a script run.
+void registerScriptTools(AppShell& w, core::ToolRegistry& reg);
 
 /// Facts about the shell a CHECK may refer to besides the document.
 struct CheckContext {

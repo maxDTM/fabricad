@@ -245,6 +245,16 @@ void TimelineStrip::contextMenuEvent(QContextMenuEvent* e) {
     items.push_back(id);
   }
   actions_->populate(menu, items);
+  // p2p3-check 9: as in the FEATURES list
+  if (i >= 0)
+    if (const core::ObjectId id = items.front(); doc_.feature(id)) {
+      menu.addSeparator();
+      menu.addAction("Insert Feature After", this, [this, id] {
+        if (!doc_.feature(id)) return;
+        actions_->setRollback(doc_.indexOf(id) + 1);
+        emit insertRequested();
+      });
+    }
   if (!menu.isEmpty()) menu.exec(e->globalPos());
 }
 

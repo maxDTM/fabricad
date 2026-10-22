@@ -1,0 +1,170 @@
+{
+ "load_before": [
+  1.59619140625,
+  1.92236328125,
+  2.08349609375
+ ],
+ "main/startup": [
+  0.2065389060007874,
+  0.20830354599456768,
+  0.20173087100556586
+ ],
+ "main/chair_min": [
+  {
+   "wall_s": 1.9168099329981487,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.7002000000000002
+  },
+  {
+   "wall_s": 1.906226830004016,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.689
+  },
+  {
+   "wall_s": 1.9166297369956737,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.7045
+  }
+ ],
+ "main/chair": [
+  {
+   "wall_s": 3.134957659000065,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 2.9122
+  },
+  {
+   "wall_s": 3.1434432009991724,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 2.9124
+  },
+  {
+   "wall_s": 3.1350252319971332,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 2.9152
+  }
+ ],
+ "headless/startup": [
+  0.06117243799963035,
+  0.05884701600007247,
+  0.05908859500777908
+ ],
+ "headless/chair_min": [
+  {
+   "wall_s": 0.5362809619982727,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 0.4739
+  },
+  {
+   "wall_s": 0.5386506479990203,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 0.473
+  },
+  {
+   "wall_s": 0.5404288499994436,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 0.4777
+  }
+ ],
+ "headless/chair": [
+  {
+   "wall_s": 1.0801453789899824,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.0181
+  },
+  {
+   "wall_s": 1.0906241060001776,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.0282
+  },
+  {
+   "wall_s": 1.078197116003139,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.0158
+  }
+ ],
+ "window/startup": [
+  0.21010600100271404,
+  0.20842152499244548,
+  0.20856328700028826
+ ],
+ "window/chair_min": [
+  {
+   "wall_s": 1.9288000839878805,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.698
+  },
+  {
+   "wall_s": 1.9345878129970515,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.7117
+  },
+  {
+   "wall_s": 1.9146453459979966,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 1.6956
+  }
+ ],
+ "window/chair": [
+  {
+   "wall_s": 2.8272273049951764,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 2.5985
+  },
+  {
+   "wall_s": 2.7776551970018772,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 2.5521
+  },
+  {
+   "wall_s": 2.764635953004472,
+   "rc": 0,
+   "failed": 0,
+   "in_app_s": 2.5418000000000003
+  }
+ ],
+ "load_after": [
+  1.77587890625,
+  1.9326171875,
+  2.080078125
+ ],
+ "median": {
+  "main/startup": 0.2065389060007874,
+  "main/chair_min/wall": 1.9166297369956737,
+  "main/chair_min/in_app": 1.7002000000000002,
+  "main/chair_min/failed": 0,
+  "main/chair/wall": 3.1350252319971332,
+  "main/chair/in_app": 2.9124,
+  "main/chair/failed": 0,
+  "headless/startup": 0.05908859500777908,
+  "headless/chair_min/wall": 0.5386506479990203,
+  "headless/chair_min/in_app": 0.4739,
+  "headless/chair_min/failed": 0,
+  "headless/chair/wall": 1.0801453789899824,
+  "headless/chair/in_app": 1.0181,
+  "headless/chair/failed": 0,
+  "window/startup": 0.20856328700028826,
+  "window/chair_min/wall": 1.9288000839878805,
+  "window/chair_min/in_app": 1.698,
+  "window/chair_min/failed": 0,
+  "window/chair/wall": 2.7776551970018772,
+  "window/chair/in_app": 2.5521,
+  "window/chair/failed": 0
+ }
+}

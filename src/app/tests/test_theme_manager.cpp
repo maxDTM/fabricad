@@ -167,6 +167,9 @@ class TestThemeManager : public QObject {
 
   // phase 1 milestone: a live switch of the whole shell stays under 150 ms
   void themeSwitchIsFast() {
+    // a timing test: the default ctest entry skips it (FABRICAD_SKIP_TIMING=1); the entry
+    // fabricad_app_test_theme_manager_timing (label `timing`) runs it, `ctest -LE timing` leaves it out
+    if (qEnvironmentVariableIntValue("FABRICAD_SKIP_TIMING") != 0) QSKIP("timing test (run the _timing ctest entry)");
     app::MainWindow w;
     w.setInteractive(false);
     w.resize(1920, 1080);
@@ -186,10 +189,11 @@ class TestThemeManager : public QObject {
     QStringList all;
     for (qint64 v : times) all << QString::number(v);
     qInfo("theme switch: %s ms (median %lld)", qPrintable(all.join(' ')), static_cast<long long>(median));
-    // the best of six: what the code needs, not how busy the test machine is (parallel ctest,
-    // other builds); the median and all times are in the log
-    const qint64 worst = times.front();
-    QVERIFY2(worst < 150, qPrintable(QString("theme switch took %1 ms").arg(worst)));
+    // load tolerant: the best of six is what the code needs (150 ms), the median may be slowed by
+    // a busy machine (parallel ctest, other builds) and gets a looser bound; all times are logged
+    const qint64 best = times.front();
+    QVERIFY2(best < 150, qPrintable(QString("theme switch took %1 ms at best").arg(best)));
+    QVERIFY2(median < 400, qPrintable(QString("theme switch median %1 ms").arg(median)));
   }
 
   // p0-check 2 and 3: caps are for chrome only; file names, completions and messages keep their case

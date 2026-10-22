@@ -21,8 +21,9 @@ class ToolRegistry;
 
 namespace fabricad::app {
 
-class MainWindow;
+class AppShell;
 
-void registerAppTools(MainWindow& window, core::ToolRegistry& registry);
+/// `window` is MainWindow, or the HeadlessHost of a script run (GUI-only tools do nothing there).
+void registerAppTools(AppShell& window, core::ToolRegistry& registry);
 
 }  // namespace fabricad::app

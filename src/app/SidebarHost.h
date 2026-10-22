@@ -110,9 +110,15 @@ class SidebarHost : public QWidget {
   bool dropHighlight() const { return dropHighlight_; }
   /// Rect of the slot drop target in global coordinates (the FEATURES area when empty).
   QRect cardDropRect() const;
+  /// Height a docked card may take: the sidebar minus what stays visible beside it (the
+  /// FEATURES header and live row, the MODEL and SELECTION headers). The card floats when its
+  /// minimum does not fit (p2p3-check 2).
+  int cardSlotMaxHeight() const;
 
  signals:
   void cardDockAvailabilityChanged(bool available);
+  /// The sidebar's height changed (a docked card re-checks whether it still fits).
+  void heightChanged(int height);
   void featureSelectionChanged(bool active);
   void panelCollapsedChanged(fabricad::app::SidebarHost::Panel panel, bool collapsed);
   /// The MODEL header's master eye was clicked (MainWindow shows or hides every body).

@@ -109,6 +109,9 @@ class FeatureListWidget : public QAbstractScrollArea {
   void messageRequested(const QString& text, int level);
   /// Rows were rebuilt (count or live row may have changed): the sidebar re-sizes compact mode.
   void rowsChanged();
+  /// A feature or group row was clicked (not dragged): a running command takes the focus back
+  /// so its Enter applies it (p2p3-check 1).
+  void rowClicked();
 
  protected:
   void paintEvent(QPaintEvent* e) override;

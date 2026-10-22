@@ -12,7 +12,10 @@
 #include "theme/Tokens.h"
 
 #include <QLineEdit>
+#include <QMainWindow>
+#include <QStatusBar>
 #include <QMenu>
+#include <QResizeEvent>
 #include <QPainter>
 #include <QSettings>
 #include <QSplitter>
@@ -172,6 +175,23 @@ SidebarHost::~SidebarHost() {
 void SidebarHost::resizeEvent(QResizeEvent* e) {
   QWidget::resizeEvent(e);
   applyLayout();  // keeps the panels' proportions
+  if (e->oldSize().height() != e->size().height()) emit heightChanged(e->size().height());
+}
+
+int SidebarHost::cardSlotMaxHeight() const {
+  int reserved = 2 * PanelHeader::kHeight + 3 * splitter_->handleWidth();
+  if (style_ == TimelineStyle::FeatureList)
+    reserved += PanelHeader::kHeight + (features_ ? features_->compactHeight() : FeatureListWidget::kRowH);
+  // what is really on screen: a window resized below its minimum (no window manager to stop
+  // it) clips the sidebar at the status bar instead of shrinking it
+  int visible = height();
+  if (const auto* mw = qobject_cast<const QMainWindow*>(window())) {
+    int bottom = mw->height();
+    if (const QStatusBar* sb = mw->findChild<QStatusBar*>(QString(), Qt::FindDirectChildrenOnly); sb && sb->isVisible())
+      bottom = std::min(bottom, sb->mapTo(mw, QPoint(0, 0)).y());
+    visible = std::min(visible, bottom - mapTo(mw, QPoint(0, 0)).y());
+  }
+  return std::max(0, visible - reserved);
 }
 
 void SidebarHost::paintEvent(QPaintEvent*) {
@@ -333,6 +353,9 @@ void SidebarHost::applyLayout() {
   const bool makeRoom = docked && fs && showFeatures;
   panels_[1]->setCollapsed(collapsed_[1] || makeRoom);
   panels_[2]->setCollapsed(collapsed_[2] || makeRoom);
+  // p2p3-check 2: beside a docked card MODEL and SELECTION may shrink to their headers, so the
+  // card plus the panels never set a window minimum taller than the screen
+  for (size_t i = 1; i < 3; ++i) panels_[i]->setMinimumHeight(docked ? PanelHeader::kHeight : 0);
   cardSlot_->setVisible(docked);
 
   // sizes: the panels' remembered sizes; a docked card takes what FEATURES gives up
@@ -359,6 +382,14 @@ void SidebarHost::applyLayout() {
       s[1] = std::max(PanelHeader::kHeight, s[1] * avail / sum);
       s[2] = std::max(PanelHeader::kHeight, avail - s[1]);
     }
+    // a panel left with less than two rows folds to its header while the card is docked (its
+    // rows would otherwise be squeezed under the header); the user's state is kept
+    constexpr int kMinRows = PanelHeader::kHeight + 2 * FeatureListWidget::kRowH;
+    for (size_t i = 1; i < 3; ++i)
+      if (!panels_[i]->isCollapsed() && s[i] < kMinRows) {
+        panels_[i]->setCollapsed(true);
+        s[i] = PanelHeader::kHeight;
+      }
   }
   // fit the remembered sizes to the height there is, in proportion (open panels only)
   if (!docked && splitter_->height() > 0) {

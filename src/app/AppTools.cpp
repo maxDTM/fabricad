@@ -5,12 +5,10 @@
 #include "app/ThemeManager.h"
 
 #include "app/AppActions.h"
-#include "app/AppearancePicker.h"
-#include "app/PreferencesDialog.h"
 #include "app/TitleBar.h"
 #include "app/UiSettings.h"
 
-#include "app/MainWindow.h"
+#include "app/AppShell.h"
 #include "app/PropertyEditor.h"
 #include "core/AppHost.h"
 #include "core/Commands.h"
@@ -51,21 +49,6 @@ ToolInfo info(const std::string& id, const std::string& name, const std::string&
   return i;
 }
 
-/// The single modeless Preferences dialog of the window, bound to the active design.
-void showPreferences(MainWindow* win, PreferencesDialog::Page page) {
-  auto* dlg = win->findChild<PreferencesDialog*>();
-  if (!dlg) {
-    dlg = new PreferencesDialog(win->document(), win->viewer(), win);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-  } else {
-    dlg->setTarget(win->document(), win->viewer());
-  }
-  dlg->showPage(page);
-  dlg->show();
-  dlg->raise();
-  dlg->activateWindow();
-}
-
 std::string upper(std::string s) {
   for (char& ch : s) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
   return s;
@@ -78,8 +61,8 @@ std::string lowerStr(std::string s) {
 
 }  // namespace
 
-void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
-  MainWindow* win = &w;
+void registerAppTools(AppShell& w, core::ToolRegistry& reg) {
+  AppShell* win = &w;
   auto add = [&](ToolInfo i, std::function<void(ToolContext&)> fn, std::function<bool(const ToolContext&)> enabled = {}) {
     reg.registerTool(std::make_unique<core::LambdaTool>(std::move(i), std::move(fn), std::move(enabled)));
   };
@@ -100,7 +83,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     ToolInfo i = info("app.new", "New Design", "Start a new, empty design", "Ctrl+N", {"NEW"}, "new");
     i.needsDocument = false;
     // QTimer-free: the tool finishes before the document is replaced (ToolManager is idle then)
-    add(i, [win](ToolContext&) { QMetaObject::invokeMethod(win, [win] { win->newDocument(); }, Qt::QueuedConnection); });
+    add(i, [win](ToolContext&) { QMetaObject::invokeMethod(win->shellObject(), [win] { win->newDocument(); }, Qt::QueuedConnection); });
   }
   {
     ToolInfo i = info("app.open", "Open", "Open a design or insert a STEP/STL file", "Ctrl+O", {"OPEN"}, "open");
@@ -108,14 +91,14 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     add(i, [win](ToolContext& c) {
       if (!c.args.empty()) {
         const QString path = QString::fromStdString(c.args[0]);
-        QMetaObject::invokeMethod(win, [win, path] {
+        QMetaObject::invokeMethod(win->shellObject(), [win, path] {
           QString err;
           if (win->maybeSave() && !win->openFile(path, &err))
             win->showMessage("Cannot open " + path.toStdString() + ": " + err.toStdString(), core::MessageLevel::Error);
         }, Qt::QueuedConnection);
         return;
       }
-      QMetaObject::invokeMethod(win, [win] { win->open(); }, Qt::QueuedConnection);
+      QMetaObject::invokeMethod(win->shellObject(), [win] { win->openWithDialog(); }, Qt::QueuedConnection);
     });
   }
   add(info("app.save", "Save", "Save the design", "Ctrl+S", {"SAVE", "QSAVE"}, "save"), [win](ToolContext& c) {
@@ -125,7 +108,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
         c.showMessage("Save failed: " + err.toStdString(), true);
       return;
     }
-    QMetaObject::invokeMethod(win, [win] { win->save(); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(win->shellObject(), [win] { win->save(); }, Qt::QueuedConnection);
   });
   add(info("app.save-as", "Save As", "Save the design under a new name", "Ctrl+Shift+S", {"SAVEAS"}, "save-as"),
       [win](ToolContext& c) {
@@ -135,7 +118,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
             c.showMessage("Save failed: " + err.toStdString(), true);
           return;
         }
-        QMetaObject::invokeMethod(win, [win] { win->saveAs(); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(win->shellObject(), [win] { win->saveAs(); }, Qt::QueuedConnection);
       });
 
   // --- edit ---------------------------------------------------------------------------------
@@ -270,10 +253,9 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
             return;
           }
           // the colour dialog is modal: open it after the tool has finished
-          QMetaObject::invokeMethod(win, [win, bodies] { pickAppearance(win, win->document(), bodies); },
-                                    Qt::QueuedConnection);
+          QMetaObject::invokeMethod(win->shellObject(), [win, bodies] { win->pickAppearanceFor(bodies); }, Qt::QueuedConnection);
         },
-        [win](const ToolContext& c) { return c.document && !(win->viewer() && win->viewer()->inSketchMode()); });
+        [win](const ToolContext& c) { return c.document && !win->viewerInSketchMode(); });
   }
 
   // --- preferences / units (TOOLS > UTILITIES, APP-03 / APP-09) -------------------------------------
@@ -284,7 +266,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     i.tab = "TOOLS";
     i.group = "UTILITIES";
     i.order = 20;  // not promoted: the group shows its first two (Change Parameters, Preferences)
-    add(i, [win](ToolContext&) { showPreferences(win, PreferencesDialog::Page::General); });
+    add(i, [win](ToolContext&) { win->showPreferencesPage(0); });  // PreferencesDialog::Page::General
   }
   {
     // live theme switch (also Preferences > Appearance)
@@ -307,7 +289,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
                       {"UNITS", "UN"}, "settings");
     add(i, [win](ToolContext& c) {
       if (c.args.empty() || !c.document) {
-        showPreferences(win, PreferencesDialog::Page::Document);
+        win->showPreferencesPage(1);  // PreferencesDialog::Page::Document
         return;
       }
       core::UnitSystem u = c.document->units();
@@ -360,7 +342,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
                       w.icon);
     i.needsDocument = false;
     add(i, [win, c = w.choice](ToolContext&) {
-      QMetaObject::invokeMethod(win, [win, c] { win->setWorkspaceChoice(c); }, Qt::QueuedConnection);
+      QMetaObject::invokeMethod(win->shellObject(), [win, c] { win->setWorkspaceChoice(c); }, Qt::QueuedConnection);
     });
   }
 

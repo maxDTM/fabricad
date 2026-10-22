@@ -421,7 +421,7 @@ class TestMainWindow : public QObject {
       settle();
       QVERIFY(w_->viewer()->inSketchMode());
       QVERIFY(w_->toolManager().isActive());  // the sketch's idle select tool
-      QVERIFY(key(k, Qt::ControlModifier | (k == Qt::Key_Enter ? Qt::KeypadModifier : 0)));
+      QVERIFY(key(k, Qt::ControlModifier | (k == Qt::Key_Enter ? Qt::KeypadModifier : Qt::NoModifier)));
       settle();
       QVERIFY(!w_->viewer()->inSketchMode());
     }
@@ -1045,6 +1045,37 @@ class TestMainWindow : public QObject {
     QVERIFY2(w_->messageText().isEmpty(), qPrintable(w_->messageText()));
     w_->toolManager().cancel();
     settle();
+    w_->document().setModified(false);
+  }
+
+  void failureClearedByUndoOfTheFailedFeature() {
+    // NEW-PART-CORE-1: the failed feature is the last one; Ctrl+Z removes it without a
+    // recompute, and its "failed" message must go as well
+    QVERIFY(w_->newDocument());
+    core::Document& doc = w_->document();
+    addBox(doc, 10);
+    settle();
+    // a command whose undo removes the feature without any recompute (be/perf: nothing after
+    // it depends on it, so nothing replays)
+    struct AddNoReplay : core::UndoCommand {
+      core::Document& d;
+      std::unique_ptr<core::Feature> f;
+      core::ObjectId id = core::kInvalidId;
+      AddNoReplay(core::Document& doc, std::unique_ptr<core::Feature> feature) : UndoCommand("Add"), d(doc), f(std::move(feature)) {}
+      void redo() override {
+        id = d.addFeature(std::move(f))->id();
+        d.recompute();
+      }
+      void undo() override { f = d.takeFeature(id); }
+    };
+    auto bad = std::make_unique<core::test::BoxFeature>();
+    bad->prop("dx").setDouble(-5);  // invalid size: fails on its first compute
+    doc.undoStack().push(std::make_unique<AddNoReplay>(doc, std::move(bad)));
+    settle();
+    QVERIFY2(w_->messageText().contains(" failed"), qPrintable(w_->messageText()));
+    doc.undoStack().undo();
+    settle();
+    QVERIFY2(!w_->messageText().contains(" failed"), qPrintable(w_->messageText()));
     w_->document().setModified(false);
   }
 

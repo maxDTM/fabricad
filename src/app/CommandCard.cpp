@@ -33,6 +33,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 
 namespace fabricad::app {
 
@@ -48,6 +49,7 @@ constexpr int kHeaderH = 40;
 constexpr int kStepsH = StepIndicator::kHeight + 8;
 constexpr int kFooterH = 52;
 constexpr int kMaxBodyHeight = 560;  // taller bodies (Joint) scroll
+constexpr int kMinDockedBody = 72;   // docked in a short sidebar: at least ~2 rows, then it floats
 constexpr int kWrapChars = 40;       // body labels longer than this word-wrap
 constexpr int kLabelColumn = 96;     // form label column (3.4)
 constexpr int kSnap = 64;            // a dropped card snaps to a float slot this close (px)
@@ -172,6 +174,8 @@ class DropTargets : public QWidget {
   void paintEvent(QPaintEvent*) override {
     QPainter p(this);
     p.setFont(theme::font(theme::TextStyle::Caption));
+    const QFontMetrics fm(p.font());
+    std::vector<QRect> captions;  // drawn so far: overlapping targets (narrow windows) never print over each other
     for (const Target& t : targets_) {
       if (t.global.isEmpty()) continue;
       const QRect r(mapFromGlobal(t.global.topLeft()), t.global.size());
@@ -181,7 +185,22 @@ class DropTargets : public QWidget {
       p.setBrush(Qt::NoBrush);
       p.drawRect(r.adjusted(1, 1, -1, -1));
       p.setPen(theme::color(Tok::AccentText));
-      p.drawText(r.adjusted(8, 6, -8, -6), Qt::AlignTop | Qt::AlignLeft, t.caption);
+      const QRect area = r.adjusted(8, 6, -8, -6);
+      const QSize text = fm.size(Qt::TextSingleLine, t.caption);
+      // p2p3-check 5: the top-left corner first, else the bottom-right, else the bottom-left
+      const std::array<QRect, 3> spots = {QRect(area.topLeft(), text),
+                                          QRect(QPoint(area.right() - text.width() + 1, area.bottom() - text.height() + 1), text),
+                                          QRect(QPoint(area.left(), area.bottom() - text.height() + 1), text)};
+      QRect spot = spots[0];
+      for (const QRect& c : spots) {
+        const bool clash = std::any_of(captions.begin(), captions.end(), [&](const QRect& d) { return d.intersects(c.adjusted(-4, -2, 4, 2)); });
+        if (!clash) {
+          spot = c;
+          break;
+        }
+      }
+      captions.push_back(spot);
+      p.drawText(spot, Qt::AlignLeft | Qt::AlignVCenter, t.caption);
     }
   }
 
@@ -638,10 +657,24 @@ void CommandCard::relayout() {
   }
   const int chrome = chromeHeight();
   const Placement p = effectivePlacement();
-  int maxTotal = 0;
   if (docked) {
-    maxTotal = slotHost_->cardSlotMaxHeight();
-  } else {
+    // p2p3-check 2/3: in the sidebar the card is not fixed-size. It asks for its natural height
+    // (sizeHint) but may shrink to the chrome plus a few body rows: the body scrolls and the
+    // footer (Cancel / Apply) stays visible, so a short window never grows to fit the card.
+    const int bodyMax = body_ ? std::min(contentH, kMaxBodyHeight) : 0;
+    const int bodyMin = body_ ? std::min(bodyMax, kMinDockedBody) : 0;
+    scroll_->setMinimumHeight(bodyMin);
+    scroll_->setMaximumHeight(bodyMax);
+    setMinimumHeight(chrome + bodyMin);
+    setMaximumHeight(chrome + bodyMax);
+    dockedHint_ = std::max(chrome + bodyMin, std::min(chrome + bodyMax, slotHost_->cardSlotMaxHeight()));
+    if (QLayout* l = layout()) l->activate();
+    updateGeometry();
+    emit placed();
+    return;
+  }
+  int maxTotal = 0;
+  {
     OverlayLayout probe;
     buildLayout(probe, QSize(w, chrome + contentH), p);
     maxTotal = probe.cardMaxHeight() > 0 ? probe.cardMaxHeight() : viewport_->height();
@@ -674,10 +707,21 @@ void CommandCard::reposition() {
   relayout();
 }
 
+int CommandCard::dockedMinimumHeight() const { return chromeHeight() + (body_ ? kMinDockedBody : 0); }
+
+QSize CommandCard::sizeHint() const {
+  if (isDocked() && dockedHint_ > 0) return QSize(width(), dockedHint_);
+  return QFrame::sizeHint();
+}
+
 CommandCard::Placement CommandCard::effectivePlacement() const {
   switch (requested_) {
     case Placement::Sidebar:
-      if (slotHost_ && slotAllowed_ && slotHost_->cardSlotAvailable()) return Placement::Sidebar;
+      // 6.4 fallback, also when the sidebar is too short for the card's chrome plus a few body
+      // rows next to the FEATURES live row and the panel headers (p2p3-check 2)
+      if (slotHost_ && slotAllowed_ && slotHost_->cardSlotAvailable() &&
+          slotHost_->cardSlotMaxHeight() >= dockedMinimumHeight())
+        return Placement::Sidebar;
       return sidebarLeft_ ? Placement::FloatLeft : Placement::FloatRight;  // 6.4 fallback
     case Placement::Free: return free_.valid ? Placement::Free : Placement::FloatRight;
     default: return requested_;

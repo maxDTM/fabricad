@@ -4,6 +4,7 @@
 
 #include "app/Icons.h"
 #include "app/ThemeManager.h"
+#include "theme/Tokens.h"
 #include "core/Json.h"
 
 #include <QAction>
@@ -12,6 +13,7 @@
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QStackedWidget>
+#include <QStyle>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -136,7 +138,35 @@ QToolButton* MainToolbar::toolButton(core::ITool* tool, QWidget* parent, bool sm
   return b;
 }
 
+void MainToolbar::addCaptionMenu(Page& p, Section& s, QToolButton* caption) {
+  const ToolbarSection& model = s.model;
+  // the dropdown lists every tool of the section (MORE: grouped by registry tab)
+  auto* menu = new QMenu(caption);
+  menu->setToolTipsVisible(true);
+  if (model.kind == SectionKind::More) {
+    for (const MoreEntry& e : model.more) {
+      addMenuHeader(menu, core::qs(e.label));
+      for (const auto& [group, tools] : e.groups)
+        for (core::ITool* t : tools) {
+          QAction* a = addToolMenuAction(menu, t->info());
+          a->setToolTip(core::qs(t->info().tooltip));
+          connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
+          addAction(p, t->info().id, a);
+        }
+    }
+  } else {
+    for (core::ITool* t : model.all) {
+      QAction* a = addToolMenuAction(menu, t->info());
+      a->setToolTip(core::qs(t->info().tooltip));
+      connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
+      addAction(p, t->info().id, a);
+    }
+  }
+  caption->setMenu(menu);
+}
+
 MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
+  if (vertical_) return buildVerticalPage(sketch);
   auto page = std::make_unique<Page>();
   page->sketch = sketch;
   page->widget = new QWidget(stack_);
@@ -265,29 +295,8 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
     caption->setAutoRaise(true);
     caption->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     caption->setFixedHeight(kCaptionHeight);
-    // the dropdown lists every tool of the section (MORE: grouped by registry tab)
-    auto* menu = new QMenu(caption);
-    menu->setToolTipsVisible(true);
-    if (model.kind == SectionKind::More) {
-      for (const MoreEntry& e : model.more) {
-        addMenuHeader(menu, core::qs(e.label));
-        for (const auto& [group, tools] : e.groups)
-          for (core::ITool* t : tools) {
-            QAction* a = addToolMenuAction(menu, t->info());
-            a->setToolTip(core::qs(t->info().tooltip));
-            connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
-            addAction(p, t->info().id, a);
-          }
-      }
-    } else {
-      for (core::ITool* t : model.all) {
-        QAction* a = addToolMenuAction(menu, t->info());
-        a->setToolTip(core::qs(t->info().tooltip));
-        connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
-        addAction(p, t->info().id, a);
-      }
-    }
-    caption->setMenu(menu);
+    addCaptionMenu(p, s, caption);
+    QMenu* menu = caption->menu();
     auto* folded = new QToolButton(box);
     folded->setObjectName("RibbonCollapsedTool");
     folded->setProperty("toolbarTab", core::qs(model.toolbarTab));
@@ -316,6 +325,239 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
   Page* raw = page.get();
   (sketch ? sketchPage_ : defaultPage_) = std::move(page);
   return raw;
+}
+
+// ---- vertical layout (toolbar left / right) -----------------------------------------------------
+
+namespace {
+constexpr int kVButtonH = 40;      // icon button of the vertical toolbar (5.1)
+constexpr int kVIcon = 20;
+constexpr int kVMargin = 4;        // left / right inside the 64 px column
+constexpr int kVSectionGap = 4;    // below each section's last button
+}  // namespace
+
+MainToolbar::Page* MainToolbar::buildVerticalPage(bool sketch) {
+  auto page = std::make_unique<Page>();
+  page->sketch = sketch;
+  page->widget = new QWidget(stack_);
+  auto* col = new QVBoxLayout(page->widget);
+  col->setContentsMargins(0, 0, 0, 4);
+  col->setSpacing(0);
+  Page& p = *page;
+  bool stretched = false;
+  const int buttonW = kVerticalWidth - 2 * kVMargin;
+  // a label is shown under the icon when it fits the button at 9 px (caption style)
+  const QFont labelFont = theme::font(theme::TextStyle::Caption);
+  const QFontMetrics fm(labelFont);
+  auto styleButton = [&](QToolButton* b, const QString& label) {
+    b->setIconSize(QSize(kVIcon, kVIcon));
+    b->setFixedSize(buttonW, kVButtonH);
+    b->setProperty("vertical", true);
+    if (!label.isEmpty() && fm.horizontalAdvance(label.toUpper()) <= buttonW - 6) {
+      b->setProperty("textStyle", "caption");
+      b->setText(label);
+      b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    } else {
+      b->setText(label);  // kept for tests and the tooltip
+      b->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    }
+  };
+  for (ToolbarSection& model : buildToolbarSections(manager_->registry(), ws_, filter_, sketch)) {
+    Section s;
+    s.model = model;
+    const bool bottom = model.kind == SectionKind::Document || model.kind == SectionKind::Finish;
+    if (bottom && !stretched) {
+      col->addStretch(1);
+      stretched = true;
+    }
+    auto* box = new QWidget(page->widget);
+    box->setObjectName("RibbonGroup");
+    box->setAttribute(Qt::WA_StyledBackground);
+    box->setProperty("toolbarTab", core::qs(model.toolbarTab));
+    box->setProperty("toolbarGroup", core::qs(model.toolbarGroup));
+    box->setProperty("section", core::qs(model.name));
+    box->setProperty("vertical", true);
+    if (model.kind == SectionKind::Document) box->setProperty("document", true);
+    auto* v = new QVBoxLayout(box);
+    v->setContentsMargins(0, 0, 0, kVSectionGap);
+    v->setSpacing(2);
+    s.box = box;
+    if (model.kind == SectionKind::Finish) {
+      box->setProperty("finish", true);
+      auto* b = new QToolButton(box);
+      b->setObjectName("FinishSketchButton");
+      b->setIcon(resourceIcon("finish-sketch"));
+      b->setToolTip(core::qs(toolTooltip(model.all.front()->info())));
+      b->setFocusPolicy(Qt::NoFocus);
+      styleButton(b, "Finish");
+      connect(b, &QToolButton::clicked, this, [this] { emit toolTriggered("sketch.finish"); });
+      addAction(p, "sketch.finish", b);
+      v->addWidget(b, 0, Qt::AlignHCenter);
+      s.buttons.push_back(b);
+      col->addWidget(box);
+      p.sections.push_back(std::move(s));
+      continue;
+    }
+    // caption bar first (straight rule above it), the icon column below
+    auto* caption = new QToolButton(box);
+    caption->setObjectName("RibbonGroupLabel");
+    caption->setProperty("toolbarTab", core::qs(model.toolbarTab));
+    caption->setProperty("toolbarGroup", core::qs(model.toolbarGroup));
+    caption->setProperty("vertical", true);
+    caption->setToolTip(core::qs(model.name));
+    caption->setFocusPolicy(Qt::NoFocus);
+    caption->setPopupMode(QToolButton::InstantPopup);
+    caption->setAutoRaise(true);
+    caption->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    caption->setFixedHeight(kCaptionHeight);
+    {
+      // the section name in 64 px: with the arrow when it fits, else the name alone, elided
+      const QFontMetrics cfm(theme::font(theme::TextStyle::Caption));
+      const QString name = core::qs(model.name);
+      const int room = kVerticalWidth - 8;
+      const QString withArrow = name + QString::fromUtf8(" ▾");
+      caption->setText(cfm.horizontalAdvance(withArrow.toUpper()) <= room ? withArrow : cfm.elidedText(name, Qt::ElideRight, room));
+    }
+    addCaptionMenu(p, s, caption);
+    connect(caption->menu(), &QMenu::aboutToShow, this, &MainToolbar::refreshStates);
+    v->addWidget(caption);
+    s.caption = caption;
+    s.buttonRow = new QWidget(box);
+    if (model.flat) {
+      // CONSTRAINTS: small icons, two per row
+      auto* grid = new QGridLayout(s.buttonRow);
+      grid->setContentsMargins(kVMargin + 2, 1, kVMargin + 2, 1);
+      grid->setSpacing(1);
+      int i = 0;
+      for (core::ITool* t : model.promoted) {
+        QToolButton* b = toolButton(t, s.buttonRow, true);
+        addAction(p, t->info().id, b);
+        grid->addWidget(b, i / 2, i % 2);
+        ++i;
+      }
+    } else {
+      auto* h = new QVBoxLayout(s.buttonRow);
+      h->setContentsMargins(kVMargin, 0, kVMargin, 0);
+      h->setSpacing(kButtonSpacing);
+      if (model.kind == SectionKind::More) {
+        for (const MoreEntry& e : model.more) {
+          auto* b = new QToolButton(s.buttonRow);
+          b->setObjectName("RibbonTool");
+          b->setProperty("toolbarTab", core::qs(e.tab));
+          b->setProperty("moreEntry", core::qs(e.label));
+          QStringList groups;
+          for (const auto& g : e.groups) groups << core::qs(g.first);
+          b->setProperty("toolbarGroups", groups.join(','));
+          b->setIcon(moreIcon(e));
+          b->setPopupMode(QToolButton::InstantPopup);
+          b->setAutoRaise(true);
+          b->setFocusPolicy(Qt::NoFocus);
+          b->setToolTip(core::qs(e.label));
+          styleButton(b, core::qs(e.label));
+          auto* menu = new QMenu(b);
+          menu->setToolTipsVisible(true);
+          for (const auto& [group, tools] : e.groups) {
+            if (e.groups.size() > 1 || group != e.label) addMenuHeader(menu, core::qs(group));
+            for (core::ITool* t : tools) {
+              QAction* a = addToolMenuAction(menu, t->info());
+              a->setToolTip(core::qs(t->info().tooltip));
+              connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
+              addAction(p, t->info().id, a);
+            }
+          }
+          b->setMenu(menu);
+          connect(menu, &QMenu::aboutToShow, this, &MainToolbar::refreshStates);
+          h->addWidget(b);
+          s.buttons.push_back(b);
+        }
+      } else {
+        for (core::ITool* t : model.promoted) {
+          QToolButton* b = toolButton(t, s.buttonRow, false);
+          styleButton(b, core::qs(shortToolLabel(t->info())));
+          addAction(p, t->info().id, b);
+          h->addWidget(b);
+          s.buttons.push_back(b);
+        }
+      }
+    }
+    v->addWidget(s.buttonRow);
+    col->addWidget(box);
+    p.sections.push_back(std::move(s));
+  }
+  if (!stretched) col->addStretch(1);
+  stack_->addWidget(page->widget);
+  Page* raw = page.get();
+  (sketch ? sketchPage_ : defaultPage_) = std::move(page);
+  return raw;
+}
+
+void MainToolbar::fitVertical() {
+  Page* p = currentPage();
+  if (!p) return;
+  // the fit model works on one axis: here a "width" is a height (buttons stacked, the caption
+  // bar and the section gap are the padding, so a collapsed section keeps its caption)
+  const int padding = kCaptionHeight + 2 + kVSectionGap;
+  std::vector<FitSection> in;
+  for (Section& s : p->sections) {
+    FitSection f;
+    f.collapsePriority = s.model.collapsePriority;
+    f.startCollapsed = s.model.startCollapsed;
+    if (s.model.kind == SectionKind::Finish) {
+      f.fixed = true;
+      f.buttonWidths = {kVButtonH + kVSectionGap - padding};
+    } else if (s.model.flat) {
+      s.buttonRow->ensurePolished();
+      f.buttonWidths = {s.buttonRow->sizeHint().height()};
+    } else {
+      f.buttonWidths.assign(s.buttons.size(), kVButtonH);
+    }
+    in.push_back(f);
+  }
+  const QMargins m = p->widget->layout()->contentsMargins();
+  const int available = height() - m.top() - m.bottom();
+  int natural = 0;
+  for (const FitSection& f : in)
+    natural += fitSectionWidth(f, static_cast<int>(f.buttonWidths.size()), false, kButtonSpacing, padding);
+  p->naturalWidth = natural + m.top() + m.bottom();
+  const std::vector<FitResult> r = fitToolbar(in, available, kButtonSpacing, padding);
+  for (size_t i = 0; i < p->sections.size(); ++i) {
+    Section& s = p->sections[i];
+    if (s.model.kind == SectionKind::Finish) continue;
+    s.collapsed = r[i].collapsed;
+    s.visible = r[i].visibleButtons;
+    s.box->setProperty("collapsed", s.collapsed);
+    s.buttonRow->setVisible(!s.collapsed);
+    if (!s.model.flat)
+      for (size_t b = 0; b < s.buttons.size(); ++b) s.buttons[b]->setVisible(static_cast<int>(b) < s.visible);
+    if (s.caption) {
+      s.caption->style()->unpolish(s.caption);
+      s.caption->style()->polish(s.caption);
+    }
+  }
+  updateGeometry();
+}
+
+void MainToolbar::setOrientation(Qt::Orientation o) {
+  const bool vertical = o == Qt::Vertical;
+  if (vertical == vertical_ && (defaultPage_ || sketchPage_)) return;
+  vertical_ = vertical;
+  setProperty("vertical", vertical);
+  if (vertical) {
+    setMinimumHeight(120);
+    setMaximumHeight(QWIDGETSIZE_MAX);
+    setFixedWidth(kVerticalWidth);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+  } else {
+    setMinimumWidth(120);
+    setMaximumWidth(QWIDGETSIZE_MAX);
+    setFixedHeight(kRowHeight);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  }
+  style()->unpolish(this);
+  style()->polish(this);
+  clearPages();
+  showPage(sketching_ && ws_ == core::Workspace::Design);
+  updateGeometry();
 }
 
 void MainToolbar::clearPages() {
@@ -412,9 +654,12 @@ int MainToolbar::naturalWidth() const {
   return p ? p->naturalWidth : 0;
 }
 
-QSize MainToolbar::sizeHint() const { return QSize(std::max(naturalWidth(), 400), kRowHeight); }
+QSize MainToolbar::sizeHint() const {
+  if (vertical_) return QSize(kVerticalWidth, std::max(naturalWidth(), 400));
+  return QSize(std::max(naturalWidth(), 400), kRowHeight);
+}
 
-QSize MainToolbar::minimumSizeHint() const { return QSize(120, kRowHeight); }
+QSize MainToolbar::minimumSizeHint() const { return vertical_ ? QSize(kVerticalWidth, 120) : QSize(120, kRowHeight); }
 
 void MainToolbar::resizeEvent(QResizeEvent* e) {
   QWidget::resizeEvent(e);
@@ -436,6 +681,10 @@ void MainToolbar::scheduleFit() {
 }
 
 void MainToolbar::fit() {
+  if (vertical_) {
+    fitVertical();
+    return;
+  }
   Page* p = currentPage();
   if (!p) return;
   std::vector<FitSection> in;

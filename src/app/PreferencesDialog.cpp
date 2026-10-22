@@ -89,13 +89,27 @@ class LayoutPreview : public QWidget {
         p.fillRect(QRect(x, r.top() + 4, 8, 6), theme::color(Tok::TextTertiary));
       r.setTop(r.top() + 16);
     }
-    if (ui.string("ui/timelineStyle") == "strip") {
-      p.fillRect(QRect(r.left(), r.bottom() - 11, r.width(), 12), theme::color(Tok::SurfacePanel));
+    // p2p3-check 10: the strip and the panels are drawn so that every choice shows
+    const bool strip = ui.string("ui/timelineStyle") == "strip";
+    if (strip) {
+      const QRect s(r.left(), r.bottom() - 11, r.width(), 12);
+      p.fillRect(s, theme::color(Tok::SurfaceHeader));
+      p.fillRect(QRect(s.left(), s.top(), s.width(), 1), theme::color(Tok::BorderDefault));
+      for (int x = s.left() + 8; x < s.right() - 8; x += 11) p.fillRect(QRect(x, s.top() + 4, 7, 5), theme::color(Tok::TextTertiary));
       r.setBottom(r.bottom() - 12);
     }
     const bool sideRight = ui.string("ui/sidebarSide") == "right";
     const QRect side(sideRight ? r.right() - 53 : r.left(), r.top(), 54, r.height());
     p.fillRect(side, theme::color(Tok::SurfacePanel));
+    p.fillRect(QRect(sideRight ? side.left() : side.right(), side.top(), 1, side.height()), theme::color(Tok::BorderDefault));
+    // panel headers: FEATURES (feature-list style), MODEL, SELECTION; a docked card sits on top
+    const bool docked = ui.string("ui/cardPlacement") == "sidebar";
+    int y = side.top() + (docked ? 46 : 3);
+    for (int i = strip ? 1 : 0; i < 3; ++i) {
+      p.fillRect(QRect(side.left() + 2, y, side.width() - 4, 5), theme::color(Tok::SurfaceHeader));
+      p.fillRect(QRect(side.left() + 2, y, 2, 5), theme::color(Tok::AccentIndicator));
+      y += docked ? 9 : 22;
+    }
     QRect vp = sideRight ? r.adjusted(0, 0, -54, 0) : r.adjusted(54, 0, 0, 0);
     const QString quick = ui.string("ui/quickToolbar");
     if (quick == "left") p.fillRect(QRect(vp.left() + 3, vp.top() + 14, 7, 34), theme::color(Tok::SurfaceRaised));
@@ -292,11 +306,11 @@ QWidget* PreferencesDialog::buildLayoutPage() {
   });
   uiControls_.emplace_back("ui/cardRememberDrag", remember);
   f->addRow(remember);
-  auto* note = new QLabel("Sidebar, timeline and command card placement apply right away. The toolbar stays at the top "
-                          "in this version; the quick toolbar and orientation choices take effect with the new viewport.",
-                          form);
+  auto* note = new QLabel("Every choice applies right away. The orientation widget follows with the new viewport.", form);
   note->setObjectName("StatusDim");
   note->setWordWrap(true);
+  // p2p3-check 10: room for the wrapped lines (a form row does not grow for a wrapped label)
+  note->setMinimumHeight(3 * note->fontMetrics().lineSpacing());
   f->addRow(note);
   h->addWidget(form, 1);
   layoutPreview_ = new LayoutPreview(page);

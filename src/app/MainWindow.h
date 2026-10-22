@@ -3,7 +3,8 @@
 // Single window, redesign phase 1 shell (docs/plans/ui-redesign.md 5.1, 6.2):
 //   title bar (#AppBar)   [F FABRICAD v][PART ALT 1 v] /bracket *\ /lever\ [+]   [>_ SEARCH  S][undo][redo][save][?]
 //   main toolbar          SKETCH | CREATE | MODIFY | ASSEMBLE | CONSTRUCT | INSPECT | MORE v      DOCUMENT
-//                         (MainToolbar in the non-movable QToolBar #MainToolbarHost, top area)
+//                         (MainToolbar in the non-movable QToolBar #MainToolbarHost, top / left /
+//                         right area from ui/toolbarArea)
 //   browser (dock)  | viewport (OCCT, ViewCube, nav bar, command dialog overlay)
 //   timeline (bottom dock, full width)
 //   status bar            command | prompt | key hints | message | > command line | OCCT | units | grid |
@@ -19,8 +20,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include "app/AppShell.h"
 #include "app/AppState.h"
 #include "app/DocumentTab.h"
+#include "app/QuickToolbar.h"
 #include "app/TitleBar.h"
 #include "core/AppHost.h"
 #include "core/Document.h"
@@ -48,6 +51,7 @@ class QTimer;
 
 namespace fabricad::viewer {
 class ViewerWidget;
+class OverlayLayout;
 }
 
 namespace fabricad::app {
@@ -63,6 +67,7 @@ class ElideLabel;
 class KeyHints;
 class MainToolbar;
 class NavBar;
+class QuickToolbar;
 class RebuildMeter;
 class SketchPalette;
 class StatusCell;
@@ -71,7 +76,7 @@ class TimelineWidget;
 class FeatureListWidget;
 class SidebarHost;
 
-class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
+class MainWindow : public QMainWindow, public fabricad::core::IAppHost, public AppShell {
   Q_OBJECT
  public:
   /// Factory for the Drawing workspace's central widget (drawing module). Until one is set
@@ -83,16 +88,18 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   ~MainWindow() override;
 
   // --- active tab's objects ---------------------------------------------------------------
-  fabricad::core::Document& document() { return *document_; }
-  bool hasDocument() const { return document_ != nullptr; }
-  fabricad::core::ToolRegistry& tools() { return registry_; }
-  fabricad::core::ToolManager& toolManager() { return *manager_; }
+  fabricad::core::Document& document() override { return *document_; }
+  bool hasDocument() const override { return document_ != nullptr; }
+  fabricad::core::ToolRegistry& tools() override { return registry_; }
+  fabricad::core::ToolManager& toolManager() override { return *manager_; }
   /// Null while a drawing tab is active.
-  viewer::ViewerWidget* viewer() const { return viewer_; }
+  viewer::ViewerWidget* viewer() const override { return viewer_; }
   /// The main toolbar (formerly the ribbon; `Ribbon` is an alias of MainToolbar).
   MainToolbar* ribbon() const { return ribbon_; }
   MainToolbar* mainToolbar() const { return ribbon_; }
   QToolBar* mainToolbarHost() const { return toolbarHost_; }
+  /// The floating quick toolbar of the model view (ui/quickToolbar; hidden when off).
+  QuickToolbar* quickToolbar() const { return quick_.data(); }
   WorkspaceSelector* workspaceSelector() const { return workspaceSelector_; }
   BrowserTree* browser() const { return browser_; }
   TimelineWidget* timeline() const { return timeline_; }
@@ -113,7 +120,22 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   // --- document tabs ------------------------------------------------------------------------
   DocumentTab* activeTab() const { return active_; }
   const std::vector<std::unique_ptr<DocumentTab>>& tabs() const { return tabs_; }
-  int tabCount() const { return static_cast<int>(tabs_.size()); }
+  int tabCount() const override { return static_cast<int>(tabs_.size()); }
+  // AppShell (script verbs, ScriptRunner)
+  int activeTabIndex() const override { return indexOfTab(active_); }
+  TabInfo tabInfo(int index) const override;
+  int findTabIndex(const std::string& spec) const override { return indexOfTab(findTab(spec)); }
+  void closeTabLater(int index) override;
+  void activateTabLater(int index) override;
+  QObject* shellObject() override { return this; }
+  bool submitCommandLine(const QString& text) override;
+  void setScriptMessageSink(std::function<void(int, const QString&)> sink) override { scriptSink_ = std::move(sink); }
+  QWidget* screenshotTarget(bool viewportOnly) override;
+  void prepareStepPause() override;
+  void showPreferencesPage(int page) override;
+  void pickAppearanceFor(const std::vector<core::ObjectId>& bodies) override;
+  bool viewerInSketchMode() const override;
+  void openWithDialog() override { open(); }
   DocumentTab* tabAt(int index) const;
   int indexOfTab(const DocumentTab* tab) const;
   QTabBar* tabBar() const { return tabBar_; }
@@ -147,16 +169,16 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
 
   // --- file operations -----------------------------------------------------------------
   /// New design in a new tab (Fusion: File > New Design).
-  bool newDocument();
+  bool newDocument() override;
   bool open();
   /// .fcad loads into a new tab (a pristine, never-touched empty tab is reused); .step/.stp/.stl
   /// are inserted into the active design through part.import-file (a new tab when it has content).
-  bool openFile(const QString& path, QString* error = nullptr);
-  bool save();
-  bool saveAs();
-  bool saveTo(const QString& path, QString* error = nullptr);
+  bool openFile(const QString& path, QString* error = nullptr) override;
+  bool save() override;
+  bool saveAs() override;
+  bool saveTo(const QString& path, QString* error = nullptr) override;
   /// Ask to save unsaved changes of the active document. False = the user cancelled.
-  bool maybeSave();
+  bool maybeSave() override;
 
   // --- autosave / crash recovery (README "Autosave") --------------------------------------
   /// Write a recovery copy of every modified document now (normally driven by timers: 5 s after
@@ -187,24 +209,24 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void editFeature(core::ObjectId id);
   /// Delete entities (with confirmation when bodies map to their creating features).
   void deleteRefs(const std::vector<core::ShapeRef>& refs);
-  void deleteSelection();
-  void toggleSelectionVisibility();
-  void showAllObjects();
-  void showParameters();
-  void openCommandSearch();
-  void toggleCommandLine();
+  void deleteSelection() override;
+  void toggleSelectionVisibility() override;
+  void showAllObjects() override;
+  void showParameters() override;
+  void openCommandSearch() override;
+  void toggleCommandLine() override;
   void focusCommandLine();
-  void showShortcutsHelp();
+  void showShortcutsHelp() override;
   void runPseudoCommand(const std::string& cmd);
   /// Run a command from the UI (ribbon, S-box, marking menu, shortcuts). View commands
   /// registered with addDirectAction() run without cancelling the active tool.
   bool runCommand(const std::string& id, std::vector<std::string> args = {});
   /// `fn` runs instead of ToolManager::run(id) while a tool is active (camera/display
   /// commands must not interrupt a command, ux.md 5).
-  void addDirectAction(const std::string& id, std::function<void()> fn);
+  void addDirectAction(const std::string& id, std::function<void()> fn) override;
   /// OK for the active command (Enter / dialog OK button). False (with a message) when no
   /// command is active or its dialog has OK disabled.
-  bool acceptActiveTool();
+  bool acceptActiveTool() override;
   /// Marking menu at a position (RMB click) / gesture (RMB drag) in the viewport.
   void showMarkingMenu(const QPoint& globalPos);
   void markingGesture(const QPoint& pressGlobal, const QPoint& releaseGlobal);
@@ -212,7 +234,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   /// Keyboard routing entry point (event filter and tests). True = consumed.
   bool handleKeyPress(int key, int modifiers, const QString& text, bool autoRepeat, QWidget* focus);
   /// Status bar texts (tests).
-  QString promptText() const;
+  QString promptText() const override;
   QString selectionText() const;
   QString sketchStatusText() const;
   QString messageText() const;
@@ -225,7 +247,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
 
   // --- IAppHost ------------------------------------------------------------------------
   void setPrompt(const std::string& text) override;
-  void showMessage(const std::string& text, fabricad::core::MessageLevel level) override;
+  void showMessage(const std::string& text, fabricad::core::MessageLevel level = fabricad::core::MessageLevel::Info) override;
   bool askYesNo(const std::string& title, const std::string& question, bool defaultAnswer) override;
   fabricad::core::Workspace workspace() const override { return workspace_; }
   /// Design -> Drawing opens (or activates) the drawing tab linked to the active design;
@@ -233,7 +255,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void setWorkspace(fabricad::core::Workspace ws) override;
   /// Workspace selector: Part / Assembly filter the Design toolbar (ui/designFilter), Drawing
   /// switches to the drawing tab.
-  void setWorkspaceChoice(WorkspaceChoice c);
+  void setWorkspaceChoice(WorkspaceChoice c) override;
   WorkspaceChoice workspaceChoice() const;
   void setContextualTab(const std::string& tabName, bool active) override;
   void echoCommand(const std::string& text) override;
@@ -262,6 +284,12 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void applyUiSetting(const QString& key);
   /// ui/sidebarSide: move #BrowserDock to the left or right dock area (keeps its width).
   void applySidebarSide();
+  void applyToolbarArea();     ///< ui/toolbarArea: top | left | right (vertical MainToolbar)
+  void applyQuickToolbar();    ///< ui/quickToolbar: off | left | right (into the active viewport)
+  QuickToolbar* ensureQuickToolbar();
+  void scheduleSidebarCardRefit();
+  /// The quick toolbar's OverlayLayout item when it is shown in `viewport`.
+  void addQuickToolbarItem(viewer::OverlayLayout& l, QWidget* viewport) const;
   /// ui/timelineStyle: FEATURES list in the sidebar or the bottom strip.
   void applyTimelineStyle();
   void updateTimelineDock();
@@ -336,6 +364,10 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
 
   MainToolbar* ribbon_ = nullptr;
   QToolBar* toolbarHost_ = nullptr;
+  /// One strip, moved into the active tab's viewport; it goes with a closed tab's viewport and
+  /// is made again by applyQuickToolbar() (ensureQuickToolbar)
+  QPointer<QuickToolbar> quick_;
+  std::function<void(int, const QString&)> scriptSink_;  ///< ScriptRunner's message log
   WorkspaceSelector* workspaceSelector_ = nullptr;
   QToolButton* searchBox_ = nullptr;
   QDockWidget* browserDock_ = nullptr;
@@ -397,6 +429,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   bool acceptEnabled_ = true;
   bool stateRefreshPending_ = false;
   bool failureReportPending_ = false;
+  bool sidebarRefitPending_ = false;
   std::map<const core::Document*, std::set<core::ObjectId>> failedFeatures_;  ///< DOC-08 baseline
   bool selectionStatusPending_ = false;  ///< coalesces rename/recompute -> status label
   bool glEnabled_ = false;        ///< initializeViewer() was called: new tabs get a GL view too

@@ -4,7 +4,7 @@
 #include "app/ScriptTools.h"
 
 #include "app/AppActions.h"
-#include "app/MainWindow.h"
+#include "app/AppShell.h"
 #include "app/Selectors.h"
 #include "core/AppHost.h"
 #include "core/Document.h"
@@ -455,8 +455,8 @@ std::string listText(const core::Document& doc, const std::string& categoryIn) {
 
 // --- registration --------------------------------------------------------------------------------
 
-void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
-  MainWindow* win = &w;
+void registerScriptTools(AppShell& w, core::ToolRegistry& reg) {
+  AppShell* win = &w;
   auto add = [&](ToolInfo i, std::function<void(ToolContext&)> fn) {
     reg.registerTool(std::make_unique<core::LambdaTool>(std::move(i), std::move(fn)));
   };
@@ -626,7 +626,7 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
             core::ToolManager& m = win->toolManager();
             s += m.isActive() ? ", active command " + m.activeToolId() : ", no active command";
             if (sketch::SketchSession* ss = sketch::SketchSession::current()) s += ", editing " + (ss->feature() ? ss->feature()->name() : std::string("sketch")) + " (" + ss->statusText() + ")";
-            s += std::format(", tab {}/{}", win->indexOfTab(win->activeTab()) + 1, win->tabCount());
+            s += std::format(", tab {}/{}", win->activeTabIndex() + 1, win->tabCount());
             c.showMessage(s);
             return;
           }
@@ -650,9 +650,9 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
         if (cat == "tabs") {
           std::string out = std::format("Tabs ({}):", win->tabCount());
           for (int i = 0; i < win->tabCount(); ++i) {
-            DocumentTab* t = win->tabAt(i);
-            out += std::format("\n  {}. {}  [{}]{}{}", i + 1, t->title().toStdString(), t->isDesign() ? "design" : "drawing",
-                               t->document().filePath().empty() ? "" : "  " + t->document().filePath(), t == win->activeTab() ? "  (active)" : "");
+            const AppShell::TabInfo t = win->tabInfo(i);
+            out += std::format("\n  {}. {}  [{}]{}{}", i + 1, t.title.toStdString(), t.design ? "design" : "drawing",
+                               t.filePath.empty() ? "" : "  " + t.filePath, i == win->activeTabIndex() ? "  (active)" : "");
           }
           c.showMessage(out);
           return;
@@ -734,8 +734,11 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
           return;
         }
         settle();
-        QWidget* target = win;
-        if (c.args.size() > 1 && lower(c.args[1]) == "viewport" && win->viewer()) target = win->viewer();
+        QWidget* target = win->screenshotTarget(c.args.size() > 1 && lower(c.args[1]) == "viewport");
+        if (!target) {
+          c.showMessage("SCREENSHOT: no window in a headless run (use --script without --offscreen, or set FABRICAD_SCRIPT_WINDOW=1)", true);
+          return;
+        }
         QPixmap pm = target->grab();
         if (pm.isNull() || !pm.save(core::qs(c.args[0]))) {
           c.showMessage("SCREENSHOT: cannot write " + c.args[0], true);
@@ -749,39 +752,34 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
     ToolInfo i = verb("app.close", "Close Tab", "Close the active document tab (or TAB <n|name>)", {"CLOSE", "CLOSETAB"}, false);
     i.shortcut = "Ctrl+W";
     add(i, [win](ToolContext& c) {
-      DocumentTab* tab = c.args.empty() ? win->activeTab() : win->findTab(c.args[0]);
-      if (!tab) {
+      const int tab = c.args.empty() ? win->activeTabIndex() : win->findTabIndex(c.args[0]);
+      if (tab < 0) {
         c.showMessage("CLOSE: no tab '" + join(c.args) + "'", true);
         return;
       }
-      // deferred: the tool runs inside the tab's own ToolManager
-      QMetaObject::invokeMethod(win, [win, tab] {
-        if (win->indexOfTab(tab) >= 0) win->closeTab(tab);
-      }, Qt::QueuedConnection);
+      win->closeTabLater(tab);  // deferred: the tool runs inside the tab's own ToolManager
     });
   }
   add(verb("app.tab", "Switch Tab", "Activate a document tab: TAB <n|name|next|prev>", {"TAB", "GOTO"}, false), [win](ToolContext& c) {
     if (c.args.empty()) {
       std::string out = std::format("Tabs ({}):", win->tabCount());
       for (int i = 0; i < win->tabCount(); ++i)
-        out += std::format("\n  {}. {}{}", i + 1, win->tabAt(i)->title().toStdString(), win->tabAt(i) == win->activeTab() ? "  (active)" : "");
+        out += std::format("\n  {}. {}{}", i + 1, win->tabInfo(i).title.toStdString(), i == win->activeTabIndex() ? "  (active)" : "");
       c.showMessage(out);
       return;
     }
     const std::string spec = join(c.args);
     const std::string l = lower(spec);
-    DocumentTab* tab = nullptr;
-    const int cur = win->indexOfTab(win->activeTab());
-    if (l == "next") tab = win->tabAt((cur + 1) % win->tabCount());
-    else if (l == "prev" || l == "previous") tab = win->tabAt((cur + win->tabCount() - 1) % win->tabCount());
-    else tab = win->findTab(spec);
-    if (!tab) {
+    int tab = -1;
+    const int cur = win->activeTabIndex();
+    if (l == "next") tab = (cur + 1) % win->tabCount();
+    else if (l == "prev" || l == "previous") tab = (cur + win->tabCount() - 1) % win->tabCount();
+    else tab = win->findTabIndex(spec);
+    if (tab < 0) {
       c.showMessage("TAB: no tab '" + spec + "'", true);
       return;
     }
-    QMetaObject::invokeMethod(win, [win, tab] {
-      if (win->indexOfTab(tab) >= 0) win->activateTab(tab);
-    }, Qt::QueuedConnection);
+    win->activateTabLater(tab);
   });
 
   // --- RENAME -----------------------------------------------------------------------------------
