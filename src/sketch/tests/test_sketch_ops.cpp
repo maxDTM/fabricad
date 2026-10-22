@@ -467,6 +467,40 @@ class SketchOpsTest : public QObject {
     QVERIFY(sk.solve().ok());
     (void)l;
   }
+
+  // ---- SK-05: offset of ellipses (approximated by a closed fit-point spline) ----
+  void offsetEllipse() {
+    Sketch sk;
+    int e = sk.addGeometry(Geometry::makeEllipse({10, 5}, 20, 10, 0.4));
+    auto out = sk.offset({e}, 3.0, Pt2{10 + 40, 5});  // cursor outside
+    QCOMPARE(out.size(), size_t(1));
+    const Geometry* o = sk.geometry(out[0]);
+    QVERIFY(o->isSpline());
+    QVERIFY(near(o->start(), o->end(), 1e-9));
+    const Geometry* src = sk.geometry(e);
+    double dmin = 1e9, dmax = 0;
+    for (const Pt2& q : o->tessellate(128)) {
+      double d = src->distanceTo(q);
+      dmin = std::min(dmin, d);
+      dmax = std::max(dmax, d);
+    }
+    QVERIFY2(dmin > 2.9 && dmax < 3.1, qPrintable(QString("%1 %2").arg(dmin).arg(dmax)));
+    QVERIFY(sk.findConstraint(ConstraintType::Coincident, {out[0], PointPos::End}, {out[0], PointPos::Start}));
+    // inward: smaller, inside
+    auto in = sk.offset({e}, 2.0, Pt2{10, 5});
+    QCOMPARE(in.size(), size_t(1));
+    src = sk.geometry(e);  // the geometry vector grew
+    for (const Pt2& q : sk.geometry(in[0])->tessellate(64)) QVERIFY2(std::abs(src->distanceTo(q) - 2.0) < 0.1, qPrintable(QString("%1 at %2,%3").arg(src->distanceTo(q)).arg(q.x).arg(q.y)));
+    // inward beyond b^2/a (= 5) would fold: nothing
+    QVERIFY(sk.offset({e}, 6.0, Pt2{10, 5}).empty());
+    // elliptical arc and spline offsets too
+    int ea = sk.addGeometry(Geometry::makeEllipseArc({0, 50}, 20, 10, 0.0, 0.0, kPi));
+    QCOMPARE(sk.offset({ea}, 2.0, Pt2{0, 80}).size(), size_t(1));
+    int sp = sk.addGeometry(Geometry::makeFitSpline({{0, 100}, {10, 110}, {20, 100}}));
+    auto so = sk.offset({sp}, 1.0, Pt2{10, 120});
+    QCOMPARE(so.size(), size_t(1));
+    QVERIFY(sk.geometry(so[0])->center().y > 100 || sk.geometry(so[0])->start().y > 100);
+  }
 };
 
 QTEST_GUILESS_MAIN(SketchOpsTest)

@@ -1098,7 +1098,7 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
   auto endpoints = [&](int id, bool rev) {
     const Geometry* g = sk.geometry(id);
     Pt2 s = g->start(), e = g->end();
-    if (g->type == GeomType::Circle || g->type == GeomType::Point) return std::pair<Pt2, Pt2>{s, s};
+    if (g->isClosedCurve() || g->type == GeomType::Point) return std::pair<Pt2, Pt2>{s, s};
     return rev ? std::pair<Pt2, Pt2>{e, s} : std::pair<Pt2, Pt2>{s, e};
   };
   while (!left.empty()) {
@@ -1106,7 +1106,7 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
     left.erase(first);
     std::deque<ChainItem> run{{first, false}};
     const Geometry* fg = sk.geometry(first);
-    if (fg->type == GeomType::Circle) {
+    if (fg->isClosedCurve() || isClosedSpline(*fg)) {
       runs.push_back({run.begin(), run.end()});
       continue;
     }
@@ -1117,7 +1117,7 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
       Pt2 headStart = endpoints(run.front().id, run.front().reversed).first;
       for (int id : left) {
         const Geometry* g = sk.geometry(id);
-        if (g->type == GeomType::Circle || g->type == GeomType::Point) continue;
+        if (g->isClosedCurve() || isClosedSpline(*g) || g->type == GeomType::Point) continue;
         if (g->start().near(tailEnd, 1e-6)) { run.push_back({id, false}); left.erase(id); grew = true; break; }
         if (g->end().near(tailEnd, 1e-6)) { run.push_back({id, true}); left.erase(id); grew = true; break; }
         if (g->end().near(headStart, 1e-6)) { run.push_front({id, false}); left.erase(id); grew = true; break; }
@@ -1127,6 +1127,51 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
     runs.push_back({run.begin(), run.end()});
   }
   return runs;
+}
+
+/// Unit left normal of the traversal of a sampled curve at parameter u.
+Pt2 leftNormalAt(const Geometry& g, double u, bool reversed) {
+  Pt2 t;
+  if (g.isElliptical()) t = g.ellipse().derivative(u);
+  else t = g.bspline().derivative(u);
+  if (t.length() < 1e-12) return {0, 0};
+  t = t.normalized();
+  return (reversed ? -t : t).perp();
+}
+
+/// Offset of an ellipse / elliptical arc / spline, approximated by a fit-point spline through
+/// offset samples (the exact offset of these curves is not of their own type). Ellipses: d > 0 =
+/// outward, like circles; others: d > 0 = left of the traversal. Nullopt when the offset would
+/// fold over itself (inward beyond the tightest curvature).
+std::optional<Geometry> offsetSampled(const Geometry& g, bool reversed, double d) {
+  const bool closed = g.type == GeomType::Ellipse;
+  double side = d;
+  if (g.isElliptical()) {
+    EllipseFrame f = g.ellipse();
+    // ccw parametrisation: its left side is inside. Folding starts at the minimum radius of
+    // curvature b^2 / a.
+    if (closed) side = -d;
+    bool inward = (closed ? d < 0 : (reversed ? d < 0 : d > 0));
+    if (inward && std::abs(d) >= f.b * f.b / std::max(f.a, 1e-12) - 1e-9) return std::nullopt;
+  }
+  auto [u0, u1] = g.paramRange();
+  const int n = closed ? 64 : std::max(24, g.isSpline() ? g.vertexCount() * 12 : 48);
+  std::vector<Pt2> pts;
+  std::vector<Pt2> src;
+  for (int i = 0; i < n; ++i) {
+    double u = u0 + (u1 - u0) * i / (closed ? n : n - 1);
+    Pt2 q = g.pointAt(u);
+    Pt2 nrm = leftNormalAt(g, u, false);
+    src.push_back(q);
+    pts.push_back(q + nrm * side * (reversed && !closed ? -1.0 : 1.0));
+  }
+  if (closed) pts.push_back(pts.front());
+  // a fold (a segment reversing against the original) means the offset is too large
+  for (size_t i = 0; i + 1 < src.size(); ++i)
+    if ((pts[i + 1] - pts[i]).dot(src[i + 1] - src[i]) <= 0) return std::nullopt;
+  Geometry o = Geometry::makeFitSpline(pts);
+  o.construction = g.construction;
+  return o;
 }
 
 /// Offset one curve; nullopt when the result degenerates (an arc/circle radius collapses).
@@ -1152,12 +1197,12 @@ std::optional<Geometry> offsetCurve(const Geometry& g, bool reversed, double d) 
       o.setRadius(r);
       break;
     }
-    case GeomType::Point:
     case GeomType::Ellipse:
     case GeomType::EllipseArc:
     case GeomType::Spline:
-    case GeomType::FitSpline:
-    case GeomType::Text: break;  // not offsettable exactly; copied unchanged (filtered by offset())
+    case GeomType::FitSpline: return offsetSampled(g, reversed, d);
+    case GeomType::Point:
+    case GeomType::Text: break;  // not offsettable; copied unchanged (filtered by offset())
   }
   return o;
 }
@@ -1166,6 +1211,16 @@ std::optional<Geometry> offsetCurve(const Geometry& g, bool reversed, double d) 
 double sideOfCurve(const Geometry& g, bool reversed, Pt2 p) {
   if (g.type == GeomType::Line) return signedDistanceToLine(g.start(), g.direction(), p) * (reversed ? -1 : 1);
   if (g.type == GeomType::Circle) return p.distance(g.center()) - g.radius();  // circles: outward = positive
+  if (g.type == GeomType::Ellipse) {  // outward = positive
+    EllipseFrame f = g.ellipse();
+    Pt2 v = p - f.center;
+    double x = v.dot(f.major) / f.a, y = v.dot(f.minor) / f.b;
+    return x * x + y * y - 1;
+  }
+  if (g.type == GeomType::EllipseArc || g.isSpline()) {
+    double u = g.paramOf(p);
+    return (p - g.pointAt(u)).dot(leftNormalAt(g, u, reversed));
+  }
   return (p.distance(g.center()) - g.radius()) * (reversed ? 1 : -1);
 }
 
@@ -1184,7 +1239,7 @@ bool runIsClosed(const Sketch& sk, const std::vector<ChainItem>& run) {
   if (run.size() < 2) return false;
   const Geometry* gl = sk.geometry(run.back().id);
   const Geometry* gf = sk.geometry(run.front().id);
-  if (gl->type == GeomType::Circle || gf->type == GeomType::Circle) return false;
+  if (gl->isClosedCurve() || gf->isClosedCurve()) return false;
   Pt2 tail = run.back().reversed ? gl->start() : gl->end();
   Pt2 head = run.front().reversed ? gf->end() : gf->start();
   return tail.near(head, 1e-6);
@@ -1214,7 +1269,7 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
   std::vector<int> curves;
   for (int id : ids) {
     const Geometry* g = geometry(id);
-    if (g && (g->type == GeomType::Line || g->isCircular())) curves.push_back(id);
+    if (g && (g->type == GeomType::Line || g->isCircular() || g->isElliptical() || g->isSpline())) curves.push_back(id);
   }
   auto runs = orderChains(*this, curves);
   for (auto& run : runs) {
@@ -1254,6 +1309,8 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
     for (size_t i = 0; i + 1 < run.size(); ++i) {
       Geometry& a = offs[i];
       Geometry& b = offs[i + 1];
+      auto exactKind = [](const Geometry& x) { return x.type == GeomType::Line || x.isCircular(); };
+      if (!exactKind(a) || !exactKind(b)) continue;  // sampled offsets (ellipse, spline): no corner trim
       const Geometry* ga = geometry(run[i].id);
       Pt2 junction = run[i].reversed ? ga->start() : ga->end();
       std::vector<Pt2> cand;
@@ -1284,7 +1341,9 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
         Geometry& a = offs.back();
         Geometry& b = offs.front();
         std::vector<Pt2> cand;
-        if (a.type == GeomType::Line && b.type == GeomType::Line) {
+        if (!(a.type == GeomType::Line || a.isCircular()) || !(b.type == GeomType::Line || b.isCircular())) {
+          // sampled offsets: corners are not trimmed
+        } else if (a.type == GeomType::Line && b.type == GeomType::Line) {
           if (auto p = intersectLines(a.start(), a.direction(), b.start(), b.direction())) cand.push_back(*p);
         } else if (a.type == GeomType::Line) {
           cand = intersectLineCircle(a.start(), a.direction(), b.center(), b.radius());
@@ -1317,6 +1376,8 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
       o.blocked = false;
       o.source = core::ShapeRef{};
       newIds.push_back(addGeometry(o));
+      if (o.isSpline() && run.size() == 1 && o.start().near(o.end(), 1e-9))  // offset of a closed curve
+        addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {newIds.back(), PointPos::End}, .b = {newIds.back(), PointPos::Start}, .internal = true});
     }
     // coincidences along the offset chain
     for (size_t i = 0; i + 1 < newIds.size(); ++i) {
