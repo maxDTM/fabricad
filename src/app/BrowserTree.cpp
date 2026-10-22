@@ -22,6 +22,8 @@
 #include "viewer/ViewerWidget.h"
 
 #include <QContextMenuEvent>
+#include <QPainter>
+#include <QStyledItemDelegate>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QColorDialog>
@@ -49,6 +51,74 @@ using core::ShapeRef;
 
 namespace {
 QString key(const char* prefix, ObjectId id) { return QString("%1:%2").arg(prefix).arg(id); }
+
+/// Row painter of the MODEL tree (redesign 5.2): 16 px icon, the name (user names as typed in
+/// the `value` style, folders in caps), a right-aligned meta text (count, PART, SOLID) in
+/// text.tertiary and an ACTIVE badge (1 px accent.text border, caption). Colours from tokens at
+/// paint time. Column 1 is the eye (16 px icon at the right edge).
+class ModelRowDelegate : public QStyledItemDelegate {
+ public:
+  using QStyledItemDelegate::QStyledItemDelegate;
+  QSize sizeHint(const QStyleOptionViewItem& o, const QModelIndex& i) const override {
+    QSize s = QStyledItemDelegate::sizeHint(o, i);
+    s.setHeight(BrowserTree::kRowH);
+    return s;
+  }
+  void paint(QPainter* p, const QStyleOptionViewItem& o, const QModelIndex& i) const override {
+    if (i.column() == 1) {
+      const QIcon eye = i.data(Qt::DecorationRole).value<QIcon>();
+      if (!eye.isNull()) eye.paint(p, QRect(o.rect.center().x() - 8, o.rect.center().y() - 8, 16, 16));
+      return;
+    }
+    const int kind = i.data(BrowserTree::RoleKind).toInt();
+    QRect r = o.rect;
+    const QIcon icon = i.data(Qt::DecorationRole).value<QIcon>();
+    if (!icon.isNull()) icon.paint(p, QRect(r.left() + 2, r.center().y() - 8, 16, 16));
+    int right = r.right() - 6;
+    // meta and badge (right-aligned)
+    const QString meta = i.data(BrowserTree::RoleMeta).toString();
+    if (!meta.isEmpty()) {
+      const QFont cf = theme::font(theme::TextStyle::Caption);
+      const int w = QFontMetrics(cf).horizontalAdvance(meta.toUpper());
+      p->setFont(cf);
+      p->setPen(theme::color(Tok::TextTertiary));
+      p->drawText(QRect(right - w, r.top(), w, r.height()), Qt::AlignVCenter | Qt::AlignRight, meta);
+      right -= w + 10;
+    }
+    // name
+    const bool folder = kind == BrowserTree::KindFolder;
+    QFont f = theme::font(folder ? theme::TextStyle::Body : theme::TextStyle::Value);
+    const QFont itemFont = i.data(Qt::FontRole).value<QFont>();
+    if (i.data(Qt::FontRole).isValid()) {
+      f.setStrikeOut(itemFont.strikeOut());
+      f.setItalic(itemFont.italic());
+      if (itemFont.bold() && !folder) f.setWeight(QFont::Bold);
+    }
+    const QVariant fg = i.data(Qt::ForegroundRole);
+    QColor text = fg.isValid() ? fg.value<QBrush>().color() : theme::color(Tok::TextPrimary);
+    if (o.state & QStyle::State_Selected && !fg.isValid()) text = theme::color(Tok::TextPrimary);
+    const QString badge = i.data(BrowserTree::RoleBadge).toString();
+    const QFontMetrics fm(f);
+    const QFont bf = theme::font(theme::TextStyle::Caption);
+    const int badgeW = badge.isEmpty() ? 0 : QFontMetrics(bf).horizontalAdvance(badge.toUpper()) + 10;
+    const int nameLeft = r.left() + 26;
+    const int nameMax = std::max(0, right - nameLeft - (badgeW ? badgeW + 8 : 0));
+    const QString name = fm.elidedText(i.data(Qt::DisplayRole).toString(), Qt::ElideMiddle, nameMax);
+    p->setFont(f);
+    p->setPen(text);
+    const int nameW = fm.horizontalAdvance(folder ? name.toUpper() : name);
+    p->drawText(QRect(nameLeft, r.top(), nameMax, r.height()), Qt::AlignVCenter | Qt::AlignLeft, name);
+    if (badgeW) {
+      const QRect b(nameLeft + std::min(nameW, nameMax) + 8, r.center().y() - 8, badgeW, 16);
+      p->setPen(theme::color(Tok::AccentText));
+      p->setBrush(Qt::NoBrush);
+      p->drawRect(b.adjusted(0, 0, -1, -1));
+      p->setFont(bf);
+      p->drawText(b, Qt::AlignCenter, badge);
+    }
+  }
+};
+
 const char* kOriginNames[] = {"O", "X", "Y", "Z", "XY", "XZ", "YZ"};
 }  // namespace
 
@@ -64,13 +134,15 @@ BrowserTree::BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWid
   header()->setSectionResizeMode(1, QHeaderView::Fixed);
   header()->resizeSection(1, 24);
   setIconSize(QSize(16, 16));
+  setItemDelegate(new ModelRowDelegate(this));
+  header()->resizeSection(1, 32);
   setSelectionMode(QAbstractItemView::ExtendedSelection);
   // UX-38: no implicit edit triggers. Rename only through F2 / the context menu / double-click on
   // bodies and components (startRename); a double-click on a sketch or feature only edits it.
   setEditTriggers(QAbstractItemView::NoEditTriggers);
   setMouseTracking(true);
   setUniformRowHeights(true);
-  setIndentation(14);
+  setIndentation(18);
   setFocusPolicy(Qt::StrongFocus);
 
   connect(this, &QTreeWidget::itemClicked, this, &BrowserTree::onItemClicked);
@@ -206,6 +278,7 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
       it->setText(0, core::qs(b->name));
       it->setIcon(0, resourceIcon("body"));
       it->setData(0, RoleKind, KindBody);
+      it->setData(0, RoleMeta, "Solid");
       it->setData(0, RoleId, QVariant::fromValue<qulonglong>(id));
       it->setData(0, RoleKey, key("body", id));
       it->setFlags(it->flags() | Qt::ItemIsEditable);
@@ -298,7 +371,9 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
       QFont f = it->font(0);
       f.setBold(true);
       it->setFont(0, f);
+      it->setData(0, RoleBadge, "Active");
     }
+    if (c->grounded) it->setData(0, RoleMeta, "Grounded");
     updateEye(it, true, c->visible);
     fillComponent(it, childId, false);
   }
@@ -317,10 +392,12 @@ void BrowserTree::rebuildNow() {
   root->setData(0, RoleId, QVariant::fromValue<qulonglong>(core::kRootComponentId));
   root->setData(0, RoleKey, QString("comp:%1").arg(core::kRootComponentId));
   root->setFlags(root->flags() | Qt::ItemIsEditable);
+  root->setData(0, RoleMeta, doc_.rootComponent().children.empty() ? "Part" : "Assembly");
   if (doc_.activeComponent() == core::kRootComponentId) {
     QFont f = root->font(0);
     f.setBold(true);
     root->setFont(0, f);
+    if (!doc_.rootComponent().children.empty()) root->setData(0, RoleBadge, "Active");
   }
   fillComponent(root, core::kRootComponentId, true);
   if (firstBuild_) {
@@ -332,6 +409,7 @@ void BrowserTree::rebuildNow() {
   }
   std::function<void(QTreeWidgetItem*)> expand = [&](QTreeWidgetItem* it) {
     const QString k = it->data(0, RoleKey).toString();
+    if (it->data(0, RoleKind).toInt() == KindFolder && it->childCount() > 0) it->setData(0, RoleMeta, QString::number(it->childCount()));
     // origin children and leaves stay as they are; new folders open unless collapsed by the user
     if (it->childCount() > 0) it->setExpanded(!collapsed_.count(k));
     for (int i = 0; i < it->childCount(); ++i) expand(it->child(i));
@@ -654,6 +732,22 @@ void BrowserTree::startRename(QTreeWidgetItem* item) {
 void BrowserTree::closeEditor(QWidget* editor, QAbstractItemDelegate::EndEditHint hint) {
   QTreeWidget::closeEditor(editor, hint);
   scheduleRebuild();  // restore the "Name:1" label after a cancelled rename
+}
+
+void BrowserTree::drawRow(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
+  const QRect row(0, option.rect.top(), viewport()->width(), option.rect.height());
+  const bool selected = selectionModel() && selectionModel()->isSelected(index);
+  const bool hover = option.state & QStyle::State_MouseOver;
+  painter->fillRect(row, theme::color(selected ? Tok::AccentSelFill : hover ? Tok::SurfaceHover : Tok::SurfacePanel));
+  if (selected) painter->fillRect(QRect(0, row.top(), 3, row.height()), theme::color(Tok::AccentIndicator));
+  if (hasFocus() && currentIndex().row() == index.row() && currentIndex().parent() == index.parent()) {
+    painter->setPen(QPen(theme::color(Tok::AccentFocus), 2));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(QRectF(row).adjusted(1, 1, -1, -1));
+  }
+  QStyleOptionViewItem opt = option;
+  opt.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver | QStyle::State_HasFocus);
+  QTreeWidget::drawRow(painter, opt, index);
 }
 
 void BrowserTree::leaveEvent(QEvent* e) {

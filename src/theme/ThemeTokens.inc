@@ -15,6 +15,7 @@ enum class Tok : std::uint16_t {
   BorderSubtle,  // border.subtle
   BorderDefault,  // border.default
   BorderControl,  // border.control
+  BorderStrong,  // border.strong
   TextPrimary,  // text.primary
   TextSecondary,  // text.secondary
   TextTertiary,  // text.tertiary
@@ -126,6 +127,7 @@ inline constexpr const char* kTokName[] = {
     "border.subtle",
     "border.default",
     "border.control",
+    "border.strong",
     "text.primary",
     "text.secondary",
     "text.tertiary",
@@ -223,6 +225,7 @@ inline constexpr std::uint32_t kDark[] = {
     0x2A2F37FFu,  // border.subtle
     0x343A44FFu,  // border.default
     0x6E7682FFu,  // border.control
+    0x4F5763FFu,  // border.strong
     0xF3F5F8FFu,  // text.primary
     0xA7AEB9FFu,  // text.secondary
     0x8E96A2FFu,  // text.tertiary
@@ -320,6 +323,7 @@ inline constexpr std::uint32_t kLight[] = {
     0xE1E4E8FFu,  // border.subtle
     0xD3D7DDFFu,  // border.default
     0x7E8794FFu,  // border.control
+    0xAEB5BFFFu,  // border.strong
     0x171A20FFu,  // text.primary
     0x4A515DFFu,  // text.secondary
     0x5E6675FFu,  // text.tertiary
@@ -455,7 +459,7 @@ inline constexpr FontSpec kFonts[] = {
     {"caption", 9.0, 700, 1.0, true},
     {"label.sm", 10.5, 700, 0.3, true},
     {"body", 12.0, 700, 0.0, true},
-    {"header", 11.0, 800, 1.2, true},
+    {"header", 12.0, 800, 1.5, true},
     {"title", 13.0, 800, 0.6, true},
     {"value", 12.5, 500, 0.0, false},
     {"keycap", 9.5, 700, 0.5, true},
@@ -469,7 +473,7 @@ inline constexpr int kRadiusContainer = 0;
 inline constexpr int kRadiusControl = 1;
 inline constexpr int kHeightControl = 28;
 inline constexpr int kHeightRow = 28;
-inline constexpr int kHeightPanelHeader = 32;
+inline constexpr int kHeightPanelHeader = 36;
 inline constexpr int kHeightTitleBar = 36;
 inline constexpr int kHeightStatusBar = 28;
 inline constexpr int kStrokeHairline = 1;
@@ -497,6 +501,8 @@ inline constexpr Pair kPairs[] = {
     {Tok::TextTertiary, Tok::SurfaceHeader, 4.5},  // text
     {Tok::TextTertiary, Tok::SurfacePanel, 4.5},  // text
     {Tok::TextDisabled, Tok::SurfacePanel, 0.0},  // exempt
+    {Tok::TextPrimary, Tok::SurfaceHeader, 4.5},  // text
+    {Tok::BorderStrong, Tok::SurfacePanel, 0.0},  // exempt
     {Tok::BorderControl, Tok::SurfacePanel, 3.0},  // ui
     {Tok::BorderControl, Tok::SurfaceInput, 3.0},  // ui
     {Tok::BorderControl, Tok::SurfaceRaised, 3.0},  // ui

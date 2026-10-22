@@ -17,6 +17,7 @@
 #include "app/TitleBar.h"
 #include "app/UiSettings.h"
 #include "app/TimelineWidget.h"
+#include "app/FeatureListWidget.h"
 #include "app/AppActions.h"
 #include "app/Selectors.h"
 #include "assembly/ComponentOps.h"
@@ -1071,7 +1072,7 @@ class TestMainWindow : public QObject {
     QCOMPARE(w_->activeTab(), design);
     QCOMPARE(w_->ribbon()->workspace(), core::Workspace::Design);
     settle();
-    QVERIFY(w_->timeline()->isVisible());
+    QVERIFY(w_->featureList()->isVisible());  // feature-list timeline style (default, phase 2)
     QCOMPARE(w_->viewer(), design->viewer());
     w_->setWorkspace(core::Workspace::Drawing);
     QCOMPARE(w_->activeTab(), drawing);

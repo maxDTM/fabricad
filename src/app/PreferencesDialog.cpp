@@ -292,8 +292,8 @@ QWidget* PreferencesDialog::buildLayoutPage() {
   });
   uiControls_.emplace_back("ui/cardRememberDrag", remember);
   f->addRow(remember);
-  auto* note = new QLabel("The toolbar shows at the top in this version. The other choices are saved and take effect "
-                          "with the new sidebar, command card and viewport.",
+  auto* note = new QLabel("Sidebar and timeline apply right away. The toolbar stays at the top in this version; the "
+                          "command card, quick toolbar and orientation choices take effect with the new card and viewport.",
                           form);
   note->setObjectName("StatusDim");
   note->setWordWrap(true);

@@ -5,6 +5,8 @@
 #include "theme/Tokens.h"
 
 #include "app/Icons.h"
+#include "app/ThemeManager.h"
+#include "app/TimelineActions.h"
 #include "core/Commands.h"
 #include "core/Document.h"
 #include "core/Json.h"
@@ -29,7 +31,7 @@ namespace fabricad::app {
 using theme::Tok;
 
 namespace {
-constexpr int kHeight = 36;
+constexpr int kHeight = 40;
 }
 
 // =========================================================================================
@@ -40,12 +42,30 @@ TimelineStrip::TimelineStrip(core::Document& doc, QWidget* parent) : QWidget(par
   setMouseTracking(true);
   setFixedHeight(kHeight);
   setFocusPolicy(Qt::ClickFocus);
+  actions_ = new TimelineActions(doc_, TimelineActions::View::Strip, this);
+  connect(actions_, &TimelineActions::editRequested, this, &TimelineStrip::editRequested);
+  connect(actions_, &TimelineActions::renameRequested, this, &TimelineStrip::renameRequested);
+  connect(actions_, &TimelineActions::findInBrowserRequested, this, &TimelineStrip::findInBrowserRequested);
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] { update(); });
   refresh();
 }
 
 void TimelineStrip::refresh() {
   layout_.setFeatureCount(doc_.featureCount());
   layout_.setEntries(TimelineLayout::entriesFrom(doc_), doc_.rollbackIndex());
+  // group brackets: the entries each group's features cover
+  brackets_.clear();
+  const auto& es = layout_.entries();
+  for (core::ObjectId g : doc_.groupIds()) {
+    const auto range = doc_.groupRange(g);
+    int first = -1, last = -1;
+    for (int i = 0; i < static_cast<int>(es.size()); ++i)
+      if (es[static_cast<size_t>(i)].docIndex >= range.first && es[static_cast<size_t>(i)].docIndex <= range.second) {
+        if (first < 0) first = i;
+        last = i;
+      }
+    if (first >= 0) brackets_.push_back({g, first, last, static_cast<int>(doc_.groupChain(g).size())});
+  }
   setMinimumWidth(layout_.totalWidth());
   updateGeometry();
   update();
@@ -80,7 +100,7 @@ void TimelineStrip::paintEvent(QPaintEvent*) {
     p.setOpacity(e.active ? 1.0 : 0.38);
     p.setPen(QPen(border, e.id == highlighted_ ? 2.0 : 1.0));
     p.setBrush(bg);
-    p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), 3, 3);
+    p.drawRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5));
     featureIcon(e.icon, e.type, e.folder).paint(&p, r.adjusted(4, 4, -4, -4));
     if (e.suppressed) {
       p.setPen(QPen(theme::color(Tok::TextSecondary), 1.5));
@@ -88,11 +108,24 @@ void TimelineStrip::paintEvent(QPaintEvent*) {
     }
   }
   p.setOpacity(1.0);
-  // rollback marker (drawn where the drag would drop it)
+  // group brackets (read-only): under the icons, nested groups one step higher and narrower
+  p.setRenderHint(QPainter::Antialiasing, false);
+  for (const Bracket& b : brackets_) {
+    const QRect a = layout_.itemRect(b.first, height());
+    const QRect z = layout_.itemRect(b.last, height());
+    const int y = height() - 2 - b.depth * 3;
+    const int x0 = a.left() + b.depth * 2, x1 = z.right() - b.depth * 2;
+    const QColor c = theme::color(Tok::AccentIndicator);
+    p.fillRect(QRect(x0, y, x1 - x0 + 1, 1), c);
+    p.fillRect(QRect(x0, y - 4, 1, 4), c);
+    p.fillRect(QRect(x1, y - 4, 1, 4), c);
+  }
+  p.setRenderHint(QPainter::Antialiasing);
+  // rollback marker (drawn where the drag would drop it): text.primary, gold while dragged
   QRect m = layout_.markerRect(height());
   if (drag_ == Drag::Marker && dropGap_ >= 0) m.moveCenter(QPoint(layout_.gapX(dropGap_), m.center().y()));
   p.setPen(Qt::NoPen);
-  p.setBrush(theme::color(Tok::AccentIndicator));
+  p.setBrush(theme::color(drag_ == Drag::Marker && dragStarted_ ? Tok::LiveBase : Tok::TextPrimary));
   const int cx = m.center().x();
   p.drawRect(QRect(cx - 1, m.top() + 6, 3, m.height() - 6));
   QPolygon handle;
@@ -205,28 +238,14 @@ void TimelineStrip::mouseDoubleClickEvent(QMouseEvent* e) {
 void TimelineStrip::contextMenuEvent(QContextMenuEvent* e) {
   const int i = layout_.hitItem(e->pos(), height());
   QMenu menu(this);
-  if (i < 0) {
-    menu.addAction(resourceIcon("timeline-last"), "Move to End", this, [this] {
-      if (doc_.rollbackIndex() != doc_.featureCount())
-        doc_.undoStack().push(std::make_unique<core::SetRollbackCommand>(doc_, doc_.featureCount()));
-    });
-    menu.exec(e->globalPos());
-    return;
+  std::vector<core::ObjectId> items;
+  if (i >= 0) {
+    const core::ObjectId id = layout_.entries()[static_cast<size_t>(i)].id;
+    emit selectRequested(id, false);
+    items.push_back(id);
   }
-  const TimelineEntry en = layout_.entries()[static_cast<size_t>(i)];
-  emit selectRequested(en.id, false);
-  menu.addAction(resourceIcon("feature"), en.type == "Sketch" ? "Edit Sketch" : "Edit Feature", this,
-                 [this, id = en.id] { emit editRequested(id); });
-  menu.addAction("Roll History Marker Here", this, [this, idx = en.docIndex + 1] {
-    if (idx != doc_.rollbackIndex()) doc_.undoStack().push(std::make_unique<core::SetRollbackCommand>(doc_, idx));
-  });
-  menu.addAction(en.suppressed ? "Unsuppress Feature" : "Suppress Feature", this,
-                 [this, id = en.id, s = !en.suppressed] { emit suppressRequested(id, s); });
-  menu.addAction("Rename", this, [this, id = en.id] { emit renameRequested(id); });
-  menu.addAction("Find in Browser", this, [this, id = en.id] { emit findInBrowserRequested(id); });
-  menu.addSeparator();
-  menu.addAction(resourceIcon("delete"), "Delete", this, [this, id = en.id] { emit deleteRequested(id); });
-  menu.exec(e->globalPos());
+  actions_->populate(menu, items);
+  if (!menu.isEmpty()) menu.exec(e->globalPos());
 }
 
 // =========================================================================================
@@ -278,6 +297,7 @@ TimelineWidget::TimelineWidget(core::Document& doc, QWidget* parent) : QWidget(p
   connect(&doc_, &core::Document::featureChanged, this, refId);
   connect(&doc_, &core::Document::featureStatusChanged, this, refId);
   connect(&doc_, &core::Document::rollbackChanged, this, [this](int) { scheduleRefresh(); });
+  connect(&doc_, &core::Document::groupsChanged, this, ref);
   connect(&doc_, &core::Document::recomputeFinished, this, ref);
   connect(&doc_, &core::Document::documentReset, this, ref);
   // a feature tooltip must not stay up over a timeline that undo/redo just changed

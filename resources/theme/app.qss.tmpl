@@ -76,11 +76,28 @@ QLabel#MenuHeader, QLabel#MenuHeader:disabled { color: @{text.secondary}; paddin
 QDockWidget { color: @{text.primary}; }
 QDockWidget::title { background: @{panel.header.bg}; padding: 4px 8px; border-bottom: 1px solid @{edge}; }
 QTreeWidget#Browser { background: @{panel.bg}; border: none; color: @{text.primary}; }
-QTreeWidget#Browser::item { padding: 2px 0; color: @{text.primary}; }
-QTreeWidget#Browser::item:hover { background: @{row.hover.bg}; }
-QTreeWidget#Browser::item:selected { background: @{row.selected.bg}; color: @{row.selected.text}; }
+QTreeWidget#Browser::item { padding: 0; color: @{text.primary}; background: transparent; }
+QTreeWidget#Browser::item:hover, QTreeWidget#Browser::item:selected { background: transparent; color: @{row.selected.text}; }
+QTreeWidget#Browser::branch { background: transparent; }
 QListWidget { background: @{panel.bg}; color: @{text.primary}; border: none; }
 QListWidget::item:selected { background: @{row.selected.bg}; color: @{row.selected.text}; }
+
+/* sidebar (phase 2): host, panels, splitter, card slot; headers and rows are painted from tokens */
+QDockWidget#BrowserDock { border: none; }
+#SidebarHost, #FeaturesBody, #FeatureStack, #ModelStack, #CardSlot, #SelectionPanel { background: @{panel.bg}; }
+QDockWidget#BrowserDock[side="left"] #SidebarHost { border-right: 1px solid @{edge}; }
+QDockWidget#BrowserDock[side="right"] #SidebarHost { border-left: 1px solid @{edge}; }
+#SidebarSplitter::handle { background: @{panel.bg}; }
+#SidebarSplitter::handle:vertical { height: 6px; border-top: 1px solid @{divider}; }
+#SidebarSplitter::handle:hover { border-top: 1px solid @{accent.indicator}; }
+#PanelHeader QToolButton { border: none; padding: 3px; border-radius: 1px; background: transparent; }
+#PanelHeader QToolButton:hover { background: @{row.hover.bg}; }
+#PanelHeader QToolButton:checked { background: @{row.selected.bg}; }
+#PanelHeader QToolButton::menu-indicator { image: none; width: 0; }
+#PanelHeader QToolButton:focus { border: 2px solid @{accent.focus}; }
+QLineEdit#FeatureSearch { min-height: 24px; }
+QLineEdit#FeatureListRename { border: 2px solid @{accent.focus}; padding: 0 4px; }
+#FeatureList, #FeatureListViewport { background: @{panel.bg}; border: none; }
 
 /* timeline */
 #Timeline { background: @{panel.bg}; border-top: 1px solid @{edge}; }

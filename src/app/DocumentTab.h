@@ -35,6 +35,7 @@ namespace fabricad::app {
 
 class BrowserTree;
 class CommandDialog;
+class FeatureListWidget;
 class NavBar;
 class SketchPalette;
 class TimelineWidget;
@@ -49,6 +50,7 @@ class DocumentTab : public QObject {
     QStackedWidget* central = nullptr;   ///< viewer / drawing page
     QStackedWidget* browser = nullptr;   ///< browser tree (design tabs)
     QStackedWidget* timeline = nullptr;  ///< timeline (design tabs)
+    QStackedWidget* features = nullptr;  ///< FEATURES list of the sidebar (design tabs)
   };
   using DrawingPageFactory = std::function<QWidget*(core::Document&, core::ToolManager&, QWidget* parent)>;
 
@@ -70,6 +72,8 @@ class DocumentTab : public QObject {
   viewer::ViewerWidget* viewer() const { return viewer_; }
   BrowserTree* browser() const { return browser_; }
   TimelineWidget* timeline() const { return timeline_; }
+  /// The FEATURES list (sidebar); null for drawing tabs.
+  FeatureListWidget* featureList() const { return featureList_; }
   QWidget* drawingPage() const { return drawingPage_; }
   QWidget* centralWidget() const;
   CommandDialog* dialog() const { return dialog_; }
@@ -98,6 +102,7 @@ class DocumentTab : public QObject {
   viewer::ViewerWidget* viewer_ = nullptr;
   BrowserTree* browser_ = nullptr;
   TimelineWidget* timeline_ = nullptr;
+  FeatureListWidget* featureList_ = nullptr;
   QWidget* drawingPage_ = nullptr;
   CommandDialog* dialog_ = nullptr;
   NavBar* navBar_ = nullptr;
