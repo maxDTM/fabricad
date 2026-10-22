@@ -1,0 +1,144 @@
+# FabriCAD command script: the bracket-v3 fixture of the redesign mockups (docs/mockups/
+# custom-ui-extrude-v6-tokens-*.png, redesign 10.2 T-mockup / T-light): 13 features in three
+# timeline groups, one of them suppressed and one collapsed, the marker after Extrude3.
+# It also exercises the timeline-group verbs (GROUP, UNGROUP, SUPPRESS, UNSUPPRESS, COLLAPSE,
+# EXPAND, RENAME group:, ROLLBACK). The saved bracket-v3.fcad is the committed fixture
+# tests/e2e/bracket-v3.fcad; regenerate it with
+#   cd <empty dir> && fabricad --script tests/scripts/bracket_v3.fcs --offscreen
+# and copy bracket-v3.fcad over the fixture.
+
+SET plate_t=12 mm
+SET boss_height=25 mm
+
+# --- Base plate: 150 x 100 x 12 with two 14 mm holes ---------------------------------------------
+SKETCH XY
+RECT
+0,0
+150,100
+FINISH
+SELECT profile:@75,50,0
+EXTRUDE plate_t
+OK
+RENAME body:Body1 Bracket
+HOLE
+INPUT face body:Bracket/face:top
+PICK 20,20,12 nosnap
+PICK 130,20,12 nosnap
+diameter=14
+extentType=All
+OK
+CHECK status ok
+CHECK body:Bracket zmax == 12
+
+# --- Back wall: 150 x 12 x 60 on the plate, a fillet at its foot and two 8 mm holes ---------------
+SELECT body:Bracket/face:top
+SKETCH
+RECT
+PICK 0,88,12 nosnap
+PICK 150,100,12 nosnap
+FINISH
+SELECT profile:@75,94,12
+EXTRUDE 60
+OK
+CHECK body:Bracket zmax == 72
+SELECT body:Bracket/edge:@75,88,12
+FILLET 5
+OK
+HOLE
+INPUT face body:Bracket/face:front@75,88,40
+PICK 40,88,45 nosnap
+PICK 110,88,45 nosnap
+diameter=8
+extentType=All
+OK
+CHECK status ok
+
+# --- Lightening pocket (suppressed below) --------------------------------------------------------
+SELECT body:Bracket/face:top@35,57,12
+SKETCH
+RECT
+PICK 15,40,12 nosnap
+PICK 55,75,12 nosnap
+FINISH
+SELECT profile:@35,57,12
+EXTRUDE 6
+operation=Cut
+flip=true
+OK
+RENAME feature:Sketch3 Sketch4
+RENAME feature:Extrude3 Pocket1
+CHECK status ok
+
+# --- Boss: a 40 mm circle on the plate top, extruded 25 mm (boss_height) --------------------------
+SELECT body:Bracket/face:top@100,55,12
+SKETCH
+CIRCLE
+PICK 100,55,12 nosnap
+40
+FINISH
+CHECK sketch:Sketch3 exists
+SELECT profile:@100,55,12
+EXTRUDE boss_height
+OK
+CHECK body:Bracket zmax == 72
+SELECT body:Bracket/edge:@120,55,37
+FILLET 3
+OK
+SELECT body:Bracket/edge:@75,0,12
+CHAMFER 1
+OK
+CHECK features == 13
+CHECK status ok
+
+# --- timeline groups ------------------------------------------------------------------------------
+GROUP "Base plate" Sketch1 Extrude1 Hole1
+GROUP "Back wall" Sketch2 Extrude2 Fillet1 Hole2
+GROUP Lightening Sketch4 Pocket1
+CHECK groups == 3
+CHECK "group:Base plate" members == 3
+CHECK "group:Back wall" members == 4
+# nesting, ungroup and undo round trips (the fixture keeps the three top-level groups)
+GROUP Ribs Fillet1 Hole2
+CHECK group:Ribs parent "Back wall"
+CHECK groups == 4
+UNGROUP Ribs
+CHECK groups == 3
+CHECK "group:Back wall" members == 4
+RENAME group:Lightening Pocket
+CHECK group:Pocket exists
+UNDO
+CHECK group:Lightening exists
+
+# suppress the lightening group as one step; one UNDO brings both features back
+SUPPRESS group:Lightening
+CHECK group:Lightening suppressed all
+CHECK feature:Pocket1 status ok
+UNDO
+CHECK group:Lightening suppressed none
+REDO
+UNSUPPRESS Sketch4
+CHECK group:Lightening suppressed some
+SUPPRESS Lightening
+CHECK group:Lightening suppressed all
+CHECK status ok
+
+# fold the back wall, put the marker after the boss extrude (Fillet2 and Chamfer1 rolled back)
+COLLAPSE "group:Back wall"
+EXPAND "group:Base plate"
+CHECK "group:Back wall" collapsed
+ROLLBACK Extrude3
+CHECK rollback == 11
+CHECK features == 13
+LIST features
+SAVE bracket-v3.fcad
+CHECK file bracket-v3.fcad exists
+
+# the saved file reads back with the same groups (save a copy first so OPEN makes a new tab)
+SAVE scratch-copy.fcad
+OPEN bracket-v3.fcad
+CHECK tabs == 2
+CHECK groups == 3
+CHECK group:Lightening suppressed all
+CHECK "group:Back wall" collapsed
+CHECK rollback == 11
+CHECK status ok

@@ -8,6 +8,8 @@
 #include "app/Selectors.h"
 #include "core/AppHost.h"
 #include "core/Document.h"
+#include "core/Commands.h"
+#include "core/GroupCommands.h"
 #include "core/Json.h"
 #include "core/Selection.h"
 #include "core/ShapeUtils.h"
@@ -64,6 +66,72 @@ bool parseNumber(const std::string& s, double& out) {
   char* end = nullptr;
   out = std::strtod(s.c_str(), &end);
   return end && *end == '\0';
+}
+
+bool startsWithNoCase(const std::string& s, const std::string& prefix) {
+  return s.size() >= prefix.size() && lower(s.substr(0, prefix.size())) == prefix;
+}
+
+/// A timeline group named by `group:<name>` or `group:#<id>` (kInvalidId if none).
+ObjectId groupByText(const core::Document& doc, std::string name) {
+  if (startsWithNoCase(name, "group:")) name = name.substr(6);
+  if (name.size() > 1 && name[0] == '#') {
+    double id = 0;
+    if (parseNumber(name.substr(1), id) && doc.group(static_cast<ObjectId>(id))) return static_cast<ObjectId>(id);
+  }
+  return doc.findGroup(name);
+}
+
+/// A feature or group of the timeline: `group:<name|#id>`, a feature selector (`feature:Extrude1`,
+/// `sketch:Sketch1`, `feature:#20`), `#<id>` (quoted in scripts, where ` #` starts a comment), or a
+/// bare feature or group name (features first).
+ObjectId timelineItem(const core::Document& doc, const std::string& text, std::string* err) {
+  if (startsWithNoCase(text, "group:")) {
+    if (ObjectId g = groupByText(doc, text)) return g;
+    if (err) *err = std::format("no group '{}'", text.substr(6));
+    return core::kInvalidId;
+  }
+  if (text.size() > 1 && text[0] == '#') {
+    double id = 0;
+    if (parseNumber(text.substr(1), id)) {
+      const auto oid = static_cast<ObjectId>(id);
+      if (doc.feature(oid) || doc.group(oid)) return oid;
+    }
+  }
+  if (text.find(':') == std::string::npos) {
+    for (const auto& f : doc.features())
+      if (lower(f->name()) == lower(text)) return f->id();
+    if (ObjectId g = doc.findGroup(text)) return g;
+  }
+  SelectorResult r = resolveSelector(doc, text);
+  if (r.ok() && r.refs.size() == 1 && doc.feature(r.refs.front().owner)) return r.refs.front().owner;
+  if (err) *err = r.ok() ? std::format("'{}' is not a timeline feature or group", text) : r.error;
+  return core::kInvalidId;
+}
+
+/// Timeline items named by args[from..], or the features in the selection when there are none.
+bool timelineItems(const ToolContext& c, size_t from, std::vector<ObjectId>& out, std::string* err) {
+  out.clear();
+  for (size_t i = from; i < c.args.size(); ++i) {
+    const ObjectId id = timelineItem(*c.document, c.args[i], err);
+    if (id == core::kInvalidId) return false;
+    if (std::find(out.begin(), out.end(), id) == out.end()) out.push_back(id);
+  }
+  if (c.args.size() <= from && c.selection)
+    for (const ShapeRef& r : c.selection->items())
+      if (c.document->feature(r.owner) && std::find(out.begin(), out.end(), r.owner) == out.end()) out.push_back(r.owner);
+  if (out.empty() && err) *err = "name the features or groups (or select features first)";
+  return !out.empty();
+}
+
+std::string suppressionName(core::GroupSuppression s) {
+  return s == core::GroupSuppression::All ? "all" : s == core::GroupSuppression::Some ? "some" : "none";
+}
+
+/// Push `cmd` on the document's stack (or just run it without one).
+void pushCommand(ToolContext& c, std::unique_ptr<core::UndoCommand> cmd) {
+  if (c.undo) c.undo->push(std::move(cmd));
+  else cmd->redo();
 }
 
 ToolInfo verb(const std::string& id, const std::string& name, const std::string& tip, std::vector<std::string> aliases,
@@ -153,6 +221,7 @@ std::optional<double> countOf(const core::Document& doc, const CheckContext& ctx
   if (word == "dof") return ctx.sketchDof < 0 ? std::nullopt : std::optional<double>(ctx.sketchDof);
   if (word == "params" || word == "parameters") return static_cast<double>(doc.parameters().size());
   if (word == "rollback" || word == "marker") return doc.rollbackIndex();
+  if (word == "groups") return static_cast<double>(doc.groupCount());
   if (word == "undo") return static_cast<double>(const_cast<core::Document&>(doc).undoStack().canUndo() ? 1 : 0);
   return std::nullopt;
 }
@@ -226,6 +295,36 @@ CheckResult evaluateCheck(const core::Document& doc, const CheckContext& ctx, co
     return finish(compare(*n, op, value, tol, &why), why);
   }
   if (first == "dof") return finish(false, "no sketch is being edited");
+  // timeline group: CHECK group:<name> exists | missing | suppressed all|none|some | collapsed |
+  // expanded | members <op> <n> | parent <group|none>
+  if (startsWithNoCase(first, "group:")) {
+    const ObjectId g = groupByText(doc, args[0]);
+    const std::string what = args.size() > 1 ? lower(args[1]) : "exists";
+    if (what == "missing") return finish(g == core::kInvalidId, g ? "found" : "");
+    if (g == core::kInvalidId) return finish(false, "no group '" + args[0].substr(6) + "'");
+    const core::TimelineGroup& tg = *doc.group(g);
+    if (what == "exists") return finish(true, std::format("#{}", g));
+    if (what == "suppressed") {
+      const std::string want = args.size() > 2 ? lower(args[2]) : "all";
+      const std::string have = suppressionName(doc.groupSuppression(g));
+      return finish(have == want, "suppressed: " + have);
+    }
+    if (what == "collapsed" || what == "expanded") return finish(tg.collapsed == (what == "collapsed"), tg.collapsed ? "collapsed" : "expanded");
+    if (what == "members" || what == "features" || what == "count") {
+      std::string op, err;
+      double value, tol;
+      if (!parseComparison(args, 2, op, value, tol, &err)) return finish(false, err);
+      std::string why;
+      return finish(compare(static_cast<double>(doc.groupFeatures(g).size()), op, value, tol, &why), why);
+    }
+    if (what == "parent") {
+      const std::string want = args.size() > 2 ? args[2] : "none";
+      const core::TimelineGroup* p = doc.group(tg.parent);
+      const bool ok = p ? groupByText(doc, want) == tg.parent : lower(want) == "none";
+      return finish(ok, "parent " + (p ? p->name : std::string("none")));
+    }
+    return finish(false, "unknown group check '" + what + "' (exists missing suppressed collapsed expanded members parent)");
+  }
   // selector based: CHECK <selector> exists | missing | status <s> | <metric> <op> <value> [tol]
   SelectorResult sel = resolveSelector(doc, args[0]);
   if (args.size() >= 2 && lower(args[1]) == "missing") return finish(!sel.ok() || sel.refs.empty(), sel.ok() ? "found" : "");
@@ -286,11 +385,33 @@ std::string listText(const core::Document& doc, const std::string& categoryIn) {
   if (cat == "features" || cat == "timeline" || cat == "all") {
     line(std::format("Features ({}), marker after {}:", doc.featureCount(), doc.rollbackIndex()));
     int i = 0;
-    for (const auto& f : doc.features()) {
+    // group rows head their (indented) members
+    for (const core::TimelineItem& it : doc.timelineItems()) {
+      const std::string indent(2 + 2 * static_cast<size_t>(it.depth), ' ');
+      if (it.kind == core::TimelineItem::Kind::Group) {
+        const core::TimelineGroup& g = *doc.group(it.id);
+        line(std::format("{}group:{}  #{}  {} features{}{}", indent, g.name, g.id, doc.groupFeatures(g.id).size(),
+                         g.collapsed ? "  collapsed" : "", doc.groupSuppression(g.id) == core::GroupSuppression::None
+                                                              ? ""
+                                                              : "  suppressed " + suppressionName(doc.groupSuppression(g.id))));
+        continue;
+      }
+      const core::Feature* f = doc.feature(it.id);
       ++i;
-      line(std::format("  {:>2}. feature:{}  #{}  {}  {}{}{}{}", i, f->name(), f->id(), f->type(), core::featureStatusName(f->status()),
+      line(std::format("{}{:>2}. feature:{}  #{}  {}  {}{}{}{}", indent, i, f->name(), f->id(), f->type(), core::featureStatusName(f->status()),
                        f->statusMessage().empty() ? "" : " '" + f->statusMessage() + "'", f->isSuppressed() ? "  suppressed" : "",
                        doc.isFeatureActive(f->id()) ? "" : "  rolled back"));
+    }
+  }
+  if (cat == "groups") {
+    line(std::format("Groups ({}):", doc.groupCount()));
+    for (ObjectId gid : doc.groupIds()) {
+      const core::TimelineGroup& g = *doc.group(gid);
+      const auto [first, last] = doc.groupRange(gid);
+      const core::TimelineGroup* p = doc.group(g.parent);
+      line(std::format("  {}group:{}  #{}  features {}-{} ({}){}{}  suppressed {}", std::string(2 * doc.groupChain(gid).size(), ' '),
+                       g.name, gid, first + 1, last + 1, doc.groupFeatures(gid).size(), p ? "  in " + p->name : "",
+                       g.collapsed ? "  collapsed" : "", suppressionName(doc.groupSuppression(gid))));
     }
   }
   if (cat == "components" || cat == "all") {
@@ -521,7 +642,7 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
         for (const ShapeRef& ref : refs) out += (out.empty() ? "" : "\n") + describeRef(doc, ref);
         c.showMessage(out);
       });
-  add(verb("app.list", "List", "List document objects: LIST [bodies|features|components|sketches|joints|params|selection|tabs|tools|all]",
+  add(verb("app.list", "List", "List document objects: LIST [bodies|features|groups|components|sketches|joints|params|selection|tabs|tools|all]",
            {"LIST", "LS"}),
       [win](ToolContext& c) {
         if (!c.document) return;
@@ -668,7 +789,19 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
       [](ToolContext& c) {
         if (!c.document) return;
         if (c.args.size() < 2) {
-          c.showMessage("RENAME: usage RENAME <body:|component:|feature:selector> <new name>", true);
+          c.showMessage("RENAME: usage RENAME <body:|component:|feature:|group:selector> <new name>", true);
+          return;
+        }
+        if (startsWithNoCase(c.args[0], "group:")) {
+          const ObjectId g = groupByText(*c.document, c.args[0]);
+          const std::string name = join(c.args, 1);
+          if (!g) {
+            c.showMessage("RENAME: no group '" + c.args[0].substr(6) + "'", true);
+            return;
+          }
+          const std::string before = c.document->group(g)->name;
+          if (auto cmd = core::makeRenameGroupCommand(*c.document, g, name)) pushCommand(c, std::move(cmd));
+          c.showMessage(std::format("Renamed group:{} to '{}'", before, name));
           return;
         }
         SelectorResult r = resolveSelector(*c.document, c.args[0]);
@@ -690,6 +823,131 @@ void registerScriptTools(MainWindow& w, core::ToolRegistry& reg) {
         if (c.undo) c.undo->push(std::move(cmd));
         else cmd->redo();
         c.showMessage(std::format("Renamed {} to '{}'", before, name));
+      });
+
+  // --- GROUP / UNGROUP / SUPPRESS / UNSUPPRESS / COLLAPSE / EXPAND: timeline groups ----------------
+  add(verb("app.group", "Group Features", "Group consecutive features (or groups): GROUP <name> [features...] (default: the selection)",
+           {"GROUP"}),
+      [](ToolContext& c) {
+        if (!c.document) return;
+        if (c.args.empty()) {
+          c.showMessage("GROUP: usage GROUP <name> [feature|group ...] (no items: the selected features)", true);
+          return;
+        }
+        std::vector<ObjectId> items;
+        std::string err;
+        if (!timelineItems(c, 1, items, &err)) {
+          c.showMessage("GROUP: " + err, true);
+          return;
+        }
+        auto cmd = core::makeCreateGroupCommand(*c.document, items, c.args[0], &err);
+        if (!cmd) {
+          c.showMessage("GROUP: " + err, true);
+          return;
+        }
+        core::CreateGroupCommand* raw = cmd.get();
+        pushCommand(c, std::move(cmd));
+        const ObjectId g = raw->groupId();
+        c.showMessage(std::format("Group '{}' (#{}): {} features", c.args[0], g, c.document->groupFeatures(g).size()));
+      });
+  add(verb("app.ungroup", "Ungroup", "Dissolve timeline groups (their features stay): UNGROUP <group> ...", {"UNGROUP"}),
+      [](ToolContext& c) {
+        if (!c.document) return;
+        if (c.args.empty()) {
+          c.showMessage("UNGROUP: usage UNGROUP <group> ...", true);
+          return;
+        }
+        std::vector<ObjectId> groups;
+        for (const std::string& a : c.args) {
+          const ObjectId g = groupByText(*c.document, a);
+          if (!g) {
+            c.showMessage("UNGROUP: no group '" + a + "'", true);
+            return;
+          }
+          groups.push_back(g);
+        }
+        const bool macro = c.undo && groups.size() > 1;
+        if (macro) c.undo->beginMacro("Ungroup");
+        for (ObjectId g : groups)
+          if (auto cmd = core::makeUngroupCommand(*c.document, g)) pushCommand(c, std::move(cmd));
+        if (macro) c.undo->endMacro();
+        c.showMessage(std::format("Ungrouped {}", join(c.args)));
+      });
+  for (const bool suppress : {true, false}) {
+    const std::string word = suppress ? "SUPPRESS" : "UNSUPPRESS";
+    add(verb(suppress ? "app.suppress" : "app.unsuppress", suppress ? "Suppress" : "Unsuppress",
+             word + " features and groups (one undo step): " + word + " <group|feature> ... (default: the selection)", {word}),
+        [suppress, word](ToolContext& c) {
+          if (!c.document) return;
+          std::vector<ObjectId> items;
+          std::string err;
+          if (!timelineItems(c, 0, items, &err)) {
+            c.showMessage(word + ": " + err, true);
+            return;
+          }
+          auto cmd = core::makeSuppressCommand(*c.document, items, suppress);
+          if (!cmd) {
+            c.showMessage(std::format("{}: nothing to change (already {})", word, suppress ? "suppressed" : "unsuppressed"));
+            return;
+          }
+          const std::string text = cmd->text();
+          pushCommand(c, std::move(cmd));
+          c.showMessage(text);
+        });
+  }
+  for (const bool collapse : {true, false}) {
+    const std::string word = collapse ? "COLLAPSE" : "EXPAND";
+    add(verb(collapse ? "app.collapse-group" : "app.expand-group", collapse ? "Collapse Group" : "Expand Group",
+             (collapse ? "Fold" : "Unfold") + std::string(" timeline groups in the feature list: ") + word + " <group> ...", {word}),
+        [collapse, word](ToolContext& c) {
+          if (!c.document) return;
+          if (c.args.empty()) {
+            c.showMessage(word + ": usage " + word + " <group> ...", true);
+            return;
+          }
+          for (const std::string& a : c.args) {
+            const ObjectId g = groupByText(*c.document, a);
+            if (!g) {
+              c.showMessage(word + ": no group '" + a + "'", true);
+              return;
+            }
+            if (auto cmd = core::makeSetGroupCollapsedCommand(*c.document, g, collapse)) pushCommand(c, std::move(cmd));
+          }
+          c.showMessage(std::format("{} {}", collapse ? "Collapsed" : "Expanded", join(c.args)));
+        });
+  }
+
+  // --- ROLLBACK: move the history marker -----------------------------------------------------------
+  add(verb("app.rollback", "Roll History Marker", "Move the rollback marker: ROLLBACK <n | feature | end> (after n features / after that feature)",
+           {"ROLLBACK"}),
+      [](ToolContext& c) {
+        if (!c.document) return;
+        core::Document& doc = *c.document;
+        int index = -1;
+        const std::string a = c.args.empty() ? "" : join(c.args);
+        double n = 0;
+        if (a.empty()) {
+          c.showMessage(std::format("ROLLBACK: marker after {} of {} features", doc.rollbackIndex(), doc.featureCount()));
+          return;
+        }
+        if (lower(a) == "end") index = doc.featureCount();
+        else if (parseNumber(a, n)) index = static_cast<int>(n);
+        else {
+          std::string err;
+          const ObjectId id = timelineItem(doc, a, &err);
+          if (id && doc.feature(id)) index = doc.indexOf(id) + 1;
+          else if (id) index = doc.groupRange(id).second + 1;  // a group: after its last feature
+          else {
+            c.showMessage("ROLLBACK: " + err, true);
+            return;
+          }
+        }
+        if (index < 0 || index > doc.featureCount()) {
+          c.showMessage(std::format("ROLLBACK: {} is outside 0..{}", index, doc.featureCount()), true);
+          return;
+        }
+        if (index != doc.rollbackIndex()) pushCommand(c, std::make_unique<core::SetRollbackCommand>(doc, index));
+        c.showMessage(std::format("Marker after {} of {} features", doc.rollbackIndex(), doc.featureCount()));
       });
 
   // --- INPUT: choose the selection input of a feature command ---------------------------------------

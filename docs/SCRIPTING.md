@@ -65,7 +65,8 @@ produced (`info:` / `warn:` / `error:`). The same messages appear in the command
 ### How a line is routed (the user's command line does exactly the same)
 
 1. If the first word is a **shell verb** (`OK`, `CANCEL`, `SELECT`, `PICK`, `INPUT`, `INFO`,
-   `LIST`, `CHECK`, `OPTIONS`, `RENAME`, `ECHO`, `WAIT`, `SCREENSHOT`, `TAB`, `CLOSE`) or a
+   `LIST`, `CHECK`, `OPTIONS`, `RENAME`, `GROUP`, `UNGROUP`, `SUPPRESS`, `UNSUPPRESS`, `COLLAPSE`,
+   `EXPAND`, `ROLLBACK`, `ECHO`, `WAIT`, `SCREENSHOT`, `TAB`, `CLOSE`) or a
    **view command** (`FIT`, `FRONT`, `TOP`, `ISO`, `WIRE`...), it runs beside the active
    command without disturbing it.
 2. Otherwise, if the first word is a **command alias** (`EXTRUDE`, `FINISH`, `C`...), that
@@ -94,14 +95,32 @@ enabled in the current context. `EXPORTSTEP` is the part exporter (bodies); use 
 | `INPUT <property> [selectors]` (`INTO`) | make a selection input of the active feature command the target (`INPUT splitTool plane:YZ`, `INPUT axis body:Seat/edge:@0,200,430`, `INPUT targets body:LegRight`); `OPTIONS` lists the inputs. Without selectors it only switches the input. |
 | `OPTIONS` (`?`) | describe the active command: prompt, active input, validity, every property as `name=value` with its enum options. These names are what `name=value` input accepts. |
 | `INFO [selectors]` (`DESCRIBE`) | describe entities (default: the selection; with nothing selected, the document and the active command/tab). Bodies: component, volume, area, counts, tight bounding box, centroid, mass. Faces/edges: type, size, centre, normal/direction, radius. Sketches: plane origin, normal and axis directions, profiles with seed points (sketch and world), geometry and dimensions. Components: placement (translation + XYZ angles), parent, children, bodies, bounding box. |
-| `LIST [bodies\|features\|components\|sketches\|joints\|params\|selection\|tabs\|tools [filter]\|all]` (`LS`) | list document objects with their names and ids (what selectors accept); `LIST tools` prints every alias with its tool id; `LIST features` is the timeline with status and marker; `LIST components` is the component tree (indented children). |
+| `LIST [bodies\|features\|groups\|components\|sketches\|joints\|params\|selection\|tabs\|tools [filter]\|all]` (`LS`) | list document objects with their names and ids (what selectors accept); `LIST tools` prints every alias with its tool id; `LIST features` is the timeline with status and marker, timeline groups as `group:` lines with their members indented below; `LIST groups` lists the groups with their feature range, parent, collapse and suppress state; `LIST components` is the component tree (indented children). |
 | `CHECK ...` (`ASSERT`, `EXPECT`) | assert a fact; a failed check fails the line (see below) |
-| `RENAME <selector> <name>` (`REN`) | rename a body, component or feature (undoable) |
+| `RENAME <selector> <name>` (`REN`) | rename a body, component, feature or timeline group (`RENAME "group:Back wall" Wall`; undoable) |
+| `GROUP <name> [items]` | put consecutive features into a new timeline group (a folder of the feature list; one undo step). Items are features or groups (below); without items the selected features are grouped. Refused when the items are not consecutive or the new group would cut through an existing group; groups may nest (`GROUP Ribs Fillet1 Hole2` inside "Back wall", or `GROUP All "group:Base plate" "group:Back wall"` around two groups). |
+| `UNGROUP <group> ...` | dissolve groups; their features (and nested groups) move up one level, nothing else changes |
+| `SUPPRESS [items]` / `UNSUPPRESS [items]` | suppress or unsuppress features and whole groups (every feature of a group, nested ones included) as **one** undo step; default: the selected features. Already in that state: a note, not an error. Later features that use a suppressed one fail, as when suppressing in the timeline. |
+| `COLLAPSE <group> ...` / `EXPAND <group> ...` | fold or unfold groups in the feature list (saved with the document, undoable) |
+| `ROLLBACK <n\|feature\|group\|end>` | move the history marker after the first n features, after that feature or group, or to the end (undoable); `ROLLBACK` alone reports where it is. The marker may sit inside a group. |
 | `ECHO text` (`REM`) | write text to the log / history |
 | `WAIT ms` (`SLEEP`) | wait, processing events |
 | `SCREENSHOT file.png [viewport]` (`SNAP`) | grab the window (or the 3D view); blank in `--offscreen` runs |
 | `TAB <n\|title\|next\|prev>` (`GOTO`) | activate a document tab (1-based number or title); `TAB` alone lists them |
 | `CLOSE [tab]` (`CLOSETAB`) | close the active tab (or the named one); unsaved changes are discarded in scripts |
+
+### Timeline items (`GROUP`, `UNGROUP`, `SUPPRESS`, `UNSUPPRESS`, `COLLAPSE`, `EXPAND`, `ROLLBACK`)
+
+A timeline item is a feature or a group: `group:<name>` or `group:#<id>` (group names are
+case-insensitive; quote names with spaces: `"group:Base plate"`), a feature selector
+(`feature:Extrude1`, `sketch:Sketch1`, `feature:#20`), or a bare name, which tries
+features first and then groups (`SUPPRESS Lightening`, `GROUP Wall Sketch2 Extrude2`).
+
+Group rules (the same as dragging in the feature list): a group is a range of consecutive
+features and always stays one. A feature inserted or moved between two members of a group joins
+it; one moved to the edge of its own group stays in it; one moved elsewhere leaves it; a feature
+moved past a group does not join it. Deleting the last feature of a group removes the group (undo
+brings it back). The rollback marker may sit inside a group; a feature added there joins the group.
 
 ## Selectors
 
@@ -139,7 +158,7 @@ selector searches all bodies and must be unique.
 CHECK bodies == 2                  CHECK features > 3            CHECK components == 3
 CHECK sketches == 1                CHECK joints == 0             CHECK params == 2
 CHECK selection == 4               CHECK tabs == 2               CHECK dof == 0        (open sketch)
-CHECK rollback == 5                CHECK undo == 1 (can undo)
+CHECK rollback == 5                CHECK undo == 1 (can undo)       CHECK groups == 3
 CHECK status ok                    every active feature is Ok (also: warning, error)
 CHECK command none                 CHECK command part.extrude (the active command)
 CHECK param width == 80            CHECK file out.step exists | missing | size > 1000
@@ -147,7 +166,13 @@ CHECK body:Seat volume ~ 8565976 0.05%       CHECK body:Seat exists      CHECK b
 CHECK body:Seat zmax ~ 840.619 0.01          CHECK body:LegLeft faces == 30
 CHECK component:LegLeft xmin ~ -205 0.01     CHECK body:Seat/face:top area == 1200
 CHECK feature:Extrude1 status ok             CHECK body:Seat/edges:z=0 count == 8
+CHECK group:Lightening suppressed all        CHECK "group:Back wall" members == 4
+CHECK "group:Back wall" collapsed            CHECK group:Ribs parent "Back wall"    CHECK group:Old missing
 ```
+
+Group checks: `exists`, `missing`, `suppressed all|none|some` (the tri-state of the group's
+checkbox), `collapsed`, `expanded`, `members <op> <n>` (features, nested groups included) and
+`parent <group|none>`.
 
 Metrics on a selector: `volume`, `area`, `length`, `mass` (g, needs a material), `faces`,
 `edges`, `vertices`, `xmin xmax ymin ymax zmin zmax`, `dx dy dz` (size), `cx cy cz` (centroid),
