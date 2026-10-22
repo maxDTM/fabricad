@@ -68,6 +68,7 @@ namespace {
 constexpr PreviewHandle kFirstGlPreview = 1000000;
 
 Quantity_Color qcol(const std::array<float, 4>& c) { return Quantity_Color(c[0], c[1], c[2], Quantity_TOC_sRGB); }
+QColor qtColor(const std::array<float, 4>& c) { return QColor::fromRgbF(c[0], c[1], c[2], c[3]); }
 Quantity_Color hexq(const char* hex) {
   Rgb c = hexColor(hex);
   return Quantity_Color(c.r, c.g, c.b, Quantity_TOC_sRGB);
@@ -307,6 +308,50 @@ bool ViewerWidget::ghostedPickable() const {
   return toolMask != core::kAllKinds && core::hasKind(toolMask, ShapeKind::Component);
 }
 
+void ViewerWidget::setViewerPalette(const ViewerPalette& p) {
+  palette_ = p;
+  applyPaletteToView();
+  update();
+}
+
+void ViewerWidget::applyPaletteToView() {
+  if (!d_->ready()) return;  // onGlInitialized() reads palette_
+  const Handle(V3d_View)& view = d_->v3d();
+  const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+  view->SetBgGradientColors(qcol(palette_.bgTop), qcol(palette_.bgBottom), Aspect_GradientFillMethod_Vertical, false);
+  ctx->DefaultDrawer()->SetFaceBoundaryAspect(new Prs3d_LineAspect(qcol(palette_.faceEdge), Aspect_TOL_SOLID, 1.0));
+  for (auto type : {Prs3d_TypeOfHighlight_Dynamic, Prs3d_TypeOfHighlight_LocalDynamic})
+    ctx->HighlightStyle(type)->SetColor(qcol(palette_.preselect));
+  for (auto type : {Prs3d_TypeOfHighlight_Selected, Prs3d_TypeOfHighlight_LocalSelected})
+    ctx->HighlightStyle(type)->SetColor(qcol(palette_.select));
+  if (const Handle(AIS_ViewCube)& cube = d_->view->viewCube(); !cube.IsNull()) {
+    cube->SetBoxColor(qcol(palette_.cubeBox));
+    cube->SetTextColor(qcol(palette_.cubeText));
+    cube->SetInnerColor(qcol(palette_.cubeInner));
+    for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()}) {
+      if (hl.IsNull()) continue;
+      hl->SetColor(qcol(palette_.cubeHover));
+      if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(qcol(palette_.cubeHover));
+    }
+    if (ctx->IsDisplayed(cube)) ctx->Redisplay(cube, false);
+  }
+  const Handle(V3d_Viewer)& viewer = view->Viewer();
+  if (!viewer->Grid().IsNull()) viewer->Grid()->SetColors(qcol(palette_.gridMinor), qcol(palette_.gridMajor));
+  // bodies carry their edge colour in their own drawer: rebuild them
+  for (auto it = d_->objects.begin(); it != d_->objects.end();) {
+    if (it->second.item.style != SceneStyle::Body) {
+      ++it;
+      continue;
+    }
+    d_->objectKeys.erase(it->second.obj.get());
+    ctx->Remove(it->second.obj, false);
+    it = d_->objects.erase(it);
+  }
+  doSync();
+  scheduleOverlaySync();
+  requestRedraw();
+}
+
 void ViewerWidget::setViewportInsets(QMargins m) {
   insets_ = m;
   d_->insets = m;
@@ -425,7 +470,7 @@ void ViewerWidget::onGlInitialized() {
   const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
 
   // background, anti-aliasing, origin triad
-  view->SetBgGradientColors(hexq("#FFFFFF"), hexq("#C8D0D9"), Aspect_GradientFillMethod_Vertical, false);
+  view->SetBgGradientColors(qcol(palette_.bgTop), qcol(palette_.bgBottom), Aspect_GradientFillMethod_Vertical, false);
   int msaa = 4;
   if (qEnvironmentVariableIsSet("FABRICAD_MSAA")) msaa = qEnvironmentVariableIntValue("FABRICAD_MSAA");
   view->ChangeRenderingParams().NbMsaaSamples = std::clamp(msaa, 0, 8);
@@ -462,20 +507,20 @@ void ViewerWidget::onGlInitialized() {
   dr->VIsoAspect()->SetNumber(0);
   dr->SetFaceBoundaryDraw(true);
   dr->SetFaceBoundaryUpperContinuity(GeomAbs_C1);  // PART-11: no seam edges (see makeDisplayObject)
-  dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(hexq("#1A1A1A"), Aspect_TOL_SOLID, 1.0));
+  dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(qcol(palette_.faceEdge), Aspect_TOL_SOLID, 1.0));
   ctx->SetPixelTolerance(4);
   ctx->SetAutomaticHilight(true);
 
   // highlight styles: preselection light blue
   for (auto type : {Prs3d_TypeOfHighlight_Dynamic, Prs3d_TypeOfHighlight_LocalDynamic}) {
     Handle(Prs3d_Drawer) hs = ctx->HighlightStyle(type);
-    hs->SetColor(hexq("#4FA3FF"));
+    hs->SetColor(qcol(palette_.preselect));
     hs->SetDisplayMode(AIS_Shaded);
     hs->SetTransparency(0.4f);
   }
   for (auto type : {Prs3d_TypeOfHighlight_Selected, Prs3d_TypeOfHighlight_LocalSelected}) {
     Handle(Prs3d_Drawer) hs = ctx->HighlightStyle(type);
-    hs->SetColor(hexq("#0B6CFF"));
+    hs->SetColor(qcol(palette_.select));
   }
 
   // ViewCube top-right, upper-case labels, light theme with an outline; generous edge and
@@ -489,15 +534,15 @@ void ViewerWidget::onGlInitialized() {
   cube->SetBoxEdgeGap(0.0);
   cube->SetFontHeight(13.0);
   cube->SetFont(viewerFont());
-  cube->SetBoxColor(hexq("#F2F4F7"));
-  cube->SetTextColor(hexq("#2B2E33"));
-  cube->SetInnerColor(hexq("#9AA4B1"));
-  // soft blue hover tint instead of OCCT's cyan
+  cube->SetBoxColor(qcol(palette_.cubeBox));
+  cube->SetTextColor(qcol(palette_.cubeText));
+  cube->SetInnerColor(qcol(palette_.cubeInner));
+  // token hover tint instead of OCCT's cyan
   for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()}) {
     if (hl.IsNull()) continue;
-    hl->SetColor(hexq("#9CC6FF"));
+    hl->SetColor(qcol(palette_.cubeHover));
     hl->SetTransparency(0.0f);
-    if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(hexq("#9CC6FF"));
+    if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(qcol(palette_.cubeHover));
   }
   cube->SetDrawAxes(false);
   cube->SetBoxSideLabel(V3d_Xpos, "RIGHT");
@@ -737,7 +782,7 @@ void ViewerWidget::setFeatureVisibilityOverride(ObjectId id, std::optional<bool>
 
 namespace {
 
-Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, core::DisplayMode mode, int& dispMode,
+Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const ViewerPalette& pal, core::DisplayMode mode, int& dispMode,
                                                 Graphic3d_ZLayerId& layer) {
   // G3 PART-11: tag edge regularity once so the face-boundary pass (upper continuity C1 on
   // the default drawer) skips seam edges of closed surfaces (CN); real and tangent (G1)
@@ -771,10 +816,10 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, core::Displ
         s->SetColor(col);
       }
       dr->SetFaceBoundaryDraw(mode == core::DisplayMode::ShadedEdges || mode == core::DisplayMode::HiddenLine);
-      dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(hexq("#1A1A1A"), Aspect_TOL_SOLID, 1.0));
+      dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(qcol(pal.faceEdge), Aspect_TOL_SOLID, 1.0));
       if (mode == core::DisplayMode::Wireframe) {
         dispMode = AIS_WireFrame;
-        s->SetColor(hexq("#2B2E33"));
+        s->SetColor(qcol(pal.wire));
       } else {
         dispMode = AIS_Shaded;
       }
@@ -909,7 +954,7 @@ void ViewerWidget::doSync() {
     }
     int dispMode = 0;
     Graphic3d_ZLayerId layer = Graphic3d_ZLayerId_Default;
-    Handle(AIS_InteractiveObject) obj = makeDisplayObject(item, displayMode_, dispMode, layer);
+    Handle(AIS_InteractiveObject) obj = makeDisplayObject(item, palette_, displayMode_, dispMode, layer);
     // selection mode 0 (not -1): only then is the object loaded into the selection manager;
     // applySelectionModes() below replaces it with the modes the filter wants
     ctx->Display(obj, dispMode, 0, false);
@@ -1036,7 +1081,7 @@ void ViewerWidget::syncOverlays() {
     d_->overlays.push_back(o);
   };
 
-  const Quantity_Color selCol = hexq("#0B6CFF");
+  const Quantity_Color selCol = qcol(palette_.select);
   // a component highlights each of its displayed bodies (with that body's placement)
   auto addRef = [&](const ShapeRef& r, const Quantity_Color& col, double transparency) {
     if (r.kind != ShapeKind::Component) return add(r, col, transparency);
@@ -1046,7 +1091,7 @@ void ViewerWidget::syncOverlays() {
   for (const ShapeRef& r : highlighted_)
     if (!document_->selection().contains(r)) addRef(r, selCol, 0.3);
   const auto& pre = document_->selection().preselection();
-  if (pre && pre != hoverRef_) addRef(*pre, hexq("#4FA3FF"), 0.6);
+  if (pre && pre != hoverRef_) addRef(*pre, qcol(palette_.preselect), 0.6);
   requestRedraw();
 }
 
@@ -1569,11 +1614,11 @@ void ViewerWidget::paintEvent(QPaintEvent*) {
   if (d_->view && d_->view->isVisible()) return;
   QPainter p(this);
   QLinearGradient g(0, 0, 0, height());
-  g.setColorAt(0.0, QColor("#FFFFFF"));
-  g.setColorAt(1.0, QColor("#C8D0D9"));
+  g.setColorAt(0.0, qtColor(palette_.bgTop));
+  g.setColorAt(1.0, qtColor(palette_.bgBottom));
   p.fillRect(rect(), g);
   if (d_->failed) {
-    p.setPen(QColor("#6B7079"));
+    p.setPen(qtColor(palette_.overlayText));
     p.drawText(rect().adjusted(24, 24, -24, -24), Qt::AlignCenter | Qt::TextWordWrap, d_->info);
   }
 }
@@ -1647,10 +1692,10 @@ void ViewerWidget::paintOverlay(QPainter& p) {
   p.setRenderHint(QPainter::Antialiasing, true);
   for (const auto& [ctl, r] : cubeControls()) {
     const bool hot = ctl == hoverCtl_;
-    const QColor fg = hot ? QColor("#0B6CFF") : QColor("#5F6B7A");
+    const QColor fg = qtColor(hot ? palette_.overlayHot : palette_.overlayText);
     if (hot) {
       p.setPen(Qt::NoPen);
-      p.setBrush(QColor(255, 255, 255, 200));
+      p.setBrush(qtColor(palette_.overlayHotBg));
       p.drawEllipse(r);
     }
     const QPointF c = r.center();
@@ -1700,11 +1745,13 @@ void ViewerWidget::paintOverlay(QPainter& p) {
   if (!rubber_) return;
   const QRect r = QRect(pressPos_, rubberEnd_).normalized();
   const bool crossing = isCrossingSelection(pressPos_.x(), rubberEnd_.x());
-  QPen pen(QColor("#0B6CFF"));
+  QPen pen(qtColor(palette_.rubberBand));
   pen.setWidth(1);
   pen.setStyle(crossing ? Qt::DashLine : Qt::SolidLine);
   p.setPen(pen);
-  p.setBrush(QColor(11, 108, 255, crossing ? 30 : 45));
+  QColor fill = qtColor(palette_.rubberBandFill);
+  if (crossing) fill.setAlphaF(fill.alphaF() * 0.66);
+  p.setBrush(fill);
   p.drawRect(r);
 }
 
@@ -2098,7 +2145,7 @@ void ViewerWidget::updateGrid(bool force) {
   viewer->SetRectangularGridValues(0.0, 0.0, step, step, 0.0);
   viewer->SetRectangularGridGraphicValues(step * 60.0, step * 60.0, 0.0);
   viewer->ActivateGrid(Aspect_GT_Rectangular, Aspect_GDM_Lines);
-  if (!viewer->Grid().IsNull()) viewer->Grid()->SetColors(hexq("#D8DDE3"), hexq("#B0B8C2"));
+  if (!viewer->Grid().IsNull()) viewer->Grid()->SetColors(qcol(palette_.gridMinor), qcol(palette_.gridMajor));
 }
 
 // ---------------------------------------------------------------------------------------

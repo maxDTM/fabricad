@@ -1,13 +1,24 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
-  <file>theme-light.qss</file>
-  <file>ui/check.svg</file>
-  <file>ui/radio-dot.svg</file>
-  <file>ui/arrow-down.svg</file>
-  <file>ui/arrow-up.svg</file>
-  <file>ui/arrow-right.svg</file>
-  <file>ui/tab-close.svg</file>
-  <file>ui/menu-check.svg</file>
+  <file>theme/app.qss.tmpl</file>
+  <file>fonts/JetBrainsMono-Medium.ttf</file>
+  <file>fonts/JetBrainsMono-Bold.ttf</file>
+  <file>fonts/JetBrainsMono-ExtraBold.ttf</file>
+  <file>fonts/OFL.txt</file>
+  <file>ui/dark/check.svg</file>
+  <file>ui/dark/radio-dot.svg</file>
+  <file>ui/dark/arrow-down.svg</file>
+  <file>ui/dark/arrow-up.svg</file>
+  <file>ui/dark/arrow-right.svg</file>
+  <file>ui/dark/tab-close.svg</file>
+  <file>ui/dark/menu-check.svg</file>
+  <file>ui/light/check.svg</file>
+  <file>ui/light/radio-dot.svg</file>
+  <file>ui/light/arrow-down.svg</file>
+  <file>ui/light/arrow-up.svg</file>
+  <file>ui/light/arrow-right.svg</file>
+  <file>ui/light/tab-close.svg</file>
+  <file>ui/light/menu-check.svg</file>
   <file>icons/app-isolate.svg</file>
   <file>icons/select-filter-bodies.svg</file>
   <file>icons/select-filter-faces.svg</file>
@@ -38,6 +49,7 @@
   <file>icons/app-tab.svg</file>
   <file>icons/app-toggle-visibility.svg</file>
   <file>icons/app-units.svg</file>
+  <file>icons/app-theme.svg</file>
   <file>icons/app-wait.svg</file>
   <file>icons/assembly-activate.svg</file>
   <file>icons/assembly-as-built-joint.svg</file>

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/TimelineWidget.h"
 
+#include "theme/Tokens.h"
+
 #include "app/Icons.h"
 #include "core/Commands.h"
 #include "core/Document.h"
@@ -23,6 +25,8 @@
 #include <algorithm>
 
 namespace fabricad::app {
+
+using theme::Tok;
 
 namespace {
 constexpr int kHeight = 36;
@@ -62,23 +66,24 @@ void TimelineStrip::paintEvent(QPaintEvent*) {
   for (int i = 0; i < static_cast<int>(entries.size()); ++i) {
     const TimelineEntry& e = entries[static_cast<size_t>(i)];
     const QRect r = layout_.itemRect(i, height());
-    QColor bg("#FFFFFF"), border("#C9CED6");
+    // colours from tokens at paint time (both themes; repaint on ThemeManager::themeChanged)
+    QColor bg = theme::color(Tok::SurfaceRaised), border = theme::color(Tok::BorderControl);
     if (e.status == core::FeatureStatus::Error) {
-      bg = QColor("#FBD5D2");
-      border = QColor("#D93025");
+      bg = theme::color(Tok::StatusErrorFill);
+      border = theme::color(Tok::StatusError);
     } else if (e.status == core::FeatureStatus::Warning) {
-      bg = QColor("#FDEFC6");
-      border = QColor("#F2A900");
+      bg = theme::color(Tok::StatusWarningFill);
+      border = theme::color(Tok::StatusWarning);
     }
-    if (e.id == highlighted_) border = QColor("#0B6CFF");
-    if (drag_ == Drag::Item && dragStarted_ && i == dragItem_) bg = QColor("#E3F1FA");
+    if (e.id == highlighted_) border = theme::color(Tok::AccentIndicator);
+    if (drag_ == Drag::Item && dragStarted_ && i == dragItem_) bg = theme::color(Tok::AccentSelFill);
     p.setOpacity(e.active ? 1.0 : 0.38);
     p.setPen(QPen(border, e.id == highlighted_ ? 2.0 : 1.0));
     p.setBrush(bg);
     p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), 3, 3);
     featureIcon(e.icon, e.type, e.folder).paint(&p, r.adjusted(4, 4, -4, -4));
     if (e.suppressed) {
-      p.setPen(QPen(QColor("#6B7079"), 1.5));
+      p.setPen(QPen(theme::color(Tok::TextSecondary), 1.5));
       p.drawLine(r.bottomLeft() + QPoint(3, -3), r.topRight() + QPoint(-3, 3));
     }
   }
@@ -87,7 +92,7 @@ void TimelineStrip::paintEvent(QPaintEvent*) {
   QRect m = layout_.markerRect(height());
   if (drag_ == Drag::Marker && dropGap_ >= 0) m.moveCenter(QPoint(layout_.gapX(dropGap_), m.center().y()));
   p.setPen(Qt::NoPen);
-  p.setBrush(QColor("#0696D7"));
+  p.setBrush(theme::color(Tok::AccentIndicator));
   const int cx = m.center().x();
   p.drawRect(QRect(cx - 1, m.top() + 6, 3, m.height() - 6));
   QPolygon handle;
@@ -97,7 +102,7 @@ void TimelineStrip::paintEvent(QPaintEvent*) {
   // insertion line while reordering
   if (drag_ == Drag::Item && dragStarted_ && dropGap_ >= 0) {
     const int x = layout_.gapX(dropGap_);
-    p.setPen(QPen(dropValid_ ? QColor("#0B6CFF") : QColor("#D93025"), 2));
+    p.setPen(QPen(dropValid_ ? theme::color(Tok::AccentIndicator) : theme::color(Tok::StatusError), 2));
     p.drawLine(x, 3, x, height() - 3);
   }
 }
@@ -262,7 +267,7 @@ TimelineWidget::TimelineWidget(core::Document& doc, QWidget* parent) : QWidget(p
   scroll_->setObjectName("TimelineScroll");
   scroll_->viewport()->setObjectName("TimelineViewport");
   strip_->setObjectName("TimelineStrip");
-  scroll_->setStyleSheet("#TimelineScroll, #TimelineViewport, #TimelineStrip { background: transparent; }");
+  // their transparent background is in resources/theme/app.qss.tmpl
   row->addWidget(scroll_, 1);
 
   auto ref = [this] { scheduleRefresh(); };

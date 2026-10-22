@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MainWindow.h"
 
+#include "app/ThemeManager.h"
+#include "viewer/ViewerPalette.h"
+
 #include "app/AppActions.h"
 #include "app/AppTools.h"
 #include "app/BrowserTree.h"
@@ -54,6 +57,7 @@
 #include <QSettings>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTabBar>
 #include <QTextEdit>
 #include <QDateTime>
@@ -131,6 +135,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   recentCommands_ = QSettings().value("search/recent").toStringList();
   navBar_->applySettings();
   qApp->installEventFilter(this);
+  // live theme switch: viewports take their colours from the tokens too
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](theme::Theme th) {
+    const viewer::ViewerPalette pal = viewer::ViewerPalette::fromTokens(th);
+    for (const auto& t : tabs_)
+      if (t->viewer()) t->viewer()->setViewerPalette(pal);
+  });
 
   QSettings s;
   if (s.contains("window/geometry")) restoreGeometry(s.value("window/geometry").toByteArray());
@@ -1248,10 +1258,14 @@ void MainWindow::setPrompt(const std::string& text) {
 }
 
 void MainWindow::showMessage(const std::string& text, core::MessageLevel level) {
-  const char* color = level == core::MessageLevel::Error ? "#D93025" : level == core::MessageLevel::Warning ? "#B07C00" : "#2B2E33";
   const QString q = core::qs(text);
   const QString firstLine = q.section('\n', 0, 0);
-  messageLabel_->setStyleSheet(QString("color: %1;").arg(color));
+  // coloured by the theme QSS (QLabel[messageLevel=...]); repolish so the new value applies
+  messageLabel_->setProperty("messageLevel", level == core::MessageLevel::Error     ? "error"
+                                             : level == core::MessageLevel::Warning ? "warning"
+                                                                                    : "info");
+  messageLabel_->style()->unpolish(messageLabel_);
+  messageLabel_->style()->polish(messageLabel_);
   messageLabel_->setText(firstLine);
   messageLevel_ = level;
   messageLabel_->setToolTip(q);
@@ -1343,12 +1357,17 @@ void MainWindow::updateSketchStatus() {
   }
   const std::string t = s->statusText();
   sketchLabel_->setText(core::qs(t));
-  // fully constrained sketches read black, under-defined blue, problems red (Fusion colours)
+  // fully constrained sketches read in the primary text colour, under-defined in sk.free, problems
+  // in sk.conflict (theme QSS: QLabel[sketchState=...])
   const QString lower = core::qs(t).toLower();
-  const char* color = lower.contains("over") || lower.contains("conflict") ? "#D93025"
-                      : lower.contains("fully")                             ? "#2B2E33"
-                                                                            : "#1E6FD9";
-  sketchLabel_->setStyleSheet(QString("color: %1; font-weight: 600;").arg(color));
+  const char* state = lower.contains("over") || lower.contains("conflict") ? "conflict"
+                      : lower.contains("fully")                             ? "full"
+                                                                            : "free";
+  if (sketchLabel_->property("sketchState").toString() != QLatin1StringView(state)) {
+    sketchLabel_->setProperty("sketchState", state);
+    sketchLabel_->style()->unpolish(sketchLabel_);
+    sketchLabel_->style()->polish(sketchLabel_);
+  }
   sketchLabel_->show();
 }
 

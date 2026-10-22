@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MarkingMenu.h"
 
+#include "theme/Tokens.h"
+
 #include "core/Json.h"
 
 #include <QFontMetrics>
@@ -15,6 +17,8 @@
 #include <cmath>
 
 namespace fabricad::app {
+
+using theme::Tok;
 
 namespace {
 constexpr int kMinSize = 320;  // widget square (wider for long labels)
@@ -87,13 +91,13 @@ void MarkingMenu::paintEvent(QPaintEvent*) {
   p.setRenderHint(QPainter::Antialiasing);
   const QPointF c(size_ / 2.0, size_ / 2.0);
   // centre hub and direction pointer
-  p.setPen(QPen(QColor("#9AA0A8"), 1.5));
-  p.setBrush(QColor(255, 255, 255, 230));
+  p.setPen(QPen(theme::color(Tok::BorderControl), 1.5));
+  p.setBrush(theme::color(Tok::SurfaceRaised, 0.9));
   p.drawEllipse(c, 14, 14);
   if (hover_ >= 0) {
     double dx = 0, dy = 0;
     slotDirection(hover_, dx, dy);
-    p.setPen(QPen(QColor("#0696D7"), 3));
+    p.setPen(QPen(theme::color(Tok::AccentIndicator), 3));
     p.drawLine(c + QPointF(dx * 8, dy * 8), c + QPointF(dx * 16, dy * 16));
   }
   QFont f = font();
@@ -104,32 +108,32 @@ void MarkingMenu::paintEvent(QPaintEvent*) {
     if (e.command.empty()) continue;
     const QRectF r = slotRect(s);
     const bool hot = s == hover_;
-    p.setPen(QPen(hot ? QColor("#0696D7") : QColor("#C3C8CF"), 1));
-    p.setBrush(hot ? QColor("#E3F1FA") : QColor(255, 255, 255, 240));
-    p.drawRoundedRect(r, 4, 4);
-    p.setPen(QColor("#2B2E33"));
+    p.setPen(QPen(hot ? theme::color(Tok::AccentIndicator) : theme::color(Tok::BorderDefault), 1));
+    p.setBrush(hot ? theme::color(Tok::AccentSelFill) : theme::color(Tok::SurfaceRaised, 0.94));
+    p.drawRect(r);
+    p.setPen(theme::color(Tok::TextPrimary));
     p.drawText(r.adjusted(6, 0, -6, 0), Qt::AlignCenter,
                p.fontMetrics().elidedText(core::qs(e.label), Qt::ElideRight, static_cast<int>(r.width()) - 12));
   }
   if (!model_.overflow.empty()) {
     const QRect box = rowRect(0).united(rowRect(static_cast<int>(model_.overflow.size()) - 1)).adjusted(0, -3, 0, 3);
-    p.setPen(QPen(QColor("#C3C8CF"), 1));
-    p.setBrush(QColor(255, 255, 255, 245));
-    p.drawRoundedRect(box, 4, 4);
+    p.setPen(QPen(theme::color(Tok::BorderDefault), 1));
+    p.setBrush(theme::color(Tok::SurfaceRaised, 0.96));
+    p.drawRect(box);
     for (int i = 0; i < static_cast<int>(model_.overflow.size()); ++i) {
       const MarkingEntry& e = model_.overflow[static_cast<size_t>(i)];
       const QRect r = rowRect(i);
       if (e.command == kCmdSeparator) {
-        p.setPen(QColor("#E1E4E8"));
+        p.setPen(theme::color(Tok::BorderSubtle));
         p.drawLine(r.left() + 6, r.center().y(), r.right() - 6, r.center().y());
         continue;
       }
       if (i == hoverRow_) {
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor("#E3F1FA"));
+        p.setBrush(theme::color(Tok::AccentSelFill));
         p.drawRect(r.adjusted(1, 0, -1, 0));
       }
-      p.setPen(QColor("#2B2E33"));
+      p.setPen(theme::color(Tok::TextPrimary));
       p.drawText(r.adjusted(10, 0, -6, 0), Qt::AlignVCenter | Qt::AlignLeft, core::qs(e.label));
     }
   }

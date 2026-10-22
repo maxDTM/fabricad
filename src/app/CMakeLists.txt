@@ -14,7 +14,7 @@ file(GLOB FABRICAD_APP_RESOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/resource
 add_library(fabricad_app_lib STATIC ${_app_lib_sources})
 target_include_directories(fabricad_app_lib PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(fabricad_app_lib PUBLIC
-  fabricad_core fabricad_sketch fabricad_part fabricad_assembly fabricad_drawing fabricad_viewer
+  fabricad_core fabricad_sketch fabricad_part fabricad_assembly fabricad_drawing fabricad_viewer fabricad_theme
   Qt6::Widgets Qt6::Svg Qt6::SvgWidgets fabricad_warnings)
 set_target_properties(fabricad_app_lib PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON)
 

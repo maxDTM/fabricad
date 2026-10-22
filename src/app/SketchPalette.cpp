@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/SketchPalette.h"
 
+#include "app/ThemeManager.h"
+#include "theme/QssTemplate.h"
+
 #include "app/Icons.h"
 #include "app/ToolbarModel.h"
 #include "core/Json.h"
@@ -128,6 +131,7 @@ SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& ma
     if (!updating_) viewer_.setGridVisible(on);
   });
   setCollapsed(false);
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] { setCollapsed(collapsed_); });
   if (parentWidget()) parentWidget()->installEventFilter(this);  // keep it inside on resize
   hide();
 }
@@ -137,7 +141,7 @@ void SketchPalette::setCollapsed(bool collapsed) {
   // hiding keeps the check states the tools and the session read
   opts_->setVisible(!collapsed);
   constraintBox_->setVisible(!collapsed && hasConstraints_);
-  collapse_->setIcon(QIcon(collapsed ? ":/ui/arrow-right.svg" : ":/ui/arrow-down.svg"));
+  collapse_->setIcon(QIcon(theme::uiAsset(collapsed ? "arrow-right.svg" : "arrow-down.svg")));
   collapse_->setToolTip(collapsed ? "Expand the palette" : "Collapse the palette");
   adjustSize();
   if (isVisible()) clampToParent();

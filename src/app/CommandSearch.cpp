@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/CommandSearch.h"
 
+#include "theme/Tokens.h"
+
 #include "app/Icons.h"
 #include "app/ToolbarModel.h"
 #include "core/AppHost.h"
@@ -20,6 +22,8 @@
 #include <algorithm>
 
 namespace fabricad::app {
+
+using theme::Tok;
 
 std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const std::string& query,
                                           const QStringList& pinned, const QStringList& recent, int max,
@@ -123,8 +127,8 @@ void CommandSearch::updateResults() {
     it->setText(2, core::qs(info.tab.empty() ? info.group : info.tab + (info.group.empty() ? "" : " > " + info.group)));
     it->setToolTip(0, core::qs(toolTooltip(info)));
     it->setData(0, Qt::UserRole, core::qs(id));
-    it->setForeground(1, QColor("#6B7079"));
-    it->setForeground(2, QColor("#9AA0A8"));
+    it->setForeground(1, theme::color(Tok::TextSecondary));
+    it->setForeground(2, theme::color(Tok::TextTertiary));
     if (!t->isEnabled(ctx)) {
       it->setDisabled(true);
     }

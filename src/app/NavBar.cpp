@@ -54,7 +54,7 @@ NavBar::NavBar(viewer::ViewerWidget& viewer, core::ToolManager& manager)
   h->addWidget(look);
   auto* sep = new QFrame(this);
   sep->setFrameShape(QFrame::VLine);
-  sep->setStyleSheet("color: #D3D6DB;");
+  sep->setObjectName("NavBarSeparator");  // coloured by the theme QSS
   h->addWidget(sep);
   auto menuButton = [&](const char* icon, const QString& tip, QMenu* menu) {
     QToolButton* b = button(icon, tip);

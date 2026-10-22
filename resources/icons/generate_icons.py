@@ -540,6 +540,8 @@ I["app-units"] = (R(2.5, 8, 19, 8, 1, f=WH) +
                   P("M6 8 V11.5 M9.5 8 V10.5 M13 8 V11.5 M16.5 8 V10.5 M20 8 V11.5", s=UI))
 I["app-appearance"] = (cube(10, 13, 0.8, fill=BODY) +
                        P("M18 3 C18 3 21.5 7.5 21.5 9.8 A3.5 3.5 0 0 1 14.5 9.8 C14.5 7.5 18 3 18 3 Z", s=UI, f=UI, fo="0.85"))
+# redesign phase 0: Theme (dark / light half disc)
+I["app-theme"] = C(12, 12, 8) + P("M12 4 A8 8 0 0 1 12 20 Z", f=INK)
 I["file-menu"] = P("M4 6 H20 M4 12 H20 M4 18 H20")
 I["workspace-design"] = cube(12, 12, 1.1, fill=WH, stroke=UI)
 I["eye"] = eye()

@@ -103,13 +103,14 @@ endif()
 # ---------------------------------------------------------------------------
 # Modules. Dependency direction:
 #   core <- sketch <- part <- assembly ; drawing <- (core, part, assembly) ;
-#   viewer <- core ; app <- everything.
+#   theme (QtGui only) ; viewer <- core ; app <- everything.
 # ---------------------------------------------------------------------------
 add_subdirectory(src/core)       # owner: architect/integrator
 add_subdirectory(src/sketch)     # owner: sketch agent
 add_subdirectory(src/part)       # owner: part agent
 add_subdirectory(src/assembly)   # owner: assembly agent
 add_subdirectory(src/drawing)    # owner: drawing agent
+add_subdirectory(src/theme)      # owner: ui agent (design tokens; QtGui only)
 add_subdirectory(src/viewer)     # owner: ui agent
 add_subdirectory(src/app)        # owner: ui agent
 if(FABRICAD_BUILD_TESTS)

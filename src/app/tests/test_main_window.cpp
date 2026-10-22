@@ -6,7 +6,7 @@
 #include "app/BrowserTree.h"
 #include "app/CommandDialog.h"
 #include "app/Icons.h"
-#include "app/Theme.h"
+#include "app/ThemeManager.h"
 #include "app/CommandLine.h"
 #include "app/CommandSearch.h"
 #include "app/MainWindow.h"
@@ -273,10 +273,12 @@ class TestMainWindow : public QObject {
   }
 
   void themeAndMenuHeaders() {
-    const QPalette p = app::lightPalette();
-    QCOMPARE(p.color(QPalette::Active, QPalette::Text), QColor("#2B2E33"));
-    QCOMPARE(p.color(QPalette::Active, QPalette::Base), QColor("#FFFFFF"));
-    QCOMPARE(p.color(QPalette::Disabled, QPalette::Text), QColor("#A9AEB5"));
+    for (theme::Theme th : {theme::Theme::Dark, theme::Theme::Light}) {
+      const QPalette p = app::ThemeManager::palette(th);
+      QCOMPARE(p.color(QPalette::Active, QPalette::Text), theme::color(theme::Tok::TextPrimary, th));
+      QCOMPARE(p.color(QPalette::Active, QPalette::Base), theme::color(theme::Tok::SurfaceInput, th));
+      QCOMPARE(p.color(QPalette::Disabled, QPalette::Text), theme::color(theme::Tok::TextDisabled, th));
+    }
     QMenu m;
     QAction* h = app::addMenuHeader(&m, "Camera");
     QCOMPARE(m.actions().size(), 1);  // no leading separator

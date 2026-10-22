@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/AppTools.h"
 
+#include "app/ThemeManager.h"
+
 #include "app/AppActions.h"
 #include "app/AppearancePicker.h"
 #include "app/PreferencesDialog.h"
@@ -254,7 +256,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
           if (!c.args.empty()) {
             const QColor col(QString::fromStdString(c.args[0]));
             if (!col.isValid()) {
-              c.showMessage("APPEARANCE: expected a colour like #ff8800, got " + c.args[0], true);
+              c.showMessage("APPEARANCE: expected a colour like #ff8800, got " + c.args[0], true);  // colour-lint: ok (help text)
               return;
             }
             const std::array<float, 4> rgba{static_cast<float>(col.redF()), static_cast<float>(col.greenF()),
@@ -281,6 +283,22 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     i.group = "UTILITIES";
     i.order = 20;  // not promoted: the group shows its first two (Change Parameters, Preferences)
     add(i, [win](ToolContext&) { showPreferences(win, PreferencesDialog::Page::General); });
+  }
+  {
+    // live theme switch (redesign phase 0; the Preferences Appearance page comes in phase 1)
+    ToolInfo i = info("app.theme", "Theme", "Colour theme: THEME dark|light|system (no argument: toggle dark/light)", "",
+                      {"THEME"}, "settings");
+    i.needsDocument = false;
+    add(i, [](ToolContext& c) {
+      ThemeManager& tm = ThemeManager::instance();
+      ThemeManager::Mode m = tm.theme() == theme::Theme::Dark ? ThemeManager::Mode::Light : ThemeManager::Mode::Dark;
+      if (!c.args.empty() && !ThemeManager::parseMode(QString::fromStdString(c.args[0]), &m)) {
+        c.showMessage("THEME: expected dark, light or system, got " + c.args[0], true);
+        return;
+      }
+      tm.setMode(m);
+      c.showMessage("Theme: " + ThemeManager::modeName(m).toStdString());
+    });
   }
   {
     ToolInfo i = info("app.units", "Units", "Units of the active design: UNITS mm|cm|m|in|ft [deg|rad]", "",

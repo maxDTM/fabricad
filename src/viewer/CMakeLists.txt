@@ -3,7 +3,7 @@
 # must stay a thin layer: nothing in core/sketch/part/assembly/drawing may link it.
 fabricad_add_module(fabricad_viewer)
 target_link_libraries(fabricad_viewer PUBLIC
-  fabricad_core
+  fabricad_core fabricad_theme
   Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets
   fabricad_occt_vis)
 fabricad_add_tests(fabricad_viewer)

@@ -42,7 +42,7 @@ DocumentTab::DocumentTab(Kind kind, std::shared_ptr<core::Document> doc, core::T
     if (!drawingPage_) {
       auto* l = new QLabel("The Drawing workspace is not available in this build.", hosts_.central);
       l->setAlignment(Qt::AlignCenter);
-      l->setStyleSheet("background: #FFFFFF; color: #6B7079;");
+      l->setObjectName("DrawingUnavailable");  // styled by the theme QSS
       drawingPage_ = l;
     }
     if (hosts_.central) hosts_.central->addWidget(drawingPage_);
