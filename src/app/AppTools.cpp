@@ -7,6 +7,8 @@
 #include "app/AppActions.h"
 #include "app/AppearancePicker.h"
 #include "app/PreferencesDialog.h"
+#include "app/TitleBar.h"
+#include "app/UiSettings.h"
 
 #include "app/MainWindow.h"
 #include "app/PropertyEditor.h"
@@ -285,7 +287,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     add(i, [win](ToolContext&) { showPreferences(win, PreferencesDialog::Page::General); });
   }
   {
-    // live theme switch (redesign phase 0; the Preferences Appearance page comes in phase 1)
+    // live theme switch (also Preferences > Appearance)
     ToolInfo i = info("app.theme", "Theme", "Colour theme: THEME dark|light|system (no argument: toggle dark/light)", "",
                       {"THEME"}, "settings");
     i.needsDocument = false;
@@ -296,7 +298,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
         c.showMessage("THEME: expected dark, light or system, got " + c.args[0], true);
         return;
       }
-      tm.setMode(m);
+      UiSettings::instance().set("ui/theme", ThemeManager::modeName(m));
       c.showMessage("Theme: " + ThemeManager::modeName(m).toStdString());
     });
   }
@@ -343,15 +345,23 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     i.needsDocument = false;
     view(i, [win](viewer::ViewerWidget&) { win->showShortcutsHelp(); });
   }
-  {
-    ToolInfo i = info("app.workspace-design", "Design Workspace", "Switch to the Design workspace", "", {"DESIGN"},
-                      "workspace-design");
+  // workspace selector entries (redesign 5.1): Part and Assembly are toolbar filters of the
+  // Design workspace (decision 2); the shortcuts live in kWorkspaceShortcuts (tentative Alt+1/2/3)
+  for (const WorkspaceShortcut& w : kWorkspaceShortcuts) {
+    const bool drawing = w.choice == WorkspaceChoice::Drawing;
+    const bool part = w.choice == WorkspaceChoice::Part;
+    ToolInfo i = info(part ? "app.workspace-design" : w.toolId,
+                      std::string(w.name) + " Workspace",
+                      drawing ? "Switch to the Drawing workspace"
+                              : std::string("Design workspace with the ") + w.name + " toolbar",
+                      w.shortcut,
+                      part ? std::vector<std::string>{"DESIGN", "PART"}
+                           : std::vector<std::string>{drawing ? "DRAWING" : "ASSEMBLY"},
+                      w.icon);
     i.needsDocument = false;
-    add(i, [win](ToolContext&) { QMetaObject::invokeMethod(win, [win] { win->setWorkspace(core::Workspace::Design); }, Qt::QueuedConnection); });
-    i = info("app.workspace-drawing", "Drawing Workspace", "Switch to the Drawing workspace", "", {"DRAWING"},
-             "workspace-drawing");
-    i.needsDocument = false;
-    add(i, [win](ToolContext&) { QMetaObject::invokeMethod(win, [win] { win->setWorkspace(core::Workspace::Drawing); }, Qt::QueuedConnection); });
+    add(i, [win, c = w.choice](ToolContext&) {
+      QMetaObject::invokeMethod(win, [win, c] { win->setWorkspaceChoice(c); }, Qt::QueuedConnection);
+    });
   }
 
   // --- view ------------------------------------------------------------------------------------

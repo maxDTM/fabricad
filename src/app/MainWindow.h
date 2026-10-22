@@ -1,11 +1,13 @@
 // FabriCAD application shell. OWNER: ui agent.
 //
-// Fusion-style single window (docs/research/ux.md section 1):
-//   application bar   [File v][Save][Undo][Redo]  [Bracket *][Lever][Bracket Drawing] [+]   [S][?]
-//   ribbon            [DESIGN v] SOLID | SKETCH (contextual) | TOOLS ... with group dropdowns
+// Single window, redesign phase 1 shell (docs/plans/ui-redesign.md 5.1, 6.2):
+//   title bar (#AppBar)   [F FABRICAD v][PART ALT 1 v] /bracket *\ /lever\ [+]   [>_ SEARCH  S][undo][redo][save][?]
+//   main toolbar          SKETCH | CREATE | MODIFY | ASSEMBLE | CONSTRUCT | INSPECT | MORE v      DOCUMENT
+//                         (MainToolbar in the non-movable QToolBar #MainToolbarHost, top area)
 //   browser (dock)  | viewport (OCCT, ViewCube, nav bar, command dialog overlay)
 //   timeline (bottom dock, full width)
-//   status bar        prompt | message | selection | sketch DOF | units | cmd> ______
+//   status bar            command | prompt | key hints | message | > command line | OCCT | units | grid |
+//                         snap | rebuild | selection
 //
 // Multi-document tabs (DocumentTab): every tab owns its Document (undo stack, selection),
 // ToolManager, viewer (camera), browser and timeline state; drawings open as their own tab
@@ -19,6 +21,7 @@
 
 #include "app/AppState.h"
 #include "app/DocumentTab.h"
+#include "app/TitleBar.h"
 #include "core/AppHost.h"
 #include "core/Document.h"
 #include "core/Tool.h"
@@ -39,6 +42,7 @@ class QLockFile;
 class QMenu;
 class QStackedWidget;
 class QTabBar;
+class QToolBar;
 class QToolButton;
 class QTimer;
 
@@ -53,9 +57,14 @@ class CommandDialog;
 class CommandLine;
 class CommandSearch;
 class MarkingMenu;
+class ElideLabel;
+class KeyHints;
+class MainToolbar;
 class NavBar;
-class Ribbon;
+class RebuildMeter;
 class SketchPalette;
+class StatusCell;
+class StatusCommandCell;
 class TimelineWidget;
 
 class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
@@ -75,7 +84,11 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   fabricad::core::ToolManager& toolManager() { return *manager_; }
   /// Null while a drawing tab is active.
   viewer::ViewerWidget* viewer() const { return viewer_; }
-  Ribbon* ribbon() const { return ribbon_; }
+  /// The main toolbar (formerly the ribbon; `Ribbon` is an alias of MainToolbar).
+  MainToolbar* ribbon() const { return ribbon_; }
+  MainToolbar* mainToolbar() const { return ribbon_; }
+  QToolBar* mainToolbarHost() const { return toolbarHost_; }
+  WorkspaceSelector* workspaceSelector() const { return workspaceSelector_; }
   BrowserTree* browser() const { return browser_; }
   TimelineWidget* timeline() const { return timeline_; }
   CommandDialog* commandDialog() const { return dialog_; }
@@ -189,6 +202,11 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QString selectionText() const;
   QString sketchStatusText() const;
   QString messageText() const;
+  /// Active command cell ("Extrude"; empty while idle) and key hints ("ENTER APPLY ...").
+  QString statusCommandText() const;
+  QString keyHintsText() const;
+  /// QMainWindow::saveState version; a stored layout of another version is ignored (6.5).
+  static constexpr int kLayoutVersion = 2;
   const std::vector<std::string>& echoHistory() const { return echo_; }
 
   // --- IAppHost ------------------------------------------------------------------------
@@ -199,6 +217,10 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   /// Design -> Drawing opens (or activates) the drawing tab linked to the active design;
   /// Drawing -> Design activates the design tab of the drawing's document.
   void setWorkspace(fabricad::core::Workspace ws) override;
+  /// Workspace selector: Part / Assembly filter the Design toolbar (ui/designFilter), Drawing
+  /// switches to the drawing tab.
+  void setWorkspaceChoice(WorkspaceChoice c);
+  WorkspaceChoice workspaceChoice() const;
   void setContextualTab(const std::string& tabName, bool active) override;
   void echoCommand(const std::string& text) override;
   QWidget* mainWindow() override { return this; }
@@ -212,12 +234,19 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
 
  protected:
   void closeEvent(QCloseEvent* e) override;
+  void resizeEvent(QResizeEvent* e) override;
   bool eventFilter(QObject* o, QEvent* e) override;
 
  private:
   void registerModules();
   void buildUi();
   QWidget* buildAppBar();
+  void addStatusCells();
+  void updateKeyHints();
+  void updateViewCells();
+  void updateWorkspaceSelector();
+  void applyUiSetting(const QString& key);
+  void ensureTimelineHeight();
   void buildFileMenu(QMenu* menu);
   void buildStatusBar();
   void connectShellSignals();
@@ -273,7 +302,9 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   NavBar* navBar_ = nullptr;
   SketchPalette* palette_ = nullptr;
 
-  Ribbon* ribbon_ = nullptr;
+  MainToolbar* ribbon_ = nullptr;
+  QToolBar* toolbarHost_ = nullptr;
+  WorkspaceSelector* workspaceSelector_ = nullptr;
   QDockWidget* browserDock_ = nullptr;
   QStackedWidget* browserStack_ = nullptr;
   QDockWidget* timelineDock_ = nullptr;
@@ -285,7 +316,14 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QToolButton* undoButton_ = nullptr;
   QToolButton* redoButton_ = nullptr;
   QTabBar* tabBar_ = nullptr;
-  QLabel* promptLabel_ = nullptr;
+  ElideLabel* promptLabel_ = nullptr;
+  StatusCommandCell* statusCommand_ = nullptr;
+  KeyHints* keyHints_ = nullptr;
+  StatusCell* occtCell_ = nullptr;
+  StatusCell* gridCell_ = nullptr;
+  StatusCell* snapCell_ = nullptr;
+  RebuildMeter* rebuildMeter_ = nullptr;
+  qint64 recomputeStartMs_ = -1;
   QLabel* messageLabel_ = nullptr;
   core::MessageLevel messageLevel_ = core::MessageLevel::Info;  ///< level of the text in messageLabel_
   const core::Document* failureDoc_ = nullptr;  ///< feature failure on display (cleared once fixed)

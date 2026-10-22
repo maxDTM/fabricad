@@ -6,7 +6,11 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QComboBox>
 #include <QDockWidget>
+#include <QFileDialog>
+#include <QSplitter>
+#include <QTreeView>
 #include <QEvent>
 #include <QFile>
 #include <QHeaderView>
@@ -43,7 +47,31 @@ constexpr NameRule kNameRules[] = {
     {"Browser", TextStyle::Value},              {"DocumentTabs", TextStyle::Value},
     {"Timeline", TextStyle::Value},             {"TimelineStrip", TextStyle::Value},
     {"CommandDialogTitle", TextStyle::Title},
+    // redesign phase 1 shell (section 5.1)
+    {"AppTitle", TextStyle::Header},            {"WorkspaceSwitcher", TextStyle::Body},
+    {"SearchBox", TextStyle::LabelSm},          {"Keycap", TextStyle::Keycap},
+    {"StatusCommand", TextStyle::LabelSm},      {"StatusPrompt", TextStyle::LabelSm},
+    {"StatusCell", TextStyle::LabelSm},         {"StatusHints", TextStyle::LabelSm},
+    {"StatusRebuild", TextStyle::LabelSm},
+    {"CommandLinePrompt", TextStyle::Value},    {"CommandLineHistory", TextStyle::Caption},
+    // messages often carry user data (paths, names): shown as typed (p0-check 3)
+    {"StatusMessage", TextStyle::Value},
+    {"PreferencesPageTitle", TextStyle::Header},
 };
+
+/// Inside Qt's own file dialog everything that shows file system names is user data (p0-check 2):
+/// the file list, the sidebar, the "Look in" combo and its popup. Headers and labels stay caps.
+bool showsFileNames(const QWidget* w) {
+  const QWidget* win = w->window();
+  if (!qobject_cast<const QFileDialog*>(win)) {
+    // the "Look in" popup and the completer popup are their own windows
+    const QWidget* p = w->parentWidget();
+    while (p && !qobject_cast<const QFileDialog*>(p)) p = p->parentWidget();
+    if (!p) return false;
+  }
+  if (qobject_cast<const QHeaderView*>(w)) return false;
+  return qobject_cast<const QAbstractItemView*>(w) || qobject_cast<const QComboBox*>(w);
+}
 
 }  // namespace
 
@@ -134,6 +162,11 @@ std::optional<TextStyle> ThemeManager::textStyleFor(const QWidget* w) {
     if (parent->objectName() == QLatin1StringView("CommandDialogTitle")) return TextStyle::Title;
     if (qobject_cast<const QStatusBar*>(parent)) return TextStyle::LabelSm;
   }
+  if (showsFileNames(w)) return TextStyle::Value;
+  // completer popups (file dialog, command line) list what the user is typing: as typed
+  if (const auto* view = qobject_cast<const QAbstractItemView*>(w); view && view->isWindow() &&
+      !qobject_cast<const QComboBox*>(view->parentWidget()))
+    return TextStyle::Value;
   if (qobject_cast<const QHeaderView*>(w)) return TextStyle::Caption;
   // labels that show values or user text (section 3.1 exceptions) use the `value` style
   if (w->property("textCase").toString() == QLatin1StringView("as-is")) return TextStyle::Value;
@@ -235,6 +268,22 @@ void ThemeManager::setMode(Mode m, bool persist) {
 
 bool ThemeManager::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::Polish && watched->isWidgetType()) applyTextStyle(static_cast<QWidget*>(watched));
+  if (event->type() == QEvent::Show)
+    if (auto* dlg = qobject_cast<QFileDialog*>(watched); dlg && !dlg->property("_fcSized").toBool()) {
+      // bold mono caps is ~25 % wider than the platform font: give Qt's file dialog room so the
+      // sidebar and the size/type/date columns are not elided (p0-check 8)
+      dlg->setProperty("_fcSized", true);
+      dlg->resize(std::max(dlg->width(), 1000), std::max(dlg->height(), 600));
+      if (auto* split = dlg->findChild<QSplitter*>("splitter"); split && split->count() == 2)
+        split->setSizes({200, std::max(400, dlg->width() - 240)});
+      if (auto* tree = dlg->findChild<QTreeView*>("treeView"))
+        if (QHeaderView* h = tree->header(); h && h->count() >= 4) {
+          h->resizeSection(1, 100);
+          h->resizeSection(2, 130);
+          h->resizeSection(3, 170);
+          h->resizeSection(0, std::max(260, dlg->width() - 200 - 400 - 40));
+        }
+    }
   return QObject::eventFilter(watched, event);
 }
 

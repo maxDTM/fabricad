@@ -12,6 +12,7 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QStyle>
 #include <QLineEdit>
 #include <QMetaMethod>
 #include <QPlainTextEdit>
@@ -29,24 +30,32 @@ constexpr int kMaxHistory = 500;
 }
 
 CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(&manager) {
+  // status-bar cell (redesign 5.1): [> typed text            HISTORY ^]
+  setObjectName("CommandLineBox");
+  setAttribute(Qt::WA_StyledBackground);
+  setFixedHeight(22);
+  setMinimumWidth(280);
+  setMaximumWidth(420);
+  setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
   auto* h = new QHBoxLayout(this);
   h->setContentsMargins(0, 0, 0, 0);
-  h->setSpacing(2);
-  historyButton_ = new QToolButton(this);
-  historyButton_->setIcon(resourceIcon("command-line"));
-  historyButton_->setToolTip("Command history");
-  historyButton_->setAutoRaise(true);
-  historyButton_->setFocusPolicy(Qt::NoFocus);
-  connect(historyButton_, &QToolButton::clicked, this, &CommandLine::toggleHistoryPane);
-  h->addWidget(historyButton_);
-  label_ = new QLabel("cmd>", this);
-  label_->setObjectName("StatusDim");
+  h->setSpacing(0);
+  label_ = new QLabel(">", this);
+  label_->setObjectName("CommandLinePrompt");
   h->addWidget(label_);
   edit_ = new QLineEdit(this);
   edit_->setObjectName("CommandLine");
   edit_->setPlaceholderText("Type a command (LINE, EXTRUDE 10, @50<30)");
   edit_->installEventFilter(this);
   h->addWidget(edit_, 1);
+  historyButton_ = new QToolButton(this);
+  historyButton_->setObjectName("CommandLineHistory");
+  historyButton_->setText(QString::fromUtf8("History \u2191"));
+  historyButton_->setToolTip("Command history (F2 in the box)");
+  historyButton_->setAutoRaise(true);
+  historyButton_->setFocusPolicy(Qt::NoFocus);
+  connect(historyButton_, &QToolButton::clicked, this, &CommandLine::toggleHistoryPane);
+  h->addWidget(historyButton_);
 
   completions_ = new QStringListModel(this);
   completer_ = new QCompleter(completions_, this);
@@ -146,6 +155,12 @@ void CommandLine::toggleHistoryPane() {
 }
 
 bool CommandLine::eventFilter(QObject* o, QEvent* e) {
+  if (o == edit_ && (e->type() == QEvent::FocusIn || e->type() == QEvent::FocusOut)) {
+    // focus ring on the whole cell (QSS has no :focus-within)
+    setProperty("focused", e->type() == QEvent::FocusIn);
+    style()->unpolish(this);
+    style()->polish(this);
+  }
   if (completer_ && o == completer_->popup() && e->type() == QEvent::KeyPress) {
     auto* k = static_cast<QKeyEvent*>(e);
     if (k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter) {

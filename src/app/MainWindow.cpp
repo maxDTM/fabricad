@@ -15,7 +15,10 @@
 #include "app/MarkingMenu.h"
 #include "app/MarkingMenuModel.h"
 #include "app/NavBar.h"
-#include "app/Ribbon.h"
+#include "app/MainToolbar.h"
+#include "app/StatusCells.h"
+#include "app/TitleBar.h"
+#include "app/UiSettings.h"
 #include "app/ScriptTools.h"
 #include "app/ShortcutRouter.h"
 #include "app/SketchPalette.h"
@@ -47,6 +50,9 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QElapsedTimer>
+#include <QToolBar>
+#include <Standard_Version.hxx>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -144,8 +150,35 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
   QSettings s;
   if (s.contains("window/geometry")) restoreGeometry(s.value("window/geometry").toByteArray());
-  if (s.contains("window/state")) restoreState(s.value("window/state").toByteArray());
+  // a layout stored by another shell version (the ribbon era) is ignored: defaults (6.5)
+  if (s.contains("window/state")) restoreState(s.value("window/state").toByteArray(), kLayoutVersion);
+  toolbarHost_->show();  // never hidden by a restored state
   browserDockWanted_ = !browserDock_->isHidden();
+  timelineDockWanted_ = !timelineDock_->isHidden();
+  // p0-check 4: a restored zero-height timeline was "shown" but invisible
+  QTimer::singleShot(0, this, [this] { ensureTimelineHeight(); });
+
+  // ui/* settings apply live (Preferences > Appearance / Layout, THEME command)
+  connect(&UiSettings::instance(), &UiSettings::changed, this, &MainWindow::applyUiSetting);
+}
+
+void MainWindow::applyUiSetting(const QString& key) {
+  UiSettings& ui = UiSettings::instance();
+  if (key == "ui/designFilter") {
+    DesignFilter f = DesignFilter::Part;
+    parseDesignFilter(ui.string(key).toStdString(), &f);
+    ribbon_->setDesignFilter(f);
+    updateWorkspaceSelector();
+  } else if (key == "ui/commandLine") {
+    commandLine_->setVisible(ui.flag(key));
+  }
+  // ui/toolbarArea, sidebarSide, cardPlacement, quickToolbar, orientation, timelineStyle are
+  // stored now and applied by phases 2-4 (the toolbar stays at the top in phase 1)
+}
+
+void MainWindow::ensureTimelineHeight() {
+  if (!timelineDock_ || timelineDock_->isHidden()) return;
+  if (timelineDock_->height() < 60) resizeDocks({timelineDock_}, {120}, Qt::Vertical);
 }
 
 MainWindow::~MainWindow() {
@@ -174,13 +207,8 @@ void MainWindow::registerModules() {
 }
 
 void MainWindow::buildUi() {
-  // --- top: application bar + ribbon (menu widget area) -------------------------------
-  auto* top = new QWidget(this);
-  auto* topLayout = new QVBoxLayout(top);
-  topLayout->setContentsMargins(0, 0, 0, 0);
-  topLayout->setSpacing(0);
-  topLayout->addWidget(buildAppBar());
-  setMenuWidget(top);
+  // --- top: title bar (menu widget area); the toolbar goes into a tool bar area below ---------
+  setMenuWidget(buildAppBar());
 
   // --- central: one page per tab (viewer or drawing workspace) --------------------------
   central_ = new QStackedWidget(this);
@@ -213,11 +241,25 @@ void MainWindow::buildUi() {
   // tab switch); the first tab provides the initial one.
   DocumentTab* first = createTab(DocumentTab::Kind::Design, nullptr);
   core::ToolManager& m = first->manager();
-  ribbon_ = new Ribbon(m, top);
-  topLayout->addWidget(ribbon_);
+  // main toolbar in a fixed tool bar (ui/toolbarArea: top in phase 1; left/right come with the
+  // vertical layout of phase 4). Qt keeps tool bars outside the dock areas.
+  ribbon_ = new MainToolbar(m, this);
+  {
+    DesignFilter f = DesignFilter::Part;
+    parseDesignFilter(UiSettings::instance().string("ui/designFilter").toStdString(), &f);
+    ribbon_->setDesignFilter(f);
+  }
+  toolbarHost_ = new QToolBar("Toolbar", this);
+  toolbarHost_->setObjectName("MainToolbarHost");
+  toolbarHost_->setMovable(false);
+  toolbarHost_->setFloatable(false);
+  toolbarHost_->setContextMenuPolicy(Qt::PreventContextMenu);
+  toolbarHost_->toggleViewAction()->setVisible(false);
+  toolbarHost_->addWidget(ribbon_);
+  addToolBar(Qt::TopToolBarArea, toolbarHost_);
   commandLine_ = new CommandLine(m, statusBar());
-  commandLine_->setVisible(QSettings().value("ui/commandLine", true).toBool());
-  statusBar()->addPermanentWidget(commandLine_, 1);
+  commandLine_->setVisible(UiSettings::instance().flag("ui/commandLine"));
+  addStatusCells();
   // G2 APP-06: empty Enter in the box with a tool active behaves like Enter on the canvas
   connect(commandLine_, &CommandLine::emptyEnter, this,
           [this] { handleKeyPress(Qt::Key_Return, 0, "\r", false, viewer_); });
@@ -229,34 +271,41 @@ QWidget* MainWindow::buildAppBar() {
   auto* bar = new QWidget(this);
   bar->setObjectName("AppBar");
   bar->setAttribute(Qt::WA_StyledBackground);
+  bar->setFixedHeight(DocumentTabBar::kHeight);
   auto* h = new QHBoxLayout(bar);
-  h->setContentsMargins(6, 2, 6, 2);
-  h->setSpacing(2);
+  h->setContentsMargins(8, 0, 8, 0);
+  h->setSpacing(4);
 
-  auto* fileButton = appBarButton(bar, "file-menu", "File");
-  fileButton->setPopupMode(QToolButton::InstantPopup);
-  auto* fileMenu = new QMenu(fileButton);
+  // logo + FABRICAD: the application (File) menu
+  auto* appMenu = new QToolButton(bar);
+  appMenu->setObjectName("AppMenuButton");
+  appMenu->setProperty("textStyle", "header");
+  appMenu->setIcon(resourceIcon("fabricad"));
+  appMenu->setIconSize(QSize(18, 18));
+  appMenu->setText("FabriCAD");
+  appMenu->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  appMenu->setPopupMode(QToolButton::InstantPopup);
+  appMenu->setToolTip("File");
+  appMenu->setFocusPolicy(Qt::NoFocus);
+  appMenu->setAutoRaise(true);
+  auto* fileMenu = new QMenu(appMenu);
   buildFileMenu(fileMenu);
-  fileButton->setMenu(fileMenu);
-  h->addWidget(fileButton);
-  auto* saveButton = appBarButton(bar, "save", "Save (Ctrl+S)");
-  connect(saveButton, &QToolButton::clicked, this, [this] { save(); });
-  h->addWidget(saveButton);
-  undoButton_ = appBarButton(bar, "undo", "Undo (Ctrl+Z)");
-  connect(undoButton_, &QToolButton::clicked, this, [this] { manager_->run("app.undo"); });
-  h->addWidget(undoButton_);
-  redoButton_ = appBarButton(bar, "redo", "Redo (Ctrl+Y)");
-  connect(redoButton_, &QToolButton::clicked, this, [this] { manager_->run("app.redo"); });
-  h->addWidget(redoButton_);
-  h->addSpacing(16);
-  // document tabs (Fusion: one tab per open design / drawing, "+" for a new design)
-  tabBar_ = new QTabBar(bar);
-  tabBar_->setObjectName("DocumentTabs");
+  appMenu->setMenu(fileMenu);
+  h->addWidget(appMenu);
+  h->addSpacing(4);
+
+  workspaceSelector_ = new WorkspaceSelector(bar);
+  connect(workspaceSelector_, &WorkspaceSelector::requested, this, [this](WorkspaceChoice c) {
+    setWorkspaceChoice(c);
+  });
+  h->addWidget(workspaceSelector_, 0, Qt::AlignVCenter);
+  h->addSpacing(8);
+
+  // document tabs (one per open design / drawing, "+" for a new design): angled, painted (7.1)
+  auto* tabs = new DocumentTabBar(bar);
+  tabBar_ = tabs;
   tabBar_->setTabsClosable(true);
   tabBar_->setMovable(true);
-  tabBar_->setExpanding(false);
-  tabBar_->setDocumentMode(true);
-  tabBar_->setDrawBase(false);
   tabBar_->setElideMode(Qt::ElideRight);
   tabBar_->setUsesScrollButtons(true);
   tabBar_->setFocusPolicy(Qt::NoFocus);
@@ -272,15 +321,50 @@ QWidget* MainWindow::buildAppBar() {
     tabs_.insert(tabs_.begin() + to, std::move(t));
     scheduleTabBarRefresh();  // labels, tooltips and the active tab once the move settles (DOC-11)
   });
-  h->addWidget(tabBar_, 1);
-  auto* newTab = appBarButton(bar, "new", "New Design (Ctrl+N)");
+  h->addWidget(tabBar_, 0, Qt::AlignBottom);
+  auto* newTab = new QToolButton(bar);
   newTab->setObjectName("NewTabButton");
+  newTab->setText("+");
+  newTab->setToolTip("New Design (Ctrl+N)");
+  newTab->setAutoRaise(true);
+  newTab->setFocusPolicy(Qt::NoFocus);
   connect(newTab, &QToolButton::clicked, this, [this] { manager_->run("app.new"); });
   h->addWidget(newTab);
   h->addStretch(1);
-  auto* searchButton = appBarButton(bar, "search", "Search commands (S)");
-  connect(searchButton, &QToolButton::clicked, this, [this] { openCommandSearch(); });
-  h->addWidget(searchButton);
+
+  // command search box: opens the S-box (#SearchPopup)
+  auto* searchBox = new QToolButton(bar);
+  searchBox->setObjectName("SearchBox");
+  searchBox->setFocusPolicy(Qt::NoFocus);
+  searchBox->setToolTip("Search commands (S)");
+  searchBox->setFixedSize(260, 26);
+  {
+    auto* sh = new QHBoxLayout(searchBox);
+    sh->setContentsMargins(8, 0, 4, 0);
+    sh->setSpacing(6);
+    auto* glyph = new QLabel(">_", searchBox);
+    glyph->setObjectName("SearchGlyph");
+    auto* text = new QLabel("Search commands", searchBox);
+    text->setObjectName("SearchBoxText");
+    auto* key = new Keycap("S", searchBox);
+    for (QWidget* w : {static_cast<QWidget*>(glyph), static_cast<QWidget*>(text), static_cast<QWidget*>(key)})
+      w->setAttribute(Qt::WA_TransparentForMouseEvents);
+    sh->addWidget(glyph);
+    sh->addWidget(text, 1);
+    sh->addWidget(key);
+  }
+  connect(searchBox, &QToolButton::clicked, this, [this] { openCommandSearch(); });
+  h->addWidget(searchBox, 0, Qt::AlignVCenter);
+  h->addSpacing(8);
+  undoButton_ = appBarButton(bar, "undo", "Undo (Ctrl+Z)");
+  connect(undoButton_, &QToolButton::clicked, this, [this] { manager_->run("app.undo"); });
+  h->addWidget(undoButton_);
+  redoButton_ = appBarButton(bar, "redo", "Redo (Ctrl+Y)");
+  connect(redoButton_, &QToolButton::clicked, this, [this] { manager_->run("app.redo"); });
+  h->addWidget(redoButton_);
+  auto* saveButton = appBarButton(bar, "save", "Save (Ctrl+S)");
+  connect(saveButton, &QToolButton::clicked, this, [this] { save(); });
+  h->addWidget(saveButton);
   auto* help = appBarButton(bar, "help", "Help");
   help->setPopupMode(QToolButton::InstantPopup);
   auto* helpMenu = new QMenu(help);
@@ -299,6 +383,20 @@ QWidget* MainWindow::buildAppBar() {
   help->setMenu(helpMenu);
   h->addWidget(help);
   return bar;
+}
+
+void MainWindow::addStatusCells() {
+  QStatusBar* sb = statusBar();
+  sb->addPermanentWidget(commandLine_);
+  sb->addPermanentWidget(sketchLabel_);
+  sb->addPermanentWidget(occtCell_);
+  sb->addPermanentWidget(unitsLabel_);
+  sb->addPermanentWidget(gridCell_);
+  sb->addPermanentWidget(snapCell_);
+  sb->addPermanentWidget(rebuildMeter_);
+  sb->addPermanentWidget(selectionLabel_);
+  updateKeyHints();
+  updateViewCells();
 }
 
 void MainWindow::buildFileMenu(QMenu* m) {
@@ -385,6 +483,7 @@ void MainWindow::buildFileMenu(QMenu* m) {
   connect(timelineToggle, &QAction::triggered, this, [this](bool on) {
     timelineDockWanted_ = on;
     timelineDock_->setVisible(on && active_ && active_->isDesign());
+    QTimer::singleShot(0, this, [this] { ensureTimelineHeight(); });
   });
   m->addSeparator();
   m->addAction("Exit", this, [this] { close(); });
@@ -393,27 +492,47 @@ void MainWindow::buildFileMenu(QMenu* m) {
 void MainWindow::buildStatusBar() {
   QStatusBar* sb = statusBar();
   sb->setSizeGripEnabled(false);
-  promptLabel_ = new QLabel(sb);
+  sb->setFixedHeight(28);
+  // left: active command | prompt | key hints | message (the command line and the fixed cells
+  // are added by addStatusCells() once the command line exists)
+  statusCommand_ = new StatusCommandCell(sb);
+  promptLabel_ = new ElideLabel(sb);
   promptLabel_->setObjectName("StatusPrompt");
-  messageLabel_ = new QLabel(sb);
+  keyHints_ = new KeyHints(sb);
+  messageLabel_ = new ElideLabel(sb);
+  messageLabel_->setObjectName("StatusMessage");  // as typed: paths and names are user data
   selectionLabel_ = new QLabel(sb);
   selectionLabel_->setObjectName("StatusDim");
   sketchLabel_ = new QLabel(sb);
   sketchLabel_->hide();
   unitsLabel_ = new QLabel(sb);
   unitsLabel_->setObjectName("StatusDim");
+  unitsLabel_->setProperty("textCase", "as-is");  // units are lowercase (3.3)
   // G2 APP-03: clicking the units opens Preferences > Document (UNITS command)
   unitsLabel_->setCursor(Qt::PointingHandCursor);
   unitsLabel_->setToolTip("Document units (click to change)");
   installClickHandler(unitsLabel_, [this] { runCommand("app.units"); });
-  sb->addWidget(promptLabel_, 2);
+  occtCell_ = new StatusCell("OCCT", sb);
+  occtCell_->setValue(QString(OCC_VERSION_STRING));
+  occtCell_->setToolTip(QString("Open CASCADE Technology %1").arg(OCC_VERSION_COMPLETE));
+  gridCell_ = new StatusCell("Grid", sb);
+  gridCell_->setToolTip("Layout grid (click to show or hide)");
+  gridCell_->setClickAction([this] { runCommand("view.grid"); QTimer::singleShot(0, this, &MainWindow::updateViewCells); });
+  snapCell_ = new StatusCell("Snap", sb);
+  snapCell_->setToolTip("Snap to grid in sketches (click to toggle)");
+  snapCell_->setClickAction([this] { runCommand("view.snap"); QTimer::singleShot(0, this, &MainWindow::updateViewCells); });
+  rebuildMeter_ = new RebuildMeter(sb);
+  sb->addWidget(statusCommand_);
+  sb->addWidget(promptLabel_, 3);
+  sb->addWidget(keyHints_);
   sb->addWidget(messageLabel_, 2);
-  sb->addPermanentWidget(selectionLabel_);
-  sb->addPermanentWidget(sketchLabel_);
-  sb->addPermanentWidget(unitsLabel_);
+  messageLabel_->hide();
   messageTimer_ = new QTimer(this);
   messageTimer_->setSingleShot(true);
-  connect(messageTimer_, &QTimer::timeout, this, [this] { messageLabel_->clear(); });
+  connect(messageTimer_, &QTimer::timeout, this, [this] {
+    messageLabel_->clear();
+    messageLabel_->hide();  // the prompt gets the room back
+  });
   autosaveTimer_ = new QTimer(this);
   autosaveTimer_->setSingleShot(true);
   autosaveTimer_->setInterval(5000);
@@ -534,6 +653,7 @@ void MainWindow::activateTab(DocumentTab* tab) {
     if (previous) echoCommand(ws == core::Workspace::Design ? "workspace DESIGN" : "workspace DRAWING");
   }
   ribbon_->setContextualTab("SKETCH", false);
+  updateWorkspaceSelector();
   updateTitle();
   updateUndoButtons();
   updateSelectionStatus();
@@ -933,8 +1053,7 @@ bool MainWindow::offerRecovery() {
 // =========================================================================================
 
 void MainWindow::connectShellSignals() {
-  connect(ribbon_, &Ribbon::toolTriggered, this, [this](const std::string& id) { runCommand(id); });
-  connect(ribbon_, &Ribbon::workspaceRequested, this, [this](core::Workspace ws) { setWorkspace(ws); });
+  connect(ribbon_, &MainToolbar::toolTriggered, this, [this](const std::string& id) { runCommand(id); });
   connect(search_, &CommandSearch::runRequested, this, [this](const std::string& id) { runCommand(id); });
   connect(marking_, &MarkingMenu::commandChosen, this, &MainWindow::runPseudoCommand);
 }
@@ -978,7 +1097,12 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     if (tab == active_) updateTitle();
   });
   connect(d, &core::Document::unitsChanged, this, whenActive([this] { updateTitle(); }));
+  connect(d, &core::Document::recomputeStarted, this, whenActive([this] {
+            if (recomputeStartMs_ < 0) recomputeStartMs_ = QDateTime::currentMSecsSinceEpoch();
+          }));
   connect(d, &core::Document::recomputeFinished, this, whenActive([this] {
+            if (recomputeStartMs_ >= 0) rebuildMeter_->setMilliseconds(QDateTime::currentMSecsSinceEpoch() - recomputeStartMs_);
+            recomputeStartMs_ = -1;
             scheduleStateRefresh();
             scheduleFailureReport();
           }));
@@ -1136,6 +1260,7 @@ void MainWindow::presentDialog() {
   dialog_->present(core::qs(tool->info().name), toolIcon(tool->info()), body, tool->wantsDialogButtons());
   dialog_->setAcceptEnabled(keep);
   layoutOverlays();
+  updateKeyHints();
 }
 
 void MainWindow::layoutOverlays() {
@@ -1231,6 +1356,7 @@ void MainWindow::reportNewFailures(bool announce) {
 
 void MainWindow::clearStatusMessage() {
   messageLabel_->clear();
+  messageLabel_->hide();
   messageLabel_->setToolTip({});
   messageTimer_->stop();
   messageLevel_ = core::MessageLevel::Info;
@@ -1245,6 +1371,8 @@ void MainWindow::scheduleStateRefresh() {
     ribbon_->refreshStates();
     updateSketchStatus();
     updateUndoButtons();
+    updateKeyHints();
+    updateViewCells();
   });
 }
 
@@ -1267,6 +1395,7 @@ void MainWindow::showMessage(const std::string& text, core::MessageLevel level) 
   messageLabel_->style()->unpolish(messageLabel_);
   messageLabel_->style()->polish(messageLabel_);
   messageLabel_->setText(firstLine);
+  messageLabel_->setVisible(!firstLine.isEmpty());
   messageLevel_ = level;
   messageLabel_->setToolTip(q);
   messageTimer_->start(level == core::MessageLevel::Info ? 5000 : 9000);
@@ -1293,6 +1422,28 @@ void MainWindow::setWorkspace(core::Workspace ws) {
     if (!design) design = createTab(DocumentTab::Kind::Design, active_->documentPtr());
     activateTab(design);
   }
+}
+
+void MainWindow::setWorkspaceChoice(WorkspaceChoice c) {
+  if (c == WorkspaceChoice::Drawing) {
+    setWorkspace(core::Workspace::Drawing);
+    updateWorkspaceSelector();
+    return;
+  }
+  const DesignFilter f = c == WorkspaceChoice::Assembly ? DesignFilter::Assembly : DesignFilter::Part;
+  UiSettings::instance().set("ui/designFilter", designFilterName(f));  // applyUiSetting rebuilds
+  ribbon_->setDesignFilter(f);
+  if (workspace_ != core::Workspace::Design) setWorkspace(core::Workspace::Design);
+  updateWorkspaceSelector();
+}
+
+WorkspaceChoice MainWindow::workspaceChoice() const {
+  if (workspace_ == core::Workspace::Drawing) return WorkspaceChoice::Drawing;
+  return ribbon_ && ribbon_->designFilter() == DesignFilter::Assembly ? WorkspaceChoice::Assembly : WorkspaceChoice::Part;
+}
+
+void MainWindow::updateWorkspaceSelector() {
+  if (workspaceSelector_ && ribbon_) workspaceSelector_->setChoice(workspaceChoice());
 }
 
 void MainWindow::setContextualTab(const std::string& tabName, bool active) {
@@ -1375,6 +1526,47 @@ QString MainWindow::promptText() const { return promptLabel_->text(); }
 QString MainWindow::selectionText() const { return selectionLabel_->text(); }
 QString MainWindow::sketchStatusText() const { return sketchLabel_->isHidden() ? QString() : sketchLabel_->text(); }
 QString MainWindow::messageText() const { return messageLabel_->text(); }
+QString MainWindow::statusCommandText() const { return statusCommand_->command(); }
+QString MainWindow::keyHintsText() const { return keyHints_->text(); }
+
+void MainWindow::updateKeyHints() {
+  if (!keyHints_ || !manager_) return;
+  const core::ITool* t = manager_->isActive() && !isIdleTool() ? manager_->activeTool() : nullptr;
+  statusCommand_->setCommand(t ? core::qs(t->info().name) : QString());
+  std::vector<KeyHints::Hint> hints;
+  const bool sketching = viewer_ && viewer_->inSketchMode();
+  if (t) {
+    if (dialog_ && dialog_->isVisible()) {
+      hints.push_back({"Return", "Apply"});
+      hints.push_back({"Escape", "Cancel"});
+      hints.push_back({"Tab", "Next field"});
+    } else {
+      hints.push_back({"Escape", "Cancel"});
+    }
+  } else if (sketching) {
+    hints.push_back({"Ctrl+Return", "Finish sketch"});
+    hints.push_back({"S", "Search"});
+  } else {
+    hints.push_back({"S", "Search"});
+    hints.push_back({":", "Command"});
+  }
+  keyHints_->setHints(std::move(hints));
+}
+
+void MainWindow::updateViewCells() {
+  if (!gridCell_) return;
+  // the OCCT version is the first cell to go on narrow windows
+  occtCell_->setVisible(width() >= 1500);
+  const bool haveViewer = viewer_ != nullptr;
+  gridCell_->setVisible(haveViewer);
+  snapCell_->setVisible(haveViewer);
+  if (!haveViewer || !document_) return;
+  gridCell_->setOn(viewer_->isGridVisible());
+  gridCell_->setValue(core::qs(core::formatQuantity(core::Quantity::mm(viewer_->gridSpacing()), document_->units())));
+  bool snap = viewer_->isGridSnap();
+  if (sketch::SketchSession* s = sketch::SketchSession::current(); s && s->manager() == manager_) snap = s->snapEnabled();
+  snapCell_->setOn(snap);
+}
 
 // =========================================================================================
 // file operations
@@ -1628,6 +1820,11 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
   return true;
 }
 
+void MainWindow::resizeEvent(QResizeEvent* e) {
+  QMainWindow::resizeEvent(e);
+  if (occtCell_) occtCell_->setVisible(width() >= 1500);
+}
+
 void MainWindow::closeEvent(QCloseEvent* e) {
   // one prompt per modified document (a design and its drawing share one)
   std::vector<const core::Document*> asked;
@@ -1646,9 +1843,9 @@ void MainWindow::closeEvent(QCloseEvent* e) {
   s.setValue("window/geometry", saveGeometry());
   // a drawing tab hides the browser only for itself: store the design layout (DOC-02)
   if (active_ && !active_->isDesign() && browserDockWanted_) browserDock_->show();
-  s.setValue("window/state", saveState());
+  s.setValue("window/state", saveState(kLayoutVersion));
   s.setValue("search/recent", recentCommands_);
-  s.setValue("ui/commandLine", commandLine_->isVisible());
+  UiSettings::instance().set("ui/commandLine", commandLine_->isVisible());
   recent_.save();
   for (const auto& t : tabs_) clearRecoveryFile(*t);  // a clean close leaves nothing to recover
   releaseSessionRecoveryDirectory();

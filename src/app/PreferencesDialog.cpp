@@ -3,10 +3,17 @@
 #include "app/PreferencesDialog.h"
 
 #include "app/AppActions.h"
+#include "app/ThemeManager.h"
+#include "app/UiSettings.h"
+#include "theme/Tokens.h"
 #include "core/Document.h"
 #include "viewer/ViewerWidget.h"
 
+#include <QButtonGroup>
 #include <QCheckBox>
+#include <QHBoxLayout>
+#include <QPainter>
+#include <QRadioButton>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -16,6 +23,8 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QVBoxLayout>
+
+#include <cmath>
 
 namespace fabricad::app {
 
@@ -38,6 +47,77 @@ void select(QComboBox* b, int value) {
   const int i = b->findData(value);
   if (i >= 0) b->setCurrentIndex(i);
 }
+/// Thumbnail of the window layout from the ui/* settings (6.1 "live preview"), painted with
+/// tokens: title bar, toolbar (top / left / right), sidebar side, card placement, quick toolbar,
+/// timeline strip.
+class LayoutPreview : public QWidget {
+ public:
+  explicit LayoutPreview(QWidget* parent) : QWidget(parent) {
+    setObjectName("LayoutPreview");
+    setFixedSize(240, 150);
+    connect(&UiSettings::instance(), &UiSettings::changed, this, [this] { update(); });
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] { update(); });
+  }
+
+ protected:
+  void paintEvent(QPaintEvent*) override {
+    using theme::Tok;
+    UiSettings& ui = UiSettings::instance();
+    QPainter p(this);
+    QRect r = rect().adjusted(0, 0, -1, -1);
+    p.fillRect(r, theme::color(Tok::VpBgBottom));
+    p.setPen(theme::color(Tok::BorderDefault));
+    p.drawRect(r);
+    r.adjust(1, 1, 0, 0);
+    p.fillRect(QRect(r.left(), r.top(), r.width(), 10), theme::color(Tok::BgApp));  // title bar
+    r.setTop(r.top() + 10);
+    p.fillRect(QRect(r.left(), r.bottom() - 6, r.width(), 7), theme::color(Tok::BgApp));  // status bar
+    r.setBottom(r.bottom() - 7);
+    const QString tb = ui.string("ui/toolbarArea");
+    const QColor bar = theme::color(Tok::SurfaceHeader);
+    if (tb == "left") {
+      p.fillRect(QRect(r.left(), r.top(), 12, r.height()), bar);
+      r.setLeft(r.left() + 12);
+    } else if (tb == "right") {
+      p.fillRect(QRect(r.right() - 11, r.top(), 12, r.height()), bar);
+      r.setRight(r.right() - 12);
+    } else {
+      p.fillRect(QRect(r.left(), r.top(), r.width(), 16), bar);
+      for (int x = r.left() + 6; x < r.right() - 10; x += 14)
+        p.fillRect(QRect(x, r.top() + 4, 8, 6), theme::color(Tok::TextTertiary));
+      r.setTop(r.top() + 16);
+    }
+    if (ui.string("ui/timelineStyle") == "strip") {
+      p.fillRect(QRect(r.left(), r.bottom() - 11, r.width(), 12), theme::color(Tok::SurfacePanel));
+      r.setBottom(r.bottom() - 12);
+    }
+    const bool sideRight = ui.string("ui/sidebarSide") == "right";
+    const QRect side(sideRight ? r.right() - 53 : r.left(), r.top(), 54, r.height());
+    p.fillRect(side, theme::color(Tok::SurfacePanel));
+    QRect vp = sideRight ? r.adjusted(0, 0, -54, 0) : r.adjusted(54, 0, 0, 0);
+    const QString quick = ui.string("ui/quickToolbar");
+    if (quick == "left") p.fillRect(QRect(vp.left() + 3, vp.top() + 14, 7, 34), theme::color(Tok::SurfaceRaised));
+    if (quick == "right") p.fillRect(QRect(vp.right() - 9, vp.top() + 14, 7, 34), theme::color(Tok::SurfaceRaised));
+    const QString card = ui.string("ui/cardPlacement");
+    QRect c;
+    if (card == "sidebar") c = QRect(side.left() + 3, side.top() + 3, side.width() - 6, 40);
+    else if (card == "floatLeft") c = QRect(vp.left() + (quick == "left" ? 13 : 4), vp.top() + 6, 44, 50);
+    else c = QRect(vp.right() - (quick == "right" ? 56 : 47), vp.top() + 6, 44, 50);
+    p.fillRect(c, theme::color(Tok::SurfaceRaised));
+    p.setPen(theme::color(Tok::AccentIndicator));
+    p.drawRect(c.adjusted(0, 0, -1, -1));
+    // orientation widget: hexagon dial or cube at the viewport's top right
+    p.setPen(theme::color(Tok::TextSecondary));
+    const QPoint o(vp.right() - 12, vp.top() + 12);
+    if (ui.string("ui/orientation") == "viewCube") p.drawRect(QRect(o - QPoint(6, 6), QSize(12, 12)));
+    else {
+      QPolygon hex;
+      for (int i = 0; i < 6; ++i) hex << o + QPoint(int(7 * std::cos(i * M_PI / 3 + M_PI / 6)), int(7 * std::sin(i * M_PI / 3 + M_PI / 6)));
+      p.drawPolygon(hex);
+    }
+  }
+};
+
 class ClickFilter : public QObject {
  public:
   ClickFilter(QObject* parent, std::function<void()> fn) : QObject(parent), fn_(std::move(fn)) {}
@@ -105,6 +185,9 @@ PreferencesDialog::PreferencesDialog(core::Document& doc, viewer::ViewerWidget* 
   note->setObjectName("StatusDim");
   df->addRow(note);
   tabs_->addTab(document, "Document");
+  tabs_->addTab(buildAppearancePage(), "Appearance");
+  tabs_->addTab(buildLayoutPage(), "Layout");
+  connect(&UiSettings::instance(), &UiSettings::changed, this, &PreferencesDialog::reloadUi);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
@@ -117,6 +200,126 @@ PreferencesDialog::PreferencesDialog(core::Document& doc, viewer::ViewerWidget* 
     connect(b, &QComboBox::currentIndexChanged, this, &PreferencesDialog::applyDocumentUnits);
   connect(precision_, &QSpinBox::valueChanged, this, &PreferencesDialog::applyDocumentUnits);
   setTarget(doc, viewer);
+}
+
+QComboBox* PreferencesDialog::uiCombo(const QString& key, const std::vector<std::pair<QString, QString>>& items,
+                                     QWidget* parent) {
+  auto* b = new QComboBox(parent);
+  b->setObjectName("pref_" + key.section('/', 1));
+  for (const auto& [label, value] : items) b->addItem(label, value);
+  connect(b, &QComboBox::currentIndexChanged, this, [this, b, key] {
+    if (!loading_) UiSettings::instance().set(key, b->currentData());
+  });
+  uiControls_.emplace_back(key, b);
+  return b;
+}
+
+QWidget* PreferencesDialog::uiControl(const QString& key) const {
+  for (const auto& [k, w] : uiControls_)
+    if (k == key) return w;
+  return nullptr;
+}
+
+QWidget* PreferencesDialog::buildAppearancePage() {
+  auto* page = new QWidget(tabs_);
+  page->setObjectName("PreferencesAppearance");
+  auto* f = new QFormLayout(page);
+  auto* row = new QWidget(page);
+  row->setObjectName("pref_theme");
+  auto* h = new QHBoxLayout(row);
+  h->setContentsMargins(0, 0, 0, 0);
+  theme_ = new QButtonGroup(row);
+  const std::pair<const char*, const char*> modes[] = {{"Dark", "dark"}, {"Light", "light"}, {"Follow system", "system"}};
+  for (const auto& [label, value] : modes) {
+    auto* rb = new QRadioButton(label, row);
+    rb->setObjectName(QString("pref_theme_%1").arg(value));
+    rb->setProperty("value", QString(value));
+    theme_->addButton(rb);
+    h->addWidget(rb);
+  }
+  h->addStretch(1);
+  connect(theme_, &QButtonGroup::buttonToggled, this, [this](QAbstractButton* b, bool on) {
+    if (on && !loading_) UiSettings::instance().set("ui/theme", b->property("value"));
+  });
+  uiControls_.emplace_back("ui/theme", row);
+  f->addRow("Theme", row);
+  fontScale_ = new QSpinBox(page);
+  fontScale_->setObjectName("pref_fontScale");
+  fontScale_->setRange(90, 130);
+  fontScale_->setSingleStep(5);
+  fontScale_->setSuffix(" %");
+  connect(fontScale_, &QSpinBox::valueChanged, this, [this](int v) {
+    if (!loading_) UiSettings::instance().set("ui/fontScale", v);
+  });
+  uiControls_.emplace_back("ui/fontScale", fontScale_);
+  f->addRow("UI scale", fontScale_);
+  auto check = [&](const QString& key, const QString& text) {
+    auto* c = new QCheckBox(text, page);
+    c->setObjectName("pref_" + key.section('/', 1));
+    connect(c, &QCheckBox::toggled, this, [this, key](bool on) {
+      if (!loading_) UiSettings::instance().set(key, on);
+    });
+    uiControls_.emplace_back(key, c);
+    f->addRow(c);
+  };
+  check("ui/glow", "Glow on live handles and the active card");
+  check("ui/scanlines", "Viewport scanline texture");
+  return page;
+}
+
+QWidget* PreferencesDialog::buildLayoutPage() {
+  auto* page = new QWidget(tabs_);
+  page->setObjectName("PreferencesLayout");
+  auto* h = new QHBoxLayout(page);
+  auto* form = new QWidget(page);
+  auto* f = new QFormLayout(form);
+  f->setContentsMargins(0, 0, 0, 0);
+  f->addRow("Toolbar", uiCombo("ui/toolbarArea", {{"Top", "top"}, {"Left", "left"}, {"Right", "right"}}, form));
+  f->addRow("Sidebar", uiCombo("ui/sidebarSide", {{"Left", "left"}, {"Right", "right"}}, form));
+  f->addRow("Command card",
+            uiCombo("ui/cardPlacement",
+                    {{"Float right", "floatRight"}, {"Float left", "floatLeft"}, {"In the sidebar", "sidebar"}, {"Where dragged", "free"}},
+                    form));
+  f->addRow("Quick toolbar", uiCombo("ui/quickToolbar", {{"Off", "off"}, {"Left", "left"}, {"Right", "right"}}, form));
+  f->addRow("Orientation", uiCombo("ui/orientation", {{"Hex dial", "hexDial"}, {"View cube", "viewCube"}}, form));
+  f->addRow("Timeline", uiCombo("ui/timelineStyle", {{"Feature list", "featureList"}, {"Bottom strip", "strip"}}, form));
+  auto* remember = new QCheckBox("Remember the dragged card position", form);
+  remember->setObjectName("pref_cardRememberDrag");
+  connect(remember, &QCheckBox::toggled, this, [this](bool on) {
+    if (!loading_) UiSettings::instance().set("ui/cardRememberDrag", on);
+  });
+  uiControls_.emplace_back("ui/cardRememberDrag", remember);
+  f->addRow(remember);
+  auto* note = new QLabel("The toolbar shows at the top in this version. The other choices are saved and take effect "
+                          "with the new sidebar, command card and viewport.",
+                          form);
+  note->setObjectName("StatusDim");
+  note->setWordWrap(true);
+  f->addRow(note);
+  h->addWidget(form, 1);
+  layoutPreview_ = new LayoutPreview(page);
+  h->addWidget(layoutPreview_, 0, Qt::AlignTop);
+  return page;
+}
+
+void PreferencesDialog::reloadUi(const QString& key) {
+  const bool wasLoading = loading_;
+  loading_ = true;
+  UiSettings& ui = UiSettings::instance();
+  for (const auto& [k, w] : uiControls_) {
+    if (!key.isEmpty() && k != key) continue;
+    if (k == "ui/theme") {
+      for (QAbstractButton* b : theme_->buttons()) b->setChecked(b->property("value").toString() == ui.string(k));
+    } else if (auto* c = qobject_cast<QComboBox*>(w)) {
+      const int i = c->findData(ui.string(k));
+      if (i >= 0) c->setCurrentIndex(i);
+    } else if (auto* cb = qobject_cast<QCheckBox*>(w)) {
+      cb->setChecked(ui.flag(k));
+    } else if (auto* sp = qobject_cast<QSpinBox*>(w)) {
+      sp->setValue(ui.number(k));
+    }
+  }
+  loading_ = wasLoading;
 }
 
 void PreferencesDialog::setTarget(core::Document& doc, viewer::ViewerWidget* viewer) {
@@ -137,6 +340,7 @@ void PreferencesDialog::reload() {
   select(docLength_, static_cast<int>(u.length));
   select(docAngle_, static_cast<int>(u.angle));
   precision_->setValue(u.precision);
+  reloadUi({});
   loading_ = false;
 }
 
