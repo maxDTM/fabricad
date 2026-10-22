@@ -764,8 +764,7 @@ class ToolsTest : public QObject {
     auto orange = [&] {
       int n = 0;
       for (const auto& [h, item] : r.viewer.previews())
-        if (item.style.lineWidth == 3.0f && std::abs(item.style.color[0] - 0.95f) < 1e-6f && std::abs(item.style.color[1] - 0.55f) < 1e-6f &&
-            std::abs(item.style.color[2] - 0.1f) < 1e-6f)
+        if (item.style.lineWidth == 3.0f && item.style.role == core::ColorRole::Preselect)
           ++n;
       return n;
     };
