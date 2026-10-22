@@ -238,6 +238,21 @@ class ViewerMathTest : public QObject {
     QVERIFY(isoCornerNear(210.0, gp_Dir(0, -1, 0), gp_Dir(0, 0, 1)).IsEqual(gp_Dir(-1, -1, -1), 1e-9));
   }
 
+  void cubeCornerZones() {
+    // front view: the four front corners sit at the corners of the face square
+    const gp_Dir front(0, -1, 0), up(0, 0, 1);
+    auto hit = cubeCornerHit(51, -51, 51, front, up, 13);  // upper right of the FRONT face
+    QVERIFY(hit && hit->IsEqual(gp_Dir(1, -1, 1), 1e-9));
+    hit = cubeCornerHit(-45, 47, 51, front, up, 13);  // near the lower left
+    QVERIFY(hit && hit->IsEqual(gp_Dir(-1, -1, -1), 1e-9));
+    QVERIFY(!cubeCornerHit(0, 0, 51, front, up, 13));    // the face centre is the face
+    QVERIFY(!cubeCornerHit(51, 0, 51, front, up, 13));   // the right edge is an edge
+    // iso view: the centre is the near corner, not the hidden far one
+    const ViewOrientation iso = standardViewOrientation(core::StandardView::Iso);
+    hit = cubeCornerHit(0, 0, 51, iso.toEye, iso.up, 13);
+    QVERIFY(hit && hit->IsEqual(gp_Dir(1, -1, 1), 1e-9));
+  }
+
   void scaleBarSteps() {
     QCOMPARE(scaleBarLength(1.0, 140), 100.0);
     QCOMPARE(scaleBarLength(0.5, 140), 50.0);

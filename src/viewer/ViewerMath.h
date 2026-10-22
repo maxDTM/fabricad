@@ -77,6 +77,11 @@ std::optional<core::StandardView> currentStandardView(const gp_Dir& toEye, const
 /// `screenAngleDeg` (0 = right, counter-clockwise; the nearer corner wins a tie): a click on a
 /// hex vertex of the dial.
 gp_Dir isoCornerNear(double screenAngleDeg, const gp_Dir& toEye, const gp_Dir& up);
+/// ViewCube corner zones (VIEWER-7, p1 M1): the cube corner (+-1, +-1, +-1) on the eye's side
+/// whose screen position (cube centre + projected corner * `halfPx`) is within `tolPx` of the
+/// click offset (`dx`, `dy`: click minus cube centre, y down). Face-on views leave the OCCT corner
+/// facets a few pixels wide, so the viewer resolves corner clicks itself.
+std::optional<gp_Dir> cubeCornerHit(double dx, double dy, double halfPx, const gp_Dir& toEye, const gp_Dir& up, double tolPx);
 /// Scale bar: the largest 1-2-5 x 10^n length (in display units) that fits in `maxPixels` at
 /// `unitsPerPixel`. 0 when the input is not usable.
 double scaleBarLength(double unitsPerPixel, double maxPixels);

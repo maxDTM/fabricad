@@ -43,7 +43,7 @@ class OverlaysTest : public QObject {
       QVERIFY2(w.rect().contains(o->geometry()), name);
     }
     // 16 px margins: dial top-right, breadcrumb top-left, readout bottom-left, scale bar bottom-right
-    QCOMPARE(w.orientationDial()->geometry().topRight(), QPoint(1600 - 16 - 1, 16));
+    QCOMPARE(w.orientationDial()->geometry().topRight(), QPoint(1600 - 16 - 34 - 1, 16));  // left of the column lane
     QCOMPARE(w.breadcrumb()->pos(), QPoint(16, 16));
     QCOMPARE(w.coordReadout()->geometry().bottomLeft(), QPoint(16, 900 - 16 - 1));
     QCOMPARE(w.scaleBar()->geometry().bottomRight(), QPoint(1600 - 16 - 1, 900 - 16 - 1));

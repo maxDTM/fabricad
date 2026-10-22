@@ -39,7 +39,7 @@ class OrientationDial : public QWidget {
   static constexpr int kPlate = 140;    ///< hexagon plate box
   static constexpr int kReadout = 22;   ///< AZ / EL line
   static constexpr int kButtons = 26;   ///< ISO TOP FRONT RIGHT row
-  static constexpr int kGap = 4;
+  static constexpr int kGap = 4;  ///< readout -> buttons (the readout sits right under the plate)
 
   enum class Part { None, AxisTip, Vertex, Ring, Inside, Button };
   struct Hit {

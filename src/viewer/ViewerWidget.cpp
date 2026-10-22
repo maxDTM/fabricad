@@ -492,9 +492,9 @@ bool ViewerWidget::initializeView() {
   layout()->addWidget(d_->view);
   applyGestureMap();
   d_->view->show();
-  // keep overlay children (nav bar, command dialog) above the GL widget
-  for (QObject* c : children())
-    if (auto* w = qobject_cast<QWidget*>(c); w && w != d_->view && w->isVisible()) w->raise();
+  // keep every overlay child (dial, bars, readouts, view-tool column, command card) above the
+  // GL widget, visible or not yet shown, in their own order
+  d_->view->lower();
   return true;
 }
 
@@ -1398,6 +1398,10 @@ Qt::MouseButtons ViewerWidget::onMousePress(QMouseEvent* e) {
       triggerCubeControl(ctl);
       return Qt::MiddleButton;
     }
+    if (cubeCornerClick(e->position())) {
+      ctlPress_ = true;
+      return Qt::MiddleButton;
+    }
     {
       bool onCube = false;
       ShapeRef dummy;
@@ -1595,6 +1599,10 @@ void ViewerWidget::onMouseDoubleClick(QMouseEvent* e) {
   if (const CubeCtl ctl = cubeControlAt(e->position()); ctl != CubeCtl::None) {
     ctlPress_ = true;
     triggerCubeControl(ctl);
+    return;
+  }
+  if (cubeCornerClick(e->position())) {
+    ctlPress_ = true;
     return;
   }
   {
@@ -1802,45 +1810,47 @@ QRect ViewerWidget::orientationRect() const {
 }
 
 void ViewerWidget::layoutOverlayWidgets() {
-  constexpr int kMargin = 16, kGap = 8;
+  // v6 mockup boxes: 16 px margins; the right 34 px lane belongs to the view-tool column below
+  constexpr int kMargin = 16, kGap = 12, kColumnLane = 34;
   const int w = width(), h = height();
   // orientation: the dial at the top-right; in ViewCube mode its readout and buttons sit below
-  // the cube's control ring
+  // the cube's control ring, centred on the cube
   dial_->resize(dial_->sizeHint());
-  int dialTop = kMargin;
   if (orientation_ == OrientationWidget::ViewCube) {
     const double dpr = d_->view ? d_->view->devicePixelRatioF() : devicePixelRatioF();
-    dialTop = static_cast<int>(std::ceil(kCubeOffset / dpr + kCubeCtlRadius / dpr + 11.0)) + 4;
+    const int top = static_cast<int>(std::ceil(kCubeOffset / dpr + kCubeCtlRadius / dpr + 11.0)) + 4;
+    const int cx = static_cast<int>(std::lround(w - kCubeOffset / dpr));
+    dial_->move(std::min(cx - dial_->width() / 2, w - kMargin - dial_->width()), top);
+  } else {
+    dial_->move(w - kMargin - kColumnLane - dial_->width(), kMargin);
   }
-  dial_->move(w - kMargin - dial_->width(), dialTop);
-  dial_->raise();
   const QRect orient = orientationRect();
   // top-left row: breadcrumb, then the filter bar (a second row when they do not fit)
   breadcrumb_->setVisible(topBarShown_);
   filterBar_->setVisible(topBarShown_);
   if (topBarShown_) {
-    const int right = orient.left() - kGap;
+    int right = orient.left() - kGap;
+    if (!viewToolRect_.isEmpty() && viewToolRect_.top() < kMargin + 64) right = std::min(right, viewToolRect_.left() - kGap);
     breadcrumb_->resize(std::min(breadcrumb_->sizeHint().width(), std::max(0, right - kMargin)), breadcrumb_->sizeHint().height());
     breadcrumb_->move(kMargin, kMargin);
     filterBar_->resize(filterBar_->sizeHint());
     QPoint fp(breadcrumb_->geometry().right() + 1 + kGap, kMargin);
     if (fp.x() + filterBar_->width() > right || w < 900) fp = QPoint(kMargin, breadcrumb_->geometry().bottom() + 1 + 4);
     filterBar_->move(fp);
-    breadcrumb_->raise();
-    filterBar_->raise();
   }
   readout_->setVisible(readoutShown_);
   if (readoutShown_) {
     readout_->resize(readout_->sizeHint());
     readout_->move(kMargin, h - kMargin - readout_->height());
-    readout_->raise();
   }
   scaleBar_->setVisible(scaleBarShown_);
   if (scaleBarShown_) {
     scaleBar_->resize(scaleBar_->sizeHint());
-    scaleBar_->move(w - kMargin - scaleBar_->width(), h - kMargin - scaleBar_->height());
+    QRect sb(QPoint(w - kMargin - scaleBar_->width(), h - kMargin - scaleBar_->height()), scaleBar_->size());
+    if (!viewToolRect_.isEmpty() && sb.intersects(viewToolRect_.adjusted(-8, -8, 8, 8)))
+      sb.moveRight(viewToolRect_.left() - kGap);  // a short viewport: beside the view-tool column
+    scaleBar_->move(sb.topLeft());
     scaleBar_->refresh();
-    scaleBar_->raise();
   }
   // tell the app (card, palette, view-tool column) only when something moved
   const std::array<QRect, 5> now{dial_->geometry(), breadcrumb_->isVisible() ? breadcrumb_->geometry() : QRect(),
@@ -1850,6 +1860,12 @@ void ViewerWidget::layoutOverlayWidgets() {
   if (now == lastOverlayRects_) return;
   lastOverlayRects_ = now;
   emit overlayGeometryChanged();
+}
+
+void ViewerWidget::setViewToolRect(const QRect& r) {
+  if (r == viewToolRect_) return;
+  viewToolRect_ = r;
+  layoutOverlayWidgets();
 }
 
 void ViewerWidget::addOverlayRegions(OverlayLayout& l) const {
@@ -1914,6 +1930,20 @@ ViewerWidget::CubeCtl ViewerWidget::cubeControlAt(QPointF p) const {
   for (const auto& [ctl, r] : cubeControls())
     if (r.contains(p)) return ctl;
   return CubeCtl::None;
+}
+
+bool ViewerWidget::cubeCornerClick(QPointF p) {
+  if (orientation_ != OrientationWidget::ViewCube || !d_->ready()) return false;
+  // corner zones: 13 px around each corner on the eye's side (cube size 80 + facet extension
+  // 12, device px), so iso views are reachable from face-on views too (VIEWER-7)
+  const double dpr = d_->view->devicePixelRatioF();
+  const QPointF c = cubeCenter();
+  const std::optional<gp_Dir> corner =
+      cubeCornerHit(p.x() - c.x(), p.y() - c.y(), (40.0 + 11.0) / dpr, viewDirection(), upDirection(), 13.0);
+  if (!corner) return false;
+  const AzEl ae = azimuthElevation(*corner);
+  setViewAzEl(ae.az, ae.el, true);
+  return true;
 }
 
 void ViewerWidget::triggerCubeControl(CubeCtl c) {

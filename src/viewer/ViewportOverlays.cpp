@@ -100,7 +100,7 @@ void OrientationDial::setPlateVisible(bool on) {
 }
 
 QSize OrientationDial::sizeHint() const {
-  const int h = (plate_ ? kPlate + kGap : 0) + kReadout + kGap + kButtons;
+  const int h = (plate_ ? kPlate : 0) + kReadout + kGap + kButtons;
   return {kWidth, h};
 }
 
@@ -114,14 +114,14 @@ QPointF OrientationDial::tipPosition(int axis, bool positive) const {
 }
 
 QRect OrientationDial::readoutRect() const {
-  const int top = plate_ ? kPlate + kGap : 0;
+  const int top = plate_ ? kPlate : 0;
   return {0, top, kWidth, kReadout};
 }
 
 QRect OrientationDial::buttonRect(int index) const {
   const int top = readoutRect().bottom() + 1 + kGap;
   // equal-ish cells: widths follow the labels (FRONT and RIGHT are wider)
-  static constexpr int widths[] = {36, 36, 48, 48};
+  static constexpr int widths[] = {36, 36, 48, 48};  // 168 = kWidth
   int x = 0;
   for (int i = 0; i < index; ++i) x += widths[i];
   return {x, top, widths[index], kButtons};
@@ -323,8 +323,13 @@ void OrientationDial::paintReadout(QPainter& p) {
   const ViewerWidget& v = viewer_;
   p.setRenderHint(QPainter::Antialiasing, false);
   p.setFont(theme::font(theme::TextStyle::Caption));
+  // a quiet plate behind the AZ / EL text so it reads over a body as well as the background
+  const QString text = readoutText();
+  const int tw = QFontMetrics(p.font()).horizontalAdvance(text) + 16;
+  const QRect rr = readoutRect();
+  p.fillRect(QRect(rr.center().x() - tw / 2, rr.top() + 3, tw, rr.height() - 6), tok(v, Tok::SurfacePanel, 0.85));
   p.setPen(tok(v, Tok::TextSecondary));
-  p.drawText(readoutRect(), Qt::AlignCenter, readoutText());
+  p.drawText(rr, Qt::AlignCenter, text);
   // segmented view buttons
   const int current = currentButton();
   for (int i = 0; i < 4; ++i) {
@@ -759,8 +764,8 @@ bool SelectionFilterBar::event(QEvent* e) {
 
 namespace {
 constexpr int kReadH = 26;
-constexpr int kCellW = 92;
-constexpr int kUnitW = 40;
+constexpr int kCellW = 94;   // 3 cells + unit = 320 (v6 mockup CoordReadout box)
+constexpr int kUnitW = 38;
 }  // namespace
 
 CoordReadout::CoordReadout(ViewerWidget& viewer) : QWidget(viewer.overlayParent()), viewer_(viewer) {
@@ -825,10 +830,7 @@ ScaleBar::ScaleBar(ViewerWidget& viewer) : QWidget(viewer.overlayParent()), view
   resize(sizeHint());
 }
 
-QSize ScaleBar::sizeHint() const {
-  const QFontMetrics fm(theme::font(theme::TextStyle::Value));
-  return {kRuler + 10 + fm.horizontalAdvance(QStringLiteral("500 mm")), 22};
-}
+QSize ScaleBar::sizeHint() const { return {200, 18}; }  // ruler 140 + label (v6 mockup ScaleBar box)
 
 void ScaleBar::refresh() {
   const core::UnitSystem u = viewer_.document() ? viewer_.document()->units() : core::UnitSystem{};
@@ -866,7 +868,7 @@ void ScaleBar::paintEvent(QPaintEvent*) {
   }
   p.setFont(theme::font(theme::TextStyle::Value));
   p.setPen(tok(v, Tok::TextSecondary));
-  p.drawText(QRect(kRuler + 10, 0, width() - kRuler - 10, height()), Qt::AlignVCenter | Qt::AlignLeft, label());
+  p.drawText(QRect(kRuler + 8, 0, width() - kRuler - 8, height()), Qt::AlignVCenter | Qt::AlignRight, label());
 }
 
 }  // namespace fabricad::viewer

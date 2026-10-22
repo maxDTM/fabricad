@@ -211,6 +211,26 @@ gp_Dir isoCornerNear(double screenAngleDeg, const gp_Dir& toEye, const gp_Dir& u
   return best;
 }
 
+std::optional<gp_Dir> cubeCornerHit(double dx, double dy, double halfPx, const gp_Dir& toEye, const gp_Dir& up, double tolPx) {
+  const gp_Vec right = gp_Vec(up).Crossed(gp_Vec(toEye));
+  std::optional<gp_Dir> best;
+  double bestD = tolPx;
+  double bestDepth = -1e9;
+  for (int i = 0; i < 8; ++i) {
+    const gp_Vec c((i & 1) ? 1 : -1, (i & 2) ? 1 : -1, (i & 4) ? 1 : -1);
+    const double depth = c.Dot(gp_Vec(toEye));
+    if (depth < 1e-6) continue;  // the far side of the cube
+    const double sx = c.Dot(right) * halfPx, sy = -c.Dot(gp_Vec(up)) * halfPx;
+    const double d = std::hypot(sx - dx, sy - dy);
+    if (d < bestD - 1e-9 || (d <= bestD + 1e-9 && depth > bestDepth)) {
+      bestD = d;
+      bestDepth = depth;
+      best = gp_Dir(c);
+    }
+  }
+  return best;
+}
+
 double scaleBarLength(double unitsPerPixel, double maxPixels) {
   if (!(unitsPerPixel > 0) || !(maxPixels > 0) || !std::isfinite(unitsPerPixel)) return 0.0;
   const double maxLen = unitsPerPixel * maxPixels;

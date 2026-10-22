@@ -274,16 +274,16 @@ void MainWindow::updateBreadcrumb() {
     if (const core::Body* b = document_->body(bodies.front())) crumbs << core::qs(b->name);
   bc->setCrumbs(crumbs);
   QString caption, name;
-  if (manager_ && manager_->isActive() && !isIdleTool()) {
-    core::ObjectId live = editingFeature_;
-    if (sketch::SketchSession* s = sketch::SketchSession::current(); live == core::kInvalidId && s && s->manager() == manager_)
-      live = s->sketchId();
-    if (const core::Feature* f = live != core::kInvalidId ? document_->feature(live) : nullptr) {
-      caption = "EDITING";
-      name = core::qs(f->name());
-    } else if (const core::ITool* t = manager_->activeTool(); t && !t->info().hidden) {
-      caption = core::qs(t->info().name);
-    }
+  const bool command = manager_ && manager_->isActive() && !isIdleTool();
+  core::ObjectId live = command ? editingFeature_ : core::kInvalidId;
+  // an open sketch is being edited even while its own idle tool runs
+  if (sketch::SketchSession* s = sketch::SketchSession::current(); live == core::kInvalidId && s && s->manager() == manager_)
+    live = s->sketchId();
+  if (const core::Feature* f = live != core::kInvalidId ? document_->feature(live) : nullptr) {
+    caption = "EDITING";
+    name = core::qs(f->name());
+  } else if (const core::ITool* t = command ? manager_->activeTool() : nullptr; t && !t->info().hidden) {
+    caption = core::qs(t->info().name);
   }
   bc->setLiveChip(caption, name);
   viewer_->layoutOverlayWidgets();

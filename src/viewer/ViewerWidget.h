@@ -117,6 +117,9 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void setOverlaysVisible(bool topBar, bool readout, bool scaleBar);
   /// Re-place the overlay widgets (top-left row, top-right orientation, bottom readouts).
   void layoutOverlayWidgets();
+  /// Where the app's view-tool column sits (right edge, below the orientation widget); the
+  /// scale bar moves left of it when a short viewport makes them meet.
+  void setViewToolRect(const QRect& r);
   /// Report the viewer's own overlays to an OverlayLayout as fixed regions (orientation widget,
   /// breadcrumb + filter row, coordinate readout, scale bar).
   void addOverlayRegions(OverlayLayout& layout) const;
@@ -287,6 +290,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   std::vector<std::pair<CubeCtl, QRectF>> cubeControls() const;
   CubeCtl cubeControlAt(QPointF p) const;
   void triggerCubeControl(CubeCtl c);
+  /// A click in a ViewCube corner zone: animate to that corner's iso view.
+  bool cubeCornerClick(QPointF p);
   void updateGrid(bool force);
   /// Rebuild the AIS presentations of all manipulators from the controller state.
   void syncManipulatorPrs();
@@ -355,7 +360,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   ScaleBar* scaleBar_ = nullptr;
   bool topBarShown_ = true, readoutShown_ = true, scaleBarShown_ = true;
   std::array<double, 10> lastCamera_{};
-  std::array<QRect, 5> lastOverlayRects_{};  ///< eye, up, scale, aspect: cameraChanged() detection
+  std::array<QRect, 5> lastOverlayRects_{};
+  QRect viewToolRect_;  ///< eye, up, scale, aspect: cameraChanged() detection
 };
 
 /// Call once before QApplication is constructed: forces the xcb platform when unset
