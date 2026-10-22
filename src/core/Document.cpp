@@ -366,6 +366,25 @@ void Document::recompute() {
       emit featureStatusChanged(f.id());
       continue;
     }
+    // A feature whose direct input is suppressed or failed has nothing valid to build from:
+    // it is skipped and flagged, and the error cascades down the chain like in Fusion. Inputs
+    // reached only through a body (a fillet on a body a suppressed feature also touched) and
+    // inputs with mere warnings do not count (DOC-05).
+    std::string inputProblem;
+    for (ObjectId dep : f.dependencies()) {
+      const int di = indexOf(dep);
+      if (di < 0 || di >= i) continue;
+      const Feature& d = *features_[static_cast<size_t>(di)];
+      if (d.isSuppressed()) inputProblem = std::format("input '{}' is suppressed", d.name());
+      else if (d.status() == FeatureStatus::Error) inputProblem = std::format("input '{}' failed", d.name());
+      if (!inputProblem.empty()) break;
+    }
+    if (!inputProblem.empty()) {
+      f.bodyStatesAfter_ = state;
+      f.setStatus(FeatureStatus::Error, inputProblem);
+      emit featureStatusChanged(f.id());
+      continue;
+    }
     RecomputeContext ctx(*this, f, state);
     try {
       f.recompute(ctx);

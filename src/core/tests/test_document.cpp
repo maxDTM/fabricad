@@ -12,6 +12,16 @@
 using namespace fabricad::core;
 using namespace fabricad::core::test;
 
+namespace {
+/// References another feature directly (like an extrude its sketch); counts its builds.
+class ConsumerFeature : public Feature {
+ public:
+  ConsumerFeature() : Feature("TestConsumer") { addRef("src", mask(ShapeKind::Sketch)); }
+  void recompute(RecomputeContext&) override { ++builds; }
+  int builds = 0;
+};
+}  // namespace
+
 class DocumentTest : public QObject {
   Q_OBJECT
  private slots:
@@ -114,6 +124,42 @@ class DocumentTest : public QObject {
     Feature* h2f = doc2.addFeature(std::move(h2));
     doc2.recompute();
     QCOMPARE(h2f->status(), FeatureStatus::Ok);  // the failing feature is not an input of the hole
+  }
+
+  void suppressedOrFailedInputSkipsDependent() {
+    // DOC-05: a suppressed or failed direct input skips the dependent and flags it
+    Document doc;
+    Feature* src = doc.addFeature(std::make_unique<BoxFeature>());
+    auto c = std::make_unique<ConsumerFeature>();
+    c->prop("src").setRef(ShapeRef::feature(src->id(), ShapeKind::Sketch));
+    auto* consumer = static_cast<ConsumerFeature*>(doc.addFeature(std::move(c)));
+    auto c2 = std::make_unique<ConsumerFeature>();
+    c2->prop("src").setRef(ShapeRef::feature(consumer->id(), ShapeKind::Sketch));
+    auto* second = static_cast<ConsumerFeature*>(doc.addFeature(std::move(c2)));
+    doc.recompute();
+    QCOMPARE(consumer->status(), FeatureStatus::Ok);
+    QCOMPARE(consumer->builds, 1);
+    src->setSuppressed(true);
+    doc.notifyFeatureChanged(src->id());
+    doc.recompute();
+    QCOMPARE(consumer->status(), FeatureStatus::Error);
+    QVERIFY2(consumer->statusMessage().find("suppressed") != std::string::npos, consumer->statusMessage().c_str());
+    QCOMPARE(consumer->builds, 1);
+    QCOMPARE(second->status(), FeatureStatus::Error);  // cascades
+    QVERIFY(second->statusMessage().find("failed") != std::string::npos);
+    src->setSuppressed(false);
+    src->prop("dx").setDouble(-1.0);  // fails on its own
+    doc.notifyFeatureChanged(src->id());
+    doc.recompute();
+    QCOMPARE(src->status(), FeatureStatus::Error);
+    QCOMPARE(consumer->status(), FeatureStatus::Error);
+    QVERIFY(consumer->statusMessage().find("failed") != std::string::npos);
+    src->prop("dx").setDouble(10.0);
+    doc.notifyFeatureChanged(src->id());
+    doc.recompute();
+    QCOMPARE(consumer->status(), FeatureStatus::Ok);
+    QCOMPARE(second->status(), FeatureStatus::Ok);
+    QCOMPARE(consumer->builds, 2);
   }
 
   void parametersAndExpressions() {
