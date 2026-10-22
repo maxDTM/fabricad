@@ -868,7 +868,8 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
   return runs;
 }
 
-Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
+/// Offset one curve; nullopt when the result degenerates (an arc/circle radius collapses).
+std::optional<Geometry> offsetCurve(const Geometry& g, bool reversed, double d) {
   // d > 0 = to the left of the traversal direction
   Geometry o = g;
   switch (g.type) {
@@ -877,11 +878,16 @@ Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
       o.translate(n * d);
       break;
     }
-    case GeomType::Circle: o.setRadius(std::max(1e-6, g.radius() + d)); break;  // positive = outward
+    case GeomType::Circle: {  // positive = outward
+      double r = g.radius() + d;
+      if (r <= 1e-6) return std::nullopt;
+      o.setRadius(r);
+      break;
+    }
     case GeomType::Arc: {
       // ccw traversal: left = towards centre
       double r = reversed ? g.radius() + d : g.radius() - d;
-      if (r <= 1e-6) r = 1e-6;
+      if (r <= 1e-6) return std::nullopt;
       o.setRadius(r);
       break;
     }
@@ -893,6 +899,50 @@ Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
     case GeomType::Text: break;  // not offsettable exactly; copied unchanged (filtered by offset())
   }
   return o;
+}
+
+/// Signed side of `p` relative to one traversed curve: > 0 = left of the traversal direction.
+double sideOfCurve(const Geometry& g, bool reversed, Pt2 p) {
+  if (g.type == GeomType::Line) return signedDistanceToLine(g.start(), g.direction(), p) * (reversed ? -1 : 1);
+  if (g.type == GeomType::Circle) return p.distance(g.center()) - g.radius();  // circles: outward = positive
+  return (p.distance(g.center()) - g.radius()) * (reversed ? 1 : -1);
+}
+
+/// The run as a polyline in traversal order (for orientation / inside tests of closed loops).
+std::vector<Pt2> runPolyline(const Sketch& sk, const std::vector<ChainItem>& run) {
+  std::vector<Pt2> pts;
+  for (const ChainItem& item : run) {
+    std::vector<Pt2> t = sk.geometry(item.id)->tessellate(32);
+    if (item.reversed) std::reverse(t.begin(), t.end());
+    for (size_t i = pts.empty() ? 0 : 1; i < t.size(); ++i) pts.push_back(t[i]);
+  }
+  return pts;
+}
+
+bool runIsClosed(const Sketch& sk, const std::vector<ChainItem>& run) {
+  if (run.size() < 2) return false;
+  const Geometry* gl = sk.geometry(run.back().id);
+  const Geometry* gf = sk.geometry(run.front().id);
+  if (gl->type == GeomType::Circle || gf->type == GeomType::Circle) return false;
+  Pt2 tail = run.back().reversed ? gl->start() : gl->end();
+  Pt2 head = run.front().reversed ? gf->end() : gf->start();
+  return tail.near(head, 1e-6);
+}
+
+double polygonArea(const std::vector<Pt2>& pts) {
+  double a = 0;
+  for (size_t i = 0; i < pts.size(); ++i) a += pts[i].cross(pts[(i + 1) % pts.size()]);
+  return a / 2;
+}
+
+bool insidePolygon(const std::vector<Pt2>& pts, Pt2 q) {
+  bool in = false;
+  for (size_t i = 0, j = pts.size() - 1; i < pts.size(); j = i++) {
+    const Pt2& a = pts[i];
+    const Pt2& b = pts[j];
+    if ((a.y > q.y) != (b.y > q.y) && q.x < (b.x - a.x) * (q.y - a.y) / (b.y - a.y) + a.x) in = !in;
+  }
+  return in;
 }
 
 }  // namespace
@@ -908,18 +958,37 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
   auto runs = orderChains(*this, curves);
   for (auto& run : runs) {
     double d = distance;
-    if (side) {
-      // sign so that the first curve moves towards `side`
-      const Geometry* g0 = geometry(run.front().id);
-      double s = 0;
-      if (g0->type == GeomType::Line) s = signedDistanceToLine(g0->start(), g0->direction(), *side) * (run.front().reversed ? -1 : 1);
-      else if (g0->type == GeomType::Circle) s = side->distance(g0->center()) - g0->radius();
-      else s = (side->distance(g0->center()) - g0->radius()) * (run.front().reversed ? 1 : -1);
-      if (s < 0) d = -std::abs(distance);
-      else d = std::abs(distance);
+    if (runIsClosed(*this, run)) {
+      // closed loop: inside/outside of the whole loop decides (typed without a side: positive = outward)
+      std::vector<Pt2> poly = runPolyline(*this, run);
+      bool ccw = polygonArea(poly) > 0;  // ccw: left of the traversal = inside
+      bool inward = side ? insidePolygon(poly, *side) : distance < 0;
+      d = (inward == ccw) ? std::abs(distance) : -std::abs(distance);
+    } else if (side) {
+      // open chain / single curve: the run curve nearest the cursor decides, with its own direction
+      const ChainItem* nearest = &run.front();
+      double best = std::numeric_limits<double>::infinity();
+      for (const ChainItem& item : run) {
+        double dist = geometry(item.id)->distanceTo(*side);
+        if (dist < best) {
+          best = dist;
+          nearest = &item;
+        }
+      }
+      double s = sideOfCurve(*geometry(nearest->id), nearest->reversed, *side);
+      d = s < 0 ? -std::abs(distance) : std::abs(distance);
     }
     std::vector<Geometry> offs;
-    for (const ChainItem& item : run) offs.push_back(offsetCurve(*geometry(item.id), item.reversed, d));
+    bool degenerate = false;
+    for (const ChainItem& item : run) {
+      auto o = offsetCurve(*geometry(item.id), item.reversed, d);
+      if (!o) {
+        degenerate = true;
+        break;
+      }
+      offs.push_back(*o);
+    }
+    if (degenerate) continue;  // e.g. an inward offset larger than an arc radius: no geometry
     // trim/extend corners between consecutive offsets
     for (size_t i = 0; i + 1 < run.size(); ++i) {
       Geometry& a = offs[i];
@@ -972,6 +1041,14 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
         }
       }
     }
+    // an offset larger than the shape collapses or flips trimmed lines: no geometry for this run
+    for (size_t i = 0; i < offs.size(); ++i) {
+      const Geometry& o = offs[i];
+      if (o.type != GeomType::Line) continue;
+      const Geometry* src = geometry(run[i].id);
+      if (o.length() < 1e-9 || (o.end() - o.start()).dot(src->end() - src->start()) <= 0) degenerate = true;
+    }
+    if (degenerate) continue;
     std::vector<int> newIds;
     for (Geometry& o : offs) {
       o.id = -1;
@@ -1145,8 +1222,8 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   auto offsetsOf = [&](const Geometry& g, double r) {
     std::vector<Geometry> v;
     if (g.type == GeomType::Line) {
-      v.push_back(offsetCurve(g, false, r));
-      v.push_back(offsetCurve(g, false, -r));
+      v.push_back(*offsetCurve(g, false, r));
+      v.push_back(*offsetCurve(g, false, -r));
     } else {
       Geometry a = g;
       a.setRadius(g.radius() + r);

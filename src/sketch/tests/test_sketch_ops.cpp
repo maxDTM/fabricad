@@ -180,6 +180,100 @@ class SketchOpsTest : public QObject {
     QVERIFY(near(ol->end(), oa->start(), 1e-6));
   }
 
+  /// UX-24: offset of a slot (lines + arcs) goes to the clicked side, inward and outward,
+  /// whatever curve the chain ordering puts first.
+  static std::vector<int> addSlot(Sketch& sk) {
+    // centres (0,0) and (20,0), radius 5; same geometry as the Slot tool builds
+    std::vector<int> ids;
+    ids.push_back(sk.addGeometry(Geometry::makeLine({0, 5}, {20, 5})));
+    ids.push_back(sk.addGeometry(Geometry::makeLine({20, -5}, {0, -5})));
+    ids.push_back(sk.addGeometry(Geometry::makeArc({20, 0}, 5, -kPi / 2, kPi / 2)));
+    ids.push_back(sk.addGeometry(Geometry::makeArc({0, 0}, 5, kPi / 2, 3 * kPi / 2)));
+    return ids;
+  }
+  static void bboxOf(const Sketch& sk, const std::vector<int>& ids, Pt2& mn, Pt2& mx) {
+    Sketch tmp;
+    for (int id : ids) tmp.addGeometry(*sk.geometry(id));
+    QVERIFY(tmp.bbox(mn, mx));
+  }
+
+  void offsetSlotOutwardAndInward() {
+    for (Pt2 side : {Pt2{10, 12}, Pt2{10, -12}, Pt2{-9, 0}, Pt2{29, 0}}) {
+      Sketch sk;
+      auto ids = addSlot(sk);
+      auto out = sk.offset(ids, 3.0, side);  // outward
+      QCOMPARE(out.size(), size_t(4));
+      Pt2 mn, mx;
+      bboxOf(sk, out, mn, mx);
+      QVERIFY2(near(mn, {-8, -8}) && near(mx, {28, 8}), "outward slot offset");
+      for (int id : out)
+        if (sk.geometry(id)->isCircular()) QVERIFY(near(sk.geometry(id)->radius(), 8.0));
+      QVERIFY(sk.solve().ok());
+    }
+    for (Pt2 side : {Pt2{10, 3}, Pt2{10, -3}, Pt2{-3, 0}}) {
+      Sketch sk;
+      auto ids = addSlot(sk);
+      auto out = sk.offset(ids, 2.0, side);  // inward
+      QCOMPARE(out.size(), size_t(4));
+      Pt2 mn, mx;
+      bboxOf(sk, out, mn, mx);
+      QVERIFY2(near(mn, {-3, -3}) && near(mx, {23, 3}), "inward slot offset");
+    }
+    // typed distance without a cursor side: positive = outward for a closed loop
+    {
+      Sketch sk;
+      auto out = sk.offset(addSlot(sk), 1.0);
+      Pt2 mn, mx;
+      bboxOf(sk, out, mn, mx);
+      QVERIFY(near(mn, {-6, -6}) && near(mx, {26, 6}));
+    }
+    // an inward offset larger than the radius degenerates: no geometry instead of 1e-6 arcs
+    {
+      Sketch sk;
+      auto out = sk.offset(addSlot(sk), 6.0, Pt2{10, 1});
+      QVERIFY(out.empty());
+    }
+  }
+
+  void offsetRectangleSideByCursor() {
+    // the cursor just outside each edge offsets outward, also near the "first" curve's extension
+    for (Pt2 side : {Pt2{5, 11}, Pt2{11, 5}, Pt2{-1, 5}, Pt2{5, -1}, Pt2{20, 5}}) {
+      Sketch sk;
+      auto ids = addRectangle(sk, {0, 0}, {10, 10}, false);
+      auto out = sk.offset(ids, 1.0, side);
+      Pt2 mn, mx;
+      bboxOf(sk, out, mn, mx);
+      QVERIFY(near(mn, {-1, -1}) && near(mx, {11, 11}));
+    }
+    Sketch sk;
+    auto ids = addRectangle(sk, {0, 0}, {10, 10}, false);
+    QVERIFY(sk.offset(ids, 6.0, Pt2{5, 5}).empty());  // collapses: lines would flip
+  }
+
+  void offsetOpenLChainByNearestCurve() {
+    // L: (0,10) -> (0,0) -> (10,0); the cursor side is taken from the curve nearest to it
+    Sketch sk;
+    int a = sk.addGeometry(Geometry::makeLine({0, 10}, {0, 0}));
+    int b = sk.addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    auto out = sk.offset({a, b}, 1.0, Pt2{8, -2});  // below the horizontal leg -> outside of the L
+    QCOMPARE(out.size(), size_t(2));
+    Pt2 mn, mx;
+    bboxOf(sk, out, mn, mx);
+    QVERIFY(near(mn, {-1, -1}));
+    Sketch sk2;
+    a = sk2.addGeometry(Geometry::makeLine({0, 10}, {0, 0}));
+    b = sk2.addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    out = sk2.offset({a, b}, 1.0, Pt2{-2, 8});  // left of the vertical leg -> also outside
+    bboxOf(sk2, out, mn, mx);
+    QVERIFY(near(mn, {-1, -1}));
+    Sketch sk3;
+    a = sk3.addGeometry(Geometry::makeLine({0, 10}, {0, 0}));
+    b = sk3.addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    out = sk3.offset({a, b}, 1.0, Pt2{8, 2});  // inside the corner
+    bboxOf(sk3, out, mn, mx);
+    QVERIFY(near(mn, {1, 1}));
+  }
+
   void mirrorWithConstraints() {
     Sketch sk;
     int axis = sk.addGeometry(Geometry::makeLine({0, -10}, {0, 10}));
