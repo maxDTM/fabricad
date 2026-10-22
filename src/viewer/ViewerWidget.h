@@ -187,6 +187,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   struct Impl;
 
   void connectDocument();
+  void syncGhostingToActiveComponent();
+  bool ghostedPickable() const;
   void scheduleSync();
   void scheduleOverlaySync();
   void doSync();

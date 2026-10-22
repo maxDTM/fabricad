@@ -37,6 +37,8 @@ std::vector<std::string> jointTypeNames();                ///< for the Enum prop
 /// The degrees of freedom of a joint type, in q order.
 const std::vector<DofInfo>& jointDofs(JointType t);
 int jointDofCount(JointType t);
+/// An angle in degrees wrapped to (-180, 180].
+double wrapAngle180(double deg);
 
 /// Joint motion values. Angles are degrees, distances millimetres. Unused entries are ignored.
 using JointValues = std::array<double, 3>;

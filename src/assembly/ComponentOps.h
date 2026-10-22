@@ -92,6 +92,7 @@ core::ObjectId createOccurrence(core::Document& doc, core::UndoStack* undo, core
 struct DeleteComponentResult {
   int movedChildren = 0;  ///< child components re-parented to the deleted component's parent
   int movedBodies = 0;    ///< bodies moved to the parent
+  int removedFeatures = 0;  ///< joints / rigid groups removed with the component
 };
 /// Delete a component (undoable): its bodies and child components move to its parent (children keep
 /// their world placement), joints and other features referencing it are removed.

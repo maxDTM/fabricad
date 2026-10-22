@@ -51,7 +51,10 @@ std::vector<ObjectId> DriveJointTool::candidates(const Document& doc) const {
   std::vector<ObjectId> out;
   for (const auto& f : doc.features()) {
     const auto* jf = dynamic_cast<const JointFeature*>(f.get());
-    if (jf && doc.isFeatureActive(jf->id()) && jointDofCount(jf->jointType()) > 0) out.push_back(jf->id());
+    // ASM-02: a joint in error (e.g. its component was deleted) cannot be driven
+    if (jf && doc.isFeatureActive(jf->id()) && jf->status() != core::FeatureStatus::Error &&
+        jointDofCount(jf->jointType()) > 0)
+      out.push_back(jf->id());
   }
   return out;
 }

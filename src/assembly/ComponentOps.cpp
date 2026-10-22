@@ -250,19 +250,32 @@ std::unique_ptr<core::UndoCommand> makeGroundCommand(Document& doc, ObjectId com
 namespace {
 
 /// Does a feature reference any of the given components (Component refs in its properties, or joints)?
-bool referencesComponents(const core::Feature& f, const std::vector<ObjectId>& ids) {
+/// Assembly features (joints, rigid groups) also count as referencing a component when they hold a
+/// B-rep ref on one of its `bodies` or a joint origin owned by it (ASM-02): such a joint would
+/// otherwise survive the delete with a dangling snap.
+bool referencesComponents(const core::Feature& f, const std::vector<ObjectId>& ids,
+                          const std::vector<ObjectId>& bodies = {}) {
   auto hit = [&](ObjectId id) { return std::find(ids.begin(), ids.end(), id) != ids.end(); };
+  auto hitBody = [&](ObjectId id) { return std::find(bodies.begin(), bodies.end(), id) != bodies.end(); };
+  const auto* jp = dynamic_cast<const IJointProvider*>(&f);
+  auto refHits = [&](const core::ShapeRef& r) {
+    if (r.kind == core::ShapeKind::Component && hit(r.owner)) return true;
+    return jp && r.isBrep() && hitBody(r.owner);
+  };
   for (const core::Property& p : f.properties()) {
     if (p.type() == core::PropertyType::Ref) {
-      if (p.ref().kind == core::ShapeKind::Component && hit(p.ref().owner)) return true;
+      if (refHits(p.ref())) return true;
     } else if (p.type() == core::PropertyType::RefList) {
       for (const core::ShapeRef& r : p.refs())
-        if (r.kind == core::ShapeKind::Component && hit(r.owner)) return true;
+        if (refHits(r)) return true;
     }
   }
-  if (const auto* jp = dynamic_cast<const IJointProvider*>(&f))
+  if (jp)
     for (ObjectId id : ids)
       if (jp->involvesComponent(id)) return true;
+  if (const auto* jf = dynamic_cast<const JointFeature*>(&f))
+    for (const JointOrigin& o : {jf->originA(), jf->originB()})
+      if (hit(o.component) || refHits(o.ref)) return true;
   return false;
 }
 
@@ -415,6 +428,7 @@ class DeleteComponentCommand : public core::UndoCommand {
   ObjectId component() const { return comp_; }
   int movedChildren() const { return static_cast<int>(children_.size()); }
   int movedBodies() const { return static_cast<int>(node_.bodies.size()); }
+  int removedFeatures() const { return removedCount_; }
 
   void redo() override {
     features_.clear();
@@ -435,12 +449,15 @@ class DeleteComponentCommand : public core::UndoCommand {
     std::vector<int> doomed;
     for (int i = 0; i < doc_.featureCount(); ++i) {
       core::Feature* f = doc_.featureAt(i);
-      if (referencesComponents(*f, gone)) doomed.push_back(i);
+      if (referencesComponents(*f, gone, node_.bodies)) doomed.push_back(i);
       else if (f->component() == comp_) {
         rehomed_.push_back(f->id());
         f->setComponent(parent);
       }
     }
+    removedCount_ = 0;
+    for (int i : doomed)
+      if (dynamic_cast<const IJointProvider*>(doc_.featureAt(i))) ++removedCount_;
     for (auto it = doomed.rbegin(); it != doomed.rend(); ++it)  // highest index first: indices stay valid
       features_.emplace_back(*it, doc_.takeFeature(doc_.featureAt(*it)->id()));
     doc_.removeComponent(comp_);  // bodies move to the parent
@@ -492,6 +509,7 @@ class DeleteComponentCommand : public core::UndoCommand {
   std::vector<ObjectId> rehomed_;                       ///< features whose component() was the deleted one
   std::vector<std::pair<int, std::unique_ptr<core::Feature>>> features_;
   ObjectId activeBefore_ = kInvalidId;
+  int removedCount_ = 0;
 };
 
 template <class Cmd, class... Args>
@@ -524,6 +542,7 @@ bool deleteComponent(Document& doc, core::UndoStack* undo, ObjectId comp, Delete
   if (result) {
     result->movedChildren = cmd->movedChildren();
     result->movedBodies = cmd->movedBodies();
+    result->removedFeatures = cmd->removedFeatures();
   }
   return true;
 }

@@ -272,8 +272,38 @@ void ViewerWidget::setDocument(Document* doc) {
   connectDocument();
   scene_.clear();
   hoverRef_.reset();
+  syncGhostingToActiveComponent();
   onFilterInputsChanged();
   scheduleSync();
+}
+
+// Ghosting follows Document::activeComponent in one place (ASM-01): every path that changes the
+// active component (tools, browser "Activate Component", undo, removeComponent) reaches here.
+// The active component and its descendants stay solid; the root clears ghosting.
+void ViewerWidget::syncGhostingToActiveComponent() {
+  std::vector<ObjectId> keep;
+  if (document_) {
+    const ObjectId active = document_->activeComponent();
+    const core::Component* c = document_->component(active);
+    if (c && !c->isRoot()) {
+      std::vector<ObjectId> stack{active};
+      while (!stack.empty()) {
+        const ObjectId id = stack.back();
+        stack.pop_back();
+        keep.push_back(id);
+        if (const core::Component* cc = document_->component(id))
+          for (ObjectId ch : cc->children) stack.push_back(ch);
+      }
+    }
+  }
+  if (keep == sceneOptions_.activeComponents) return;
+  setGhostedComponents(keep);
+}
+
+bool ViewerWidget::ghostedPickable() const {
+  ShapeKindMask toolMask = toolFilter_;
+  if (document_) toolMask &= document_->selection().filter();
+  return toolMask != core::kAllKinds && core::hasKind(toolMask, ShapeKind::Component);
 }
 
 void ViewerWidget::setViewportInsets(QMargins m) {
@@ -303,10 +333,18 @@ void ViewerWidget::connectDocument() {
   cs.push_back(connect(document_, &Document::featureStatusChanged, this, syncId));
   cs.push_back(connect(document_, &Document::rollbackChanged, this, [this](int) { scheduleSync(); }));
   cs.push_back(connect(document_, &Document::recomputeFinished, this, sync));
-  cs.push_back(connect(document_, &Document::componentAdded, this, syncId));
-  cs.push_back(connect(document_, &Document::componentRemoved, this, syncId));
+  auto compSync = [this](ObjectId) {
+    // a component added/removed below the active one changes the solid (non-ghosted) set
+    if (document_ && document_->activeComponent() != core::kRootComponentId) syncGhostingToActiveComponent();
+    scheduleSync();
+  };
+  cs.push_back(connect(document_, &Document::componentAdded, this, compSync));
+  cs.push_back(connect(document_, &Document::componentRemoved, this, compSync));
   cs.push_back(connect(document_, &Document::componentChanged, this, syncId));
+  cs.push_back(connect(document_, &Document::activeComponentChanged, this,
+                       [this](ObjectId) { syncGhostingToActiveComponent(); }));
   cs.push_back(connect(document_, &Document::documentReset, this, [this] {
+    syncGhostingToActiveComponent();
     scene_.clear();
     hoverRef_.reset();
     if (d_->ready()) {
@@ -772,9 +810,10 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, core::Displ
   return s;
 }
 
-std::vector<int> modesFor(const SceneItem& it, ShapeKindMask eff) {
+std::vector<int> modesFor(const SceneItem& it, ShapeKindMask eff, bool pickGhosted) {
   std::vector<int> m;
-  if (it.ghosted) return m;
+  // ghosted (inactive-component) items are pickable only in assembly tools (ASM-01)
+  if (it.ghosted && !(pickGhosted && it.style == SceneStyle::Body)) return m;
   using core::hasKind;
   if (it.style == SceneStyle::Body) {
     BrepModes b = brepModesFor(eff);
@@ -894,8 +933,9 @@ void ViewerWidget::applySelectionModes() {
   if (!d_->ready()) return;
   const ShapeKindMask eff = selectionEnabled_ ? effectiveFilter() : core::kNoKinds;
   const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+  const bool pickGhosted = ghostedPickable();
   for (auto& [key, o] : d_->objects) {
-    std::vector<int> modes = modesFor(o.item, eff);
+    std::vector<int> modes = modesFor(o.item, eff, pickGhosted);
     if (o.modesValid && modes == o.modes) continue;
     ctx->Deactivate(o.obj);
     for (int m : modes) ctx->Activate(o.obj, m, false);
@@ -913,9 +953,10 @@ void ViewerWidget::syncOverlays() {
 
   // the scene item that displays a ref's owner (body for B-rep refs, sketch for sketch refs);
   // null when that owner is hidden: no overlay then (a hidden selected body must not ghost)
+  const bool pickGhosted = ghostedPickable();
   auto ownerItem = [&](const ShapeRef& r) -> const SceneItem* {
     for (const SceneItem& it : sceneItems_) {
-      if (it.ghosted) continue;
+      if (it.ghosted && !pickGhosted) continue;
       if (r.isBrep() && it.style == SceneStyle::Body && it.ref.owner == r.owner) return &it;
       if ((r.kind == ShapeKind::SketchCurve || r.kind == ShapeKind::SketchPoint) && isSketchStyle(it.style) &&
           it.ref.owner == r.owner)

@@ -365,6 +365,7 @@ int deleteSelectedComponents(ToolContext& ctx) {
   }
   int n = 0;
   std::string report;
+  bool warn = false;
   if (ctx.undo && comps.size() > 1) ctx.undo->beginMacro("Delete components");
   for (ObjectId c : comps) {
     const core::Component* comp = doc.component(c);
@@ -378,12 +379,22 @@ int deleteSelectedComponents(ToolContext& ctx) {
     std::string what;
     if (r.movedBodies) what += std::format("{} bod{}", r.movedBodies, r.movedBodies == 1 ? "y" : "ies");
     if (r.movedChildren) what += std::format("{}{} child component{}", what.empty() ? "" : " and ", r.movedChildren, r.movedChildren == 1 ? "" : "s");
-    report += (report.empty() ? "" : "\n") + std::format("Deleted component '{}'{}", name,
-                                                          what.empty() ? "" : " (" + what + " moved to " + parentName + ")");
+    std::string line = std::format("Deleted component '{}'", name);
+    if (r.removedFeatures) line += std::format(", removed {} joint{}", r.removedFeatures, r.removedFeatures == 1 ? "" : "s");
+    // ASM-02 option (b): the bodies are kept (their features live in the timeline); say so loudly
+    if (!what.empty()) {
+      line += std::format(". Kept {}: moved to {}", what, parentName);
+      if (r.movedBodies) line += " (delete the bodies separately if they are not needed)";
+      warn = warn || r.movedBodies > 0;
+    }
+    report += (report.empty() ? "" : "\n") + line;
   }
   if (ctx.undo && comps.size() > 1) ctx.undo->endMacro();
   if (ctx.selection) ctx.selection->clear();
-  if (!report.empty()) ctx.showMessage(report);
+  if (!report.empty()) {
+    if (warn && ctx.host) ctx.host->showMessage(report, core::MessageLevel::Warning);
+    else ctx.showMessage(report);
+  }
   return n;
 }
 
