@@ -180,6 +180,9 @@ double DriveJointTool::value() const { return joint_ ? joint_->primaryValue() : 
 
 void DriveJointTool::setValue(ToolContext& ctx, double v) {
   if (!joint_) return;
+  // ASM-07: limits clamp (setPrimaryValue); a rotation without limits wraps to (-180, 180]
+  const auto& dofs = jointDofs(joint_->jointType());
+  if (!joint_->limitsEnabled() && !dofs.empty() && dofs.front().kind == DofKind::Rotation) v = wrapAngle180(v);
   joint_->setPrimaryValue(v);
   ctx.document->notifyFeatureChanged(joint_->id());
   ctx.document->recompute();
@@ -302,8 +305,12 @@ void DriveJointTool::syncDialog() {
   if (std::abs(valueEdit_->value() - v) > 1e-9) valueEdit_->setValue(v);
   const auto& dofs = jointDofs(joint_->jointType());
   std::string unit = dofs.empty() ? "" : (dofs.front().kind == DofKind::Rotation ? " deg" : " mm");
-  rangeLabel_->setText(core::qs(std::format("{:g}{} .. {:g}{}{}", rangeMin_, unit, rangeMax_, unit,
-                                            joint_->limitsEnabled() ? " (limits)" : "")));
+  const bool rot = !dofs.empty() && dofs.front().kind == DofKind::Rotation;
+  if (joint_->limitsEnabled() || rot)
+    rangeLabel_->setText(core::qs(std::format("{:g}{} .. {:g}{}{}", rangeMin_, unit, rangeMax_, unit,
+                                              joint_->limitsEnabled() ? " (limits)" : "")));
+  else  // a slider span, not a limit: typed values outside it are accepted
+    rangeLabel_->setText(core::qs(std::format("slider \u00b1{:g}{} (no limits)", rangeMax_, unit)));
   syncing_ = false;
 }
 

@@ -523,6 +523,180 @@ class AssemblyToolsTest : public QObject {
     QVERIFY(near(j->primaryValue(), 0.0));
   }
 
+  void jointAnimateThenOkKeepsTypedValue() {
+    // ASM-05: Animate writes the preview value; OK must commit the typed one
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    QVERIFY(h.manager.run("assembly.joint", {"REVOLUTE"}));
+    auto* jt = h.tool<JointTool>("assembly.joint");
+    jt->pick(h.ctx(), faceWithNormal(h.doc, b.bodyB, gp_Dir(0, 0, -1)), gp_Pnt(45, 5, 0));
+    jt->pick(h.ctx(), faceWithNormal(h.doc, b.bodyA, gp_Dir(0, 0, 1)), gp_Pnt(5, 5, 10));
+    QCOMPARE(jt->stage(), JointTool::Stage::Ready);
+    jt->setValue(h.ctx(), 30.0);
+    jt->setAnimating(h.ctx(), true);
+    QVERIFY(jt->isAnimating());
+    QTRY_VERIFY_WITH_TIMEOUT(!near(jt->value(), 30.0), 2000);  // the animation moved it
+    h.manager.accept();
+    auto* jf = h.doc.featureAs<JointFeature>(jt->createdJoint());
+    QVERIFY(jf);
+    QVERIFY2(near(jf->primaryValue(), 30.0), qPrintable(QString::number(jf->primaryValue())));
+    // angles wrap to (-180, 180]; stopping the animation restores the typed value
+    QVERIFY(h.manager.run("assembly.joint", {"REVOLUTE"}));
+    jt->pick(h.ctx(), faceWithNormal(h.doc, b.bodyB, gp_Dir(0, 0, -1)), gp_Pnt(45, 5, 0));
+    jt->pick(h.ctx(), faceWithNormal(h.doc, b.bodyA, gp_Dir(0, 0, 1)), gp_Pnt(5, 5, 10));
+    jt->setValue(h.ctx(), 270.0);
+    QVERIFY(near(jt->value(), -90.0));
+    jt->setAnimating(h.ctx(), true);
+    QTRY_VERIFY_WITH_TIMEOUT(!near(jt->value(), -90.0), 2000);
+    for (int i = 0; i < 20; ++i) {
+      QTest::qWait(10);
+      QVERIFY(jt->value() > -180.0 - 1e-9 && jt->value() <= 180.0 + 1e-9);
+    }
+    jt->setAnimating(h.ctx(), false);
+    QVERIFY(near(jt->value(), -90.0));
+    h.manager.cancel();
+    QCOMPARE(wrapAngle180(540.0), 180.0);
+    QCOMPARE(wrapAngle180(-180.0), 180.0);
+    QCOMPARE(wrapAngle180(-190.0), 170.0);
+  }
+
+  void jointPickErrorsAndEmptyComponents() {
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    // ASM-03: an empty component cannot be jointed (as-built or snap)
+    const ObjectId empty = h.doc.addComponent("Empty").id;
+    QVERIFY(h.manager.run("assembly.as-built-joint"));
+    auto* ab = dynamic_cast<JointTool*>(h.manager.activeTool());
+    QVERIFY(ab && ab->isAsBuilt());
+    ab->pick(h.ctx(), ShapeRef::component(b.compB), gp_Pnt(45, 5, 5));
+    QCOMPARE(ab->stage(), JointTool::Stage::PickB);
+    ab->pick(h.ctx(), ShapeRef::component(empty), gp_Pnt(0, 0, 0));
+    QCOMPARE(ab->stage(), JointTool::Stage::PickB);
+    QVERIFY(h.host.messages().back().second.find("empty") != std::string::npos);
+    // ASM-10: the red "must differ" message is replaced after a valid pick
+    ab->pick(h.ctx(), ShapeRef::component(b.compB), gp_Pnt(45, 5, 5));
+    QCOMPARE(h.host.messages().back().first, core::MessageLevel::Error);
+    ab->pick(h.ctx(), ShapeRef::component(b.compA), gp_Pnt(5, 5, 5));
+    QCOMPARE(ab->stage(), JointTool::Stage::Ready);
+    QCOMPARE(h.host.messages().back().first, core::MessageLevel::Info);
+    h.manager.cancel();
+    // ASM-10: a preselected component is not silently turned into "component origin" snap 1
+    h.select({ShapeRef::component(b.compB)});
+    QVERIFY(h.manager.run("assembly.joint"));
+    auto* jt = h.tool<JointTool>("assembly.joint");
+    QCOMPARE(jt->stage(), JointTool::Stage::PickA);
+    h.manager.cancel();
+  }
+
+  void deleteComponentRemovesJointsOnItsBodies() {
+    // ASM-02: a joint whose snap sits on the deleted component's body goes with it, even when
+    // its component fields name other components (origin picks resolved to the root)
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    JointOrigin oa = makeJointOrigin(h.doc, faceWithNormal(h.doc, b.bodyB, gp_Dir(0, 0, -1)), gp_Pnt(45, 5, 0));
+    JointOrigin ob = makeJointOrigin(h.doc, faceWithNormal(h.doc, b.bodyA, gp_Dir(0, 0, 1)), gp_Pnt(5, 5, 10));
+    oa.component = core::kRootComponentId;
+    auto joint = std::make_unique<JointFeature>();
+    joint->setOrigins(oa, ob);
+    joint->setComponents(core::kRootComponentId, b.compA);
+    joint->setJointType(JointType::Revolute);
+    const ObjectId jid = h.doc.addFeature(std::move(joint))->id();
+    h.doc.recompute();
+    const int features = h.doc.featureCount();
+    DeleteComponentResult r;
+    QVERIFY(deleteComponent(h.doc, &h.doc.undoStack(), b.compB, &r));
+    QVERIFY(!h.doc.feature(jid));
+    QCOMPARE(h.doc.featureCount(), features - 1);
+    QCOMPARE(r.removedFeatures, 1);
+    QCOMPARE(r.movedBodies, 1);
+    h.doc.undoStack().undo();
+    QVERIFY(h.doc.feature(jid));
+    // Drive Joints does not offer joints in error
+    auto* jf = h.doc.featureAs<JointFeature>(jid);
+    jf->setComponents(b.compA, b.compA);  // "both snaps on the same component"
+    h.doc.notifyFeatureChanged(jid);
+    h.doc.recompute();
+    QCOMPARE(jf->status(), core::FeatureStatus::Error);
+    auto* dt = h.tool<DriveJointTool>("assembly.drive-joint");
+    QVERIFY(dt->candidates(h.doc).empty());
+  }
+
+  void moveComponentTypedFieldsAreKept() {
+    // ASM-04: typing an angle must not rewrite the typed distances (rotation is about the pivot)
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    h.select({ShapeRef::component(b.compB)});
+    QVERIFY(h.manager.run("assembly.move"));
+    auto* mt = h.tool<MoveComponentTool>("assembly.move");
+    QCOMPARE(mt->components(), std::vector<ObjectId>{b.compB});
+    mt->setTransform(h.ctx(), 10, 20, 0, 0, 0, 0);
+    mt->setTransform(h.ctx(), 10, 20, 0, 0, 0, 30);
+    QVERIFY(near(mt->fieldValue(0), 10.0));
+    QVERIFY(near(mt->fieldValue(1), 20.0));
+    QVERIFY(near(mt->fieldValue(5), 30.0));
+    // a drag-style delta reads back as pivot-relative fields: re-typing them reproduces it
+    const gp_Trsf typed = mt->delta();
+    mt->applyDelta(h.ctx(), typed);
+    QVERIFY2(near(mt->fieldValue(0), 10.0) && near(mt->fieldValue(1), 20.0),
+             qPrintable(QString("%1 %2").arg(mt->fieldValue(0)).arg(mt->fieldValue(1))));
+    QVERIFY(near(mt->fieldValue(5), 30.0));
+    const gp_Pnt before = worldOrigin(h.doc, b.compB);
+    mt->setTransform(h.ctx(), mt->fieldValue(0), mt->fieldValue(1), mt->fieldValue(2), mt->fieldValue(3), mt->fieldValue(4),
+                     mt->fieldValue(5));
+    QVERIFY(near(worldOrigin(h.doc, b.compB), before));
+    h.manager.cancel();
+    // ASM-09: moving a grounded component asks first; "No" leaves it out
+    h.host.setYesNoAnswer(false);
+    h.select({ShapeRef::component(b.compA)});
+    QVERIFY(h.manager.run("assembly.move"));
+    QVERIFY(mt->components().empty());
+    QCOMPARE(h.host.messages().back().first, core::MessageLevel::Warning);
+    h.manager.cancel();
+    h.host.setYesNoAnswer(true);
+    QVERIFY(h.manager.run("assembly.move"));
+    QCOMPARE(mt->components(), std::vector<ObjectId>{b.compA});
+    h.manager.cancel();
+  }
+
+  void driveJointWrapsUnlimitedRotation() {
+    // ASM-07: without limits, a typed rotation wraps to (-180, 180]
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    auto joint = std::make_unique<JointFeature>();
+    joint->setOrigins(makeJointOrigin(h.doc, faceWithNormal(h.doc, b.bodyB, gp_Dir(0, 0, -1)), gp_Pnt(45, 5, 0)),
+                      makeJointOrigin(h.doc, faceWithNormal(h.doc, b.bodyA, gp_Dir(0, 0, 1)), gp_Pnt(5, 5, 10)));
+    joint->setJointType(JointType::Revolute);
+    auto* j = joint.get();
+    h.doc.addFeature(std::move(joint));
+    h.doc.recompute();
+    QVERIFY(h.manager.run("assembly.drive-joint"));
+    auto* dt = h.tool<DriveJointTool>("assembly.drive-joint");
+    dt->setValue(h.ctx(), 270.0);
+    QVERIFY(near(j->primaryValue(), -90.0));
+    dt->setValue(h.ctx(), -500.0);
+    QVERIFY(near(j->primaryValue(), -140.0));
+    h.manager.cancel();
+  }
+
+  void groundToolbarButtonToggles() {
+    // ASM-09: the toolbar Ground button ungrounds when everything selected is grounded; the
+    // GROUND command stays idempotent
+    Harness h;
+    const TwoBoxes& b = h.boxes;
+    h.select({ShapeRef::component(b.compA)});
+    QVERIFY(h.doc.component(b.compA)->grounded);
+    QVERIFY(h.tools.tool("assembly.ground")->info().hidden);
+    QVERIFY(!h.tools.tool("assembly.ground-toggle")->info().hidden);
+    QVERIFY(h.manager.run("assembly.ground"));
+    QVERIFY(h.doc.component(b.compA)->grounded);
+    QVERIFY(h.manager.run("assembly.ground-toggle"));
+    QVERIFY(!h.doc.component(b.compA)->grounded);
+    QVERIFY(h.manager.run("assembly.ground-toggle"));
+    QVERIFY(h.doc.component(b.compA)->grounded);
+    QVERIFY(h.manager.runCommandLine("GROUND"));
+    QVERIFY(h.doc.component(b.compA)->grounded);
+  }
+
   void groundRigidGroupAndComponentsFromBodies() {
     Harness h;
     const TwoBoxes& b = h.boxes;

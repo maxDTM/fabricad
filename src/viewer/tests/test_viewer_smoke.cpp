@@ -12,6 +12,7 @@
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
 #include <QSignalSpy>
+#include <algorithm>
 #include <QtTest/QtTest>
 
 using namespace fabricad;
@@ -155,6 +156,41 @@ class ViewerSmokeTest : public QObject {
       }
     // diagonal ~539 -> 0.35 * 539 = 189 -> 200
     QVERIFY2(std::abs(halfSize - 200.0) < 1.0, qPrintable(QString::number(halfSize)));
+  }
+
+  void ghostingFollowsActiveComponent() {
+    // ASM-01: whatever changes the active component (browser, undo, tools), the viewer ghosts
+    // everything outside it, and activating the root clears the ghosting
+    core::Document doc;
+    auto* rootBox = doc.addFeature(std::make_unique<core::test::BoxFeature>());
+    auto* compBox = doc.addFeature(std::make_unique<core::test::BoxFeature>());
+    doc.recompute();
+    const core::ObjectId comp = doc.addComponent("Part").id;
+    const core::ObjectId child = doc.addComponent("Sub", comp).id;
+    const core::ObjectId compBody = compBox->createdBodies().front();
+    doc.body(compBody)->component = comp;
+    doc.notifyBodyChanged(compBody);
+    viewer::ViewerWidget w;
+    w.setDocument(&doc);
+    w.syncNow();
+    auto ghosted = [&w](core::ObjectId body) {
+      for (const viewer::SceneItem& it : w.sceneItems())
+        if (it.style == viewer::SceneStyle::Body && it.ref.owner == body) return it.ghosted;
+      return false;
+    };
+    const core::ObjectId rootBody = rootBox->createdBodies().front();
+    QVERIFY(!ghosted(rootBody));
+    doc.setActiveComponent(comp);
+    w.syncNow();
+    QVERIFY(ghosted(rootBody));
+    QVERIFY(!ghosted(compBody));
+    QCOMPARE(w.fallbackContext().ghosted().size(), size_t(2));  // the component and its child
+    QVERIFY(std::count(w.fallbackContext().ghosted().begin(), w.fallbackContext().ghosted().end(), child) == 1);
+    doc.setActiveComponent(core::kRootComponentId);
+    w.syncNow();
+    QVERIFY(!ghosted(rootBody));
+    QVERIFY(!ghosted(compBody));
+    QVERIFY(w.fallbackContext().ghosted().empty());
   }
 };
 

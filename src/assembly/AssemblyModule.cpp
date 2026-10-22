@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/AssemblyModule.h"
 
+#include "assembly/BaseBodyFeature.h"
+
 #include "assembly/Bom.h"
 #include "assembly/ComponentOps.h"
 #include "assembly/JointFeature.h"
@@ -72,6 +74,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
   ctx.features.registerType(NewComponentFeature::kType, [] { return std::make_unique<NewComponentFeature>(); });
   ctx.features.registerType(PositionFeature::kType, [] { return std::make_unique<PositionFeature>(); });
   ctx.features.registerType(InsertDesignFeature::kType, [] { return std::make_unique<InsertDesignFeature>(); });
+  ctx.features.registerType(BaseBodyFeature::kType, [] { return std::make_unique<BaseBodyFeature>(); });
 
   // --- interactive tools -------------------------------------------------------------
   ctx.tools.registerTool(std::make_unique<NewComponentTool>());
@@ -86,7 +89,13 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
   {
     ToolInfo i = assembleInfo("assembly.ground", "Ground", "Fix the selected components in space (GROUND [on|off|toggle])", 4);
     i.aliases = {"GROUND"};
+    i.hidden = true;  // the command line (idempotent); the toolbar shows the toggle below
     ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) { setGround(c, GroundMode::Ground); }, hasComponentSelection));
+    // ASM-09: the toolbar button is a toggle: with every selected component already grounded it
+    // ungrounds them (Fusion's Ground / Unground)
+    ToolInfo g = assembleInfo("assembly.ground-toggle", "Ground",
+                              "Fix the selected components in space; when all of them are grounded, unground them", 4);
+    ctx.tools.registerTool(std::make_unique<LambdaTool>(g, [](ToolContext& c) { setGround(c, GroundMode::Toggle); }, hasComponentSelection));
     ToolInfo u = assembleInfo("assembly.unground", "Unground", "Free the selected components (undo Ground)", 5);
     u.aliases = {"UNGROUND"};
     u.hidden = true;  // the browser context menu and the command line

@@ -46,6 +46,7 @@
   <file>icons/assembly-export-bom.svg</file>
   <file>icons/assembly-export-step.svg</file>
   <file>icons/assembly-ground.svg</file>
+  <file>icons/assembly-ground-toggle.svg</file>
   <file>icons/assembly-insert-design.svg</file>
   <file>icons/assembly-interference.svg</file>
   <file>icons/assembly-joint.svg</file>
