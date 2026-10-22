@@ -1531,6 +1531,59 @@ class ToolsTest : public QObject {
     QVERIFY(g);
     QCOMPARE(g->regions().size(), size_t(2));
   }
+
+  // SK-13: edge polygon and the overall / centre-point slot variants
+  void edgePolygonAndSlotVariants() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.polygon-edge", {"4"}));
+    r.click(0, 0);
+    r.click(20, 0);
+    QCOMPARE(r.sk().geometryCount(), 5);  // 4 lines + construction circle
+    double minY = 1e9, maxY = -1e9;
+    for (const Geometry& g : r.sk().geometries()) {
+      if (g.type == GeomType::Line) {
+        QVERIFY(near(g.length(), 20.0, 1e-6));
+        for (Pt2 p : {g.start(), g.end()}) minY = std::min(minY, p.y), maxY = std::max(maxY, p.y);
+      } else {
+        QVERIFY(g.type == GeomType::Circle && g.construction);
+        QVERIFY(g.center().distance(Pt2{10, 10}) < 1e-6);  // square to the left
+      }
+    }
+    QVERIFY(near(maxY - minY, 20.0, 1e-6));
+    SolveResult res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(1));
+    r.mgr.cancel();
+
+    // overall slot: ends at 100 and 160, width 10 -> centres 5 in from the ends
+    r.mgr.run("sketch.slot-overall");
+    r.click(100, 0);
+    r.click(160, 0);
+    QVERIFY(r.mgr.runCommandLine("10"));
+    QCOMPARE(r.sk().geometryCount(), 10);
+    double axisLen = 0;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Line && g.construction) axisLen = g.length();
+    QVERIFY2(near(axisLen, 50.0, 1e-6), std::format("axis {}", axisLen).c_str());
+    r.mgr.cancel();
+
+    // centre-point slot: centre 0,100, arc centre 30,100 -> axis 60
+    r.mgr.run("sketch.slot-center");
+    r.click(0, 100);
+    r.click(30, 100);
+    QVERIFY(r.mgr.runCommandLine("8"));
+    QCOMPARE(r.sk().geometryCount(), 15);
+    std::vector<double> axes;
+    for (const Geometry& g : r.sk().geometries())
+      if (g.type == GeomType::Line && g.construction) axes.push_back(g.length());
+    QCOMPARE(axes.size(), size_t(2));
+    QVERIFY2(near(axes.back(), 60.0, 1e-6), std::format("axis {}", axes.back()).c_str());
+    res = r.sk().solve();
+    QVERIFY2(res.ok(), res.message.c_str());
+    QCOMPARE(r.sketchFeature()->regions().size(), size_t(3));
+  }
 };
 
 QTEST_GUILESS_MAIN(ToolsTest)

@@ -1139,7 +1139,8 @@ class ArcTool : public PointsTool {
 
 class PolygonTool : public PointsTool {
  public:
-  PolygonTool(bool inscribed, ToolInfo info) : PointsTool(std::move(info), 2), inscribed_(inscribed) {}
+  PolygonTool(bool inscribed, ToolInfo info, bool edge = false)
+      : PointsTool(std::move(info), 2), inscribed_(inscribed || edge), edge_(edge) {}
 
   void activate(ToolContext& ctx) override {
     if (!ctx.args.empty()) {
@@ -1155,6 +1156,10 @@ class PolygonTool : public PointsTool {
 
  protected:
   std::string prompt() const override {
+    if (edge_) {
+      if (pts_.empty()) return std::format("Specify first edge point ({} sides; type a number of sides to change)", sides_);
+      return "Specify second edge point (the polygon lies to the left; or type the edge length)";
+    }
     if (pts_.empty()) return std::format("Specify center ({} sides; type a number of sides to change)", sides_);
     return inscribed_ ? "Specify a vertex (or type the radius)" : "Specify the midpoint of an edge (or type the radius)";
   }
@@ -1162,7 +1167,7 @@ class PolygonTool : public PointsTool {
   std::vector<ValueField> valueFields() const override {
     ValueField sides{.id = "sides", .label = "Sides", .kind = ValueKind::Count};
     sides.value = sides_;
-    return {sides, lengthField("radius", "Radius")};
+    return {sides, edge_ ? lengthField("radius", "Edge") : lengthField("radius", "Radius")};
   }
 
   void updateValueVisibility() override {
@@ -1193,8 +1198,25 @@ class PolygonTool : public PointsTool {
     return sides_;
   }
 
+  /// Edge mode: centre of the polygon whose first edge runs p0 -> p1 (centre on the left).
+  Pt2 edgeCentre(Pt2 p0, Pt2 p1) const {
+    const int n = effectiveSides();
+    Pt2 d = p1 - p0;
+    return (p0 + p1) * 0.5 + d.normalized().perp() * (d.length() / 2 / std::tan(kPi / n));
+  }
+
   std::vector<Pt2> vertices(Pt2 c, Pt2 v, double* circleRadius) const {
     std::vector<Pt2> out;
+    if (edge_) {
+      // c, v are the edge endpoints
+      if (c.distance(v) < kEps) return out;
+      Pt2 ctr = edgeCentre(c, v);
+      const int n = effectiveSides();
+      double r = ctr.distance(c), a0 = (c - ctr).angle();
+      if (circleRadius) *circleRadius = r;
+      for (int i = 0; i < n; ++i) out.push_back(ctr + Pt2::polar(r, a0 + 2 * kPi / n * i));
+      return out;
+    }
     double d = c.distance(v);
     if (d < kEps) return out;
     const int n = effectiveSides();
@@ -1219,6 +1241,7 @@ class PolygonTool : public PointsTool {
     vs.push_back(vs.front());
     previewPolyline(vs, rubberStyle());
     setValue("radius", pts_[0].point.distance(c), c);
+    if (edge_) previewGeometry(Geometry::makeCircle(edgeCentre(pts_[0].point, c), vs[0].distance(edgeCentre(pts_[0].point, c))), constructionStyle());
   }
 
   bool commitValues(ToolContext& ctx) override {
@@ -1270,7 +1293,7 @@ class PolygonTool : public PointsTool {
     const int n = sides_;
     std::vector<int> l(n);
     for (int i = 0; i < n; ++i) l[i] = sk->addGeometry(asCreated(Geometry::makeLine(vs[i], vs[(i + 1) % n])));
-    Geometry circle = Geometry::makeCircle(pts_[0].point, R);
+    Geometry circle = Geometry::makeCircle(edge_ ? edgeCentre(pts_[0].point, pts_[1].point) : pts_[0].point, R);
     circle.construction = true;
     int c = sk->addGeometry(circle);
     for (int i = 0; i < n; ++i) {
@@ -1278,6 +1301,16 @@ class PolygonTool : public PointsTool {
       if (i > 0) sk->addConstraint(Constraint{.type = ConstraintType::Equal, .a = {l[0]}, .b = {l[i]}});
       if (inscribed_) sk->addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = {l[i], PointPos::Start}, .b = {c}, .internal = true});
       else sk->addConstraint(Constraint{.type = ConstraintType::Tangent, .a = {l[i]}, .b = {c}, .internal = true});
+    }
+    if (edge_) {
+      applyInference(*sk, coincidenceOnly(pts_[0]), {l[0], PointPos::Start}, -1);
+      applyInference(*sk, coincidenceOnly(pts_[1]), {l[0], PointPos::End}, -1);
+      if (pts_[1].horizontal) sk->addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = {l[0]}});
+      else if (pts_[1].vertical) sk->addConstraint(Constraint{.type = ConstraintType::Vertical, .a = {l[0]}});
+      // typed edge length -> length of the first edge
+      dimensionFor(ctx, "radius", Constraint{.type = ConstraintType::Distance, .a = {l[0]}});
+      session()->commitEdit("Polygon");
+      return;
     }
     applyInference(*sk, coincidenceOnly(pts_[0]), {c, PointPos::Center}, -1);
     if (inscribed_) applyInference(*sk, coincidenceOnly(pts_[1]), {l[0], PointPos::Start}, -1);
@@ -1288,6 +1321,7 @@ class PolygonTool : public PointsTool {
 
  private:
   bool inscribed_;
+  bool edge_ = false;
   int sides_ = 6;
 };
 
@@ -1295,23 +1329,38 @@ class PolygonTool : public PointsTool {
 // Slot (center to center)
 // ---------------------------------------------------------------------------
 
+enum class SlotMode { CenterToCenter, Overall, CenterPoint };
+
 class SlotTool : public PointsTool {
  public:
   SlotTool()
-      : PointsTool(ToolInfo{.id = "sketch.slot",
-                            .name = "Center to Center Slot",
-                            .tooltip = "Slot from two arc centers and a width (type the length, then the width)",
-                            .icon = "sketch-slot",
-                            .aliases = {"SLOT"},
-                            .tab = "SKETCH",
-                            .group = "CREATE",
-                            .order = 12},
-                   3) {}
+      : SlotTool(SlotMode::CenterToCenter,
+                 ToolInfo{.id = "sketch.slot",
+                          .name = "Center to Center Slot",
+                          .tooltip = "Slot from two arc centers and a width (type the length, then the width)",
+                          .icon = "sketch-slot",
+                          .aliases = {"SLOT"},
+                          .tab = "SKETCH",
+                          .group = "CREATE",
+                          .order = 12}) {}
+  SlotTool(SlotMode mode, ToolInfo info) : PointsTool(std::move(info), 3), mode_(mode) {}
 
  protected:
   std::string prompt() const override {
-    if (pts_.empty()) return "Specify first slot center";
-    if (pts_.size() == 1) return "Specify second slot center (or type the center distance)";
+    switch (mode_) {
+      case SlotMode::Overall:
+        if (pts_.empty()) return "Specify first slot end";
+        if (pts_.size() == 1) return "Specify second slot end (or type the overall length)";
+        break;
+      case SlotMode::CenterPoint:
+        if (pts_.empty()) return "Specify slot center";
+        if (pts_.size() == 1) return "Specify an arc center (or type the center-to-arc distance)";
+        break;
+      case SlotMode::CenterToCenter:
+        if (pts_.empty()) return "Specify first slot center";
+        if (pts_.size() == 1) return "Specify second slot center (or type the center distance)";
+        break;
+    }
     return "Specify slot width (or type a value)";
   }
 
@@ -1320,6 +1369,24 @@ class SlotTool : public PointsTool {
   void updateValueVisibility() override {
     setValueVisible("length", pts_.size() == 1);
     setValueVisible("width", pts_.size() == 2);
+  }
+
+  /// Arc centres from the two picked points and the half width, per mode.
+  std::optional<std::pair<Pt2, Pt2>> centres(Pt2 p0, Pt2 p1, double r) const {
+    Pt2 d = p1 - p0;
+    if (d.length() < kEps) return std::nullopt;
+    switch (mode_) {
+      case SlotMode::Overall: {
+        if (d.length() <= 2 * r + kEps) return std::nullopt;
+        Pt2 dn = d.normalized();
+        return std::pair{p0 + dn * r, p1 - dn * r};
+      }
+      case SlotMode::CenterPoint:
+        return std::pair{p0 * 2.0 - p1, p1};
+      case SlotMode::CenterToCenter:
+        break;
+    }
+    return std::pair{p0, p1};
   }
 
   Pt2 applyLocks(Pt2 p) const override {
@@ -1375,7 +1442,8 @@ class SlotTool : public PointsTool {
       setValue("length", pts_[0].point.distance(c), c);
       return;
     }
-    auto s = slotFor(pts_[0].point, pts_[1].point, halfWidth(c));
+    auto cs = centres(pts_[0].point, pts_[1].point, halfWidth(c));
+    auto s = cs ? slotFor(cs->first, cs->second, halfWidth(c)) : std::nullopt;
     if (!s) return;
     for (const Geometry* g : {&s->l1, &s->l2, &s->a1, &s->a2}) previewGeometry(*g, rubberStyle());
     previewGeometry(s->axis, constructionStyle());
@@ -1385,7 +1453,9 @@ class SlotTool : public PointsTool {
   void create(ToolContext& ctx) override {
     Sketch* sk = sketch();
     if (!sk || !session()) return;
-    auto s = slotFor(pts_[0].point, pts_[1].point, halfWidth(pts_[2].point));
+    const double r = halfWidth(pts_[2].point);
+    auto cs = centres(pts_[0].point, pts_[1].point, r);
+    auto s = cs ? slotFor(cs->first, cs->second, r) : std::nullopt;
     if (!s) {
       ctx.showMessage("Degenerate slot ignored", true);
       return;
@@ -1408,15 +1478,22 @@ class SlotTool : public PointsTool {
     sk->addConstraint(Constraint{.type = CT::Equal, .a = {a1}, .b = {a2}});
     sk->addConstraint(Constraint{.type = CT::Coincident, .a = {ax, PointPos::Start}, .b = {a1, PointPos::Center}});
     sk->addConstraint(Constraint{.type = CT::Coincident, .a = {ax, PointPos::End}, .b = {a2, PointPos::Center}});
-    applyInference(*sk, coincidenceOnly(pts_[0]), {a1, PointPos::Center}, -1);
-    applyInference(*sk, coincidenceOnly(pts_[1]), {a2, PointPos::Center}, -1);
+    if (mode_ != SlotMode::Overall) {
+      if (mode_ == SlotMode::CenterToCenter) applyInference(*sk, coincidenceOnly(pts_[0]), {a1, PointPos::Center}, -1);
+      applyInference(*sk, coincidenceOnly(pts_[1]), {a2, PointPos::Center}, -1);
+    }
     if (pts_[1].horizontal) sk->addConstraint(Constraint{.type = CT::Horizontal, .a = {ax}});
     else if (pts_[1].vertical) sk->addConstraint(Constraint{.type = CT::Vertical, .a = {ax}});
     // typed center distance -> length of the construction axis; typed width -> arc diameter
-    dimensionFor(ctx, "length", Constraint{.type = CT::Distance, .a = {ax}});
+    // (overall / centre-point: the typed length places the points exactly; only the
+    // centre-to-centre axis carries a length dimension)
+    if (mode_ == SlotMode::CenterToCenter) dimensionFor(ctx, "length", Constraint{.type = CT::Distance, .a = {ax}});
     dimensionFor(ctx, "width", Constraint{.type = CT::Diameter, .a = {a1}});
     session()->commitEdit("Slot");
   }
+
+ private:
+  SlotMode mode_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1489,7 +1566,18 @@ void registerCreateTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<PolygonTool>(
       true, ToolInfo{.id = "sketch.polygon-inscribed", .name = "Inscribed Polygon", .tooltip = "Regular polygon inside a circle (argument: number of sides)",
                      .icon = "sketch-polygon-inscribed", .aliases = {"POLI"}, .tab = "SKETCH", .group = "CREATE", .order = 11}));
+  reg.registerTool(std::make_unique<PolygonTool>(
+      false,
+      ToolInfo{.id = "sketch.polygon-edge", .name = "Edge Polygon", .tooltip = "Regular polygon from the two endpoints of one edge (argument: number of sides)",
+               .icon = "sketch-polygon", .aliases = {"POLE"}, .tab = "SKETCH", .group = "CREATE", .order = 11},
+      true));
   reg.registerTool(std::make_unique<SlotTool>());
+  reg.registerTool(std::make_unique<SlotTool>(
+      SlotMode::Overall, ToolInfo{.id = "sketch.slot-overall", .name = "Overall Slot", .tooltip = "Slot from its two ends and a width (type the overall length, then the width)",
+                                  .icon = "sketch-slot", .aliases = {"SLOTO"}, .tab = "SKETCH", .group = "CREATE", .order = 12}));
+  reg.registerTool(std::make_unique<SlotTool>(
+      SlotMode::CenterPoint, ToolInfo{.id = "sketch.slot-center", .name = "Center Point Slot", .tooltip = "Slot from its center, one arc center and a width",
+                                      .icon = "sketch-slot", .aliases = {"SLOTC"}, .tab = "SKETCH", .group = "CREATE", .order = 12}));
   reg.registerTool(std::make_unique<PointTool>());
 }
 
