@@ -136,7 +136,8 @@ QPushButton* footerButton(const QString& text, const QString& keys, bool primary
   h->addStretch(1);
   auto* cap = new Keycap(keys, b);
   cap->setAttribute(Qt::WA_TransparentForMouseEvents);
-  h->addWidget(cap);
+  cap->setFixedHeight(18);
+  h->addWidget(cap, 0, Qt::AlignVCenter);
   b->setMinimumHeight(32);
   b->setMinimumWidth(h->sizeHint().width());
   return b;
@@ -185,6 +186,13 @@ class DropTargets : public QWidget {
   std::vector<Target> targets_;
 };
 
+/// "0", "0 mm", "0.00 deg": a value field that is not set yet.
+bool isZeroValue(const QString& text) {
+  bool ok = false;
+  const double v = text.section(' ', 0, 0).toDouble(&ok);
+  return ok && v == 0.0;
+}
+
 /// The form label next to (or above) `field` in any QFormLayout under `root`.
 QString formLabelFor(QWidget* root, QWidget* field) {
   for (QFormLayout* form : root->findChildren<QFormLayout*>()) {
@@ -229,6 +237,7 @@ CommandCard::CommandCard(QWidget* viewport) : QFrame(viewport), viewport_(viewpo
   titleText_ = new QLabel(title_);
   titleText_->setObjectName("CardTitle");
   keycap_ = new Keycap(QString(), title_);
+  keycap_->setFixedHeight(18);
   keycap_->hide();
   context_ = new QLabel(title_);
   context_->setObjectName("CardContext");
@@ -239,7 +248,7 @@ CommandCard::CommandCard(QWidget* viewport) : QFrame(viewport), viewport_(viewpo
   docName_->setProperty("textCase", "as-is");  // user-entered names keep their case (decision 3)
   th->addWidget(titleIcon_);
   th->addWidget(titleText_);
-  th->addWidget(keycap_);
+  th->addWidget(keycap_, 0, Qt::AlignVCenter);
   th->addSpacing(2);
   th->addWidget(context_);
   th->addWidget(docName_, 1);
@@ -462,7 +471,6 @@ void CommandCard::clearBody() {
 void CommandCard::setAcceptEnabled(bool enabled) {
   acceptEnabled_ = enabled;
   ok_->setEnabled(enabled);
-  for (QWidget* w : ok_->findChildren<QWidget*>()) w->setEnabled(enabled);
 }
 
 void CommandCard::setMessage(const QString& text, bool error) {
@@ -507,21 +515,30 @@ void CommandCard::updateSteps() {
   std::vector<StepIndicator::Step> steps;
   stepTargets_.clear();
   if (body_) {
-    // derived steps (plan section 9 fallback): selection inputs, then the first value, then CONFIRM
+    // derived steps (plan section 9 fallback): the selection inputs above the first value, that
+    // value, then CONFIRM. Selection inputs below the value (Extrude's "merge with" bodies) are
+    // optional refinements, not steps.
     int current = -1;
-    for (QPushButton* b : body_->findChildren<QPushButton*>()) {
-      if (!b->property("selectionInput").toBool() || !b->isVisibleTo(body_)) continue;
+    QLineEdit* value = nullptr;
+    for (QWidget* w : body_->findChildren<QWidget*>()) {  // creation order = row order
+      if (!w->isVisibleTo(body_)) continue;
+      if (auto* e = qobject_cast<QLineEdit*>(w); e && e->objectName().startsWith("prop_")) {
+        // the main value: the first field that is set (Extrude: DISTANCE, not a zero START OFFSET)
+        if (!value) value = e;
+        if (!isZeroValue(e->text())) {
+          value = e;
+          break;
+        }
+        continue;
+      }
+      if (value) continue;  // only selection inputs above the first value are steps
+      auto* b = qobject_cast<QPushButton*>(w);
+      if (!b || !b->property("selectionInput").toBool()) continue;
       const bool done = b->text().compare("Select", Qt::CaseInsensitive) != 0 && !b->text().isEmpty();
       if (!done && current < 0) current = static_cast<int>(steps.size());
       steps.push_back({formLabelFor(body_, b), done ? StepIndicator::State::Done : StepIndicator::State::Todo});
       stepTargets_.push_back(b);
     }
-    QLineEdit* value = nullptr;
-    for (QLineEdit* e : body_->findChildren<QLineEdit*>())
-      if (e->objectName().startsWith("prop_") && e->isVisibleTo(body_)) {
-        value = e;
-        break;
-      }
     if (value) {
       if (current < 0) current = static_cast<int>(steps.size());
       steps.push_back({formLabelFor(body_, value), StepIndicator::State::Todo});

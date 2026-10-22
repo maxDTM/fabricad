@@ -19,7 +19,7 @@
 #include <QStringList>
 #include <QWidget>
 
-class QComboBox;
+#include <QComboBox>
 
 namespace fabricad::app {
 

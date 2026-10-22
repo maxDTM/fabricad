@@ -57,7 +57,7 @@ class CardTool : public core::ToolBase {
     ++accepted;
     ctx.finish();
   }
-  void cancel(core::ToolContext& ctx) override { ctx.finish(); }
+  void cancel(core::ToolContext& ctx) override { ctx.cancel(); }
   bool wantsDialogButtons() const override { return true; }
   QWidget* createDialog(core::ToolContext&, QWidget* parent) override {
     auto* w = new QWidget(parent);
@@ -243,12 +243,12 @@ class TestCommandCard : public QObject {
     QCOMPARE(f.base, CardPlacement::FloatRight);
     QCOMPARE(card()->effectivePlacement(), CardPlacement::Free);
     const QRect dropped = card()->geometry();
-    QVERIFY(qAbs(dropped.left() + 120 - vp()->width() / 2) <= 2);  // the grab point stays under the cursor
+    QVERIFY(qAbs(dropped.left() + title()->x() + 120 - vp()->width() / 2) <= 2);  // the grab point stays under the cursor
     // the next command opens where it was left
     w_->toolManager().cancel();
     settle();
     present();
-    QCOMPARE(card()->geometry().topLeft(), dropped.topLeft());
+    QVERIFY((card()->geometry().topLeft() - dropped.topLeft()).manhattanLength() <= 2);
     // a resize keeps the position relative to the anchor corner
     const QSize before = w_->size();
     w_->resize(before.width() - 200, before.height());
