@@ -277,7 +277,19 @@ class ConstructionPatternTest : public QObject {
     QCOMPARE(bf->status(), core::FeatureStatus::Error);
     QVERIFY2(bf->statusMessage().find("coincide") != std::string::npos, bf->statusMessage().c_str());
     bf->prop("quantity1").setInt(50);
-    bf->prop("distance1").setDouble(10);  // 0.2 mm steps on a 10 mm box
+    bf->prop("distance1").setDouble(10);  // 0.2 mm steps on a 10 mm box: nearly coincident (GENERAL-BUGS-14)
+    doc.notifyFeatureChanged(bf->id());
+    doc.recompute();
+    QCOMPARE(bf->status(), core::FeatureStatus::Error);
+    QVERIFY2(bf->statusMessage().find("nearly coincide") != std::string::npos, bf->statusMessage().c_str());
+    bf->prop("quantity1").setInt(500);
+    bf->prop("distance1").setDouble(20);  // the report: 500 bodies 0.04 mm apart
+    doc.notifyFeatureChanged(bf->id());
+    doc.recompute();
+    QCOMPARE(bf->status(), core::FeatureStatus::Error);
+    QVERIFY2(bf->statusMessage().find("nearly coincide") != std::string::npos, bf->statusMessage().c_str());
+    bf->prop("quantity1").setInt(50);
+    bf->prop("distance1").setDouble(245);  // 5 mm steps on a 10 mm box: a moderate overlap only warns
     doc.notifyFeatureChanged(bf->id());
     doc.recompute();
     QCOMPARE(bf->status(), core::FeatureStatus::Warning);

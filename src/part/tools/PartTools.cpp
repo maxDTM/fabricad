@@ -209,10 +209,15 @@ void registerPartTools(core::ModuleContext& ctx) {
       f->prop("filePath").setString(path);
       f->setName(c.document->uniqueFeatureName(std::string("Import")));
       std::string text = f->name();
+      // a STEP assembly keeps its structure: the components are created in the same undo step
+      const bool prepare = f->wantsCommitPreparation();
+      if (prepare && c.undo) c.undo->beginMacro(text);
+      if (prepare) f->prepareCommit(*c.document, c.undo);
       auto cmd = std::make_unique<core::AddFeatureCommand>(*c.document, std::move(f));
       cmd->setText(text);
       if (c.undo) c.undo->push(std::move(cmd));
       else cmd->redo();
+      if (prepare && c.undo) c.undo->endMacro();
     }));
   }
   {

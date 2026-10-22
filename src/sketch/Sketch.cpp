@@ -371,6 +371,9 @@ bool Sketch::beginDrag(const GeoRef& ref, Pt2 at) {
   dragRef_ = ref;
   dragStart_ = at;
   dragParams_ = g->p;
+  dragLabels_.clear();
+  for (const Constraint& c : constraints_)
+    if (c.isDimensional() && c.hasLabelPos) dragLabels_[c.id] = {c.labelPos, defaultLabelPos(c)};
   return true;
 }
 
@@ -387,12 +390,21 @@ bool Sketch::drag(Pt2 target) {
   d.delta = target - dragStart_;
   SolveResult r = SketchSolver::solve(*this, false, &d);
   if (!r.ok() && r.status != SolveResult::Status::Conflicting) return false;
+  // placed labels follow their geometry (a dragged ellipse kept its R labels behind,
+  // general retest NEW-ADVANCED-SKETCH-3)
+  for (Constraint& c : constraints_) {
+    auto it = dragLabels_.find(c.id);
+    if (it == dragLabels_.end() || !c.hasLabelPos) continue;
+    const Pt2 delta = defaultLabelPos(c) - it->second.second;
+    if (std::isfinite(delta.x) && std::isfinite(delta.y)) c.labelPos = it->second.first + delta;
+  }
   return true;
 }
 
 void Sketch::endDrag() {
   dragging_ = false;
   dragParams_.clear();
+  dragLabels_.clear();
 }
 
 // ---------------------------------------------------------------------------

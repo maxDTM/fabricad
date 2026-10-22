@@ -24,6 +24,13 @@ double InterferenceReport::totalVolume() const {
   return v;
 }
 
+bool allInOneComponent(const std::vector<BodyInstance>& instances) {
+  if (instances.size() < 2) return false;
+  for (const BodyInstance& bi : instances)
+    if (bi.component != instances.front().component) return false;
+  return true;
+}
+
 InterferenceReport checkInterference(const Document& doc, const std::vector<ObjectId>& components,
                                      const InterferenceOptions& options) {
   return checkInterference(bodyInstances(doc, components, true), &doc, options);

@@ -82,7 +82,12 @@ bool InterferenceTool::commandLineInput(ToolContext& ctx, const std::string& tex
 const InterferenceReport& InterferenceTool::compute(ToolContext& ctx) {
   Document& doc = *ctx.document;
   InterferenceOptions opt;
-  report_ = checkInterference(doc, components_, opt);
+  std::vector<BodyInstance> instances = bodyInstances(doc, components_, true);
+  // Bodies of one component are normally not compared (a multi-body part may overlap on
+  // purpose). When every body sits in the same component, e.g. a plain multi-body design, that
+  // left nothing to test ("0 pairs tested", general retest APP-11): compare them then.
+  opt.sameComponentPairs = allInOneComponent(instances);
+  report_ = checkInterference(instances, &doc, opt);
   showResults(ctx);
   return report_;
 }

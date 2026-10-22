@@ -194,6 +194,9 @@ class Sketch {
   GeoRef dragRef_;
   Pt2 dragStart_;
   std::vector<double> dragParams_;  ///< original params of the dragged geometry
+  /// Placed dimension labels at the drag start: constraint id -> (label, default position).
+  /// Each drag frame moves a label with its geometry (default position delta).
+  std::map<int, std::pair<Pt2, Pt2>> dragLabels_;
 
   friend class SketchSolver;
 };

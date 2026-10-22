@@ -41,6 +41,10 @@ struct InterferenceReport {
   double totalVolume() const;
 };
 
+/// True when there are at least two instances and all are shown by the same component instance
+/// (then only same-component pairs exist and InterferenceOptions::sameComponentPairs is useful).
+bool allInOneComponent(const std::vector<BodyInstance>& instances);
+
 /// Check the given components (empty = whole document, children included).
 InterferenceReport checkInterference(const core::Document& doc, const std::vector<core::ObjectId>& components = {},
                                      const InterferenceOptions& options = {});
