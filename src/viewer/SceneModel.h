@@ -14,6 +14,7 @@
 
 #include "core/ShapeRef.h"
 #include "core/Types.h"
+#include "viewer/ViewerPalette.h"
 
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Shape.hxx>
@@ -37,14 +38,14 @@ namespace fabricad::viewer {
 
 enum class SceneStyle {
   Body,
-  SketchFree,          ///< under-constrained curves (blue)
-  SketchDefined,       ///< fully constrained (black)
-  SketchConstruction,  ///< orange dashed
-  SketchFixed,         ///< green
-  SketchProjected,     ///< purple
-  SketchConflict,      ///< red
+  SketchFree,          ///< under-constrained curves (sk.free)
+  SketchDefined,       ///< fully constrained (sk.constrained)
+  SketchConstruction,  ///< dashed (sk.construction)
+  SketchFixed,         ///< sk.fixed
+  SketchProjected,     ///< sk.projected
+  SketchConflict,      ///< sk.conflict
   SketchPoints,        ///< point markers
-  Profile,             ///< pickable closed region (light orange)
+  Profile,             ///< pickable closed region while a tool picks profiles (sk.profileFillSel)
   ConstructionPlane,
   ConstructionAxis,
   ConstructionPoint,
@@ -52,6 +53,7 @@ enum class SceneStyle {
   OriginPlane,
   OriginAxis,
   OriginPoint,
+  ProfileShade,        ///< closed region of a visible, finished sketch: a light tint, not pickable (SK-12)
 };
 const char* sceneStyleName(SceneStyle s);
 /// "display:construction" -> SketchConstruction; nullopt if not a display key.
@@ -63,7 +65,7 @@ struct SceneItem {
   core::ShapeRef ref;       ///< what picking the item as a whole means
   TopoDS_Shape shape;       ///< in component-local coordinates
   gp_Trsf placement;        ///< world placement (component)
-  std::array<float, 4> color{0.73f, 0.74f, 0.77f, 1.0f};
+  std::array<float, 4> color{};  ///< from ViewerPalette (SceneOptions::palette) or the body's own colour
   bool ghosted = false;     ///< in-context editing: drawn at 30% opacity, not pickable
   std::size_t geomHash = 0; ///< changes when the geometry changes (shape handle + style)
 };
@@ -77,6 +79,8 @@ struct SceneOptions {
   bool showConstruction = true;
   bool showJoints = true;
   bool showProfiles = false;      ///< a tool is picking profiles
+  bool shadeProfiles = false;     ///< tint the closed profiles of visible sketches (SK-12; the viewer turns it on)
+  ViewerPalette palette = ViewerPalette::fromTokens(theme::Theme::Dark);  ///< item colours
   std::vector<core::ObjectId> activeComponents;  ///< non-empty: others are ghosted
   double originSize = 40.0;       ///< half size of origin planes, mm
 };
@@ -124,7 +128,10 @@ class SceneModel {
   std::map<core::ObjectId, ProfileCache> profiles_;
 };
 
-/// Style colours (ux.md section 6.1 / 8.12).
-std::array<float, 4> styleColor(SceneStyle s);
+/// Style colours from the viewport palette (docs/plans/ui-redesign.md 4.5).
+std::array<float, 4> styleColor(SceneStyle s, const ViewerPalette& pal);
+/// A body's display colour: the palette's body.default when the body keeps the document's
+/// default colour, else its own.
+std::array<float, 4> bodyColor(const std::array<float, 4>& bodyColor, const ViewerPalette& pal);
 
 }  // namespace fabricad::viewer

@@ -53,6 +53,9 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `vp.rubberBand` | `#B49CFF` | `#6D3FE0` |
 | `vp.rubberBandFill` | `#8B5CF624` | `#6D3FE01A` |
 | `vp.overlayText` | `#A7AEB9` | `#4A515D` |
+| `vp.light` | `#FFFFFF` | `#FFFFFF` |
+| `vp.cube.face` | `#2E343E` | `#E4E8EE` |
+| `vp.cube.edge` | `#6E7682` | `#7E8794` |
 | `axis.x` | `#F0525F` | `#C42B38` |
 | `axis.y` | `#4CC27A` | `#1B7A43` |
 | `axis.z` | `#5B8CFF` | `#2F5FD9` |
@@ -222,6 +225,8 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `dim.line` | `vp.bgBottom` | U | 9.17 | 4.08 | pass |
 | `dim.text` | `dim.chip` | T | 15.96 | 17.43 | pass |
 | `vp.overlayText` | `vp.bgTop` | T | 6.45 | 7.78 | pass |
+| `vp.cube.edge` | `vp.bgTop` | U | 3.14 | 3.54 | pass |
+| `text.primary` | `vp.cube.face` | T | 11.47 | 14.17 | pass |
 | `drawing.ink` | `drawing.paper` | T | 21.00 | 21.00 | pass |
 | `drawing.select` | `drawing.paper` | U | 6.11 | 6.11 | pass |
 | `icon.ink` | `surface.panel` | U | 10.46 | 9.42 | pass |

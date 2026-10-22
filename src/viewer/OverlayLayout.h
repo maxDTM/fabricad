@@ -76,6 +76,7 @@ class OverlayLayout {
     int gap = 8;            ///< between overlays
     int cardBleed = 8;      ///< transparent frame margin around the visible card (brackets)
     int cardTopOffset = 60; ///< floatRight: below the orientation widget's top edge (mockup v6)
+    int cardOrientGap = 56; ///< floatRight: visible card edge to the orientation widget (mockup v6: 1702 - 1646)
     int minModelWidth = 320;///< keep this much viewport clear beside a card left of the dial
     int minCardHeight = 220;///< below this the card would rather move than scroll
     CardPlacement card = CardPlacement::FloatRight;

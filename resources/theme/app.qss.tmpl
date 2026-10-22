@@ -235,11 +235,14 @@ QLabel[sketchState="free"] { color: @{sk.free}; }
 QLabel#ParametersError { color: @{message.error}; }
 
 /* viewport overlays */
-#NavBar { background: @{surface.overlay/90}; border: 1px solid @{edge}; border-radius: 0; }
-#NavBar QToolButton { border: none; padding: 3px; border-radius: 1px; }
-#NavBar QToolButton:hover { background: @{row.hover.bg}; }
-#NavBar QToolButton:checked { background: @{tool.checked.bg}; }
-#NavBarSeparator { color: @{edge}; }
+/* view-tool column (phase 4): 36 w, 32 x 32 buttons; a toggled tool gets the selection fill and a
+   2 px accent bar on its left */
+#NavBar { background: @{surface.panel/92}; border: 1px solid @{border.default}; border-radius: 0; }
+#NavBar QToolButton { border: none; border-left: 2px solid transparent; padding: 0; border-radius: 0; }
+#NavBar QToolButton:hover { background: @{surface.hover}; }
+#NavBar QToolButton:checked { background: @{accent.selFill}; border-left: 2px solid @{accent.indicator}; }
+#NavBar QToolButton::menu-indicator { image: none; width: 0; }
+#NavBarSeparator { color: @{border.default}; max-height: 1px; }
 QLabel#DrawingUnavailable { background: @{panel.bg}; color: @{text.secondary}; }
 
 /* S-box */
@@ -275,3 +278,16 @@ QPlainTextEdit#CommandHistory { background: @{surface.panel}; border: none; colo
 
 /* preferences */
 #LayoutPreview { border: 1px solid @{border.default}; }
+
+/* in-viewport value box (phase 4, docs/plans/ui-redesign.md 5.3): caption tag above a 30 px field;
+   gold frame while active (2 px, so it also reads on the light theme), error border when invalid */
+#fcValueBox { background: transparent; border: none; }
+#fcValueTag { background: @{surface.header}; color: @{text.secondary}; border: 1px solid @{border.default}; border-bottom: none; padding: 0px 6px; }
+#fcValueBox[state="active"] #fcValueTag { background: @{live.base}; color: @{live.ink}; border-color: @{live.base}; }
+#fcValueBox[state="error"] #fcValueTag { background: @{status.error}; color: @{surface.input}; border-color: @{status.error}; }
+#fcValueField { background: @{surface.input}; border: 1px solid @{border.control}; border-radius: 1px; min-height: 22px; }
+#fcValueBox[state="active"] #fcValueField { border: 2px solid @{live.base}; }
+#fcValueBox[state="error"] #fcValueField { border: 2px solid @{status.error}; }
+#fcValueField QLineEdit { background: transparent; border: none; color: @{text.primary}; min-width: 96px; selection-background-color: @{live.base}; selection-color: @{live.ink}; }
+#fcValueBox[locked="true"] #fcValueField QLineEdit { color: @{text.secondary}; }
+#fcValueField QLabel { background: transparent; border: none; color: @{text.secondary}; }

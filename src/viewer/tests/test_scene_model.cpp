@@ -151,6 +151,33 @@ class SceneModelTest : public QObject {
     QVERIFY(find(items, "feat:" + std::to_string(sk->id()) + "/display:construction"));
   }
 
+  void finishedSketchProfilesAreShaded() {
+    // SK-12: visible, finished sketches show their closed profiles as a light tint (not pickable,
+    // ProfileShade); while a tool picks profiles they become the pickable Profile style
+    core::Document doc;
+    auto* sk = doc.addFeature(std::make_unique<test::FakeSketch>());
+    sk->prop("closed").setBool(true);
+    doc.recompute();
+    SceneModel scene;
+    SceneOptions opt;
+    QCOMPARE(countStyle(scene.collect(doc, opt), SceneStyle::ProfileShade), 0);  // off unless the viewer asks
+    opt.shadeProfiles = true;
+    auto items = scene.collect(doc, opt);
+    QCOMPARE(countStyle(items, SceneStyle::ProfileShade), 1);
+    QCOMPARE(countStyle(items, SceneStyle::Profile), 0);
+    const viewer::ViewerPalette pal = viewer::ViewerPalette::fromTokens(theme::Theme::Dark);
+    for (const SceneItem& it : items)
+      if (it.style == SceneStyle::ProfileShade) QCOMPARE(it.color, pal.profileFill);
+    opt.showProfiles = true;
+    items = scene.collect(doc, opt);
+    QCOMPARE(countStyle(items, SceneStyle::Profile), 1);
+    QCOMPARE(countStyle(items, SceneStyle::ProfileShade), 0);
+    // a hidden sketch shows no profiles
+    opt.showProfiles = false;
+    opt.hiddenFeatures.insert(sk->id());
+    QCOMPARE(countStyle(scene.collect(doc, opt), SceneStyle::ProfileShade), 0);
+  }
+
   void sketchPicking() {
     core::Document doc;
     auto* sk = doc.addFeature(std::make_unique<test::FakeSketch>());
@@ -189,7 +216,7 @@ class SceneModelTest : public QObject {
     QCOMPARE(sketchStyleFromDisplayKey("display:fixed").value(), SceneStyle::SketchFixed);
     QVERIFY(!sketchStyleFromDisplayKey("End").has_value());
     QVERIFY(!sketchStyleFromDisplayKey("display:bogus").has_value());
-    QVERIFY(styleColor(SceneStyle::ConstructionPlane)[3] < 0.5f);
+    QVERIFY(styleColor(SceneStyle::ConstructionPlane, ViewerPalette::fromTokens(theme::Theme::Dark))[3] < 0.5f);
   }
 };
 

@@ -56,14 +56,14 @@ Compared with `docs/mockups/custom-ui-extrude-v6-tokens-{dark,light}.png`:
 ## Fix status (branch ui/p1fix)
 | # | Status | Change |
 |---|---|---|
-| 1 | Deferred to phase 4 | ViewCube colours are viewer code (fixed colours, not tokens). |
+| 1 | Fixed in phase 4 | ViewCube from tokens (`vp.cube.face`, darker `vp.cube.edge` edges/corners); the hex dial is the default. |
 | 2 | Fixed | The HISTORY pane is now an overlay of the window above the status bar (header band, CLEAR, close, Esc/F2), with every line of command output. Output of several lines opens it by itself when it answers a command typed in the box; the message cell shows the first line plus `... +N lines (history)` and opens the pane on click. |
 | 3 | Fixed | A feature failure caused by the command just run is shown beside its result: `Suppress Base · Extrude1 failed: ...`. |
 | 4 | Fixed | Feature commands update the prompt after each pick: `Profiles: 1 selected · Enter to finish`. |
 | 5 | Fixed | The search popup opens under the search box and stays inside the window and the screen. |
 | 6 | Fixed | A collapsed section shows an icon button in the button row and keeps its caption on the shared caption line. |
 | 7 | Fixed | Toggle tools carry their state (`ToolInfo::checked`); toolbar dropdowns show check marks and refresh when they open. |
-| 8 | Deferred to phase 4 | The on-canvas value box and profile fill are viewport overlays (sketch/ValueInputOverlay, viewer). |
+| 8 | Fixed in phase 4 | Value box styled by the token QSS (dark field); selected faces/profiles get the `sel.fill` tint instead of an 85 % lavender wash. |
 | 9 | Fixed | Preferences, Parameters, message and input dialogs have a 1 px `border.control` edge. |
 | 10 | Fixed | `.fcad` shows as `FabriCAD design` in Qt's file dialog (icon provider type). |
 | 12 | Fixed | The GRID cell tooltip says the spacing follows the zoom. |

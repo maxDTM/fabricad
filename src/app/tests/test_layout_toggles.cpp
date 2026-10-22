@@ -228,6 +228,31 @@ class TestLayoutToggles : public QObject {
     w_->document().setModified(false);
   }
 
+  void quickToolbarClearOfViewportOverlays() {
+    // phase 4 overlays (orientation widget, tool column, breadcrumb / filter row, readout, scale
+    // bar) and the quick toolbar share one OverlayLayout: the strip overlaps none of them, tall or short
+    viewer::ViewerWidget* vp = w_->viewer();
+    for (int h : {1000, 520}) {
+      w_->resize(1600, h);
+      for (const char* side : {"left", "right"}) {
+        QVERIFY(ui().set("ui/quickToolbar", side));
+        settle();
+        app::QuickToolbar* q = w_->quickToolbar();
+        QVERIFY(q && q->isVisible());
+        const QRect qr = q->geometry();
+        QVERIFY2(vp->rect().contains(qr), qPrintable(QString("%1 h=%2").arg(side).arg(h)));
+        const OverlayLayout& l = viewer::OverlayHost::of(vp)->layout();
+        for (const auto& r : l.occupied()) {
+          if (r.slot == OverlayLayout::Slot::QuickToolbar || r.rect.isEmpty()) continue;
+          QVERIFY2(!r.rect.intersects(qr), qPrintable(QString("%1 h=%2 overlaps %3")
+                                                          .arg(side)
+                                                          .arg(h)
+                                                          .arg(OverlayLayout::slotName(r.slot))));
+        }
+      }
+    }
+  }
+
   void quickToolbarInSketch() {
     QVERIFY(ui().set("ui/quickToolbar", "right"));
     settle();

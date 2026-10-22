@@ -15,6 +15,9 @@
 #include <Prs3d_Presentation.hxx>
 #include <Quantity_ColorRGBA.hxx>
 #include <gp_Trsf.hxx>
+#include <gp_Vec.hxx>
+
+#include <algorithm>
 
 namespace fabricad::viewer {
 
@@ -41,6 +44,30 @@ Handle(Graphic3d_AspectFillArea3d) shadedAspect(const std::array<float, 4>& colo
   return asp;
 }
 
+/// Unlit, front-culled shell: seen only around the silhouette of the glyph inside it.
+Handle(Graphic3d_AspectFillArea3d) hullAspect(const std::array<float, 4>& color) {
+  Handle(Graphic3d_AspectFillArea3d) asp = shadedAspect(color, false);
+  asp->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
+  asp->SetFaceCulling(Graphic3d_TypeOfBackfacingModel_FrontCulled);
+  return asp;
+}
+
+/// Octahedron (diamond) of half-size `s` in `frame`.
+Handle(Graphic3d_ArrayOfTriangles) octahedron(const gp_Ax3& frame, double s) {
+  const gp_Pnt o = frame.Location();
+  const gp_Vec x(frame.XDirection()), y(frame.YDirection()), z(frame.Direction());
+  const gp_Pnt v[6] = {o.Translated(x * s), o.Translated(-x * s), o.Translated(y * s), o.Translated(-y * s), o.Translated(z * s),
+                       o.Translated(-z * s)};
+  Handle(Graphic3d_ArrayOfTriangles) arr = new Graphic3d_ArrayOfTriangles(24, 0, Graphic3d_ArrayFlags_VertexNormal);
+  const int faces[8][3] = {{0, 2, 4}, {2, 1, 4}, {1, 3, 4}, {3, 0, 4}, {2, 0, 5}, {1, 2, 5}, {3, 1, 5}, {0, 3, 5}};
+  for (const auto& f : faces) {
+    const gp_Vec n = gp_Vec(v[f[0]], v[f[1]]).Crossed(gp_Vec(v[f[0]], v[f[2]]));
+    const gp_Dir nd = n.Magnitude() > 1e-12 ? gp_Dir(n) : gp_Dir(z);
+    for (int k = 0; k < 3; ++k) arr->AddVertex(v[f[k]], nd);
+  }
+  return arr;
+}
+
 gp_Trsf placement(const gp_Ax3& frame) {
   gp_Trsf t;
   t.SetDisplacement(gp_Ax3(), frame);
@@ -58,6 +85,47 @@ void ManipulatorPrs::Compute(const Handle(PrsMgr_PresentationManager)&, const Ha
                              const Standard_Integer theMode) {
   if (theMode != 0) return;
   using Shape = core::ManipulatorGlyph::Shape;
+  // shells first (outline, glow), then the glyphs
+  const double ow = myStyle.outlineWidth;
+  auto shell = [&](const core::ManipulatorGlyph& g, double grow, const std::array<float, 4>& color) {
+    if (grow <= 0.0 || color[3] <= 0.0f) return;
+    Handle(Graphic3d_Group) group = thePrs->NewGroup();
+    group->SetGroupPrimitivesAspect(hullAspect(color));
+    switch (g.shape) {
+      case Shape::Cylinder:
+      case Shape::Cone: {
+        const double top = g.shape == Shape::Cone ? grow * 0.6 : g.radius + grow;
+        gp_Ax3 f = g.frame;
+        f.SetLocation(f.Location().Translated(gp_Vec(f.Direction()) * -grow));
+        group->AddPrimitiveArray(Prs3d_ToolCylinder::Create(g.radius + grow, top, g.length + 2 * grow, kSlices, 1, placement(f)));
+        break;
+      }
+      case Shape::Sphere:
+        group->AddPrimitiveArray(Prs3d_ToolSphere::Create(g.radius + grow, kSlices, kSlices / 2, placement(g.frame)));
+        break;
+      case Shape::Torus:
+        group->AddPrimitiveArray(Prs3d_ToolTorus::Create(g.radius, g.radius2 + grow, 72, 12, placement(g.frame)));
+        break;
+      default: break;
+    }
+  };
+  const core::ManipulatorGlyph* shaft = nullptr;
+  for (const core::ManipulatorGlyph& g : myGlyphs) {
+    if (g.shape == Shape::Cylinder && !shaft) shaft = &g;
+    const bool solid = g.shape == Shape::Cylinder || g.shape == Shape::Cone || g.shape == Shape::Sphere || g.shape == Shape::Torus;
+    if (!solid) continue;
+    if (myStyle.glowHandle != core::ManipulatorHandle::None && g.handle == myStyle.glowHandle) shell(g, myStyle.glowWidth, myStyle.glow);
+    shell(g, ow, myStyle.outline);
+  }
+  if (myStyle.baseDiamond && shaft) {
+    const double s = shaft->radius * 2.6;
+    Handle(Graphic3d_Group) hull = thePrs->NewGroup();
+    hull->SetGroupPrimitivesAspect(hullAspect(myStyle.outline));
+    hull->AddPrimitiveArray(octahedron(shaft->frame, s + ow * 1.4));
+    Handle(Graphic3d_Group) gem = thePrs->NewGroup();
+    gem->SetGroupPrimitivesAspect(shadedAspect(myStyle.diamond, false));
+    gem->AddPrimitiveArray(octahedron(shaft->frame, s));
+  }
   for (const core::ManipulatorGlyph& g : myGlyphs) {
     Handle(Graphic3d_Group) group = thePrs->NewGroup();
     switch (g.shape) {

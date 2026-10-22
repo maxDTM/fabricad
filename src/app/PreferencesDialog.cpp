@@ -306,7 +306,7 @@ QWidget* PreferencesDialog::buildLayoutPage() {
   });
   uiControls_.emplace_back("ui/cardRememberDrag", remember);
   f->addRow(remember);
-  auto* note = new QLabel("Every choice applies right away. The orientation widget follows with the new viewport.", form);
+  auto* note = new QLabel("Every choice applies right away.", form);
   note->setObjectName("StatusDim");
   note->setWordWrap(true);
   // p2p3-check 10: room for the wrapped lines (a form row does not grow for a wrapped label)

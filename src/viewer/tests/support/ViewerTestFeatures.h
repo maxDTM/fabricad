@@ -19,7 +19,10 @@ namespace fabricad::viewer::test {
 /// Two line curves (ids 1 and 2) on XY; optional "display:construction" for curve 2.
 class FakeSketch : public core::Feature, public core::IProfileSource {
  public:
-  FakeSketch() : Feature("FakeSketch") { addBool("styled", false); }
+  FakeSketch() : Feature("FakeSketch") {
+    addBool("styled", false);
+    addBool("closed", false);  // one closed profile (a 10 x 5 rectangle) for the profile tests
+  }
   std::string browserFolder() const override { return "Sketches"; }
   const core::IProfileSource* profileSource() const override { return this; }
   void recompute(core::RecomputeContext&) override {
@@ -34,8 +37,18 @@ class FakeSketch : public core::Feature, public core::IProfileSource {
     }
   }
   gp_Ax3 sketchPlane() const override { return gp_Ax3(); }
-  std::vector<core::ProfileInfo> profiles() const override { return {}; }
-  TopoDS_Face profileFace(const core::ShapeRef&) const override { return {}; }
+  std::vector<core::ProfileInfo> profiles() const override {
+    if (!flag("closed")) return {};
+    core::ProfileInfo p;
+    p.ref = core::ShapeRef::profile(id(), core::Vec3{5, 2.5, 0}, {1, 2});
+    p.area = 50.0;
+    p.curveIds = {1, 2};
+    return {p};
+  }
+  TopoDS_Face profileFace(const core::ShapeRef&) const override {
+    if (!flag("closed")) return {};
+    return TopoDS::Face(core::planeFace(gp_Ax3(gp_Pnt(5, 2.5, 0), gp_Dir(0, 0, 1)), 2.5));
+  }
   TopoDS_Shape curveEdge(int id) const override {
     auto it = edges_.find(id);
     return it == edges_.end() ? TopoDS_Shape() : TopoDS_Shape(it->second);

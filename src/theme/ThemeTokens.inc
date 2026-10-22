@@ -49,6 +49,9 @@ enum class Tok : std::uint16_t {
   VpRubberBand,  // vp.rubberBand
   VpRubberBandFill,  // vp.rubberBandFill
   VpOverlayText,  // vp.overlayText
+  VpLight,  // vp.light
+  VpCubeFace,  // vp.cube.face
+  VpCubeEdge,  // vp.cube.edge
   AxisX,  // axis.x
   AxisY,  // axis.y
   AxisZ,  // axis.z
@@ -161,6 +164,9 @@ inline constexpr const char* kTokName[] = {
     "vp.rubberBand",
     "vp.rubberBandFill",
     "vp.overlayText",
+    "vp.light",
+    "vp.cube.face",
+    "vp.cube.edge",
     "axis.x",
     "axis.y",
     "axis.z",
@@ -259,6 +265,9 @@ inline constexpr std::uint32_t kDark[] = {
     0xB49CFFFFu,  // vp.rubberBand
     0x8B5CF624u,  // vp.rubberBandFill
     0xA7AEB9FFu,  // vp.overlayText
+    0xFFFFFFFFu,  // vp.light
+    0x2E343EFFu,  // vp.cube.face
+    0x6E7682FFu,  // vp.cube.edge
     0xF0525FFFu,  // axis.x
     0x4CC27AFFu,  // axis.y
     0x5B8CFFFFu,  // axis.z
@@ -357,6 +366,9 @@ inline constexpr std::uint32_t kLight[] = {
     0x6D3FE0FFu,  // vp.rubberBand
     0x6D3FE01Au,  // vp.rubberBandFill
     0x4A515DFFu,  // vp.overlayText
+    0xFFFFFFFFu,  // vp.light
+    0xE4E8EEFFu,  // vp.cube.face
+    0x7E8794FFu,  // vp.cube.edge
     0xC42B38FFu,  // axis.x
     0x1B7A43FFu,  // axis.y
     0x2F5FD9FFu,  // axis.z
@@ -565,6 +577,8 @@ inline constexpr Pair kPairs[] = {
     {Tok::DimLine, Tok::VpBgBottom, 3.0},  // ui
     {Tok::DimText, Tok::DimChip, 4.5},  // text
     {Tok::VpOverlayText, Tok::VpBgTop, 4.5},  // text
+    {Tok::VpCubeEdge, Tok::VpBgTop, 3.0},  // ui
+    {Tok::TextPrimary, Tok::VpCubeFace, 4.5},  // text
     {Tok::DrawingInk, Tok::DrawingPaper, 4.5},  // text
     {Tok::DrawingSelect, Tok::DrawingPaper, 3.0},  // ui
     {Tok::IconInk, Tok::SurfacePanel, 3.0},  // ui
