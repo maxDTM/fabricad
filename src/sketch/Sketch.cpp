@@ -1578,8 +1578,8 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   auto offsetsOf = [&](const Geometry& g, double r) {
     std::vector<Geometry> v;
     if (g.type == GeomType::Line) {
-      v.push_back(*offsetCurve(g, false, r));
-      v.push_back(*offsetCurve(g, false, -r));
+      for (double s : {r, -r})
+        if (auto o = offsetCurve(g, false, s)) v.push_back(*o);
     } else {
       Geometry a = g;
       a.setRadius(g.radius() + r);
