@@ -572,28 +572,21 @@ saved step.
 
 ---
 
-## 8. Open questions
+## 8. Decisions (confirmed by the user, 2026-10-22)
 
-Not yet answered by the user. The redesign fixes the *styling* side of Q6 (tokens, `accent.focus` ring); the dim
-versus ring-only choice is still open. Q7's shortcuts must not collide with the redesign's keycaps (`CTRL K`
-search; the workspace keycap question is in `ROADMAP.md`).
+| # | Question | Decision |
+|---|---|---|
+| 1 | Part | The bracket as specified, with **Mirror** for the second counterbored hole (rectangular pattern only as the documented fallback). |
+| 2 | GUI tests in ctest | **Opt-in** with `FABRICAD_GUI=1`; skip (exit 77) otherwise. No CI backend is standardised yet; the private Xwayland harness is the dev-box backend. |
+| 3 | CI | **None for now.** Keep the runner CI-ready (Mesa llvmpipe + ffmpeg) for later. |
+| 4 | Strictness | **Exact values** required so checkpoints can verify geometry; a free mode is a later addition. |
+| 5 | First launch | A **welcome card** that offers the tour; not shown again after updates unless a new tour is added. |
+| 6 | Overlay look | **Light dim** around the target (configurable in Preferences). |
+| 7 | Shortcuts | **F7 / Alt+Left / Alt+Right** for the tour. **Esc cancels the current tool, never exits the tour.** |
+| 8 | Show me | **Ghost cursor only**; never moves the real pointer. |
+| 9 | Recovery | "Restore chapter" **opens a new tab**, so nothing is lost. The test may refresh shipped checkpoints only with an explicit `--update-checkpoints` flag. |
+| 10 | Format | **Strict JSON**; translation later (keep text in one place per step so it can be extracted). |
+| 11 | Artefacts | Keep the video **on failure only**. |
+| 12 | More tours | **Design Help > Tutorials for multiple tours now; build only the bracket tour.** |
 
-1. **Part**: is this bracket (80 × 50 plate, 40 mm flange, slot, counterbores, flange hole, chamfer, rib, t 8 → 10)
-   the right "mildly complex" part? Or should a rectangular pattern replace the Mirror?
-2. **GUI tests in the default ctest run**: opt-in (`FABRICAD_GUI=1`, proposed) or automatic when a backend is found?
-   Should Xvfb or weston be installed on the dev box (the README says there is no Xvfb), and which backend is the
-   standard?
-3. **CI**: is there a CI provider to target? It needs Mesa llvmpipe and ffmpeg.
-4. **Strictness**: should the tour require the exact values (needed for the checks), or accept any values in a
-   "free" mode that only checks the feature types?
-5. **First launch**: a welcome card (proposed) or start the tour automatically? Show it again after updates?
-6. **Overlay look**: dim the rest of the window (proposed, light) or ring-only? Is the dim user-configurable?
-7. **Shortcuts**: F7 / Alt+Left / Alt+Right for the tour, and confirm that Esc must never exit the tour.
-8. **Show me**: ghost cursor only (proposed), or may it move the real pointer (never clicking)?
-9. **Recovery**: should "Restore chapter" replace the current tab or open a new tab? May the test auto-refresh the
-   shipped checkpoint `.fcad`s (`--update-checkpoints`)?
-10. **Format**: is strict JSON acceptable for authoring, or is YAML preferred (it needs a parser dependency or a build
-    step)? Is translation (i18n) of the bubble text in scope now?
-11. **Artefacts**: should the video be kept on success too, for the docs and the README gif?
-12. **More tours**: should Help > Tutorials be designed now for further tours (assembly + joint, drawing + PDF), with
-    only this one implemented?
+Also confirmed: bubble body text is shown **as typed** (mixed case); bubble titles and buttons follow the caps rule. Workspace selector shortcuts are Alt+1/2/3, so the tour shortcuts above do not collide.

@@ -353,7 +353,7 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 | Component | Size / padding | States | Notes |
 |---|---|---|---|
 | Title bar `#AppBar` | 36 h, `bg.app`, bottom 1 px `border.subtle` | — | logo + `FABRICAD`; workspace selector; document tabs; search; undo, redo, save, find, help |
-| Workspace selector `#WorkspaceSwitcher` | 28 h, 8 px padding, `surface.header`, 1 px `border.default`, keycap `CTRL 1`, ▾ | hover border `accent.text`; open: `accent.selFill` | Menu: PART, ASSEMBLY, DRAWING (open question 2) |
+| Workspace selector `#WorkspaceSwitcher` | 28 h, 8 px padding, `surface.header`, 1 px `border.default`, keycap `ALT 1`, ▾ | hover border `accent.text`; open: `accent.selFill` | Menu: PART, ASSEMBLY, DRAWING (open question 2) |
 | Document tab `#DocumentTabs` | 36 h, min 120 w, angled sides (12° slant, 8 px run), 12 px text padding | inactive `text.secondary` on `bg.app`; hover `surface.hover`; active `surface.panel` + 2 px top `accent.indicator`; modified dot | Custom `QTabBar` paint (section 7.1). The `+` tab is `#NewTabButton`. |
 | Search box | 26 h, 260 w, `>_` glyph, keycap `CTRL K` | focus ring | opens the existing `#SearchPopup` |
 | Main toolbar `#RibbonRow` (horizontal) | 70 h: button row 52 + caption row 16; sections divided by a straight 1 px `border.default`, 8 px gaps | — | sections SKETCH, CREATE, MODIFY, ASSEMBLE, CONSTRUCT, INSPECT on the left; DOCUMENT right-aligned |
@@ -728,11 +728,11 @@ These answers replace the earlier open questions. Where an earlier section says 
 | # | Question | Decision |
 |---|---|---|
 | 1 | Timeline style default | **Sidebar feature list** (`ui/timelineStyle = featureList`). The bottom strip stays as an option. |
-| 2 | Assembly in the workspace selector | **Toolbar filter of the Design workspace.** No core change; Part / Assembly / Drawing in the dropdown. |
+| 2 | Assembly in the workspace selector | **Toolbar filter of the Design workspace.** No core change; Part / Assembly / Drawing in the dropdown, shortcuts **Alt+1 / Alt+2 / Alt+3** (Ctrl+1..7 stay the standard views). |
 | 3 | User-entered names | **As typed** (documents, features, bodies, parameters). All other UI text is caps. |
 | 4 | Font | **JetBrains Mono**, bundled (Bold for UI text, Medium for values). |
 | 5 | SURFACE and TOOLS tools | **A "MORE ▾" section at the end of the toolbar.** The contextual SKETCH sections replace the main ones while sketching. |
-| 6 | Card docked into the sidebar | **Overlay**, with FEATURES collapsed to its header and the live row; it restores when the command finishes. |
+| 6 | Card docked into the sidebar | **Overlay**, with FEATURES collapsed to its header and the live row; it restores when the command finishes. FEATURES **expands automatically while a feature-selection input is active** (Mirror, patterns), then collapses again. |
 | 7 | Light-theme viewport | **Light gradient** (`#FBFCFD` to `#D5DBE3`). |
 | 8 | Free sketch curves vs selection (protanopia) | **Change the free-curve colour.** Pick a new `sk.free` hue in phase 0 that passes the colour-vision gate against selection purple (ΔE ≥ 10, or ≥ 6 under tritanopia) in both themes. The selection halo and grips stay as extra cues. |
 | 9 | Error colour | **Crimson-rose** accepted (`#FF5C8A` dark, `#C4125E` light), always with the octagon icon. |

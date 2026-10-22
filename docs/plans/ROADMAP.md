@@ -65,17 +65,10 @@ drawing issue.
 §6 fixes in). Starts with its phase 0 spike on the new UI. ≈ 14.5–19 agent-days. Gate: `fabricad_tutorial_bracket_default`
 10 runs in a row in the default preset, 3 each in the `alt` and `light` presets; testers report no blocker.
 
-## Needs user decision
+## Decisions (confirmed by the user, 2026-10-22)
 
-1. **Card docked in the sidebar vs feature picking.** Decision 6 collapses FEATURES while a command runs with the
-   card in the sidebar, but Mirror, patterns and similar commands pick features from that list. Options: expand
-   FEATURES while a feature-selection input is active, or rely on preselection and the viewport. (The tutorial now
-   preselects Hole1 before Mirror, so it does not depend on the answer.)
-2. **Workspace selector keycap `CTRL 1`** (redesign 5.1) collides with Ctrl+1 = Front view in today's code (Ctrl+1..7
-   are the standard views, which the tutorial uses). Pick another key for the workspace menu, or move the views.
-3. **Tutorial bubble prose: caps or as typed.** The redesign makes all non-value UI text caps; 45 steps of caps
-   prose are hard to read. Exempt the bubble body (like values), or keep caps.
-4. **Tutorial open questions §8 (1–12)**: still unanswered; step 4 cannot start.
-5. **COMPARISON recommendations 3–9** (default STL quality, STEP assembly import, sketch design intent, cross-component
-   warnings, offset-plane/hole conventions, STEP size, a measured GUI session) are not in this roadmap. Add them to
-   step 2, or leave them for later?
+1. **Card docked in the sidebar vs feature picking:** FEATURES expands automatically while a command's feature-selection input is active, then collapses again.
+2. **Workspace selector shortcut:** Alt+1 / Alt+2 / Alt+3 for Part / Assembly / Drawing. Ctrl+1..7 stay the standard views.
+3. **Tutorial bubble prose:** shown as typed (mixed case). Bubble titles and buttons follow the caps rule.
+4. **Tutorial §8 questions 1–12:** answered; see tutorial.md §8.
+5. **COMPARISON recommendations 3–9:** added to roadmap step 2 (open issues and performance). STEP assembly-structure import is already in progress on the back-end track.
