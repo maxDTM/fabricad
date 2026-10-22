@@ -244,6 +244,10 @@ QLabel#ParametersError { color: @{message.error}; }
 #NavBar QToolButton::menu-indicator { image: none; width: 0; }
 #NavBarSeparator { color: @{border.default}; max-height: 1px; }
 QLabel#DrawingUnavailable { background: @{panel.bg}; color: @{text.secondary}; }
+/* drawing workspace chrome (the sheet itself is painted: paper and ink fixed, surround drawing.canvas) */
+QLabel#DrawingSheetsTitle { color: @{text.secondary}; padding: 2px; }
+QLabel#DrawingEmptyText, QLabel#DrawingStatus, QLabel#DrawingCoords { color: @{text.secondary}; }
+#DrawingEmptyState { background: @{drawing.canvas}; }
 
 /* S-box */
 #SearchPopup { background: @{popup.bg}; border: 1px solid @{input.border}; border-radius: 0; }

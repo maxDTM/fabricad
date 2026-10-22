@@ -8,6 +8,7 @@
 #include "drawing/DrawingCanvas.h"
 #include "drawing/DrawingModel.h"
 #include "drawing/Sheet.h"
+#include "theme/Tokens.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -47,7 +48,8 @@ DrawingWorkspaceWidget::DrawingWorkspaceWidget(QWidget* parent) : QWidget(parent
   bl->setContentsMargins(4, 4, 4, 4);
   bl->setSpacing(2);
   auto* title = new QLabel(tr("SHEETS"), browser_);
-  title->setStyleSheet("font-weight: bold; color: #555; padding: 2px;");
+  title->setObjectName("DrawingSheetsTitle");  // colours from app.qss.tmpl (text.secondary)
+  title->setFont(theme::font(theme::TextStyle::Header));
   bl->addWidget(title);
   sheetList_ = new QListWidget(browser_);
   sheetList_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -81,7 +83,7 @@ DrawingWorkspaceWidget::DrawingWorkspaceWidget(QWidget* parent) : QWidget(parent
     el->addStretch(1);
     auto* text = new QLabel(tr("This drawing has no sheets yet."), emptyState_);
     text->setAlignment(Qt::AlignCenter);
-    text->setStyleSheet("color: #666;");
+    text->setObjectName("DrawingEmptyText");
     el->addWidget(text);
     auto* create = new QPushButton(tr("Create Drawing..."), emptyState_);
     create->setObjectName("CreateDrawingButton");
@@ -107,9 +109,10 @@ DrawingWorkspaceWidget::DrawingWorkspaceWidget(QWidget* parent) : QWidget(parent
   bottom->addWidget(plus, 0);
   bottom->addStretch(1);
   status_ = new QLabel(centre);
-  status_->setStyleSheet("color: #666;");
+  status_->setObjectName("DrawingStatus");
   coords_ = new QLabel(centre);
-  coords_->setStyleSheet("color: #666;");
+  coords_->setObjectName("DrawingCoords");
+  coords_->setFont(theme::font(theme::TextStyle::Value));
   coords_->setMinimumWidth(170);
   bottom->addWidget(status_, 0);
   bottom->addSpacing(12);

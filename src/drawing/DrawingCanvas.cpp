@@ -10,6 +10,7 @@
 #include "drawing/CalloutRenderer.h"
 #include "drawing/DrawingModel.h"
 #include "drawing/Sheet.h"
+#include "theme/Tokens.h"
 
 #include <QGraphicsScene>
 #include <QKeyEvent>
@@ -31,12 +32,17 @@ using core::ObjectId;
 namespace {
 
 constexpr double kSheetMargin = 25.0;  // mm of grey around the paper
-const QColor kSelectColor(0x06, 0x96, 0xD7);
-const QColor kHoverColor(0x4D, 0xB6, 0xE8);
-const QColor kHighlightColor(0xF5, 0x8A, 0x1F);
-const QColor kBusyColor(0x90, 0x90, 0x90);
-const QColor kErrorColor(0xD0, 0x30, 0x30);
-const QColor kPreviewColor(0x1E, 0x7F, 0xC0);
+// Colours (docs/plans/ui-redesign.md 4.5). Everything drawn ON the sheet sits on white paper in both
+// themes, so it uses the light-theme value of its token; only the surround follows the theme. They are
+// read at paint time (no cached QColor survives a theme switch).
+using theme::Tok;
+QColor onPaper(Tok t) { return theme::color(t, theme::Theme::Light); }
+QColor selectColor() { return onPaper(Tok::DrawingSelect); }
+QColor hoverColor() { return onPaper(Tok::PreEdge); }
+QColor highlightColor() { return onPaper(Tok::LiveOutline); }
+QColor busyColor() { return onPaper(Tok::TextTertiary); }
+QColor errorColor() { return onPaper(Tok::StatusError); }
+QColor previewColor() { return onPaper(Tok::PreviewNewBodyEdge); }
 
 constexpr int kZSheet = 0, kZView = 10, kZEntity = 20, kZRubber = 90, kZPreview = 100;
 
@@ -121,7 +127,7 @@ const char* hitKindName(HitKind k) {
 // ---------------------------------------------------------------------------------------
 
 DisplayListItem::DisplayListItem(HitKind kind, ObjectId id, DisplayList list, const std::string& font)
-    : kind_(kind), id_(id), list_(std::move(list)), font_(font), color_(Qt::black) {
+    : kind_(kind), id_(id), list_(std::move(list)), font_(font), color_(onPaper(Tok::DrawingInk)) {
   setAcceptedMouseButtons(Qt::NoButton);  // the canvas routes input itself
   updateBounds();
 }
@@ -159,10 +165,10 @@ void DisplayListItem::paint(QPainter* p, const QStyleOptionGraphicsItem* opt, QW
   (void)opt;
   (void)w;
   QColor c = color_;
-  if (highlighted_) c = kHighlightColor;
-  if (hovered_) c = kHoverColor;
-  if (selected_) c = kSelectColor;
-  if (busy_ && list_.curves.empty()) c = kBusyColor;
+  if (highlighted_) c = highlightColor();
+  if (hovered_) c = hoverColor();
+  if (selected_) c = selectColor();
+  if (busy_ && list_.curves.empty()) c = busyColor();
   p->setRenderHint(QPainter::Antialiasing, true);
   SheetRenderer::paint(*p, list_, c, font_);
   const bool frame = (kind_ == HitKind::View || kind_ == HitKind::PartsList) && (selected_ || hovered_ || highlighted_ || busy_);
@@ -181,7 +187,7 @@ void DisplayListItem::paint(QPainter* p, const QStyleOptionGraphicsItem* opt, QW
     QPointF at(bounds_.left() + 1.0, bounds_.top() - 1.0);
     p->translate(at);
     p->scale(3.0, 3.0);  // 3 mm text
-    p->setPen(busy_ ? kBusyColor : kErrorColor);
+    p->setPen(busy_ ? busyColor() : errorColor());
     p->drawText(QPointF(0, 0), QString::fromStdString(busy_ ? std::string("updating...") : error_));
     p->restore();
   }
@@ -202,7 +208,7 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QGraphicsView(parent) {
   setDragMode(QGraphicsView::NoDrag);
   setMouseTracking(true);
   setFocusPolicy(Qt::StrongFocus);
-  setBackgroundBrush(QColor(0xE6, 0xE8, 0xEB));
+  // the surround (drawing.canvas) is painted in drawBackground at paint time, so it follows the theme
   setFrameShape(QFrame::NoFrame);
   setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -640,11 +646,11 @@ void DrawingCanvas::rebuild() {
 
   const std::string font = style().fontFamily;
   previewItem_ = new DisplayListItem(HitKind::None, core::kInvalidId, preview, font);
-  previewItem_->setColor(kPreviewColor);
+  previewItem_->setColor(previewColor());
   previewItem_->setZValue(kZPreview);
   scene_->addItem(previewItem_);
   rubberItem_ = new DisplayListItem(HitKind::None, core::kInvalidId, rubber, font);
-  rubberItem_->setColor(kSelectColor);
+  rubberItem_->setColor(selectColor());
   rubberItem_->setZValue(kZRubber);
   scene_->addItem(rubberItem_);
 
@@ -744,14 +750,31 @@ void DrawingCanvas::rebuild() {
 }
 
 void DrawingCanvas::drawBackground(QPainter* painter, const QRectF& rect) {
-  QGraphicsView::drawBackground(painter, rect);
+  // Sheet chrome in theme colours: surround drawing.canvas, a drop shadow (shadow.card) and a
+  // 1-device-pixel border.default hairline round the paper. Paper (drawing.paper) is white in both themes.
+  painter->fillRect(rect, theme::color(Tok::DrawingCanvas));
   const Sheet* s = sheet();
   QRectF paper = s ? QRectF(0, 0, s->format.width, s->format.height) : QRectF(0, 0, 420, 297);
   painter->setPen(Qt::NoPen);
-  painter->setBrush(QColor(0, 0, 0, 40));
+  QColor shadow = theme::color(Tok::ShadowCard);
+  if (theme::current() == theme::Theme::Dark) shadow.setAlphaF(std::min(1.0, shadow.alphaF() * 1.2));
+  painter->setBrush(shadow);
   painter->drawRect(paper.translated(1.5, 1.5));
-  painter->setBrush(Qt::white);
+  painter->setBrush(theme::color(Tok::DrawingPaper));
   painter->drawRect(paper);
+  QPen edge(theme::color(Tok::BorderDefault), 0);  // cosmetic 1 px: one device pixel at any dpr
+  edge.setCosmetic(true);
+  if (const double dpr = devicePixelRatioF(); dpr > 1.0) edge.setWidthF(1.0 / dpr);
+  painter->setPen(edge);
+  painter->setBrush(Qt::NoBrush);
+  painter->drawRect(paper);
+}
+
+void DrawingCanvas::changeEvent(QEvent* e) {
+  // ThemeManager sets the application palette and the token QSS; both reach every widget, so the
+  // canvas repaints with the new surround without depending on the app module.
+  if (e->type() == QEvent::PaletteChange || e->type() == QEvent::StyleChange) viewport()->update();
+  QGraphicsView::changeEvent(e);
 }
 
 // --- input ------------------------------------------------------------------------------------------

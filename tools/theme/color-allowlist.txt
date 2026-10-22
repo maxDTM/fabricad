@@ -31,9 +31,4 @@ src/assembly/Triad.cpp                     4  assembly triad axis colours -> Col
 src/assembly/tools/InterferenceTool.cpp    3  assembly interference highlight -> ColorRole (status.error)
 src/assembly/tools/ToolCommon.cpp          3  assembly inline QLineEdit error style -> property invalid="true" (app.qss.tmpl)
 #
-# --- drawing: paper and ink stay fixed (allowed); canvas surround and selection -> tokens (request)
-src/drawing/DrawingWorkspaceWidget.cpp     8  drawing  side-panel inline label colours -> QSS/tokens (request)
-src/drawing/DrawingCanvas.cpp              4  drawing  paper/ink fixed (allowed); canvas surround drawing.canvas, selection drawing.select (request)
-src/drawing/SheetRenderer.h                2  drawing  paper/ink fixed (allowed)
-src/drawing/SheetRenderer.cpp              1  drawing  paper/ink fixed (allowed)
-src/drawing/DrawingExport.cpp              1  drawing  export colours (allowed)
+# --- drawing: none since redesign phase 5 (canvas, sheet chrome, ink and selection from tokens; paper/ink are the fixed drawing.paper/drawing.ink tokens)

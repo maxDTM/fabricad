@@ -76,9 +76,13 @@ class SheetRenderer {
                 bool frame = true) const;
 
   // --- painting ---------------------------------------------------------------------------
+  /// Drawing ink (token drawing.ink): black in both themes, on white paper (drawing.paper).
+  static QColor ink();
+  /// Error text on the sheet (status.error, light value: it sits on the white paper).
+  static QColor errorInk();
   /// Pen for a line class: widths in mm (non-cosmetic), ISO dash patterns.
-  static QPen pen(LineClass cls, const QColor& color = Qt::black, double widthScale = 1.0);
-  static void paint(QPainter& p, const DisplayList& list, const QColor& color = Qt::black,
+  static QPen pen(LineClass cls, const QColor& color = ink(), double widthScale = 1.0);
+  static void paint(QPainter& p, const DisplayList& list, const QColor& color = ink(),
                     const std::string& fontFamily = "DejaVu Sans");
   static void paintCurve(QPainter& p, const Curve2D& c);
   static void paintText(QPainter& p, const DisplayText& t, const std::string& fontFamily);
