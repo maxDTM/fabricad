@@ -24,8 +24,11 @@
   <file>icons/dark/app-cancel.svg</file>
   <file>icons/dark/app-check.svg</file>
   <file>icons/dark/app-close.svg</file>
+  <file>icons/dark/app-collapse-group.svg</file>
   <file>icons/dark/app-echo.svg</file>
   <file>icons/dark/app-edit-properties.svg</file>
+  <file>icons/dark/app-expand-group.svg</file>
+  <file>icons/dark/app-group.svg</file>
   <file>icons/dark/app-help.svg</file>
   <file>icons/dark/app-info.svg</file>
   <file>icons/dark/app-input.svg</file>
@@ -36,13 +39,17 @@
   <file>icons/dark/app-pick.svg</file>
   <file>icons/dark/app-redo-alt.svg</file>
   <file>icons/dark/app-rename.svg</file>
+  <file>icons/dark/app-rollback.svg</file>
   <file>icons/dark/app-screenshot.svg</file>
   <file>icons/dark/app-select.svg</file>
   <file>icons/dark/app-show-all.svg</file>
+  <file>icons/dark/app-suppress.svg</file>
   <file>icons/dark/app-tab.svg</file>
   <file>icons/dark/app-theme.svg</file>
   <file>icons/dark/app-toggle-visibility.svg</file>
+  <file>icons/dark/app-ungroup.svg</file>
   <file>icons/dark/app-units.svg</file>
+  <file>icons/dark/app-unsuppress.svg</file>
   <file>icons/dark/app-wait.svg</file>
   <file>icons/dark/assembly-activate.svg</file>
   <file>icons/dark/assembly-as-built-joint.svg</file>
@@ -337,8 +344,11 @@
   <file>icons/light/app-cancel.svg</file>
   <file>icons/light/app-check.svg</file>
   <file>icons/light/app-close.svg</file>
+  <file>icons/light/app-collapse-group.svg</file>
   <file>icons/light/app-echo.svg</file>
   <file>icons/light/app-edit-properties.svg</file>
+  <file>icons/light/app-expand-group.svg</file>
+  <file>icons/light/app-group.svg</file>
   <file>icons/light/app-help.svg</file>
   <file>icons/light/app-info.svg</file>
   <file>icons/light/app-input.svg</file>
@@ -349,13 +359,17 @@
   <file>icons/light/app-pick.svg</file>
   <file>icons/light/app-redo-alt.svg</file>
   <file>icons/light/app-rename.svg</file>
+  <file>icons/light/app-rollback.svg</file>
   <file>icons/light/app-screenshot.svg</file>
   <file>icons/light/app-select.svg</file>
   <file>icons/light/app-show-all.svg</file>
+  <file>icons/light/app-suppress.svg</file>
   <file>icons/light/app-tab.svg</file>
   <file>icons/light/app-theme.svg</file>
   <file>icons/light/app-toggle-visibility.svg</file>
+  <file>icons/light/app-ungroup.svg</file>
   <file>icons/light/app-units.svg</file>
+  <file>icons/light/app-unsuppress.svg</file>
   <file>icons/light/app-wait.svg</file>
   <file>icons/light/assembly-activate.svg</file>
   <file>icons/light/assembly-as-built-joint.svg</file>
