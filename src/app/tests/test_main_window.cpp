@@ -212,15 +212,16 @@ class TestMainWindow : public QObject {
     QCOMPARE(tool_->accepted, 2);
   }
 
-  void commandDialogDocksLeftAndKeepsSize() {
+  void commandDialogDocksRightAndKeepsSize() {
     QVERIFY(w_->runCommand("test.dialog"));
     settle();
     app::CommandDialog* d = w_->commandDialog();
     QVERIFY(d->isVisible());
     QVERIFY(d->parentWidget());
-    // docked at the top-left of the viewport (UX-17), away from the ViewCube
-    QVERIFY(d->x() < d->parentWidget()->width() / 2);
-    QVERIFY(d->y() < 40);
+    // docked to the viewport's right edge (ux.md; SK-05), below the ViewCube when there is room
+    QVERIFY(d->x() > d->parentWidget()->width() / 2 || d->parentWidget()->width() < 2 * d->width());
+    QVERIFY(d->geometry().right() <= d->parentWidget()->width());
+    QVERIFY(d->parentWidget()->width() - 1 - d->geometry().right() <= 16);
     const int h0 = d->height();
     d->setMessage("A long prompt that certainly wraps onto more than one line in the fixed-width command dialog");
     const int h1 = d->height();

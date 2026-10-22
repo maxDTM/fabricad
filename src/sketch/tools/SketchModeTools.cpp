@@ -465,7 +465,7 @@ void registerModeTools(core::ToolRegistry& reg) {
       ToolInfo{.id = "sketch.select-all",
                .name = "Select All",
                .tooltip = "Select every curve and point of the sketch",
-               .icon = "select",
+               .icon = "sketch-select-all",
                .shortcut = "Ctrl+A",
                .aliases = {"SELECTALL"},
                .tab = "SKETCH",
