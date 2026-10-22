@@ -11,7 +11,7 @@ more workflows (worktrees, `-j2` builds, Sonnet GUI testers through `tools/uites
 | **1** | **UI redesign, phases 0–5**, with the feature list in phase 2 | It rewrites the files most open issues live in (`MainWindow`, `Ribbon`, `CommandDialog`, `ViewerWidget`, `TimelineWidget`, `Theme`, the QSS). Fixing those issues first would be thrown away. |
 | **2** | Remaining open issues + performance work | Fixed once, on the new UI. Several are made moot by step 1 (below). |
 | **3** | Drawing test round on the new UI | The redesign changes the drawing canvas surround, selection and dialogs; the drawing workspace has had only one tester pass. |
-| **4** | Interactive tutorial | It anchors to the final UI and needs the step 2 fixes (its §6 list). **Blocked on its open questions (tutorial.md §8).** |
+| **4** | Interactive tutorial | It anchors to the final UI and needs the step 2 fixes (its §6 list). Open questions answered (tutorial.md §8). |
 
 ### Step 1: redesign (≈ 11 000 lines + feature list 1 500–2 500; 14–18 sessions)
 
@@ -61,7 +61,7 @@ drawing issue.
 
 ### Step 4: interactive tutorial (`tutorial.md`)
 
-**Blocked** until the user answers tutorial.md §8 (12 questions). Needs steps 1–3 done (anchors on the final UI,
+Open questions answered (tutorial.md §8). Needs steps 1–3 done (anchors on the final UI,
 §6 fixes in). Starts with its phase 0 spike on the new UI. ≈ 14.5–19 agent-days. Gate: `fabricad_tutorial_bracket_default`
 10 runs in a row in the default preset, 3 each in the `alt` and `light` presets; testers report no blocker.
 

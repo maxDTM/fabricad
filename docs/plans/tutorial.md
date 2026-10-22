@@ -1,6 +1,6 @@
 # Plan: interactive "First part" tutorial (in-app guided tour + real-input GUI test)
 
-Status: planned, not started. No code yet. **Blocked on the open questions in section 8** (not yet answered).
+Status: planned, not started. No code yet. Section 8 questions answered by the user (2026-10-22). Starts after roadmap steps 1–3.
 
 Reconciled on 2026-10-22 with the newer `docs/plans/ui-redesign.md` (it wins where they differ) and
 `docs/plans/feature-list-timeline.md`. The tour is built **on the redesigned UI**: no ribbon tab row, a sectioned
