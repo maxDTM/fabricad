@@ -767,6 +767,25 @@ class TestMainWindow : public QObject {
       if (w_->tabAt(i) != w_->activeTab()) QVERIFY(w_->closeTab(i));
   }
 
+  void failedSaveKeepsName() {
+    // DOC-04: a save that fails leaves the name, path and modified flag as they were
+    w_->addDesignTab();
+    core::Document& doc = w_->document();
+    QCOMPARE(core::qs(doc.name()), QString("Untitled"));
+    QVERIFY(!doc.isModified());
+    QString err;
+    QVERIFY(!w_->saveTo("/proc/nope/x.fcad", &err));
+    QVERIFY(!err.isEmpty());
+    QCOMPARE(core::qs(doc.name()), QString("Untitled"));
+    QVERIFY(doc.filePath().empty());
+    QVERIFY(!doc.isModified());
+    addBox(doc, 4);
+    QVERIFY(!w_->saveTo("/proc/nope/x.fcad", &err));
+    QVERIFY(doc.isModified());
+    QCOMPARE(core::qs(doc.name()), QString("Untitled"));
+    doc.setModified(false);
+  }
+
   void failedFeatureShowsMessage() {
     // DOC-08: a feature that newly fails after a recompute is named in the status bar
     QVERIFY(w_->newDocument());

@@ -1482,12 +1482,12 @@ bool MainWindow::saveAs() {
                       : core::qs(document_->filePath());
   QString path = QFileDialog::getSaveFileName(this, "Save As", start, "FabriCAD design (*.fcad)");
   if (path.isEmpty()) return false;
-  s.setValue("file/lastDir", QFileInfo(path).absolutePath());
   QString err;
   if (!saveTo(path, &err)) {
     QMessageBox::warning(this, "Save As", "Cannot save:\n" + err);
     return false;
   }
+  s.setValue("file/lastDir", QFileInfo(path).absolutePath());  // only a folder that worked (DOC-04)
   return true;
 }
 
@@ -1497,7 +1497,11 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
   path = canonicalPath(path);
   // The document name follows the file (Fusion) unless the user gave it a name of its own: an
   // automatic name is "Untitled" or the stem of the file it came from (DOC-06).
-  const std::string& name = document_->name();
+  // The name is set before writing (the file stores it) and put back when the write fails, with
+  // the modified flag the rename touched (DOC-04).
+  const std::string oldName = document_->name();
+  const bool wasModified = document_->isModified();
+  const std::string& name = oldName;
   const std::string oldStem =
       document_->filePath().empty() ? std::string() : QFileInfo(core::qs(document_->filePath())).completeBaseName().toStdString();
   if (name.empty() || name == "Untitled" || (!oldStem.empty() && name == oldStem))
@@ -1505,6 +1509,9 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
   std::string err;
   if (!document_->save(path.toStdString(), &err)) {
     if (error) *error = core::qs(err);
+    if (document_->name() != oldName) document_->setName(oldName);
+    document_->setModified(wasModified);
+    updateTitle();
     return false;
   }
   recent_.add(path);
