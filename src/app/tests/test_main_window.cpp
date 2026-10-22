@@ -823,6 +823,44 @@ class TestMainWindow : public QObject {
     QCOMPARE(w_->activeTab(), design);
   }
 
+  void closeDesignClosesItsDrawings() {
+    // DOC-01: closing the design closes the document (one prompt), its drawing tabs with it
+    app::DocumentTab* design = w_->addDesignTab();
+    addBox(design->document(), 7);
+    QVERIFY(design->document().isModified());
+    w_->setWorkspace(core::Workspace::Drawing);
+    app::DocumentTab* drawing = w_->activeTab();
+    QVERIFY(!drawing->isDesign());
+    const int tabs = w_->tabCount();
+    QVERIFY(w_->closeTab(design));  // the drawing is the active tab: it closes last
+    QCOMPARE(w_->tabCount(), tabs - 2);
+    QVERIFY(w_->indexOfTab(drawing) < 0);
+    QVERIFY(w_->activeTab() != nullptr);
+    QVERIFY(w_->activeTab()->isDesign());
+  }
+
+  void browserDockSurvivesDrawing() {
+    // DOC-02: closing the drawing tab when it is the last one brings the browser back
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    settle();
+    QVERIFY(!w_->browserDock()->isHidden());
+    w_->setWorkspace(core::Workspace::Drawing);
+    QVERIFY(w_->browserDock()->isHidden());
+    app::DocumentTab* design = w_->tabForDocument(w_->document(), app::DocumentTab::Kind::Design);
+    QVERIFY(w_->closeTab(design));  // closes the drawing too: the fresh design shows the browser
+    QVERIFY(w_->activeTab()->isDesign());
+    QVERIFY(!w_->browserDock()->isHidden());
+    // hidden on purpose: stays hidden across a drawing round trip; the menu brings it back
+    w_->setBrowserVisible(false);
+    w_->setWorkspace(core::Workspace::Drawing);
+    w_->setWorkspace(core::Workspace::Design);
+    QVERIFY(w_->browserDock()->isHidden());
+    QAction* show = w_->findChild<QAction*>("ShowBrowserAction");
+    QVERIFY(show);
+    show->trigger();
+    QVERIFY(!w_->browserDock()->isHidden());
+  }
+
   void tabsOwnTheirState() {
     // every tab has its own document, undo stack, selection, tool manager and camera
     app::DocumentTab* a = w_->activeTab();

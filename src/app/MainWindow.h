@@ -101,9 +101,13 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void activateTab(int index) { activateTab(tabAt(index)); }
   /// Tab by 1-based number or (case-insensitive) title; nullptr if none.
   DocumentTab* findTab(const std::string& spec) const;
-  /// Close a tab, prompting for unsaved changes when it is the last tab of its document.
-  /// Returns false if the user cancelled. The window always keeps one (possibly new) tab.
+  /// Close a tab. Closing a design tab (or a document's last tab) closes the document: one
+  /// prompt for unsaved changes, then its drawing tabs close too. Returns false if the user
+  /// cancelled. The window always keeps one (possibly new) tab.
   bool closeTab(DocumentTab* tab);
+  /// Show or hide the browser panel and remember it for design tabs (drawings hide it).
+  void setBrowserVisible(bool on);
+  QDockWidget* browserDock() const { return browserDock_; }
   bool closeTab(int index) { return closeTab(tabAt(index)); }
 
   /// Create the OCCT GL view of the active tab (call once the window is shown). Tabs created
@@ -228,6 +232,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void releaseSessionRecoveryDirectory();
   QString recoveryFilePath(const DocumentTab& tab) const;
   void clearRecoveryFile(DocumentTab& tab);
+  void closeOneTab(DocumentTab* tab);  ///< close one tab without prompting
   void onToolActivated(const std::string& id);
   void onToolFinished(const std::string& id, bool accepted);
   void presentDialog();
@@ -301,6 +306,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   bool selectionStatusPending_ = false;  ///< coalesces rename/recompute -> status label
   bool glEnabled_ = false;        ///< initializeViewer() was called: new tabs get a GL view too
   bool browserDockWanted_ = true; ///< user's dock visibility (hidden automatically in drawing tabs)
+  bool timelineDockWanted_ = true; ///< user's timeline visibility (design tabs only)
   bool switchingTabs_ = false;
   quint64 activation_ = 0;
   quint64 dialogActivation_ = 0;

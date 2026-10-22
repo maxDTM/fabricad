@@ -350,6 +350,27 @@ void MainWindow::buildFileMenu(QMenu* m) {
   m->addSeparator();
   add("parameters", "Change Parameters...", "app.parameters");
   m->addSeparator();
+  // the panels can always be brought back, also after closing the browser with its x (DOC-02)
+  QMenu* panels = m->addMenu("Show Panels");
+  panels->setObjectName("ShowPanelsMenu");
+  QAction* browserToggle = panels->addAction("Browser");
+  browserToggle->setObjectName("ShowBrowserAction");
+  browserToggle->setCheckable(true);
+  QAction* timelineToggle = panels->addAction("Timeline");
+  timelineToggle->setObjectName("ShowTimelineAction");
+  timelineToggle->setCheckable(true);
+  connect(panels, &QMenu::aboutToShow, this, [this, browserToggle, timelineToggle] {
+    const bool design = active_ && active_->isDesign();
+    browserToggle->setChecked(design ? !browserDock_->isHidden() : browserDockWanted_);
+    timelineToggle->setChecked(timelineDockWanted_);
+    timelineToggle->setEnabled(design);
+  });
+  connect(browserToggle, &QAction::triggered, this, [this](bool on) { setBrowserVisible(on); });
+  connect(timelineToggle, &QAction::triggered, this, [this](bool on) {
+    timelineDockWanted_ = on;
+    timelineDock_->setVisible(on && active_ && active_->isDesign());
+  });
+  m->addSeparator();
   m->addAction("Exit", this, [this] { close(); });
 }
 
@@ -477,15 +498,12 @@ void MainWindow::activateTab(DocumentTab* tab) {
   central_->setCurrentWidget(tab->centralWidget());
   if (tab->browser()) browserStack_->setCurrentWidget(tab->browser());
   if (tab->timeline()) timelineStack_->setCurrentWidget(tab->timeline());
-  if (previous && previous->isDesign() != tab->isDesign()) {
-    if (tab->isDesign()) {
-      browserDock_->setVisible(browserDockWanted_);
-    } else {
-      browserDockWanted_ = !browserDock_->isHidden();
-      browserDock_->hide();
-    }
-  }
-  timelineDock_->setVisible(tab->isDesign());
+  // The dock follows the tab being shown, not the change of kind: after the last tab closes
+  // there is no previous tab and the new design must still get its browser back (DOC-02).
+  if (previous && previous->isDesign()) browserDockWanted_ = !browserDock_->isHidden();
+  if (tab->isDesign()) browserDock_->setVisible(browserDockWanted_);
+  else browserDock_->hide();
+  timelineDock_->setVisible(tab->isDesign() && timelineDockWanted_);
   if (tab->isDesign() && glEnabled_ && isVisible()) tab->initializeViewer();
 
   const core::Workspace ws = tab->workspace();
@@ -503,6 +521,11 @@ void MainWindow::activateTab(DocumentTab* tab) {
   scheduleStateRefresh();
   QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
   emit activeTabChanged(tab);
+}
+
+void MainWindow::setBrowserVisible(bool on) {
+  browserDockWanted_ = on;
+  browserDock_->setVisible(on);
 }
 
 void MainWindow::syncActivePointers() {
@@ -544,39 +567,54 @@ void MainWindow::refreshTabBar() {
 }
 
 bool MainWindow::closeTab(DocumentTab* tab) {
-  if (!tab) return false;
-  // the prompt belongs to the last tab showing the document
-  if (tab->documentPtr().use_count() == 1 && !maybeSave(*tab)) return false;
+  if (!tab || indexOfTab(tab) < 0) return false;
+  // Closing the design closes the document, drawings included (Fusion); closing a drawing
+  // closes just that tab unless it is the document's last one. Tabs are counted rather than
+  // shared_ptr owners, which anything may hold (DOC-01).
+  std::vector<DocumentTab*> group;
+  for (const auto& t : tabs_)
+    if (&t->document() == &tab->document()) group.push_back(t.get());
+  const bool closesDocument = tab->isDesign() || group.size() == 1;
+  if (closesDocument && !maybeSave(*tab)) return false;
+  if (!closesDocument) group = {tab};
+  // the active tab goes last, so the neighbour it hands over to is not about to close as well
+  std::stable_partition(group.begin(), group.end(), [this](DocumentTab* t) { return t != active_; });
+  if (closesDocument) clearRecoveryFile(*tab);
+  for (DocumentTab* t : group)
+    if (indexOfTab(t) >= 0) closeOneTab(t);
+  echoCommand("close");
+  return true;
+}
+
+void MainWindow::closeOneTab(DocumentTab* tab) {
   if (sketch::SketchSession* s = sketch::SketchSession::current(); s && s->manager() == &tab->manager()) sketch::SketchSession::end();
   if (tab->manager().isActive()) tab->manager().cancel();
-  if (tab->documentPtr().use_count() == 1) clearRecoveryFile(*tab);
   const int index = indexOfTab(tab);
-  const bool wasActive = tab == active_;
-  if (wasActive) {
+  if (tab == active_) {
     // choose the neighbour (Fusion: the tab to the left)
-    DocumentTab* next = nullptr;
-    if (tabCount() > 1) next = tabAt(index > 0 ? index - 1 : 1);
+    DocumentTab* next = tabCount() > 1 ? tabAt(index > 0 ? index - 1 : 1) : nullptr;
     if (!next) {
       destroyTab(tab);
       addDesignTab();
-      echoCommand("close");
-      return true;
+      return;
     }
     activateTab(next);
   }
   destroyTab(tab);
-  echoCommand("close");
-  return true;
 }
 
 void MainWindow::destroyTab(DocumentTab* tab) {
   const int index = indexOfTab(tab);
   if (index < 0) return;
   if (tab == active_) {
+    if (tab->isDesign()) browserDockWanted_ = !browserDock_->isHidden();  // closed with its x (DOC-02)
     active_ = nullptr;
     syncActivePointers();
   }
-  if (tab->documentPtr().use_count() == 1) failedFeatures_.erase(&tab->document());
+  bool lastOfDocument = true;
+  for (const auto& t : tabs_)
+    if (t.get() != tab && &t->document() == &tab->document()) lastOfDocument = false;
+  if (lastOfDocument) failedFeatures_.erase(&tab->document());
   switchingTabs_ = true;
   tabBar_->removeTab(index);
   switchingTabs_ = false;
@@ -1493,6 +1531,8 @@ void MainWindow::closeEvent(QCloseEvent* e) {
     if (t->manager().isActive()) t->manager().cancel();
   QSettings s;
   s.setValue("window/geometry", saveGeometry());
+  // a drawing tab hides the browser only for itself: store the design layout (DOC-02)
+  if (active_ && !active_->isDesign() && browserDockWanted_) browserDock_->show();
   s.setValue("window/state", saveState());
   s.setValue("search/recent", recentCommands_);
   s.setValue("ui/commandLine", commandLine_->isVisible());
