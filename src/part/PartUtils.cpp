@@ -5,6 +5,7 @@
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
 
+#include <BOPAlgo_ArgumentAnalyzer.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
@@ -311,6 +312,21 @@ bool sameKindSolid(const TopoDS_Shape& before, const TopoDS_Shape& after, std::s
     if (core::volume(solid) <= 1e-9) return fail("a solid has no or negative volume");
   }
   return true;
+}
+
+bool hasSelfIntersection(const TopoDS_Shape& s) {
+  if (s.IsNull()) return false;
+  try {
+    BOPAlgo_ArgumentAnalyzer an;
+    an.SetShape1(s);
+    an.ArgumentTypeMode() = Standard_False;
+    an.SelfInterMode() = Standard_True;
+    an.SetFuzzyValue(kFuzzy);
+    an.Perform();
+    return an.HasFaulty();
+  } catch (const Standard_Failure&) {
+    return true;
+  }
 }
 
 bool volumeChanged(double v0, double v1, double relTol) {

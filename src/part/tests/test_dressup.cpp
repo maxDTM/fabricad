@@ -282,11 +282,12 @@ class DressUpTest : public QObject {
   void twoDistanceChamferNextToFillet() {
     core::Document doc;
     core::ObjectId body = makeBox(doc, nullptr, 20, 30);
-    auto topEdges = [&](double y) {
+    // top edges: along X at y = v (alongX) or along Y at x = v
+    auto topEdges = [&](double v, bool alongX = true) {
       const TopoDS_Shape& s = doc.bodyShape(body);
       for (const auto& e : core::subShapes(s, TopAbs_EDGE)) {
         core::Vec3 m = core::centroid(e);
-        if (std::abs(m.z - 30) < 1e-6 && std::abs(m.y - y) < 1e-6) {
+        if (std::abs(m.z - 30) < 1e-6 && std::abs((alongX ? m.y : m.x) - v) < 1e-6) {
           core::ShapeRef r = core::ShapeRef::subShape(body, s, e);
           annotateRef(doc, r);
           return r;
@@ -302,7 +303,7 @@ class DressUpTest : public QObject {
     QCOMPARE(ff->status(), core::FeatureStatus::Ok);
     const double v0 = core::volume(doc.bodyShape(body));
     auto ch = std::make_unique<ChamferFeature>();
-    ch->prop("edges").addRef(topEdges(20));
+    ch->prop("edges").addRef(topEdges(20, false));  // shares a corner with the fillet (as in the report)
     ch->prop("chamferType").setEnum("Two Distances");
     ch->prop("distance").setDouble(3);
     ch->prop("distance2").setDouble(8);
@@ -311,11 +312,18 @@ class DressUpTest : public QObject {
     const TopoDS_Shape& r = doc.bodyShape(body);
     if (cf->status() == core::FeatureStatus::Ok) {
       QVERIFY(sameKindSolid(r, r));
+      QVERIFY(!hasSelfIntersection(r));
       const double v1 = core::volume(r);
       QVERIFY2(v1 < v0 && v1 > 0.5 * v0, qPrintable(QString::number(v1)));
     } else {
-      QVERIFY(near(core::volume(r), v0, 1e-6));
+      QVERIFY(near(core::volume(r), v0, 1e-6));  // previous state kept
     }
+    // the same chamfer on the opposite edge (no tangent chain into the fillet) works
+    cf->prop("edges").setRefs({topEdges(20)});
+    doc.notifyFeatureChanged(cf->id());
+    doc.recompute();
+    QVERIFY2(cf->status() == core::FeatureStatus::Ok, cf->statusMessage().c_str());
+    QVERIFY(near(core::volume(doc.bodyShape(body)), v0 - 0.5 * 3 * 8 * 20, 1e-3));
   }
 
   void draftFaces() {

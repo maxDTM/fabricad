@@ -198,7 +198,7 @@ void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         return;
       }
       TopoDS_Shape r = healed(mk.Shape());
-      if (r.IsNull() || !sameKindSolid(g.bodyShape, r)) {
+      if (r.IsNull() || !sameKindSolid(g.bodyShape, r) || hasSelfIntersection(r)) {
         ctx.setError("fillet produced an invalid shape (radius too large for the geometry?)");
         return;
       }
@@ -297,7 +297,7 @@ void ChamferFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         return;
       }
       TopoDS_Shape r = healed(mk.Shape());
-      if (r.IsNull() || !sameKindSolid(g.bodyShape, r)) {
+      if (r.IsNull() || !sameKindSolid(g.bodyShape, r) || hasSelfIntersection(r)) {
         ctx.setError("chamfer produced an invalid shape (distance too large for the geometry?)");
         return;
       }

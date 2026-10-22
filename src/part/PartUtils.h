@@ -42,6 +42,10 @@ bool hasSolid(const TopoDS_Shape& s);
 /// BRepCheck-valid result can still have missing or inverted faces; this catches those.
 /// On failure returns false and, when given, sets `why`.
 bool sameKindSolid(const TopoDS_Shape& before, const TopoDS_Shape& after, std::string* why = nullptr);
+/// BOPAlgo_ArgumentAnalyzer self-intersection check (faces of the shape crossing each other).
+/// A BRepCheck-valid, closed dress-up result can still fold over itself (two-distance chamfer
+/// along a tangent chain through a fillet, PART-03). Exceptions count as self-intersecting.
+bool hasSelfIntersection(const TopoDS_Shape& s);
 /// Volumes differ by more than a small relative tolerance (numerical noise of GProp).
 bool volumeChanged(double v0, double v1, double relTol = 1e-7);
 /// A single solid stays a solid; several become a compound; none -> null.
