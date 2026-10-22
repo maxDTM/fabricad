@@ -1515,10 +1515,12 @@ std::vector<std::pair<ViewerWidget::CubeCtl, QRectF>> ViewerWidget::cubeControls
   std::vector<std::pair<CubeCtl, QRectF>> out;
   if (!d_->ready()) return out;
   const QPointF c = cubeCenter();
-  const double r = kCubeCtlRadius, s = 22.0;
+  // the cube's size and offset are in device pixels (OCCT), the controls in logical ones
+  const double dpr = d_->view->devicePixelRatioF();
+  const double r = kCubeCtlRadius / dpr, s = 22.0, rs = 26.0 / dpr;
   auto box = [s](QPointF at) { return QRectF(at.x() - s / 2, at.y() - s / 2, s, s); };
   out.push_back({CubeCtl::Home, box(c + QPointF(-r, -r))});
-  out.push_back({CubeCtl::RollCcw, box(c + QPointF(r - 26, -r))});
+  out.push_back({CubeCtl::RollCcw, box(c + QPointF(r - rs, -r))});
   out.push_back({CubeCtl::RollCw, box(c + QPointF(r, -r))});
   if (isFaceOnView(viewDirection(), upDirection())) {
     out.push_back({CubeCtl::StepLeft, box(c + QPointF(-r, 0))});
