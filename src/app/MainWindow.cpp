@@ -502,6 +502,7 @@ void MainWindow::buildStatusBar() {
   keyHints_ = new KeyHints(sb);
   messageLabel_ = new ElideLabel(sb);
   messageLabel_->setObjectName("StatusMessage");  // as typed: paths and names are user data
+  messageLabel_->installEventFilter(this);         // click: the full text in the command history
   selectionLabel_ = new QLabel(sb);
   selectionLabel_->setObjectName("StatusDim");
   sketchLabel_ = new QLabel(sb);
@@ -1321,6 +1322,7 @@ bool MainWindow::acceptActiveTool() {
 void MainWindow::scheduleFailureReport() {
   if (failureReportPending_) return;
   failureReportPending_ = true;
+  failureScheduleSeq_ = messageSeq_;
   QTimer::singleShot(0, this, [this] {
     failureReportPending_ = false;
     reportNewFailures(true);
@@ -1349,13 +1351,21 @@ void MainWindow::reportNewFailures(bool announce) {
   if (!announce || !first) return;
   std::string msg = first->name() + " failed";
   if (!first->statusMessage().empty()) msg += ": " + first->statusMessage();
+  // the command that caused it (SUPPRESS, DELETE, an edit) reported its result just now: keep
+  // that result in the cell and add the failure (p1-check 3)
+  const bool recentResult = !lastResultText_.isEmpty() && lastResultSeq_ == messageSeq_ &&
+                            messageLabel_->text() == lastResultText_ &&
+                            (lastResultSeq_ > failureScheduleSeq_ || QDateTime::currentMSecsSinceEpoch() - lastResultMs_ < 1000);
+  const QString result = lastResultText_;
   showMessage(msg, core::MessageLevel::Error);
+  if (recentResult) setStatusMessage(result + QString::fromUtf8(" \u00B7 ") + core::qs(msg), core::MessageLevel::Warning);
   failureDoc_ = document_;
   failureFeature_ = first->id();
   failureText_ = messageLabel_->text();
 }
 
 void MainWindow::clearStatusMessage() {
+  lastResultText_.clear();
   messageLabel_->clear();
   messageLabel_->hide();
   messageLabel_->setToolTip({});
@@ -1386,21 +1396,37 @@ void MainWindow::setPrompt(const std::string& text) {
   commandLine_->setPrompt(core::qs(text));
 }
 
-void MainWindow::showMessage(const std::string& text, core::MessageLevel level) {
-  const QString q = core::qs(text);
-  const QString firstLine = q.section('\n', 0, 0);
+void MainWindow::setStatusMessage(const QString& q, core::MessageLevel level) {
+  QString shown = q.section('\n', 0, 0);
+  // the cell has room for one line: the rest is in the command history (p1-check 2)
+  const qsizetype more = q.count('\n');
+  if (more > 0 && !shown.isEmpty())
+    shown += QString::fromUtf8("  \u2026 +%1 line%2 (history)").arg(more).arg(more == 1 ? "" : "s");
   // coloured by the theme QSS (QLabel[messageLevel=...]); repolish so the new value applies
   messageLabel_->setProperty("messageLevel", level == core::MessageLevel::Error     ? "error"
                                              : level == core::MessageLevel::Warning ? "warning"
                                                                                     : "info");
   messageLabel_->style()->unpolish(messageLabel_);
   messageLabel_->style()->polish(messageLabel_);
-  messageLabel_->setText(firstLine);
-  messageLabel_->setVisible(!firstLine.isEmpty());
+  messageLabel_->setText(shown);
+  messageLabel_->setVisible(!shown.isEmpty());
+  messageLabel_->setCursor(more > 0 ? Qt::PointingHandCursor : Qt::ArrowCursor);
   messageLevel_ = level;
-  messageLabel_->setToolTip(q);
-  messageTimer_->start(level == core::MessageLevel::Info ? 5000 : 9000);
-  commandLine_->appendHistory(q);
+  messageLabel_->setToolTip(more > 0 ? q + "\n\n(click: command history)" : q);
+  // long output stays readable longer
+  messageTimer_->start(more > 0 ? 15000 : level == core::MessageLevel::Info ? 5000 : 9000);
+}
+
+void MainWindow::showMessage(const std::string& text, core::MessageLevel level) {
+  const QString q = core::qs(text);
+  setStatusMessage(q, level);
+  ++messageSeq_;
+  if (level == core::MessageLevel::Info) {
+    lastResultText_ = messageLabel_->text();
+    lastResultSeq_ = messageSeq_;
+    lastResultMs_ = QDateTime::currentMSecsSinceEpoch();
+  }
+  commandLine_->appendOutput(q);
   if (level == core::MessageLevel::Error) FC_ERROR("{}", text);
   else if (level == core::MessageLevel::Warning) FC_WARN("{}", text);
   emit messageShown(static_cast<int>(level), q);
@@ -1562,7 +1588,10 @@ void MainWindow::updateViewCells() {
   snapCell_->setVisible(haveViewer);
   if (!haveViewer || !document_) return;
   gridCell_->setOn(viewer_->isGridVisible());
-  gridCell_->setValue(core::qs(core::formatQuantity(core::Quantity::mm(viewer_->gridSpacing()), document_->units())));
+  const QString spacing = core::qs(core::formatQuantity(core::Quantity::mm(viewer_->gridSpacing()), document_->units()));
+  gridCell_->setValue(spacing);
+  // the spacing adapts to the zoom: say so, it is not a setting (p1-check 12)
+  gridCell_->setToolTip(QString("Layout grid, %1 at this zoom (the spacing follows the zoom). Click to show or hide").arg(spacing));
   bool snap = viewer_->isGridSnap();
   if (sketch::SketchSession* s = sketch::SketchSession::current(); s && s->manager() == manager_) snap = s->snapEnabled();
   snapCell_->setOn(snap);
@@ -1945,7 +1974,13 @@ void MainWindow::showParameters() {
 
 void MainWindow::openCommandSearch() {
   search_->setRecent(recentCommands_);
-  search_->popup(QCursor::pos());
+  // under the title-bar search box, inside the window (p1-check 5); the cursor without one
+  if (searchBox_ && searchBox_->isVisible()) {
+    const QRect anchor(searchBox_->mapToGlobal(QPoint(0, 0)), searchBox_->size());
+    search_->popupBelow(anchor, QRect(mapToGlobal(QPoint(0, 0)), size()));
+  } else {
+    search_->popup(QCursor::pos());
+  }
 }
 
 void MainWindow::toggleCommandLine() {
@@ -2181,6 +2216,11 @@ void closeMenus(const std::vector<QMenu*>& menus) {
 }  // namespace
 
 bool MainWindow::eventFilter(QObject* o, QEvent* e) {
+  if (o == messageLabel_ && e->type() == QEvent::MouseButtonRelease &&
+      static_cast<QMouseEvent*>(e)->button() == Qt::LeftButton && commandLine_ && commandLine_->isVisible()) {
+    commandLine_->showHistoryPane();
+    return true;
+  }
   if (o == tabBar_) {
     if (e->type() == QEvent::MouseButtonPress && static_cast<QMouseEvent*>(e)->button() == Qt::LeftButton)
       tabDragActive_ = true;

@@ -471,11 +471,20 @@ class SelectTool : public SketchTool {
 // Sketch Palette toggles (instant)
 // ---------------------------------------------------------------------------
 
+/// `state`: the current on/off state for menus and toolbars (check marks in MORE, p1-check 7);
+/// empty for plain actions (Look At).
 std::unique_ptr<core::ITool> paletteToggle(const char* id, const char* name, const char* tooltip, int order,
-                                           std::function<void(SketchSession&, ToolContext&)> fn) {
+                                           std::function<void(SketchSession&, ToolContext&)> fn,
+                                           std::function<bool(const SketchSession&)> state = {}) {
+  ToolInfo info{.id = id, .name = name, .tooltip = tooltip, .icon = id, .tab = "SKETCH", .group = "OPTIONS", .order = order,
+                .repeatable = false};
+  if (state)
+    info.checked = [state] {
+      const SketchSession* s = SketchSession::current();
+      return s && state(*s);
+    };
   return std::make_unique<core::LambdaTool>(
-      ToolInfo{.id = id, .name = name, .tooltip = tooltip, .icon = id, .tab = "SKETCH", .group = "OPTIONS", .order = order,
-               .repeatable = false},
+      std::move(info),
       [fn](ToolContext& ctx) {
         if (SketchSession* s = SketchSession::current()) fn(*s, ctx);
       },
@@ -523,19 +532,25 @@ void registerModeTools(core::ToolRegistry& reg) {
                                  [](SketchSession& s, ToolContext& ctx) {
                                    s.setSnapEnabled(!s.snapEnabled());
                                    ctx.showMessage(s.snapEnabled() ? "Snap on" : "Snap off");
-                                 }));
+                                 },
+                                 [](const SketchSession& s) { return s.snapEnabled(); }));
   reg.registerTool(paletteToggle("sketch.toggle-grid", "Sketch Grid", "Show or hide the sketch grid", 3,
                                  [](SketchSession&, ToolContext& ctx) {
                                    if (ctx.viewer) ctx.viewer->setGridVisible(!ctx.viewer->isGridVisible());
-                                 }));
+                                 },
+                                 [](const SketchSession& s) { return s.viewer() && s.viewer()->isGridVisible(); }));
   reg.registerTool(paletteToggle("sketch.toggle-profiles", "Show Profile", "Shade closed profiles", 4,
-                                 [](SketchSession& s, ToolContext&) { s.setShowProfiles(!s.showProfiles()); }));
+                                 [](SketchSession& s, ToolContext&) { s.setShowProfiles(!s.showProfiles()); },
+                                 [](const SketchSession& s) { return s.showProfiles(); }));
   reg.registerTool(paletteToggle("sketch.toggle-points", "Show Points", "Show sketch points", 5,
-                                 [](SketchSession& s, ToolContext&) { s.setShowPoints(!s.showPoints()); }));
+                                 [](SketchSession& s, ToolContext&) { s.setShowPoints(!s.showPoints()); },
+                                 [](const SketchSession& s) { return s.showPoints(); }));
   reg.registerTool(paletteToggle("sketch.toggle-dimensions", "Show Dimensions", "Show dimensions", 6,
-                                 [](SketchSession& s, ToolContext&) { s.setShowDimensions(!s.showDimensions()); }));
+                                 [](SketchSession& s, ToolContext&) { s.setShowDimensions(!s.showDimensions()); },
+                                 [](const SketchSession& s) { return s.showDimensions(); }));
   reg.registerTool(paletteToggle("sketch.toggle-constraints", "Show Constraints", "Show constraint glyphs", 7,
-                                 [](SketchSession& s, ToolContext&) { s.setShowConstraints(!s.showConstraints()); }));
+                                 [](SketchSession& s, ToolContext&) { s.setShowConstraints(!s.showConstraints()); },
+                                 [](const SketchSession& s) { return s.showConstraints(); }));
 }
 
 void registerSketchTools(core::ToolRegistry& reg) {

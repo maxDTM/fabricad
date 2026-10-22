@@ -263,6 +263,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   QString recoveryFilePath(const DocumentTab& tab) const;
   void clearRecoveryFile(DocumentTab& tab);
   void clearStatusMessage();
+  /// Put `text` (first line, "+N lines" when there are more) into the message cell.
+  void setStatusMessage(const QString& text, core::MessageLevel level);
   void scheduleTabBarRefresh();
   void clearTimelineFrameUnlessSelected();
   bool tabDragging() const;
@@ -331,6 +333,15 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   const core::Document* failureDoc_ = nullptr;  ///< feature failure on display (cleared once fixed)
   core::ObjectId failureFeature_ = core::kInvalidId;
   QString failureText_;
+  /// Last Info message (a command's own result): a feature failure that the same command
+  /// causes downstream is reported next to it, not instead of it (p1-check 3). Messages are
+  /// counted; the result counts when it is the latest message and came after the recompute
+  /// that scheduled the failure report.
+  QString lastResultText_;
+  quint64 messageSeq_ = 0;
+  quint64 lastResultSeq_ = 0;
+  quint64 failureScheduleSeq_ = 0;
+  qint64 lastResultMs_ = -1;  ///< when it was shown (a deferred recompute reports later)
   bool tabDragActive_ = false;          ///< left button down on the tab bar (a tab may be dragged)
   bool tabBarRefreshDeferred_ = false;  ///< a tab bar refresh waits for the release
   bool tabBarRefreshPending_ = false;

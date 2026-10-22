@@ -144,7 +144,7 @@ void FeatureTool::activate(core::ToolContext& ctx) {
     rollbackToFeature(ctx);
     applyFilter(ctx);
     highlightRefs(ctx);
-    ctx.setPrompt(std::format("Editing {}", f->name()));
+    updatePrompt(ctx);
     updatePreview(ctx);
     return;
   }
@@ -176,8 +176,7 @@ void FeatureTool::startWith(core::ToolContext& ctx, std::unique_ptr<PartFeature>
   if (ctx.selection) ctx.selection->clear();
   applyFilter(ctx);
   highlightRefs(ctx);
-  const core::Property* p = working_->property(activeInput_);
-  ctx.setPrompt(p ? std::format("Select {}", p->label()) : std::string("Set the parameters"));
+  updatePrompt(ctx);
   updatePreview(ctx);
 }
 
@@ -256,10 +255,24 @@ void FeatureTool::setActiveInput(core::ToolContext& ctx, const std::string& prop
   activeInput_ = propName;
   if (panel_) panel_->setActiveInput(propName);
   applyFilter(ctx);
-  if (PartFeature* f = feature()) {
-    const core::Property* p = f->property(propName);
-    if (p) ctx.setPrompt(std::format("Select {}", p->label()));
+  updatePrompt(ctx);
+}
+
+void FeatureTool::updatePrompt(core::ToolContext& ctx) {
+  PartFeature* f = feature();
+  if (!f) return;
+  const core::Property* p = f->property(activeInput_);
+  size_t picked = 0;
+  if (p && p->type() == core::PropertyType::Ref) picked = p->ref().isValid() ? 1 : 0;
+  else if (p && p->type() == core::PropertyType::RefList) picked = p->refs().size();
+  if (editing_) {
+    ctx.setPrompt(p && picked == 0 ? std::format("Editing {}: select {}", editing_->name(), p->label())
+                                   : std::format("Editing {}", editing_->name()));
+    return;
   }
+  if (!p) ctx.setPrompt("Set the parameters");
+  else if (picked == 0) ctx.setPrompt(std::format("Select {}", p->label()));
+  else ctx.setPrompt(std::format("{}: {} selected \u00B7 Enter to finish", p->label(), picked));
 }
 
 void FeatureTool::applyFilter(core::ToolContext& ctx) {
@@ -722,6 +735,7 @@ void FeatureTool::selectionChanged(core::ToolContext& ctx) {
     core::Property* p = ff->property(activeInput_);
     if (p && p->type() == core::PropertyType::Ref) advanceActiveInput(ctx);
   }
+  updatePrompt(ctx);
   highlightRefs(ctx);
   updatePreview(ctx);
 }
@@ -805,11 +819,12 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   QObject::connect(panel, &PropertyPanel::activeInputChanged, panel, [this, pctx](const std::string& name) {
     activeInput_ = name;
     applyFilter(*pctx);
-    if (PartFeature* ff = feature()) {
-      if (const core::Property* p = ff->property(name)) pctx->setPrompt(std::format("Select {}", p->label()));
-    }
+    updatePrompt(*pctx);
   });
-  QObject::connect(panel, &PropertyPanel::refsCleared, panel, [this, pctx](const std::string&) { highlightRefs(*pctx); });
+  QObject::connect(panel, &PropertyPanel::refsCleared, panel, [this, pctx](const std::string&) {
+    highlightRefs(*pctx);
+    updatePrompt(*pctx);
+  });
   QObject::connect(panel, &PropertyPanel::validityChanged, panel, [this, pctx] {
     if (!inPreview_) updatePreview(*pctx);
   });

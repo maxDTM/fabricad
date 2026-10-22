@@ -3,6 +3,7 @@
 // committed bracket-v3 fixture (tests/e2e/bracket-v3.fcad) the redesign's GUI checks open.
 // Headless through a real MainWindow (QT_QPA_PLATFORM=offscreen).
 // SPDX-License-Identifier: LGPL-2.1-or-later
+#include "app/CommandLine.h"
 #include "app/MainWindow.h"
 #include "app/ScriptRunner.h"
 #include "app/ScriptTools.h"
@@ -131,6 +132,19 @@ class TestScriptGroups : public QObject {
     QCOMPARE(run({"SUPPRESS Right Extrude1", "CHECK bodies == 1"}), 0);
     QCOMPARE(doc().undoStack().index(), before + 1);
     QCOMPARE(run({"UNDO", "CHECK bodies == 3", "SUPPRESS nothing"}), 1);
+  }
+
+  void suppressKeepsItsResultBesideDownstreamFailures() {
+    // p1-check 3: suppressing a sketch breaks its extrude; the cell keeps the SUPPRESS result
+    QVERIFY(w_->commandLine()->submit("GROUP Base Sketch1"));
+    settle();
+    QVERIFY(w_->commandLine()->submit("SUPPRESS group:Base"));
+    settle();
+    settle();
+    const QString m = w_->messageText();
+    QVERIFY2(m.contains("Suppress group Base") && m.contains("Extrude1 failed"), qPrintable(m));
+    QVERIFY(w_->commandLine()->submit("UNDO"));
+    settle();
   }
 
   void collapseRollbackAndFile() {

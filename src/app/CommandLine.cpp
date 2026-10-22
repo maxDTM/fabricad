@@ -7,6 +7,9 @@
 
 #include <QAbstractItemView>
 #include <QCompleter>
+#include <QFrame>
+#include <QPointer>
+#include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
@@ -26,7 +29,10 @@
 namespace fabricad::app {
 
 namespace {
-constexpr int kMaxHistory = 500;
+constexpr int kMaxHistory = 500;     // entries (an entry may have several lines)
+constexpr int kMaxPaneBlocks = 5000;  // lines in the pane
+constexpr int kPaneMaxWidth = 760;
+constexpr int kPaneMaxHeight = 340;
 }
 
 CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(&manager) {
@@ -67,14 +73,6 @@ CommandLine::CommandLine(core::ToolManager& manager, QWidget* parent) : QWidget(
   // eat the first Enter). This filter is installed after QCompleter's, so it runs first.
   completer_->popup()->installEventFilter(this);
 
-  pane_ = new QPlainTextEdit(nullptr);
-  pane_->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
-  pane_->setReadOnly(true);
-  pane_->setObjectName("CommandHistory");
-  pane_->setMaximumBlockCount(kMaxHistory);
-  pane_->resize(520, 180);
-  pane_->hide();
-  connect(this, &QObject::destroyed, pane_, &QObject::deleteLater);
   connect(edit_, &QLineEdit::returnPressed, this, [this] {
     // completer popup visible: let it fill the text first
     if (completer_->popup() && completer_->popup()->isVisible()) return;
@@ -97,13 +95,22 @@ void CommandLine::appendHistory(const QString& line) {
   if (line.isEmpty()) return;
   lines_.append(line);
   while (lines_.size() > kMaxHistory) lines_.removeFirst();
-  pane_->appendPlainText(line);
+  if (text_) {
+    text_->appendPlainText(line);
+    if (pane_ && pane_->isVisible()) text_->moveCursor(QTextCursor::End);
+  }
   edit_->setToolTip(lines_.mid(std::max<qsizetype>(0, lines_.size() - 8)).join('\n'));
 }
 
 void CommandLine::setPrompt(const QString& prompt) {
   edit_->setPlaceholderText(prompt.isEmpty() ? "Type a command (LINE, EXTRUDE 10, @50<30)" : prompt);
   if (!prompt.isEmpty() && (lines_.isEmpty() || lines_.back() != prompt)) appendHistory(prompt);
+}
+
+void CommandLine::appendOutput(const QString& text, bool reveal) {
+  if (text.isEmpty()) return;
+  appendHistory(text);
+  if (reveal || (submitting_ > 0 && text.contains('\n'))) showHistoryPane();
 }
 
 bool CommandLine::submit(const QString& text) {
@@ -127,7 +134,10 @@ bool CommandLine::submit(const QString& text) {
     typed_.append(t);
     appendHistory("cmd> " + t);
   }
-  return manager_->runCommandLine(t.toStdString());
+  ++submitting_;
+  const bool ok = manager_->runCommandLine(t.toStdString());
+  --submitting_;
+  return ok;
 }
 
 void CommandLine::focusForTyping() {
@@ -136,25 +146,121 @@ void CommandLine::focusForTyping() {
   edit_->setFocus(Qt::ShortcutFocusReason);
 }
 
-void CommandLine::toggleHistoryPane() {
-  if (pane_->isVisible()) {
+void CommandLine::ensurePane() {
+  QWidget* host = window();
+  if (pane_ && paneHost_ == host) return;
+  if (!pane_) {
+    // [COMMAND HISTORY            CLEAR  x]
+    // cmd> list features
+    // Features (3), marker after 3:
+    //    1. feature:Sketch1 ...
+    pane_ = new QFrame(host);
+    pane_->setObjectName("CommandHistoryPanel");
+    pane_->setAttribute(Qt::WA_StyledBackground);
+    pane_->setFrameShape(QFrame::NoFrame);
+    auto* v = new QVBoxLayout(pane_);
+    v->setContentsMargins(1, 1, 1, 1);
+    v->setSpacing(0);
+    auto* header = new QWidget(pane_);
+    header->setObjectName("CommandHistoryHeader");
+    header->setAttribute(Qt::WA_StyledBackground);
+    auto* h = new QHBoxLayout(header);
+    h->setContentsMargins(8, 2, 2, 2);
+    h->setSpacing(4);
+    auto* title = new QLabel("Command history", header);
+    title->setObjectName("CommandHistoryTitle");
+    h->addWidget(title, 1);
+    auto* clear = new QToolButton(header);
+    clear->setObjectName("CommandHistoryClear");
+    clear->setText("Clear");
+    clear->setToolTip("Clear the command history");
+    clear->setAutoRaise(true);
+    clear->setFocusPolicy(Qt::NoFocus);
+    connect(clear, &QToolButton::clicked, this, [this] {
+      lines_.clear();
+      if (text_) text_->clear();
+      edit_->setToolTip({});
+    });
+    h->addWidget(clear);
+    auto* close = new QToolButton(header);
+    close->setObjectName("CommandHistoryClose");
+    close->setText(QString::fromUtf8("×"));
+    close->setToolTip("Close (Esc, F2 in the command line)");
+    close->setAutoRaise(true);
+    close->setFocusPolicy(Qt::NoFocus);
+    connect(close, &QToolButton::clicked, this, &CommandLine::hideHistoryPane);
+    h->addWidget(close);
+    v->addWidget(header);
+    text_ = new QPlainTextEdit(pane_);
+    text_->setObjectName("CommandHistory");
+    text_->setReadOnly(true);
+    text_->setLineWrapMode(QPlainTextEdit::NoWrap);  // LIST columns stay aligned
+    text_->setMaximumBlockCount(kMaxPaneBlocks);
+    text_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    text_->installEventFilter(this);
+    for (const QString& l : lines_) text_->appendPlainText(l);
+    v->addWidget(text_, 1);
     pane_->hide();
-    return;
+    // the line edit may outlive or predate the window it ends up in: the pane goes with this box
+    connect(this, &QObject::destroyed, pane_.data(), &QObject::deleteLater);
+  } else {
+    pane_->setParent(host);
   }
-  // above the command box, kept inside the main window
-  const QPoint p = edit_->mapToGlobal(QPoint(0, 0));
-  const QRect win = window()->geometry();
-  const int w = std::min(520, std::max(200, win.width() - 16));
-  const int h = std::max(60, std::min(180, p.y() - 4 - win.top() - 8));
-  pane_->resize(w, h);
-  const int x = std::clamp(p.x(), win.left() + 8, std::max(win.left() + 8, win.right() - w - 8));
-  pane_->move(x, p.y() - h - 4);
+  if (paneHost_) paneHost_->removeEventFilter(this);
+  paneHost_ = host;
+  host->installEventFilter(this);  // follow window resizes
+}
+
+void CommandLine::placePane() {
+  if (!pane_ || !paneHost_) return;
+  QWidget* host = paneHost_;
+  // above the command box, right edge on the box's right edge when it fits, inside the window
+  const QPoint boxTopLeft = mapTo(host, QPoint(0, 0));
+  const int margin = 8;
+  const int w = std::min(kPaneMaxWidth, std::max(240, host->width() - 2 * margin));
+  const int bottom = boxTopLeft.y() - 4;
+  const int h = std::max(80, std::min(kPaneMaxHeight, bottom - margin - 40));
+  int x = boxTopLeft.x() + width() - w;
+  x = std::clamp(x, margin, std::max(margin, host->width() - w - margin));
+  pane_->setGeometry(x, std::max(margin, bottom - h), w, h);
+}
+
+void CommandLine::showHistoryPane() {
+  ensurePane();
+  placePane();
   pane_->show();
   pane_->raise();
-  pane_->moveCursor(QTextCursor::End);
+  text_->moveCursor(QTextCursor::End);
+  text_->ensureCursorVisible();
+  historyButton_->setProperty("open", true);
+  historyButton_->style()->unpolish(historyButton_);
+  historyButton_->style()->polish(historyButton_);
+}
+
+void CommandLine::hideHistoryPane() {
+  if (pane_) pane_->hide();
+  historyButton_->setProperty("open", false);
+  historyButton_->style()->unpolish(historyButton_);
+  historyButton_->style()->polish(historyButton_);
+}
+
+bool CommandLine::isHistoryPaneVisible() const { return pane_ && pane_->isVisible(); }
+
+void CommandLine::toggleHistoryPane() {
+  if (isHistoryPaneVisible()) hideHistoryPane();
+  else showHistoryPane();
 }
 
 bool CommandLine::eventFilter(QObject* o, QEvent* e) {
+  if (o == paneHost_ && e->type() == QEvent::Resize && isHistoryPaneVisible()) placePane();
+  if (o == text_ && e->type() == QEvent::KeyPress) {
+    auto* k = static_cast<QKeyEvent*>(e);
+    if (k->key() == Qt::Key_Escape || k->key() == Qt::Key_F2) {
+      hideHistoryPane();
+      edit_->setFocus();
+      return true;
+    }
+  }
   if (o == edit_ && (e->type() == QEvent::FocusIn || e->type() == QEvent::FocusOut)) {
     // focus ring on the whole cell (QSS has no :focus-within)
     setProperty("focused", e->type() == QEvent::FocusIn);
@@ -212,6 +318,10 @@ bool CommandLine::eventFilter(QObject* o, QEvent* e) {
       return true;
     }
     if (k->key() == Qt::Key_Escape) {
+      if (isHistoryPaneVisible() && edit_->text().isEmpty() && !manager_->isActive()) {
+        hideHistoryPane();
+        return true;
+      }
       edit_->setText(QString());
       if (manager_->isActive()) manager_->cancel();
       edit_->clearFocus();

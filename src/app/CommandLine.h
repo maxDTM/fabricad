@@ -4,17 +4,23 @@
 //   cmd> (empty Enter)       repeat last command; with a tool active: emptyEnter() (the
 //                            window forwards it like Enter on the canvas, APP-06)
 // Ctrl+Z / Ctrl+Y with nothing to undo in the box undo/redo the model (APP-08).
-// Autocomplete over tool aliases and names, Up/Down history, a history pane (button or F2
-// while focused) showing echoed commands and prompts. Toggled with Ctrl+9.
+// Autocomplete over tool aliases and names, Up/Down history, a history pane (HISTORY button or
+// F2 while focused) showing echoed commands, prompts and the full command output. Output of more
+// than one line (LIST, INFO, CHECK failures) opens the pane by itself when it answers a command
+// typed in the box: the status-bar message cell only has room for the first line (p1-check 2).
+// The pane is an overlay of the main window above the status bar, kept inside the window.
+// Toggled with Ctrl+9.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
 #include "core/Tool.h"
 
+#include <QPointer>
 #include <QStringList>
 #include <QWidget>
 
 class QCompleter;
+class QFrame;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -38,6 +44,16 @@ class CommandLine : public QWidget {
   void appendHistory(const QString& line);
   const QStringList& history() const { return lines_; }
   void setPrompt(const QString& prompt);
+  /// Command output (status messages): into the history; output of several lines opens the
+  /// history pane when it answers a command typed in the box (or `reveal`).
+  void appendOutput(const QString& text, bool reveal = false);
+  /// History pane (tests, the status-bar message cell opens it on click).
+  void showHistoryPane();
+  void hideHistoryPane();
+  bool isHistoryPaneVisible() const;
+  QPlainTextEdit* historyView() const { return text_; }
+  /// True while a command typed in the box runs (its messages answer it).
+  bool isSubmitting() const { return submitting_ > 0; }
   /// Run the text as if typed + Enter (tests and scripting).
   bool submit(const QString& text);
   /// Focus the box for typing after the ':' shortcut: the ':' that triggered it must not
@@ -53,18 +69,23 @@ class CommandLine : public QWidget {
 
  private:
   void toggleHistoryPane();
+  void ensurePane();
+  void placePane();
 
   core::ToolManager* manager_;
   QLabel* label_ = nullptr;
   QLineEdit* edit_ = nullptr;
   QToolButton* historyButton_ = nullptr;
-  QPlainTextEdit* pane_ = nullptr;
+  QPointer<QFrame> pane_;          ///< overlay of the main window (created on first use)
+  QPointer<QPlainTextEdit> text_;
+  QPointer<QWidget> paneHost_;     ///< window the pane is an overlay of
   QCompleter* completer_ = nullptr;
   QStringListModel* completions_ = nullptr;
   QStringList lines_;
   QStringList typed_;  ///< commands typed by the user (Up/Down)
   int typedPos_ = -1;
   bool swallowColon_ = false;
+  int submitting_ = 0;
 };
 
 }  // namespace fabricad::app

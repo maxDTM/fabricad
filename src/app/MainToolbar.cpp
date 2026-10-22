@@ -53,6 +53,9 @@ struct MainToolbar::Section {
   QWidget* box = nullptr;
   QWidget* buttonRow = nullptr;
   QToolButton* caption = nullptr;
+  /// Collapsed section: one icon button in place of the button row, opening the caption's
+  /// dropdown. The caption itself keeps its place so all captions share one baseline (p1-check 6).
+  QToolButton* collapsedButton = nullptr;
   std::vector<QToolButton*> buttons;  ///< fold from the right
   int visible = 0;
   bool collapsed = false;
@@ -273,8 +276,26 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
       }
     }
     caption->setMenu(menu);
+    auto* folded = new QToolButton(box);
+    folded->setObjectName("RibbonCollapsedTool");
+    folded->setProperty("toolbarTab", core::qs(model.toolbarTab));
+    folded->setProperty("toolbarGroup", core::qs(model.toolbarGroup));
+    folded->setToolTip(core::qs(model.name));
+    folded->setFocusPolicy(Qt::NoFocus);
+    folded->setPopupMode(QToolButton::InstantPopup);
+    folded->setAutoRaise(true);
+    folded->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    folded->setIconSize(QSize(kIcon, kIcon));
+    folded->setFixedHeight(kButtonHeight);
+    folded->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    folded->setMenu(menu);
+    folded->hide();
+    v->addWidget(folded, 1);
+    s.collapsedButton = folded;
     v->addWidget(caption);
     s.caption = caption;
+    // menus show live states (toggle check marks, enabled) when they open
+    connect(menu, &QMenu::aboutToShow, this, &MainToolbar::refreshStates);
     row->addWidget(box);
     p.sections.push_back(std::move(s));
   }
@@ -453,19 +474,17 @@ void MainToolbar::fit() {
     s.buttonRow->setVisible(!s.collapsed);
     if (!s.model.flat)
       for (size_t b = 0; b < s.buttons.size(); ++b) s.buttons[b]->setVisible(static_cast<int>(b) < s.visible);
-    // caption only: the caption becomes a tall dropdown button with the section's first icon
-    if (s.collapsed) {
-      QIcon icon;
-      if (s.model.kind == SectionKind::More && !s.model.more.empty()) icon = moreIcon(s.model.more.front());
-      else if (!s.model.promoted.empty()) icon = toolIcon(s.model.promoted.front()->info());
-      s.caption->setIcon(icon);
-      s.caption->setIconSize(QSize(kIcon, kIcon));
-      s.caption->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-      s.caption->setFixedHeight(kRowHeight - 4);
-    } else {
-      s.caption->setIcon(QIcon());
-      s.caption->setToolButtonStyle(Qt::ToolButtonTextOnly);
-      s.caption->setFixedHeight(kCaptionHeight);
+    // collapsed: one icon button (the section's first icon) opens the dropdown; the caption
+    // stays a caption under it, on the same line as the other sections' captions
+    if (s.collapsedButton) {
+      if (s.collapsed && s.collapsedButton->icon().isNull()) {
+        QIcon icon;
+        if (s.model.kind == SectionKind::More && !s.model.more.empty()) icon = moreIcon(s.model.more.front());
+        else if (!s.model.promoted.empty()) icon = toolIcon(s.model.promoted.front()->info());
+        else if (!s.model.all.empty()) icon = toolIcon(s.model.all.front()->info());
+        s.collapsedButton->setIcon(icon);
+      }
+      s.collapsedButton->setVisible(s.collapsed);
     }
     s.box->setMinimumWidth(fitSectionWidth(in[i], s.visible, s.collapsed, kButtonSpacing, kSectionPadding) - 1);
   }
@@ -484,14 +503,22 @@ void MainToolbar::refreshStates() {
       it = cache.emplace(id, t && t->isEnabled(ctx)).first;
     }
     const bool active = manager_->activeToolId() == id;
+    // toggles (snap, grid, show profile, selection filters): their own state (p1-check 7)
+    core::ITool* tool = manager_->registry().tool(id);
+    const bool toggle = tool && tool->info().checked;
+    const bool on = toggle && tool->info().checked();
     if (auto* b = qobject_cast<QToolButton*>(obj)) {
       b->setEnabled(it->second);
-      if (b->objectName() == QLatin1StringView("RibbonTool")) {
+      if (b->objectName() == QLatin1StringView("RibbonTool") && !b->menu()) {
         b->setCheckable(true);
-        b->setChecked(active);
+        b->setChecked(active || on);
       }
     } else if (auto* a = qobject_cast<QAction*>(obj)) {
       a->setEnabled(it->second);
+      if (toggle) {
+        a->setCheckable(true);
+        a->setChecked(on);
+      }
     }
   }
 }

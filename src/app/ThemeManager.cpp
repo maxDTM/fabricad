@@ -9,6 +9,8 @@
 #include <QComboBox>
 #include <QDockWidget>
 #include <QFileDialog>
+#include <QFileIconProvider>
+#include <QFileInfo>
 #include <QSplitter>
 #include <QTreeView>
 #include <QEvent>
@@ -58,6 +60,7 @@ constexpr NameRule kNameRules[] = {
     // messages often carry user data (paths, names): shown as typed (p0-check 3)
     {"StatusMessage", TextStyle::Value},
     {"PreferencesPageTitle", TextStyle::Header},
+    {"CommandHistoryTitle", TextStyle::Header}, {"CommandHistoryClear", TextStyle::Caption},
 };
 
 /// Inside Qt's own file dialog everything that shows file system names is user data (p0-check 2):
@@ -72,6 +75,21 @@ bool showsFileNames(const QWidget* w) {
   }
   if (qobject_cast<const QHeaderView*>(w)) return false;
   return qobject_cast<const QAbstractItemView*>(w) || qobject_cast<const QComboBox*>(w);
+}
+
+/// Qt's file dialog names a type by its system MIME description: `.fcad` is unknown to the
+/// MIME database and shows as "Plain text document", elided (p1-check 10).
+class FileTypeProvider : public QFileIconProvider {
+ public:
+  QString type(const QFileInfo& info) const override {
+    if (info.isFile() && info.suffix().compare("fcad", Qt::CaseInsensitive) == 0) return QStringLiteral("FabriCAD design");
+    return QFileIconProvider::type(info);
+  }
+};
+
+QAbstractFileIconProvider* fileTypeProvider() {
+  static auto* p = new FileTypeProvider;  // shared by every file dialog, lives for the process
+  return p;
 }
 
 }  // namespace
@@ -269,6 +287,9 @@ void ThemeManager::setMode(Mode m, bool persist) {
 
 bool ThemeManager::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::Polish && watched->isWidgetType()) applyTextStyle(static_cast<QWidget*>(watched));
+  if (event->type() == QEvent::Polish)
+    if (auto* dlg = qobject_cast<QFileDialog*>(watched); dlg && dlg->iconProvider() != fileTypeProvider())
+      dlg->setIconProvider(fileTypeProvider());
   if (event->type() == QEvent::Show)
     if (auto* dlg = qobject_cast<QFileDialog*>(watched); dlg && !dlg->property("_fcSized").toBool()) {
       // bold mono caps is ~25 % wider than the platform font: give Qt's file dialog room so the
