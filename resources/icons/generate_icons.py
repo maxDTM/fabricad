@@ -731,6 +731,19 @@ I["app-tab"] = (R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=UI, f
                 P("M11 8.5 V5.5 H17 V8.5", s=INK))
 I["app-close"] = R(2.5, 8.5, 19, 12, 1, f=WH) + P("M4 8.5 V5.5 H10 V8.5", s=INK) + cross(12, 14.5, RED, 3)
 
+# ===== timeline groups and history verbs (feature-list plan): folders of the feature list ==========
+_gfolder = P("M2.5 5 H8.5 L10.5 7 H19.5 V17 H2.5 Z", f=WH) + P("M2.5 9.5 H19.5", s=GREY)
+I["app-group"] = _gfolder + C(18, 18, 4.5, s=UI, f=WH) + plus(18, 18, UI, 2.2)
+I["app-ungroup"] = (P("M2.5 5 H8.5 L10.5 7 H19.5 V12 M2.5 5 V17 H12", s=INK, da=DASH) +
+                    P("M15 15 L21 21 M21 15 L15 21", s=UI))
+I["app-suppress"] = (R(3, 5, 6, 6, 1, s=INK, f=WH) + R(3, 14, 6, 6, 1, s=INK, f=WH) + P("M12 8 H21 M12 17 H21", s=GREY) +
+                     P("M11 17 H22", s=RED))
+I["app-unsuppress"] = (R(3, 9, 10, 10, 1.5, s=INK, f=WH) + P("M5.5 14 L7.5 16.5 L11 11.5", s=AS) + P("M15 11 H21 M15 16 H21", s=GREY))
+I["app-collapse-group"] = _gfolder + P("M15 13 L19 17 L15 21", s=UI)
+I["app-expand-group"] = _gfolder + P("M13.5 16 L17.5 20 L21.5 16", s=UI)
+I["app-rollback"] = (P("M5 5 H19 M5 9 H19", s=INK) + P("M3 13 H21", s=UI) + P("M5 17 H19 M5 21 H19", s=GREY) +
+                     dot(3, 13, UI, 1.6))
+
 
 # ===== hand-drawn icons, kept as literal SVG bodies; {NAME} placeholders take the theme palette =====
 LITERAL = {

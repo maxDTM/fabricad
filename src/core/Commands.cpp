@@ -19,16 +19,21 @@ AddFeatureCommand::AddFeatureCommand(Document& doc, std::unique_ptr<Feature> fea
 void AddFeatureCommand::redo() {
   if (!feature_) return;
   rollbackBefore_ = doc_.rollbackIndex();
+  if (!done_) groupsBefore_ = doc_.groupState();
   Feature* f = doc_.addFeature(std::move(feature_), index_);
   id_ = f->id();
   index_ = doc_.indexOf(id_);
   setText("Add " + f->name());
+  if (done_) doc_.setGroupState(groupsAfter_);
+  else groupsAfter_ = doc_.groupState();
+  done_ = true;
   doc_.recompute();
 }
 
 void AddFeatureCommand::undo() {
   feature_ = doc_.takeFeature(id_);
   doc_.setRollbackIndex(rollbackBefore_);
+  doc_.setGroupState(groupsBefore_);
   doc_.recompute();
 }
 
@@ -47,7 +52,11 @@ void RemoveFeatureCommand::redo() {
   if (const Feature* f = doc_.feature(id_))
     for (ObjectId b : f->createdBodies())
       if (const Body* body = doc_.body(b)) bodies_.push_back(*body);
+  if (!done_) groupsBefore_ = doc_.groupState();
   feature_ = doc_.takeFeature(id_);
+  if (done_) doc_.setGroupState(groupsAfter_);
+  else groupsAfter_ = doc_.groupState();
+  done_ = true;
   doc_.recompute();
 }
 
@@ -58,6 +67,7 @@ void RemoveFeatureCommand::undo() {
   bodies_.clear();
   doc_.addFeature(std::move(feature_), index_);
   doc_.setRollbackIndex(rollbackBefore_);
+  doc_.setGroupState(groupsBefore_);
   doc_.recompute();
 }
 
@@ -102,16 +112,23 @@ void ModifyFeatureCommand::undo() { apply(before_); }
 
 // --- MoveFeatureCommand ------------------------------------------------------
 
-MoveFeatureCommand::MoveFeatureCommand(Document& doc, ObjectId id, int newIndex)
-    : UndoCommand("Reorder feature"), doc_(doc), id_(id), newIndex_(newIndex) {}
+MoveFeatureCommand::MoveFeatureCommand(Document& doc, ObjectId id, int newIndex, std::optional<ObjectId> targetGroup)
+    : UndoCommand("Reorder feature"), doc_(doc), id_(id), newIndex_(newIndex), target_(targetGroup) {}
 
 void MoveFeatureCommand::redo() {
   oldIndex_ = doc_.indexOf(id_);
-  if (doc_.moveFeature(id_, newIndex_)) doc_.recompute();
+  if (!done_) groupsBefore_ = doc_.groupState();
+  const bool moved = doc_.moveFeatureTo(id_, newIndex_, target_);
+  if (done_) doc_.setGroupState(groupsAfter_);
+  else groupsAfter_ = doc_.groupState();
+  done_ = true;
+  if (moved) doc_.recompute();
 }
 
 void MoveFeatureCommand::undo() {
-  if (oldIndex_ >= 0 && doc_.moveFeature(id_, oldIndex_)) doc_.recompute();
+  const bool moved = oldIndex_ >= 0 && doc_.moveFeature(id_, oldIndex_);
+  doc_.setGroupState(groupsBefore_);
+  if (moved) doc_.recompute();
 }
 
 // --- SetRollbackCommand ------------------------------------------------------

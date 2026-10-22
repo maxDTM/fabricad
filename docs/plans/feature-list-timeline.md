@@ -1,6 +1,11 @@
 # Plan: Onshape-style feature list with groups
 
-Status: planned, not started. Executed as **phase 2 of `docs/plans/ui-redesign.md`** (worktree `ui/sidebar`), with
+Status: **core part done** (branch `ui/flcore`, 2026-10-22): groups in `Document` (`core/TimelineGroup.h`,
+`core/DocumentGroups.cpp`, saved as `"groups"` in `.fcad`), undoable commands (`core/GroupCommands.h`: create, rename,
+ungroup, collapse, move group, group suppress as one `MacroCommand`, tri-state `groupSuppression`), the move rules in
+`Document::canMoveFeatureTo` / `canMoveGroup`, `Document::timelineItems()` (the rows the panel shows), the script
+verbs, and the fixture (built by `tests/scripts/bracket_v3.fcs`). `TimelineActions` is left to the widget part: it
+wraps the strip's menu code in `src/app`, which the redesign rewrites. Widget part: not started. Executed as **phase 2 of `docs/plans/ui-redesign.md`** (worktree `ui/sidebar`), with
 the UI-independent core work (groups, commands, scripting, `TimelineActions`) allowed to start earlier. Where this
 plan and the redesign differ, the redesign wins; this file was reconciled with it on 2026-10-22. Order of all plans:
 `docs/plans/ROADMAP.md`.

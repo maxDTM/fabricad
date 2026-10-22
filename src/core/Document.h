@@ -19,9 +19,11 @@
 #include "core/Component.h"
 #include "core/Expression.h"
 #include "core/Feature.h"
+#include "core/TimelineGroup.h"
 #include "core/Types.h"
 #include "core/Units.h"
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
 #include <TopoDS_Shape.hxx>
@@ -83,6 +85,14 @@ class Document : public QObject {
   /// Call after changing a feature's properties/name/suppression outside a core command.
   void notifyFeatureChanged(ObjectId id);
 
+  /// Move with the group rules (TimelineGroup.h). `targetGroup`: std::nullopt = automatic (the
+  /// feature stays in its groups where the new slot touches them, joins a group whose inside it
+  /// lands in, otherwise leaves); kInvalidId = top level; a group id = become its member. An
+  /// explicit target that would split a group is refused. The dependency rules of canMoveFeature
+  /// apply in every case; canMoveFeature/moveFeature are the automatic variant.
+  bool canMoveFeatureTo(ObjectId id, int newIndex, std::optional<ObjectId> targetGroup, std::string* why = nullptr) const;
+  bool moveFeatureTo(ObjectId id, int newIndex, std::optional<ObjectId> targetGroup);
+
   int rollbackIndex() const { return rollback_; }
   /// Move the marker. Moving forward recomputes the newly active features.
   void setRollbackIndex(int index);
@@ -111,6 +121,54 @@ class Document : public QObject {
   void recompute();
   /// Forces a full replay (parameters, imports).
   void recomputeAll();
+
+  // --- timeline groups (TimelineGroup.h; undoable edits: GroupCommands.h) ---------------------
+  const TimelineGroup* group(ObjectId groupId) const;
+  int groupCount() const { return static_cast<int>(groups_.size()); }
+  /// All groups, outer before inner, in timeline order.
+  std::vector<ObjectId> groupIds() const;
+  /// First group with this name (exact, then case-insensitive), kInvalidId if none.
+  ObjectId findGroup(const std::string& name) const;
+  /// Innermost group holding a feature, or the parent of a group; kInvalidId = top level.
+  ObjectId groupOf(ObjectId featureOrGroupId) const;
+  /// Enclosing groups of a feature or group, innermost first (a group is not part of its own chain).
+  std::vector<ObjectId> groupChain(ObjectId featureOrGroupId) const;
+  /// True if `featureOrGroupId` lies inside `groupId` (at any depth).
+  bool isInGroup(ObjectId featureOrGroupId, ObjectId groupId) const;
+  /// Every feature of the group including nested groups, in timeline order.
+  std::vector<ObjectId> groupFeatures(ObjectId groupId) const;
+  /// Direct children (features and groups) in timeline order; kInvalidId = the top level.
+  std::vector<ObjectId> groupChildren(ObjectId groupId) const;
+  /// Timeline indices of the group's first and last feature ({-1, -1} if unknown).
+  std::pair<int, int> groupRange(ObjectId groupId) const;
+  /// None / Some / All of the group's features suppressed (None for an unknown group).
+  GroupSuppression groupSuppression(ObjectId groupId) const;
+  /// Flattened rows: each group header directly before its first member, with depths.
+  std::vector<TimelineItem> timelineItems() const;
+  std::string uniqueGroupName(const std::string& base = "Group") const;
+
+  /// Items are feature and/or group ids that together cover consecutive features; the new group
+  /// must not cut through an existing group (it may enclose groups or sit inside one).
+  bool canCreateGroup(const std::vector<ObjectId>& items, std::string* why = nullptr) const;
+  /// Returns the new group's id (kInvalidId when refused). An empty name picks "Group<n>".
+  /// `id` reuses a fixed id (undo/redo); kInvalidId allocates one.
+  ObjectId createGroup(const std::vector<ObjectId>& items, std::string name = {}, ObjectId id = kInvalidId,
+                       std::string* why = nullptr);
+  /// Dissolve a group: its children move to its parent. Features are not touched.
+  bool ungroup(ObjectId groupId);
+  bool renameGroup(ObjectId groupId, std::string name);
+  bool setGroupCollapsed(ObjectId groupId, bool collapsed);
+  /// Move a whole group so its first feature lands at `newIndex` (index in the final order).
+  /// Dependencies are checked for every member against the features outside the group.
+  bool canMoveGroup(ObjectId groupId, int newIndex, std::string* why = nullptr) const;
+  bool moveGroup(ObjectId groupId, int newIndex);
+
+  /// Snapshot / restore for undo. Restoring repairs anything that does not fit the current
+  /// features (unknown ids, empty or split groups) so the invariants always hold.
+  TimelineGroupState groupState() const { return {groups_, featureGroup_}; }
+  void setGroupState(TimelineGroupState state);
+  QJsonArray groupsToJson() const;
+  void groupsFromJson(const QJsonArray& groups);
 
   // --- bodies -------------------------------------------------------------------
   Body* body(ObjectId id);
@@ -207,6 +265,7 @@ class Document : public QObject {
   void featureChanged(fabricad::core::ObjectId id);         ///< inputs/name/suppressed edited
   void featureStatusChanged(fabricad::core::ObjectId id);   ///< after recompute
   void rollbackChanged(int index);
+  void groupsChanged();  ///< groups created/removed/renamed/collapsed or membership changed
   void recomputeStarted();
   void recomputeFinished();
   void bodyAdded(fabricad::core::ObjectId id);
@@ -228,6 +287,18 @@ class Document : public QObject {
   void resetToEmpty();
   void applyState(const std::map<ObjectId, TopoDS_Shape>& newState);
   void touchModified();
+  // timeline groups (DocumentGroups.cpp)
+  void rawMoveFeature(int oldIndex, int newIndex);
+  void clearGroups();
+  void placeInsertedFeature(ObjectId featureId, int index);
+  void detachFeatureFromGroups(ObjectId featureId);
+  void normalizeGroups();
+  bool groupHasChildren(ObjectId groupId, const std::vector<ObjectId>& ignoring = {}) const;
+  bool pruneEmptyGroups(ObjectId from, bool remember);
+  ObjectId commonGroup(ObjectId a, ObjectId b) const;
+  bool placementLegal(ObjectId group, ObjectId left, ObjectId right, const std::vector<ObjectId>& moving) const;
+  ObjectId choosePlacement(const std::vector<ObjectId>& hints, ObjectId left, ObjectId right,
+                           const std::vector<ObjectId>& moving) const;
 
   std::string name_ = "Untitled";
   std::string filePath_;
@@ -237,6 +308,10 @@ class Document : public QObject {
 
   std::vector<std::unique_ptr<Feature>> features_;
   int rollback_ = 0;
+  std::map<ObjectId, TimelineGroup> groups_;
+  std::map<ObjectId, ObjectId> featureGroup_;                ///< feature -> innermost group
+  std::map<ObjectId, std::vector<ObjectId>> removedChains_;  ///< taken feature -> its group chain
+  std::map<ObjectId, TimelineGroup> removedGroups_;          ///< groups removed with their last feature
   int firstDirty_ = 0;
   bool cancelRequested_ = false;
 

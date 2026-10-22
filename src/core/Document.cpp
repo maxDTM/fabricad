@@ -46,6 +46,7 @@ void Document::resetToEmpty() {
   components_.clear();
   parameters_.clear();
   extensions_.clear();
+  clearGroups();
   nextId_ = kFirstFreeId;
   Component root;
   root.id = kRootComponentId;
@@ -116,8 +117,10 @@ Feature* Document::addFeature(std::unique_ptr<Feature> f, int index) {
   if (index <= rollback_) ++rollback_;
   firstDirty_ = std::min(firstDirty_, index);
   raw->setStatus(FeatureStatus::Stale);
+  placeInsertedFeature(raw->id(), index);
   touchModified();
   emit featureAdded(raw->id(), index);
+  if (featureGroup_.count(raw->id())) emit groupsChanged();
   return raw;
 }
 
@@ -130,8 +133,11 @@ std::unique_ptr<Feature> Document::takeFeature(ObjectId id) {
   firstDirty_ = std::min(firstDirty_, idx);
   for (ObjectId b : f->createdBodies_) removeBody(b);
   selection_->removeOwner(id);
+  const bool grouped = featureGroup_.count(id) > 0;
+  detachFeatureFromGroups(id);
   touchModified();
   emit featureRemoved(id, idx);
+  if (grouped) emit groupsChanged();
   return f;
 }
 
@@ -170,10 +176,10 @@ bool Document::canMoveFeature(ObjectId id, int newIndex, std::string* why) const
   return true;
 }
 
-bool Document::moveFeature(ObjectId id, int newIndex) {
-  if (!canMoveFeature(id, newIndex)) return false;
-  int oldIndex = indexOf(id);
-  if (oldIndex == newIndex) return true;
+bool Document::moveFeature(ObjectId id, int newIndex) { return moveFeatureTo(id, newIndex, std::nullopt); }
+
+void Document::rawMoveFeature(int oldIndex, int newIndex) {
+  const ObjectId id = features_[static_cast<size_t>(oldIndex)]->id();
   std::unique_ptr<Feature> f = std::move(features_[static_cast<size_t>(oldIndex)]);
   features_.erase(features_.begin() + oldIndex);
   features_.insert(features_.begin() + newIndex, std::move(f));
@@ -184,7 +190,6 @@ bool Document::moveFeature(ObjectId id, int newIndex) {
   firstDirty_ = std::min({firstDirty_, oldIndex, newIndex});
   touchModified();
   emit featureMoved(id, oldIndex, newIndex);
-  return true;
 }
 
 Feature* Document::feature(ObjectId id) {
@@ -838,6 +843,7 @@ QJsonObject Document::toJson() const {
   for (const auto& f : features_) feats.append(f->toJson());
   root["features"] = feats;
   root["rollbackIndex"] = rollback_;
+  if (!groups_.empty()) root["groups"] = groupsToJson();
 
   QJsonObject ext;
   for (const auto& [k, v] : extensions_) ext[qs(k)] = v;
@@ -916,6 +922,7 @@ bool Document::fromJson(const QJsonObject& root, std::string* error) {
   rollback_ = std::clamp(root["rollbackIndex"].toInt(static_cast<int>(features_.size())), 0,
                          static_cast<int>(features_.size()));
   nextId_ = std::max(nextId_, idFromJson(root["nextId"], nextId_));
+  groupsFromJson(root["groups"].toArray());
 
   QJsonObject ext = root["extensions"].toObject();
   for (auto it = ext.begin(); it != ext.end(); ++it) extensions_[ss(it.key())] = it.value().toObject();

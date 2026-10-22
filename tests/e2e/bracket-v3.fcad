@@ -1,0 +1,1745 @@
+{
+    "activeComponent": 1,
+    "bodies": [
+        {
+            "color": [
+                0.7300000190734863,
+                0.7400000095367432,
+                0.7699999809265137,
+                1
+            ],
+            "component": 1,
+            "creator": 17,
+            "id": 18,
+            "name": "Bracket",
+            "visible": true
+        }
+    ],
+    "components": [
+        {
+            "children": [
+            ],
+            "grounded": true,
+            "id": 1,
+            "name": "bracket-v3",
+            "parent": 0,
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0,
+                    1
+                ],
+                "t": [
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "visible": true
+        }
+    ],
+    "extensions": {
+        "ui": {
+            "displayMode": "shaded-edges",
+            "folders": {
+                "Construction": true,
+                "Joints": true,
+                "Sketches": true
+            },
+            "hiddenFeatures": [
+                16,
+                20,
+                24,
+                26
+            ],
+            "projection": "orthographic",
+            "showOrigin": false
+        }
+    },
+    "features": [
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "start"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "id": 3,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 5,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 7,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 8,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 9,
+                    "name": "origin",
+                    "type": "Fix"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 10,
+                    "label": [
+                        75,
+                        5
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 150
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 11,
+                    "label": [
+                        145,
+                        50
+                    ],
+                    "name": "d2",
+                    "type": "Distance",
+                    "value": 100
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        0,
+                        0,
+                        150,
+                        0
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        150,
+                        0,
+                        150,
+                        100
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        150,
+                        100,
+                        0,
+                        100
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        0,
+                        100,
+                        0,
+                        0
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 16,
+            "name": "Sketch1",
+            "nextConstraintId": 12,
+            "nextGeoId": 5,
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "XY",
+                        "owner": 2
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "createdBodies": [
+                18
+            ],
+            "id": 17,
+            "name": "Extrude1",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "expr": "plate_t",
+                    "type": "Length",
+                    "value": 12
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "New Body",
+                    "type": "Enum",
+                    "value": 3
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1,2,3,4",
+                            "owner": 16,
+                            "pt": [
+                                75,
+                                50,
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 19,
+            "name": "Hole1",
+            "properties": {
+                "cboreDepth": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "cboreDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "clearanceFit": {
+                    "name": "Normal",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "csinkAngle": {
+                    "type": "Angle",
+                    "value": 90
+                },
+                "csinkDiameter": {
+                    "type": "Length",
+                    "value": 12
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "diameter": {
+                    "type": "Length",
+                    "value": 14
+                },
+                "drillAngle": {
+                    "type": "Angle",
+                    "value": 118
+                },
+                "drillPoint": {
+                    "name": "Flat",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType": {
+                    "name": "All",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "face": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 6,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            75,
+                            50,
+                            12
+                        ],
+                        "sig": {
+                            "bmax": [
+                                150.0000001,
+                                100.0000001,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                11.9999999
+                            ],
+                            "c": [
+                                75,
+                                50,
+                                12
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 4,
+                            "r": 0,
+                            "size": 15000,
+                            "type": 0
+                        }
+                    }
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "holeType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "points": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 6,
+                            "kind": "Face",
+                            "name": "Extrude1/End",
+                            "owner": 18,
+                            "pt": [
+                                20,
+                                20,
+                                12
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    150.0000001,
+                                    100.0000001,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    11.9999999
+                                ],
+                                "c": [
+                                    75,
+                                    50,
+                                    12
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 15000,
+                                "type": 0
+                            }
+                        },
+                        {
+                            "index": 6,
+                            "kind": "Face",
+                            "name": "Extrude1/End",
+                            "owner": 18,
+                            "pt": [
+                                130,
+                                20,
+                                12
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    150.0000001,
+                                    100.0000001,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    11.9999999
+                                ],
+                                "c": [
+                                    75,
+                                    50,
+                                    12
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 15000,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "tapType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "threadDepth": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "threadFullDepth": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "threadModeled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "threadSize": {
+                    "name": "M6x1",
+                    "type": "Enum",
+                    "value": 20
+                }
+            },
+            "type": "Hole"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "start"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "id": 3,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 5,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 7,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 8,
+                    "type": "Vertical"
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        0,
+                        88,
+                        150,
+                        88
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        150,
+                        88,
+                        150,
+                        100
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        150,
+                        100,
+                        0,
+                        100
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        0,
+                        100,
+                        0,
+                        88
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 20,
+            "name": "Sketch2",
+            "nextConstraintId": 9,
+            "nextGeoId": 5,
+            "planeAxes": [
+                0,
+                0,
+                1,
+                1,
+                0,
+                0
+            ],
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 5,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            75,
+                            50.6286553565624,
+                            12
+                        ],
+                        "sig": {
+                            "bmax": [
+                                150.0000001,
+                                100.0000001,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                11.9999999
+                            ],
+                            "c": [
+                                75,
+                                50.6286553565624,
+                                12
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 6,
+                            "r": 0,
+                            "size": 14692.1239199482,
+                            "type": 0
+                        }
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 21,
+            "name": "Extrude2",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 60
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "Join",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1,2,3,4",
+                            "owner": 20,
+                            "pt": [
+                                75,
+                                94,
+                                12
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 22,
+            "name": "Fillet1",
+            "properties": {
+                "edges": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 22,
+                            "kind": "Edge",
+                            "name": "{Extrude1/End|Extrude2/Side/c1}",
+                            "owner": 18,
+                            "pt": [
+                                75,
+                                88,
+                                12
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    150.0000001,
+                                    88.0000001,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    87.9999999,
+                                    11.9999999
+                                ],
+                                "c": [
+                                    75,
+                                    88,
+                                    12
+                                ],
+                                "d": [
+                                    -1,
+                                    0,
+                                    0
+                                ],
+                                "nv": 2,
+                                "r": 0,
+                                "size": 150,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "endRadius": {
+                    "type": "Length",
+                    "value": 4
+                },
+                "flipVariable": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "radius": {
+                    "type": "Length",
+                    "value": 5
+                },
+                "radiusPoints": {
+                    "type": "String",
+                    "value": ""
+                },
+                "radiusType": {
+                    "name": "Constant",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "tangentChain": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Fillet"
+        },
+        {
+            "component": 1,
+            "id": 23,
+            "name": "Hole2",
+            "properties": {
+                "cboreDepth": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "cboreDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "clearanceFit": {
+                    "name": "Normal",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "csinkAngle": {
+                    "type": "Angle",
+                    "value": 90
+                },
+                "csinkDiameter": {
+                    "type": "Length",
+                    "value": 12
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "diameter": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "drillAngle": {
+                    "type": "Angle",
+                    "value": 118
+                },
+                "drillPoint": {
+                    "name": "Flat",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType": {
+                    "name": "All",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "face": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 2,
+                        "kind": "Face",
+                        "name": "Extrude2/Side/c1",
+                        "owner": 18,
+                        "pt": [
+                            75,
+                            88,
+                            40
+                        ],
+                        "sig": {
+                            "bmax": [
+                                150.0000001,
+                                88.0000001,
+                                72.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                87.9999999,
+                                16.9999999
+                            ],
+                            "c": [
+                                75,
+                                88,
+                                44.5
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 4,
+                            "r": 0,
+                            "size": 8250,
+                            "type": 0
+                        }
+                    }
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "holeType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "points": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 2,
+                            "kind": "Face",
+                            "name": "Extrude2/Side/c1",
+                            "owner": 18,
+                            "pt": [
+                                40,
+                                88,
+                                45
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    150.0000001,
+                                    88.0000001,
+                                    72.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    87.9999999,
+                                    16.9999999
+                                ],
+                                "c": [
+                                    75,
+                                    88,
+                                    44.5
+                                ],
+                                "d": [
+                                    0,
+                                    1,
+                                    0
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 8250,
+                                "type": 0
+                            }
+                        },
+                        {
+                            "index": 2,
+                            "kind": "Face",
+                            "name": "Extrude2/Side/c1",
+                            "owner": 18,
+                            "pt": [
+                                110,
+                                88,
+                                45
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    150.0000001,
+                                    88.0000001,
+                                    72.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    87.9999999,
+                                    16.9999999
+                                ],
+                                "c": [
+                                    75,
+                                    88,
+                                    44.5
+                                ],
+                                "d": [
+                                    0,
+                                    1,
+                                    0
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 8250,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "tapType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "threadDepth": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "threadFullDepth": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "threadModeled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "threadSize": {
+                    "name": "M6x1",
+                    "type": "Enum",
+                    "value": 20
+                }
+            },
+            "type": "Hole"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "start"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "id": 3,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 5,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 7,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 8,
+                    "type": "Vertical"
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        15,
+                        40,
+                        55,
+                        40
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        55,
+                        40,
+                        55,
+                        75
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        55,
+                        75,
+                        15,
+                        75
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        15,
+                        75,
+                        15,
+                        40
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 24,
+            "name": "Sketch4",
+            "nextConstraintId": 9,
+            "nextGeoId": 5,
+            "planeAxes": [
+                0,
+                0,
+                1,
+                1,
+                0,
+                0
+            ],
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 5,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            35,
+                            57,
+                            12
+                        ],
+                        "sig": {
+                            "bmax": [
+                                150.0000001,
+                                83.0000001,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                11.9999999
+                            ],
+                            "c": [
+                                75,
+                                42.045154683377824,
+                                12
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 6,
+                            "r": 0,
+                            "size": 12142.1239199482,
+                            "type": 0
+                        }
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "suppressed": true,
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 25,
+            "name": "Pocket1",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "operation": {
+                    "name": "Cut",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1,2,3,4",
+                            "owner": 24,
+                            "pt": [
+                                35,
+                                57.5,
+                                12
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "suppressed": true,
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 1,
+                    "label": [
+                        121.92031021678298,
+                        76.92031021678298
+                    ],
+                    "name": "d1",
+                    "type": "Diameter",
+                    "value": 40
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        100,
+                        55,
+                        20
+                    ],
+                    "type": "Circle"
+                }
+            ],
+            "id": 26,
+            "name": "Sketch3",
+            "nextConstraintId": 2,
+            "nextGeoId": 2,
+            "planeAxes": [
+                0,
+                0,
+                1,
+                1,
+                0,
+                0
+            ],
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 5,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            100,
+                            55,
+                            12
+                        ],
+                        "sig": {
+                            "bmax": [
+                                150.0000001,
+                                83.0000001,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                11.9999999
+                            ],
+                            "c": [
+                                75,
+                                42.045154683377824,
+                                12
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 6,
+                            "r": 0,
+                            "size": 12142.1239199482,
+                            "type": 0
+                        }
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 27,
+            "name": "Extrude3",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "expr": "boss_height",
+                    "type": "Length",
+                    "value": 25
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "Join",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1",
+                            "owner": 26,
+                            "pt": [
+                                100,
+                                55.00000000000001,
+                                12
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 28,
+            "name": "Fillet2",
+            "properties": {
+                "edges": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 36,
+                            "kind": "Edge",
+                            "name": "{Extrude3/End|Extrude3/Side/c1}",
+                            "owner": 18,
+                            "pt": [
+                                120,
+                                55,
+                                37
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    120.0000001,
+                                    75.0000001,
+                                    37.0000001
+                                ],
+                                "bmin": [
+                                    79.9999999,
+                                    34.9999999,
+                                    36.9999999
+                                ],
+                                "c": [
+                                    100,
+                                    55,
+                                    37
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "nv": 1,
+                                "r": 20,
+                                "size": 125.66370614359172,
+                                "type": 1
+                            }
+                        }
+                    ]
+                },
+                "endRadius": {
+                    "type": "Length",
+                    "value": 4
+                },
+                "flipVariable": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "radius": {
+                    "type": "Length",
+                    "value": 3
+                },
+                "radiusPoints": {
+                    "type": "String",
+                    "value": ""
+                },
+                "radiusType": {
+                    "name": "Constant",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "tangentChain": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Fillet"
+        },
+        {
+            "component": 1,
+            "id": 29,
+            "name": "Chamfer1",
+            "properties": {
+                "angle": {
+                    "type": "Angle",
+                    "value": 45
+                },
+                "chamferType": {
+                    "name": "Equal Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 1
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 1
+                },
+                "edges": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 8,
+                            "kind": "Edge",
+                            "name": "{Extrude1/End|Extrude1/Side/c1}",
+                            "owner": 18,
+                            "pt": [
+                                75,
+                                0,
+                                12
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    150.0000001,
+                                    1e-07,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    11.9999999
+                                ],
+                                "c": [
+                                    75,
+                                    0,
+                                    12
+                                ],
+                                "d": [
+                                    1,
+                                    0,
+                                    0
+                                ],
+                                "nv": 2,
+                                "r": 0,
+                                "size": 150,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                }
+            },
+            "type": "Chamfer"
+        }
+    ],
+    "format": "fabricad",
+    "groups": [
+        {
+            "features": [
+                16,
+                17,
+                19
+            ],
+            "id": 30,
+            "name": "Base plate"
+        },
+        {
+            "collapsed": true,
+            "features": [
+                20,
+                21,
+                22,
+                23
+            ],
+            "id": 31,
+            "name": "Back wall"
+        },
+        {
+            "features": [
+                24,
+                25
+            ],
+            "id": 32,
+            "name": "Lightening"
+        }
+    ],
+    "name": "bracket-v3",
+    "nextId": 34,
+    "parameters": [
+        {
+            "expression": "12 mm",
+            "name": "plate_t"
+        },
+        {
+            "expression": "25 mm",
+            "name": "boss_height"
+        }
+    ],
+    "rollbackIndex": 11,
+    "units": {
+        "angle": "deg",
+        "length": "mm",
+        "precision": 3
+    },
+    "version": 1
+}
