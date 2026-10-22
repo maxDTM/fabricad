@@ -234,6 +234,40 @@ class TestMainWindow : public QObject {
     QVERIFY(!d->isVisible());
   }
 
+  // SK-08: closing the dialog gives the keyboard back to the viewer when the focus was in it,
+  // so the next Esc reaches the canvas (and the tool) instead of the command line
+  void dialogDismissReturnsFocusToViewer() {
+    QVERIFY(w_->runCommand("test.dialog"));
+    settle();
+    app::CommandDialog* d = w_->commandDialog();
+    QVERIFY(d->isVisible());
+    auto* field = d->body()->findChild<QLineEdit*>("dialogField");
+    QVERIFY(field);
+    w_->activateWindow();
+    field->setFocus(Qt::OtherFocusReason);
+    settle();
+    if (QApplication::focusWidget() != field) QSKIP("no keyboard focus on this platform");
+    w_->toolManager().cancel();
+    settle();
+    QVERIFY(!d->isVisible());
+    QWidget* f = QApplication::focusWidget();
+    QVERIFY(f && (f == canvas() || canvas()->isAncestorOf(f)));
+  }
+
+  // SK-01: Ctrl+Return and Ctrl+keypad Enter finish the sketch even with the sketch's idle tool
+  // active (the tool no longer swallows the combo)
+  void ctrlEnterFinishesSketch() {
+    for (int k : {int(Qt::Key_Return), int(Qt::Key_Enter)}) {
+      QVERIFY(w_->runCommand("sketch.create", {"XY"}));
+      settle();
+      QVERIFY(w_->viewer()->inSketchMode());
+      QVERIFY(w_->toolManager().isActive());  // the sketch's idle select tool
+      QVERIFY(key(k, Qt::ControlModifier | (k == Qt::Key_Enter ? Qt::KeypadModifier : 0)));
+      settle();
+      QVERIFY(!w_->viewer()->inSketchMode());
+    }
+  }
+
   void themeAndMenuHeaders() {
     const QPalette p = app::lightPalette();
     QCOMPARE(p.color(QPalette::Active, QPalette::Text), QColor("#2B2E33"));
