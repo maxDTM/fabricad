@@ -396,8 +396,9 @@ class DocumentTest : public QObject {
     QVERIFY(doc.isModified());  // before the saved step
     undo.redo();
     QVERIFY(!doc.isModified());
-    // a change outside the stack: no undo gets back to the saved state
-    doc.setName("Renamed");
+    // a change no step records (a recovered file): no undo gets back to the saved state
+    doc.setModified(true);
+    undo.resetClean();
     QVERIFY(doc.isModified());
     QVERIFY(!undo.isClean());
     undo.undo();

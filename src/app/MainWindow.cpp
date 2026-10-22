@@ -829,6 +829,7 @@ bool MainWindow::recoverFile(const QString& path, QString* error) {
   document_->undoStack().clear();
   document_->setName(name.toStdString());
   document_->setModified(true);  // it only lives in memory: Save (As) stores it for good
+  document_->undoStack().resetClean();  // and no undo gets back to an unmodified state (DOC-09)
   afterDocumentReplaced();
   // keep a recovery copy at all times (DOC-02): write this session's copy first, then drop the
   // orphaned one; if the write fails the old file stays and is offered again next time

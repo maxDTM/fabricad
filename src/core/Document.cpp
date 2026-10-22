@@ -76,12 +76,11 @@ void Document::setName(std::string n) {
 }
 
 void Document::setModified(bool m) {
-  // a change made outside an undo step cannot be undone back to the saved state (DOC-09)
-  // and an explicit "unmodified" (after a save) makes the current step the saved one
-  if (!undo_->isExecuting()) {
-    if (m) undo_->resetClean();
-    else undo_->setClean();
-  }
+  // An explicit "unmodified" (a save, a load) makes the current step the saved one (DOC-09).
+  // A change outside the stack does not reset the clean step: most edits are applied first
+  // and pushed right after (drawing snapshots); callers with a change that no undo step
+  // records call UndoStack::resetClean() themselves (a recovered file).
+  if (!m && !undo_->isExecuting()) undo_->setClean();
   if (m == modified_) return;
   modified_ = m;
   emit modifiedChanged(m);
