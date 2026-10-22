@@ -11,7 +11,11 @@
 #include "app/CommandSearch.h"
 #include "app/MainWindow.h"
 #include "app/MarkingMenu.h"
-#include "app/Ribbon.h"
+#include "app/MainToolbar.h"
+#include "app/PreferencesDialog.h"
+#include "app/StatusCells.h"
+#include "app/TitleBar.h"
+#include "app/UiSettings.h"
 #include "app/TimelineWidget.h"
 #include "app/AppActions.h"
 #include "app/Selectors.h"
@@ -39,6 +43,13 @@
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QMenu>
+#include <QFileDialog>
+#include <QHeaderView>
+#include <QComboBox>
+#include <QRadioButton>
+#include <QToolBar>
+#include <QToolButton>
+#include <QTreeView>
 #include <QtTest>
 
 #include <set>
@@ -179,6 +190,149 @@ class TestMainWindow : public QObject {
     w_->setContextualTab("SKETCH", false);
     QVERIFY(!w_->ribbon()->isTabVisible("SKETCH"));
     QCOMPARE(w_->ribbon()->currentTab(), std::string("SOLID"));
+  }
+
+  // --- redesign phase 1 shell ------------------------------------------------------------
+  void toolbarHooks() {
+    // tool buttons and dropdown actions carry toolId; sections and captions toolbarTab/Group (8.2)
+    QVERIFY(w_->findChild<QToolBar*>("MainToolbarHost"));
+    QCOMPARE(w_->findChild<app::MainToolbar*>("RibbonRow"), w_->mainToolbar());
+    QVERIFY(w_->findChild<QWidget*>("AppBar"));
+    QVERIFY(w_->findChild<QTabBar*>("DocumentTabs"));
+    QVERIFY(w_->findChild<QToolButton*>("NewTabButton"));
+    QVERIFY(w_->findChild<QToolButton*>("WorkspaceSwitcher"));
+    int tools = 0;
+    for (QToolButton* b : w_->mainToolbar()->findChildren<QToolButton*>("RibbonTool"))
+      if (!b->property("moreEntry").isValid()) {
+        QVERIFY2(!b->property("toolId").toString().isEmpty(), qPrintable(b->text()));
+        ++tools;
+      }
+    QVERIFY(tools > 10);
+    const auto sections = w_->mainToolbar()->sectionWidgets();
+    QVERIFY(sections.size() >= 6);
+    std::set<QString> groups;
+    for (QWidget* sec : sections) {
+      QVERIFY(!sec->property("toolbarTab").toString().isEmpty());
+      groups.insert(sec->property("toolbarGroup").toString());
+    }
+    for (const char* g : {"SKETCH", "CREATE", "MODIFY", "ASSEMBLE", "CONSTRUCT", "INSPECT"}) QVERIFY2(groups.count(g), g);
+    // group:SOLID/CREATE resolves to a caption; tool:part.extrude to a visible button
+    QToolButton* create = nullptr;
+    for (QToolButton* c : w_->mainToolbar()->findChildren<QToolButton*>("RibbonGroupLabel"))
+      if (c->property("toolbarTab") == "SOLID" && c->property("toolbarGroup") == "CREATE") create = c;
+    QVERIFY(create && create->menu());
+    bool extrudeInMenu = false;
+    for (QAction* a : create->menu()->actions()) extrudeInMenu |= a->property("toolId") == "part.extrude";
+    QVERIFY(extrudeInMenu);
+    // MORE folds TOOLS (tab:TOOLS) and lists Export STL
+    bool moreTools = false;
+    for (QToolButton* b : w_->mainToolbar()->findChildren<QToolButton*>("RibbonTool"))
+      if (b->property("toolbarTab") == "TOOLS") moreTools = b->menu() != nullptr;
+    QVERIFY(moreTools);
+    // the sketch page has the Finish button with its tool id
+    w_->setContextualTab("SKETCH", true);
+    QApplication::processEvents();
+    QPointer<QToolButton> fin = w_->mainToolbar()->findChild<QToolButton*>("FinishSketchButton");
+    QVERIFY(fin && fin->isVisibleTo(w_.get()));
+    QCOMPARE(fin->property("toolId").toString(), QString("sketch.finish"));
+    w_->setContextualTab("SKETCH", false);
+  }
+
+  void toolbarFitsAt1280() {
+    const QSize old = w_->size();
+    for (QSize sz : {QSize(1920, 1080), QSize(1280, 800)}) {
+      for (bool sketch : {false, true}) {
+        w_->resize(sz);
+        w_->setContextualTab("SKETCH", sketch);
+        settle();
+        app::MainToolbar* tb = w_->mainToolbar();
+        QVERIFY2(tb->width() <= sz.width(), qPrintable(QString::number(tb->width())));
+        int right = 0;
+        for (QWidget* sec : tb->sectionWidgets())
+          if (sec->isVisible()) right = std::max(right, sec->mapTo(tb, QPoint(sec->width(), 0)).x());
+        QVERIFY2(right <= tb->width(), qPrintable(QString("%1x%2 sketch=%3: sections end at %4 of %5")
+                                                     .arg(sz.width()).arg(sz.height()).arg(sketch).arg(right).arg(tb->width())));
+        // no label is cut (section 3.4 / test_layout_text)
+        for (QToolButton* b : tb->findChildren<QToolButton*>())
+          if (b->isVisible() && !b->text().isEmpty() && b->toolButtonStyle() != Qt::ToolButtonIconOnly) {
+            const int need = b->fontMetrics().horizontalAdvance(b->text());
+            QVERIFY2(need <= b->width(), qPrintable(QString("'%1' needs %2 px, has %3").arg(b->text()).arg(need).arg(b->width())));
+          }
+        if (sz.width() == 1920 && !sketch)
+          for (const char* name : {"SKETCH", "CREATE", "MODIFY", "ASSEMBLE", "CONSTRUCT", "INSPECT", "MORE", "DOCUMENT"})
+            QVERIFY2(!tb->isSectionCollapsed(name), name);
+      }
+    }
+    w_->setContextualTab("SKETCH", false);
+    w_->resize(old);
+    settle();
+  }
+
+  void workspaceSelector() {
+    app::UiSettings& ui = app::UiSettings::instance();
+    QCOMPARE(w_->workspaceChoice(), app::WorkspaceChoice::Part);
+    QVERIFY(w_->runCommand("app.workspace-assembly"));  // Alt+2
+    settle();
+    QCOMPARE(w_->workspaceChoice(), app::WorkspaceChoice::Assembly);
+    QCOMPARE(w_->mainToolbar()->designFilter(), app::DesignFilter::Assembly);
+    QCOMPARE(ui.string("ui/designFilter"), QString("assembly"));
+    QCOMPARE(w_->workspaceSelector()->choice(), app::WorkspaceChoice::Assembly);
+    QVERIFY(w_->mainToolbar()->isSectionCollapsed("CREATE"));
+    QCOMPARE(w_->tools().tool("app.workspace-assembly")->info().shortcut, std::string("Alt+2"));
+    QCOMPARE(w_->tools().byShortcut("Alt+1")->info().id, std::string("app.workspace-design"));
+    // the setting alone switches too (Preferences, another window)
+    QVERIFY(ui.set("ui/designFilter", "part"));
+    settle();
+    QCOMPARE(w_->workspaceChoice(), app::WorkspaceChoice::Part);
+    QVERIFY(!w_->mainToolbar()->isSectionCollapsed("CREATE"));
+  }
+
+  void statusBarCells() {
+    QVERIFY(w_->statusCommandText().isEmpty());
+    QVERIFY(w_->keyHintsText().contains("Search"));
+    QVERIFY(w_->runCommand("test.dialog"));
+    settle();
+    QCOMPARE(w_->statusCommandText(), QString("Dialog Test"));
+    QVERIFY2(w_->keyHintsText().contains("Enter Apply") && w_->keyHintsText().contains("Esc Cancel"),
+             qPrintable(w_->keyHintsText()));
+    w_->toolManager().cancel();
+    settle();
+    QVERIFY(w_->statusCommandText().isEmpty());
+    w_->showMessage("Saved /tmp/MixedCase/part.fcad", core::MessageLevel::Info);
+    QCOMPARE(w_->messageText(), QString("Saved /tmp/MixedCase/part.fcad"));
+  }
+
+  void preferencesPages() {
+    QVERIFY(w_->runCommand("app.preferences"));
+    settle();
+    auto* dlg = w_->findChild<app::PreferencesDialog*>();
+    QVERIFY(dlg);
+    dlg->showPage(app::PreferencesDialog::Page::Layout);
+    QCOMPARE(dlg->currentPage(), app::PreferencesDialog::Page::Layout);
+    app::UiSettings& ui = app::UiSettings::instance();
+    // every layout toggle is wired to its ui/* key and follows outside changes
+    for (const char* key : {"ui/toolbarArea", "ui/sidebarSide", "ui/cardPlacement", "ui/quickToolbar", "ui/orientation",
+                            "ui/timelineStyle"}) {
+      auto* box = qobject_cast<QComboBox*>(dlg->uiControl(key));
+      QVERIFY2(box, key);
+      QCOMPARE(box->objectName(), QString("pref_") + QString(key).section('/', 1));
+      QCOMPARE(box->currentData().toString(), ui.string(key));
+      box->setCurrentIndex(box->count() - 1);
+      QCOMPARE(ui.string(key), box->currentData().toString());
+      ui.reset(key);
+      QCOMPARE(box->currentData().toString(), ui.string(key));
+    }
+    // theme toggle: live, persisted, and in step with the THEME command
+    auto* light = dlg->findChild<QRadioButton*>("pref_theme_light");
+    QVERIFY(light);
+    light->click();
+    QCOMPARE(app::ThemeManager::instance().mode(), app::ThemeManager::Mode::Light);
+    QCOMPARE(QSettings().value("ui/theme").toString(), QString("light"));
+    QVERIFY(w_->runCommand("app.theme", {"dark"}));
+    settle();
+    QCOMPARE(app::ThemeManager::instance().mode(), app::ThemeManager::Mode::Dark);
+    QVERIFY(dlg->findChild<QRadioButton*>("pref_theme_dark")->isChecked());
+    dlg->close();
   }
 
   void commandDialogLifecycle() {

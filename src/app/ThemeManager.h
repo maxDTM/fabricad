@@ -40,6 +40,9 @@ class ThemeManager : public QObject {
   /// The theme in effect (System resolved through QStyleHints::colorScheme(); unknown = dark).
   theme::Theme theme() const { return theme_; }
 
+  /// Re-apply palette, QSS and fonts (after ui/fontScale changed).
+  void reapply() { apply(); }
+
   static QString modeName(Mode m);
   static bool parseMode(QStringView s, Mode* out);
 

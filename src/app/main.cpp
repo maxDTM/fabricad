@@ -158,6 +158,11 @@ int main(int argc, char** argv) {
       });
   fabricad::app::MainWindow window;
   mark("MainWindow constructed");
+  // Developer aid: FABRICAD_WINDOW_SIZE=1280x800 fixes the window size (screenshots, layout checks)
+  if (const QString size = qEnvironmentVariable("FABRICAD_WINDOW_SIZE"); !size.isEmpty()) {
+    const QStringList wh = size.split('x');
+    if (wh.size() == 2 && wh[0].toInt() > 0 && wh[1].toInt() > 0) window.resize(wh[0].toInt(), wh[1].toInt());
+  }
   const bool scripted = !opts.script.isEmpty();
   if (scripted) window.setInteractive(false);  // no modal prompts while a script drives the app
   window.show();
