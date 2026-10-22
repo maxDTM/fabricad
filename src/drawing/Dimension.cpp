@@ -8,6 +8,7 @@
 #include <QJsonArray>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
@@ -70,6 +71,18 @@ DimRef DimRef::fromJson(const QJsonObject& o) {
   return r;
 }
 
+/// "{A|B}#2" -> "{A|B}"; names of whole edges (no piece suffix) and other names -> "".
+std::string splitEdgeBaseName(const std::string& name) {
+  const size_t hash = name.rfind('#');
+  if (hash == std::string::npos || hash == 0 || name[hash - 1] != '}' || hash + 1 >= name.size()) {
+    // a whole edge may also be the merged form of former pieces: its own name is the base
+    return name.size() > 1 && name.back() == '}' ? name : std::string();
+  }
+  for (size_t i = hash + 1; i < name.size(); ++i)
+    if (!std::isdigit(static_cast<unsigned char>(name[i]))) return {};
+  return name.substr(0, hash);
+}
+
 namespace {
 
 // Signature distance below which two body-local edge signatures denote the same edge.
@@ -83,6 +96,26 @@ std::vector<const Curve2D*> curvesByIdentity(const DimRef& ref, const DrawingVie
   if (!ref.name.empty()) {
     for (const auto& c : view.curves)
       if (c.sourceBody == ref.body && c.sourceName == ref.name) out.push_back(&c);
+    if (out.empty())  // a hidden edge dropped under a visible one keeps its identity there
+      for (const auto& c : view.coveredCurves)
+        if (c.sourceBody == ref.body && c.sourceName == ref.name) out.push_back(&c);
+    if (!out.empty()) {
+      method = 1;
+      return out;
+    }
+    // An edge split into pieces is named "{faceA|faceB}#k"; the piece numbers follow an
+    // internal order that unrelated edits reshuffle (DRW-VIEWS-ANNOT-6: deleting a hole cut
+    // renumbered the pieces of the boss base circle and orphaned a thickness dimension). The
+    // pieces share both faces, so any of them is the same edge for a dimension: take them all
+    // (the caller picks the one nearest the stored position).
+    const std::string base = splitEdgeBaseName(ref.name);
+    if (!base.empty()) {
+      for (const auto& c : view.curves)
+        if (c.sourceBody == ref.body && splitEdgeBaseName(c.sourceName) == base) out.push_back(&c);
+      if (out.empty())
+        for (const auto& c : view.coveredCurves)
+          if (c.sourceBody == ref.body && splitEdgeBaseName(c.sourceName) == base) out.push_back(&c);
+    }
     if (!out.empty()) {
       method = 1;
       return out;
@@ -90,9 +123,12 @@ std::vector<const Curve2D*> curvesByIdentity(const DimRef& ref, const DrawingVie
   }
   if (ref.sig.isValid()) {
     double modelSize = std::max(1.0, (ref.sig.bboxMax - ref.sig.bboxMin).length() * 4.0);
-    for (const auto& c : view.curves) {
-      if (c.sourceBody != ref.body || !c.sourceSig.isValid()) continue;
-      if (core::signatureDistance(ref.sig, c.sourceSig, modelSize) < kSameEdgeSignature) out.push_back(&c);
+    for (const auto* list : {&view.curves, &view.coveredCurves}) {
+      for (const auto& c : *list) {
+        if (c.sourceBody != ref.body || !c.sourceSig.isValid()) continue;
+        if (core::signatureDistance(ref.sig, c.sourceSig, modelSize) < kSameEdgeSignature) out.push_back(&c);
+      }
+      if (!out.empty()) break;
     }
     if (!out.empty()) method = 2;
   }
@@ -416,6 +452,16 @@ bool updateDimension(Dimension& dim, const DrawingView& view) {
   return dim.valid;
 }
 
+double readableTextAngle(double ccwDeg) {
+  double a = std::fmod(ccwDeg, 360.0);
+  if (a <= -180.0) a += 360.0;
+  if (a > 180.0) a -= 360.0;
+  // (-90, 90]: reads left-to-right, or bottom-to-top for vertical text (from the right)
+  if (a > 90.0 + 1e-9) a -= 180.0;
+  else if (a <= -90.0 + 1e-9) a += 180.0;
+  return a;
+}
+
 std::string formatDimensionText(const Dimension& dim, const core::UnitSystem& units) {
   if (!dim.overrideText.empty()) return dim.overrideText;
   if (!dim.valid) return "?";
@@ -425,6 +471,11 @@ std::string formatDimensionText(const Dimension& dim, const core::UnitSystem& un
   if (dim.type == DimensionType::Angle) {
     std::snprintf(buf, sizeof buf, "%.*f", prec, dim.value);
     body = buf;
+    // same trailing-zero rule as lengths: "90°", not "90.000°" next to "88" (DRW-VIEWS-ANNOT-12)
+    if (body.find('.') != std::string::npos) {
+      while (body.size() > 1 && body.back() == '0') body.pop_back();
+      if (body.back() == '.') body.pop_back();
+    }
     body += "\xC2\xB0";  // degree sign
   } else {
     double v = core::toDisplayValue(core::Quantity::mm(dim.value), units);
@@ -587,11 +638,8 @@ DimLayout layoutDimension(const Dimension& dim, const DrawingView& view, const D
   L.textPos = textOnLine + up * (style.dimTextHeight * 0.8);
   L.textAngle = eff == DimensionType::Vertical ? 90.0 : (eff == DimensionType::Horizontal ? 0.0 : -along.angleDeg());
   if (eff == DimensionType::Aligned) {
-    double a = along.angleDeg();  // sheet-space (Y down) angle
-    // keep text readable (never upside down)
-    double ccw = -a;
-    if (ccw > 90 || ccw < -90) ccw += 180;
-    L.textAngle = ccw;
+    // keep text readable from the bottom or the right (ISO 129-1): never upside down
+    L.textAngle = readableTextAngle(-along.angleDeg());
   }
   L.ok = true;
   return L;

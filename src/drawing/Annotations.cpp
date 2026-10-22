@@ -144,6 +144,10 @@ QJsonObject Balloon::toJson() const {
   o["item"] = idToJson(itemKey);
   o["attach"] = pt(attach);
   o["pos"] = pt(position);
+  if (hasRef) {
+    o["ref"] = ref.toJson();
+    o["t"] = refT;
+  }
   return o;
 }
 
@@ -154,7 +158,33 @@ Balloon Balloon::fromJson(const QJsonObject& o) {
   b.itemKey = idFromJson(o["item"]);
   b.attach = ptFrom(o["attach"]);
   b.position = ptFrom(o["pos"]);
+  if (o.contains("ref")) {
+    b.hasRef = true;
+    b.ref = DimRef::fromJson(o["ref"].toObject());
+    b.refT = o["t"].toDouble(0.5);
+  }
   return b;
+}
+
+double nearestCurveParam(const Curve2D& c, const Point2& p) {
+  double bestT = 0.5, bestD = 1e300;
+  for (int i = 0; i <= 200; ++i) {
+    double t = i / 200.0;
+    double d = c.pointAt(t).distance(p);
+    if (d < bestD) {
+      bestD = d;
+      bestT = t;
+    }
+  }
+  return bestT;
+}
+
+bool resolveBalloonTip(const Balloon& b, const DrawingView& view, Point2& tip) {
+  if (!b.hasRef || !view.geometryValid) return false;
+  DimTarget t = resolveDimRef(b.ref, view);
+  if (!t.ok) return false;
+  tip = t.isVertex ? t.point : t.curve.pointAt(std::clamp(b.refT, 0.0, 1.0));
+  return true;
 }
 
 // --- PartsList ----------------------------------------------------------------------------

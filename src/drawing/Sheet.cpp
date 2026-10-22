@@ -71,6 +71,8 @@ const std::vector<std::string>& TitleBlock::fieldNames() {
   return names;
 }
 
+bool TitleBlock::isSheetField(const std::string& name) { return name == "Scale" || name == "Sheet" || name == "Size"; }
+
 std::string TitleBlock::field(const std::string& name) const {
   auto it = fields.find(name);
   return it == fields.end() ? std::string() : it->second;

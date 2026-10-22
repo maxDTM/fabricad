@@ -13,6 +13,7 @@
 #include <QPainter>
 #include <QPdfWriter>
 #include <QSaveFile>
+#include <QRegularExpression>
 #include <QSvgGenerator>
 
 #include <sstream>
@@ -47,6 +48,13 @@ std::string csvEscape(const std::string& s) {
 }
 }  // namespace
 
+std::string documentTitle(const DrawingModel& model, const Sheet& sheet) {
+  auto values = titleBlockValues(model, sheet);
+  auto it = values.find("Title");
+  if (it != values.end() && !it->second.empty()) return it->second;
+  return model.document().name();
+}
+
 void paintSheet(QPainter& painter, DrawingModel& model, const Sheet& sheet, bool frame) {
   SheetRenderer r(model.style(), model.document().units());
   DisplayList list;
@@ -63,7 +71,8 @@ bool exportPdf(DrawingModel& model, const std::string& path, const ExportOptions
   model.waitForIdle();
   QPdfWriter writer(QString::fromStdString(path));
   writer.setResolution(opts.pdfResolution);
-  writer.setTitle(QString::fromStdString(model.document().name()));
+  // document title = the title block's Title (DRW-ASM-OUTPUT-10), falling back to the file name
+  writer.setTitle(QString::fromStdString(documentTitle(model, *sheets.front())));
   writer.setCreator("FabriCAD");
   auto pageLayout = [&](const Sheet& s) {
     QPageSize size(QSizeF(s.format.width, s.format.height), QPageSize::Millimeter, QString(), QPageSize::ExactMatch);
@@ -95,7 +104,7 @@ bool exportSvg(DrawingModel& model, const Sheet& sheet, const std::string& path,
   model.waitForIdle();
   QSvgGenerator gen;
   gen.setFileName(QString::fromStdString(path));
-  gen.setTitle(QString::fromStdString(model.document().name() + " - " + sheet.name));
+  gen.setTitle(QString::fromStdString(documentTitle(model, sheet) + " - " + sheet.name));
   gen.setDescription("FabriCAD drawing");
   // Size in mm: QSvgGenerator takes the size in pixels at `resolution` dpi; viewBox in those units.
   const int dpi = 254;  // 10 px per mm
@@ -111,7 +120,48 @@ bool exportSvg(DrawingModel& model, const Sheet& sheet, const std::string& path,
   painter.scale(k, k);
   paintSheet(painter, model, sheet, opts.frame);
   painter.end();
-  return QFile::exists(QString::fromStdString(path));
+  if (!QFile::exists(QString::fromStdString(path))) return false;
+  fixSvgDashes(QString::fromStdString(path));
+  return true;
+}
+
+bool fixSvgDashes(const QString& path) {
+  // QSvgGenerator writes a QPen dash pattern as-is, in units of the pen width, while SVG wants
+  // user units: a 0.25 mm hidden line came out as 12 mm dashes (DRW-ASM-OUTPUT-1). Scale every
+  // dasharray by the stroke-width of the same element.
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly)) return false;
+  QString svg = QString::fromUtf8(f.readAll());
+  f.close();
+  static const QRegularExpression tag(QStringLiteral("<[^<>]*stroke-dasharray=\"[^\"]*\"[^<>]*>"));
+  static const QRegularExpression dash(QStringLiteral("stroke-dasharray=\"([^\"]*)\""));
+  static const QRegularExpression width(QStringLiteral("stroke-width=\"([0-9.eE+-]+)\""));
+  QString out;
+  qsizetype last = 0;
+  bool changed = false;
+  for (auto it = tag.globalMatch(svg); it.hasNext();) {
+    auto m = it.next();
+    QString t = m.captured(0);
+    auto wm = width.match(t);
+    auto dm = dash.match(t);
+    if (wm.hasMatch() && dm.hasMatch() && dm.captured(1) != QLatin1String("none")) {
+      const double w = wm.captured(1).toDouble();
+      if (w > 0) {
+        QStringList parts;
+        for (const QString& v : dm.captured(1).split(',', Qt::SkipEmptyParts)) parts << QString::number(v.trimmed().toDouble() * w, 'g', 6);
+        t.replace(dm.capturedStart(0), dm.capturedLength(0), QStringLiteral("stroke-dasharray=\"%1\"").arg(parts.join(',')));
+        changed = true;
+      }
+    }
+    out += QStringView(svg).mid(last, m.capturedStart(0) - last);
+    out += t;
+    last = m.capturedEnd(0);
+  }
+  if (!changed) return true;
+  out += QStringView(svg).mid(last);
+  if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+  f.write(out.toUtf8());
+  return true;
 }
 
 std::string dxfText(DrawingModel& model, const Sheet& sheet, const ExportOptions& opts) {
@@ -119,7 +169,7 @@ std::string dxfText(DrawingModel& model, const Sheet& sheet, const ExportOptions
   SheetRenderer r(model.style(), model.document().units());
   DisplayList list;
   r.addSheet(list, sheet, titleBlockValues(model, sheet), opts.frame);
-  DxfWriter dxf(sheet.format.height);
+  DxfWriter dxf(sheet.format.width, sheet.format.height);
   dxf.addDisplayList(list);
   return dxf.finish();
 }

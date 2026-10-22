@@ -187,8 +187,14 @@ std::string DxfWriter::finish() const {
   // HEADER
   g(0, "SECTION"); g(2, "HEADER");
   g(9, "$ACADVER"); g(1, "AC1009");
-  g(9, "$INSUNITS"); g(70, "4");  // millimetres
+  // R12 has no $INSUNITS (AC1012+); $MEASUREMENT is R14+ too. Paper millimetres are implied
+  // by the extents/limits of the sheet (DRW-ASM-OUTPUT-9).
   g(9, "$EXTMIN"); g(10, fmt(0)); g(20, fmt(0)); g(30, fmt(0));
+  if (width_ > 0) {
+    g(9, "$EXTMAX"); g(10, fmt(width_)); g(20, fmt(height_)); g(30, fmt(0));
+    g(9, "$LIMMIN"); g(10, fmt(0)); g(20, fmt(0));
+    g(9, "$LIMMAX"); g(10, fmt(width_)); g(20, fmt(height_));
+  }
   g(0, "ENDSEC");
   // TABLES: line types and layers
   g(0, "SECTION"); g(2, "TABLES");

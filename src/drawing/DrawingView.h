@@ -72,9 +72,13 @@ struct DrawingView {
   /// the parent along autoDir (sheet space), clear of other views, inside the frame.
   bool autoPlace = false;
   Point2 autoDir;
+  /// Scale the current position/children layout was made for (0 = unknown). A scale edit
+  /// compares against it to re-flow the children (DrawingModel::viewDefinitionChanged).
+  double layoutScale = 0;
 
   // --- cached geometry (not persisted) ----------------------------------------------
   std::vector<Curve2D> curves;        ///< view-local (model mm, Y up)
+  std::vector<Curve2D> coveredCurves; ///< hidden curves under visible ones (not drawn; DimRef only)
   std::vector<Vertex2D> vertices;
   BBox2 bbox;                         ///< view-local bbox of curves
   core::Vec3 origin3d;                ///< world point at view-local (0,0)
@@ -103,6 +107,8 @@ struct DrawingView {
   BBox2 sheetBBox() const;
   /// Label position (below the view).
   Point2 labelPosition() const;
+  /// Sheet box used for automatic layout: the geometry plus the label below it (when shown).
+  BBox2 layoutBBox(double labelTextHeight = 4.2) const;
 
   /// Nearest curve within `tol` (view-local units); nullptr if none.
   const Curve2D* pickCurve(const Point2& viewLocal, double tol, size_t* index = nullptr) const;

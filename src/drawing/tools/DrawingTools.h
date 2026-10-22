@@ -35,6 +35,9 @@ class ExportTool : public DrawingToolBase {
   void activate(core::ToolContext& ctx) override;
   /// Export to an explicit path (used by activate and tests). Returns false with an error message.
   bool exportTo(core::ToolContext& ctx, const std::string& path, std::string* error);
+  /// File name (no suffix) offered in the save dialog: the document name (or the title block
+  /// title of an unnamed one), plus the sheet name for one-sheet formats with several sheets.
+  std::string suggestedExportName(core::ToolContext& ctx);
 
  private:
   Format format_;

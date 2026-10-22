@@ -62,6 +62,12 @@ struct Balloon {
   core::ObjectId itemKey = core::kInvalidId;  ///< component id (assemblies) or body id (parts)
   Point2 attach;                              ///< view-local arrow tip
   Point2 position;                            ///< sheet mm, circle centre
+  /// Curve the tip sits on and where along it (0..1): the tip follows that edge when the model
+  /// changes (DRW-ASM-OUTPUT-3). Unset for old files: the tip stays where it was.
+  bool hasRef = false;
+  DimRef ref;
+  double refT = 0.5;
+  bool orphaned = false;                      ///< not persisted: the edge is gone
   int itemNumber = 0;                         ///< resolved from the parts list (0 = unknown)
   QJsonObject toJson() const;
   static Balloon fromJson(const QJsonObject& o);
@@ -102,6 +108,12 @@ std::vector<BomRow> buildBom(const core::Document& doc, const std::vector<core::
 int bomItemFor(const std::vector<BomRow>& rows, core::ObjectId key);
 /// Component that owns a body (or the body's component chain) for balloon lookups.
 core::ObjectId bomKeyForBody(const core::Document& doc, core::ObjectId bodyId, bool perBody);
+
+/// Point the balloon tip should be at in the view's current geometry; false when its edge no
+/// longer resolves (then the stored tip is kept).
+bool resolveBalloonTip(const Balloon& b, const DrawingView& view, Point2& tip);
+/// Nearest curve parameter (0..1) of `p` on `c` (sampled).
+double nearestCurveParam(const Curve2D& c, const Point2& p);
 
 /// Geometry of a centre mark in sheet coordinates (two crossing chain lines). Empty if unresolved.
 std::vector<Curve2D> layoutCenterMark(const CenterMark& m, const DrawingView& view);

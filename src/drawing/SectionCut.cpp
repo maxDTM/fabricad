@@ -26,6 +26,7 @@
 #include <gp_Pln.hxx>
 
 #include <algorithm>
+#include <map>
 #include <cmath>
 
 namespace fabricad::drawing {
@@ -143,7 +144,9 @@ void computeComplexSection(const SectionInput& in, const std::vector<SourceShape
     removal.push_back(en - a * big);
     removal.push_back(e0 - a * big);
     TopoDS_Shape tool = ps.prism(removal);
+    int srcIndex = -1;
     for (const auto& s : sources) {
+      ++srcIndex;
       BRepAlgoAPI_Cut cut(s.shape, tool);
       if (!cut.IsDone()) {
         out.error = "stepped section cut failed";
@@ -159,6 +162,7 @@ void computeComplexSection(const SectionInput& in, const std::vector<SourceShape
         BRepAlgoAPI_Common common(s.shape, ps.cutFace(s0, s1));
         if (common.IsDone()) collectLoops(common.Shape(), in.frame, deflection, out);
       }
+      out.loopSource.resize(out.loops.size(), srcIndex);
       out.cutSources.push_back({s.bodyId, cut.Shape()});
     }
     return;
@@ -178,7 +182,9 @@ void computeComplexSection(const SectionInput& in, const std::vector<SourceShape
   Poly2 regionB = clipHalfPlane(clipHalfPlane(square, bend, nB), bend, -mA);
   gp_Trsf rot;
   rot.SetRotation(gp_Ax1(ps.w(bend), in.parentFrame.Direction()), theta);
+  int srcIndex = -1;
   for (const auto& s : sources) {
+    ++srcIndex;
     BRep_Builder bb;
     TopoDS_Compound kept;
     bb.MakeCompound(kept);
@@ -206,11 +212,22 @@ void computeComplexSection(const SectionInput& in, const std::vector<SourceShape
     BRepAlgoAPI_Common faceB(s.shape, ps.cutFace(bend, bend + dB * big));
     if (faceB.IsDone() && !faceB.Shape().IsNull())
       collectLoops(BRepBuilderAPI_Transform(faceB.Shape(), rot, true).Shape(), in.frame, deflection, out);
+    out.loopSource.resize(out.loops.size(), srcIndex);
     out.cutSources.push_back({s.bodyId, kept});
   }
 }
 
 }  // namespace
+
+void hatchVariant(int k, double angle, double spacing, double& angleOut, double& spacingOut) {
+  // 45, 135, 45 at 0.6 pitch, 135 at 0.6 pitch, then 30 / 60 degrees, repeating
+  static const double kAngle[] = {0, 90, 0, 90, -15, 15};
+  static const double kPitch[] = {1, 1, 0.6, 0.6, 0.8, 0.8};
+  const int n = static_cast<int>(sizeof kAngle / sizeof kAngle[0]);
+  const int i = ((k % n) + n) % n;
+  angleOut = angle + kAngle[i];
+  spacingOut = spacing * kPitch[i];
+}
 
 SectionOutput computeSection(const SectionInput& in) {
   SectionOutput out;
@@ -254,7 +271,9 @@ SectionOutput computeSection(const SectionInput& in) {
     return out;
   }
 
+  int srcIndex = -1;
   for (const auto& s : sources) {
+    ++srcIndex;
     try {
       BRepAlgoAPI_Cut cut(s.shape, tool);
       if (!cut.IsDone()) {
@@ -270,6 +289,7 @@ SectionOutput computeSection(const SectionInput& in) {
           for (auto& lp : loops) out.loops.push_back(std::move(lp));
         }
       }
+      out.loopSource.resize(out.loops.size(), srcIndex);
       out.cutSources.push_back({s.bodyId, kept});
     } catch (const Standard_Failure& e) {
       out.error = std::string("section failed: ") + (e.GetMessageString() ? e.GetMessageString() : "");
@@ -288,7 +308,19 @@ static SectionOutput finishSection(const SectionInput& in, SectionOutput& out) {
     for (size_t i = 0, n = loop.size(); i < n; ++i)
       out.outlines.push_back(Curve2D::segment(loop[i], loop[(i + 1) % n], LineClass::Section));
   }
-  if (in.hatch && !out.loops.empty()) out.hatch = hatchLoops(out.loops, in.hatchAngle, in.hatchSpacing);
+  if (in.hatch && !out.loops.empty()) {
+    // DRW-VIEWS-ANNOT-11: each part (source) gets its own hatch so adjacent parts read apart
+    out.loopSource.resize(out.loops.size(), 0);
+    std::map<int, std::vector<std::vector<Point2>>> bySource;
+    for (size_t i = 0; i < out.loops.size(); ++i) bySource[out.loopSource[i]].push_back(out.loops[i]);
+    int k = 0;
+    for (const auto& [src, loops] : bySource) {
+      (void)src;
+      double angle = in.hatchAngle, spacing = in.hatchSpacing;
+      hatchVariant(k++, in.hatchAngle, in.hatchSpacing, angle, spacing);
+      for (auto& h : hatchLoops(loops, angle, spacing)) out.hatch.push_back(std::move(h));
+    }
+  }
   out.ok = true;
   return out;
 }

@@ -208,6 +208,8 @@ class BalloonTool : public DrawingToolBase {
   core::ObjectId viewId_ = core::kInvalidId;
   core::ObjectId itemKey_ = core::kInvalidId;
   Point2 attachLocal_;
+  DimRef attachRef_;
+  double attachT_ = 0.5;
   Point2 cursor_;
   bool haveAttach_ = false;
   bool haveCursor_ = false;
