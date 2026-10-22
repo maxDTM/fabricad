@@ -30,6 +30,8 @@ class AddFeatureCommand : public UndoCommand {
   int index_;
   ObjectId id_ = kInvalidId;
   int rollbackBefore_ = 0;
+  TimelineGroupState groupsBefore_, groupsAfter_;  ///< exact group membership for undo/redo
+  bool done_ = false;
 };
 
 /// Remove a feature; undo re-inserts it at the same index.
@@ -46,6 +48,8 @@ class RemoveFeatureCommand : public UndoCommand {
   std::vector<Body> bodies_;  ///< records of the bodies the feature created (restored on undo)
   int index_ = -1;
   int rollbackBefore_ = 0;
+  TimelineGroupState groupsBefore_, groupsAfter_;
+  bool done_ = false;
 };
 
 /// Change a feature's inputs. Captures JSON before/after; `edit` is applied once.
@@ -66,9 +70,11 @@ class ModifyFeatureCommand : public UndoCommand {
   bool first_ = true;
 };
 
+/// Reorder a feature (Document::moveFeatureTo rules). `targetGroup` as in moveFeatureTo:
+/// std::nullopt = automatic group membership.
 class MoveFeatureCommand : public UndoCommand {
  public:
-  MoveFeatureCommand(Document& doc, ObjectId id, int newIndex);
+  MoveFeatureCommand(Document& doc, ObjectId id, int newIndex, std::optional<ObjectId> targetGroup = std::nullopt);
   void redo() override;
   void undo() override;
 
@@ -76,6 +82,9 @@ class MoveFeatureCommand : public UndoCommand {
   Document& doc_;
   ObjectId id_;
   int oldIndex_ = -1, newIndex_;
+  std::optional<ObjectId> target_;
+  TimelineGroupState groupsBefore_, groupsAfter_;
+  bool done_ = false;
 };
 
 class SetRollbackCommand : public UndoCommand {
