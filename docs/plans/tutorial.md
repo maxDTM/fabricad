@@ -1,11 +1,18 @@
 # Plan: interactive "First part" tutorial (in-app guided tour + real-input GUI test)
 
-Status: planned, not started. No code yet.
+Status: planned, not started. No code yet. **Blocked on the open questions in section 8** (not yet answered).
+
+Reconciled on 2026-10-22 with the newer `docs/plans/ui-redesign.md` (it wins where they differ) and
+`docs/plans/feature-list-timeline.md`. The tour is built **on the redesigned UI**: no ribbon tab row, a sectioned
+main toolbar with a MORE ▾ section, the FEATURES list instead of the bottom timeline by default, the hex orientation
+dial instead of the ViewCube by default, a floating command card, dark theme by default, bold monospace caps.
+Execution order: `docs/plans/ROADMAP.md` (this plan is step 4, after the redesign, the open-issue fixes and a
+drawing test round).
 
 ## 0. Goal and shape of the deliverable
 
 The deliverable is an **interactive, in-app guided tour**. It takes a new user from first launch to an STL of a
-mounting bracket. A coach-mark bubble sits next to the real ribbon button, dialog field, timeline item or model face
+mounting bracket. A coach-mark bubble sits next to the real toolbar button, command-card field, FEATURES row or model face
 for the current step. The target is spotlit. The tour **waits for the user** to do the real action with mouse and
 keyboard, then moves on by itself when the app reaches the expected state. It never does modelling actions for the user.
 
@@ -120,20 +127,21 @@ Columns:
 | **Ch 0 Welcome** (first-launch card or Help > Tutorials) | | | | | |
 | 0.1 | "Welcome. We'll build a bracket and 3D-print it. Start?" | welcome card | click `TutorialStart` | tour running | |
 | 0.2 | "Orbit: Shift + middle-drag. Zoom: wheel. Home key resets the view." | viewport | Shift+MMB drag; Home | camera changed, then Home view | |
+| 0.3 | (only if the workspace selector does not show PART) "Open the workspace menu and choose **Part**." | `WorkspaceSwitcher` | click, click | toolbar filter = Part | |
 | **Ch 1 First sketch** | | | | | |
 | 1.1 | "Click **Create Sketch**." | `tool:sketch.create` | click | tool `sketch.create` active | |
 | 1.2 | "Click the **XY** plane (the flat one)." | `plane:XY` in view | click | sketch mode, plane XY, look-at done | |
 | 1.3 | "Open **Create ▾** and choose **Center Rectangle**." | `group:SKETCH/CREATE`, `tool:sketch.rectangle-center` | click, click | tool active | |
 | 1.4 | "Click the **origin** dot." | `sketchpoint:origin` | click | first point = origin | |
 | 1.5 | "Type **80**, press **Tab**, type **50**, press **Enter**." | value box `Width` | type `80`, Tab, `50`, Enter | 4 lines, dims 80/50, DOF 0 | dof == 0 |
-| 1.6 | "Black lines mean fully defined. Click **Finish Sketch**." | `FinishSketchButton` | click | not in sketch, Sketch1 exists | |
+| 1.6 | "The lines turn the fully-defined colour (white in the dark theme, black in light) and the status shows DOF 0. Click **Finish Sketch**." | `FinishSketchButton` | click | not in sketch, Sketch1 exists | |
 | **Ch 2 Extrude** | | | | | |
 | 2.1 | "Press **E** (Extrude)." | keycap E | key `e` | `part.extrude` active | |
 | 2.2 | "Click inside the rectangle." | `profile:@0,0,0` | click | 1 profile selected | |
 | 2.3 | "Type **8**, Enter. This is the plate thickness." | `prop:distance` / arrow tip | type `8`, Enter | Extrude1 exists, op New Body | vol 32 000, box ✓ |
 | **Ch 3 Flange (sketch on a face, lines, constraints)** | | | | | |
 | 3.1 | "Click the **top face** of the plate, then **Create Sketch**." | `body:Body1/face:top`, then tool | click, click | sketch on face z = 8 | |
-| 3.2 | "Press **P** (Project) and click the top face: its edges turn purple." | same face | key `p`, click, Esc | ≥ 4 projected curves | |
+| 3.2 | "Press **P** (Project) and click the top face: its edges appear as cyan dash-dot lines." | same face | key `p`, click, Esc | ≥ 4 projected curves | |
 | 3.3 | "Press **L**. Click the **back-left corner**." | `sketchpoint:@-40,25,8` | key `l`, click | line started, coincident | |
 | 3.4 | "Move toward the front, type **10**, Enter." | value box `Length` | move, type `10`, Enter | line 1, V, length 10 | |
 | 3.5 | "Move right, type **80**, Enter." | value box | move, type `80`, Enter | line 2, H, 80 | |
@@ -151,11 +159,11 @@ Columns:
 | 5.3 | "Move right, type **30**, Tab, **8**, Enter." | value box | move, `30`, Tab, `8`, Enter | slot 30 × 8 | |
 | 5.4 | "Press **D**: click the slot centre, then the front edge, place the text, type **10**, Enter." | centre point, projected edge | d, click ×3, `10`, Enter | dim 10 | |
 | 5.5 | "Same for the left edge: **40**." | | click ×3, `40`, Enter, Esc | DOF 0 | dof == 0 |
-| 5.6 | "Finish, E, click the slot, set **Operation: Cut** and **Extent: All**, Enter." | `prop:operation`, `prop:extentType` | keys, clicks, combo picks | Extrude3 Cut | vol 61 334.513 ✓ |
+| 5.6 | "Finish, E, click the slot, set **Operation: Cut** and **Extent: All**, Enter." | `prop:operation`, `prop:extentType` | keys, a click on the `Cut` cell of the segmented control (redesign 5.4), combo or segmented pick for Extent | Extrude3 Cut | vol 61 334.513 ✓ |
 | **Ch 6 Counterbore holes and Mirror** | | | | | |
 | 6.1 | "Press **H**, click the **curved top edge** of the right fillet." | `edge:circle@30,-15,8` (arc) | h, click | hole preview at (30, −15) | |
-| 6.2 | "Hole type **Counterbore**, Extent **All**, Ø **6.6**, counterbore Ø **11**, depth **4**. Enter." | `prop:holeType`, … | combo, fields, Enter | Hole1 | vol 60 817.533 |
-| 6.3 | "CREATE ▾ **Mirror**. Click **Hole1** in the timeline, then **Mirror Plane** and **YZ** under Origin in the browser. Enter." | `tool:part.mirror`, `timeline:Hole1`, `browser:Origin/YZ` | clicks, Enter | Mirror1 | vol 60 300.552 ✓ |
+| 6.2 | "Hole type **Counterbore**, Extent **All**, Ø **6.6**, counterbore Ø **11**, depth **4**. Enter." | `prop:holeType`, … | click the `Counterbore` cell (segmented, ≤ 4 values) or combo pick, fields, Enter | Hole1 | vol 60 817.533 |
+| 6.3 | "Click **Hole1** in the {timeline}, then CREATE ▾ **Mirror**. Click **Mirror Plane** and **YZ** under Origin in the MODEL panel. Enter." | `timeline:Hole1`, `tool:part.mirror`, `browser:Origin/YZ` | clicks, Enter | Mirror1 | vol 60 300.552 ✓ |
 | **Ch 7 Flange hole** | | | | | |
 | 7.1 | "Click the flange's **front face**, Create Sketch, project it." | `body:Body1/face:front@0,15,30` | as 3.1–3.2 | Sketch4 | |
 | 7.2 | "Press **C**, click near the middle, type **12**, Enter." | `@0,15,38` | c, click, `12`, Enter | circle Ø12 | |
@@ -164,29 +172,35 @@ Columns:
 | **Ch 8 Chamfer** | | | | | |
 | 8.1 | "MODIFY ▾ **Chamfer**, click both long top edges of the flange, type **2**, Enter." | `edge:@0,15,48`, `edge:@0,25,48` | clicks, `2`, Enter | Chamfer1 | vol 58 849.579 ✓ |
 | **Ch 9 Rib** | | | | | |
-| 9.1 | "Create Sketch, then click **YZ** under Origin in the browser." | `browser:Origin/YZ` | click, click | sketch on YZ, looked at | |
+| 9.1 | "Create Sketch, then click **YZ** under Origin in the MODEL panel." | `browser:Origin/YZ` | click, click | sketch on YZ, looked at | |
 | 9.2 | "P, click the side face, Esc." | `body:Body1/face:right` | p, click, Esc | projected L outline | |
 | 9.3 | "L: click on the plate top line, then on the flange line. Esc." | `curve:@0,-2,8`, `curve:@0,15,26` | l, click, click, Esc | one line, ends on curves | |
 | 9.4 | "D: lower end to flange line **20**, upper end to plate line **20**." | | d, clicks, values | DOF 0 | |
 | 9.5 | "Finish. CREATE ▾ **Rib**, click the line, thickness **6**, Enter." | `tool:part.rib`, `curve:@0,5,18` | clicks, `6`, Enter | Rib1 | vol 60 049.579 ✓ |
 | **Ch 10 Change history** | | | | | |
-| 10.1 | "Double-click **Extrude1** in the timeline." | `timeline:Extrude1` | double-click | edit dialog, marker after Extrude1 | |
+| 10.1 | "Double-click **Extrude1** in the {timeline}." | `timeline:Extrude1` | double-click | edit dialog, marker after Extrude1 | |
 | 10.2 | "Change 8 to **10**, Enter. Watch the flange, holes and rib follow." | `prop:distance` | Ctrl+A, `10`, Enter | marker at end, all OK | vol 67 246.359, zmax 50 |
 | **Ch 11 Measure** | | | | | |
 | 11.1 | "Press **I**. Click the bore of each counterbore hole." | `face:cylinder@30,-15,3` and `@-30,…` | i, click, click | measureTable centre distance 60 | |
 | 11.2 | "Read the **centre distance: 60 mm**. Click the body to see its volume, then Esc." | `measureTable` | click, Esc | tool none | |
 | **Ch 12 Save and reopen** | | | | | |
 | 12.1 | "Ctrl+S, type the name **bracket**, Enter." | `QFileDialog/fileNameEdit` | ctrl+s, type path, Enter | saved, clean | file exists |
-| 12.2 | "Close the tab (×)." | `DocumentTabs` close button | click | tab gone | |
+| 12.2 | "Close the tab (×)." | `tabclose:current` (the painted close glyph of the angled tab) | click | tab gone | |
 | 12.3 | "Ctrl+O and open bracket.fcad." | file dialog | ctrl+o, type, Enter | doc reopened | reopen identical |
 | 12.4 | (aside) "Power users: Ctrl+9 opens the cmd> line; `LIST features` prints the timeline." | none | no input | | |
 | **Ch 13 Export STL** | | | | | |
-| 13.1 | "TOOLS tab, **Export STL**." | `tab:TOOLS`, `tool:part.export-stl` | click, click | dialog open | |
+| 13.1 | "Open **MORE ▾** at the end of the toolbar, then **Export STL**." | `tab:TOOLS` (resolves to the MORE ▾ section), `tool:part.export-stl` | click, click | dialog open | |
 | 13.2 | "File: **bracket.stl**. Linear deflection **0.02**, angular **10**, Binary. OK." | dialog fields | type, Tab…, Enter | message "exported" | STL checks |
 | 13.3 | "Done! Open the STL in your slicer." | bubble | click Finish | tour complete | |
 
 That makes about 45 user-visible steps (≈ 120 replay actions). The test's step ids follow the table. The tests for 0.2
-and 12.4 are only non-blocking checks.
+and 12.4 are only non-blocking checks. Step 0.3 is skipped when its condition is already true at step start (the
+default first launch is Part).
+
+Step 6.3 selects Hole1 **before** starting Mirror. With the card docked into the sidebar, FEATURES collapses to its
+header and the live row while a command runs (redesign decision 6), so Hole1 would not be visible mid-command.
+Selecting it first works in every layout; phase 0 verifies that Mirror takes a preselected feature. The general
+question is listed in `ROADMAP.md` (needs user decision).
 
 Steps 3.3 and 3.6 depend on the face-sketch orientation (on screen, X goes right and +Y goes up after Look At), and
 the bubble wording does too. Phase 0 verifies this.
@@ -223,18 +237,29 @@ and verifies.
 
 | Kind | Example | Resolves to |
 |---|---|---|
-| `widget` | `FinishSketchButton`, `CommandDialog/OkButton` | objectName path |
-| `tool` | `tool:part.extrude` | ribbon button with dynamic property `toolId` (no rename: the QSS styles `#RibbonTool`) |
-| `group` | `group:SOLID/CREATE` | ribbon dropdown |
-| `menu` | `menu:Help/Tutorials` | menu and action text |
-| `prop` | `prop:distance` | existing `prop_<name>` dialog fields |
+| `widget` | `FinishSketchButton`, `CommandDialog/OkButton` | objectName path (the names kept or added by redesign 8.2) |
+| `tool` | `tool:part.extrude` | the first **visible** widget with dynamic property `toolId`: main toolbar (`#RibbonTool`), quick toolbar or a section caption menu (redesign 8.2) |
+| `group` | `group:SOLID/CREATE` | the toolbar section caption dropdown (`#RibbonGroupLabel`) matched by properties `toolbarTab`/`toolbarGroup` |
+| `menu` | `menu:Help/Tutorials` | a title-bar button menu (`#AppBar`) and action text |
+| `prop` | `prop:distance` | `prop_<name>` card fields: line edit, spin box, combo or `SegmentedControl` |
 | `valuebox` | `valuebox:Width` | `fcValueBox` with property `field` |
-| `browser` | `browser:Origin/YZ` | browser tree item path |
-| `timeline` | `timeline:Extrude1` | timeline item |
-| `tab` | `tab:TOOLS` | ribbon tab |
+| `browser` | `browser:Origin/YZ` | MODEL panel (`#Browser`) item path |
+| `timeline` | `timeline:Extrude1` | FEATURES row (`#FeatureList`) in `featureList` style, strip item (`#TimelineStrip`) in `strip` style |
+| `tab` | `tab:TOOLS` | the toolbar section(s) holding that tab's tools. The ribbon tab row is removed: `tab:SURFACE` and `tab:TOOLS` resolve to the MORE ▾ section, `tab:SOLID` to the main sections, `tab:SKETCH` to the contextual sketch sections |
+| `tabclose` | `tabclose:current` | the close glyph rect of a document tab, from a `closeRect(index)` hook on the custom-painted tab bar (redesign 7.1) |
 | `model` | `model:<selector>` | 3D target, see below |
 | `sketchpoint` | `sketchpoint:@x,y,z` | sketch point at a world position |
 | `none` | | no anchor |
+
+**Matching rules.** The UI shows caps through `QFont::setCapitalization` (redesign 3.1), so on-screen text differs
+in case from the strings. Anchors therefore match the source strings (tool ids, properties, objectNames, item
+names, action text), never rendered text, and every text comparison (`menu:`, `browser:`, `timeline:`, `group:`,
+`tab:`) is **case-insensitive** with `&` mnemonics stripped. User-entered names (features, bodies) keep their case
+on screen (decision 3) but are still matched case-insensitively.
+
+**Text placeholders.** Bubble text may use `{timeline}` (expands to "FEATURES list" or "timeline" by
+`ui/timelineStyle`) and `{orientation}` ("orientation dial" or "ViewCube" by `ui/orientation`), so one text works in
+every layout preset.
 
 `model:<selector>` uses the script selector grammar of `docs/SCRIPTING.md` (`body:Body1/face:top`,
 `edge:@40,-25,4`, `profile:@…`, `plane:XY`). The resolver turns it into a screen point (see "Locating" below).
@@ -268,7 +293,7 @@ overlay's conditions and the test probe all call it, so every check means the sa
 | Option | Pros | Cons |
 |---|---|---|
 | Fixed coordinates | trivial | break with window size, HiDPI, docking, fonts, camera; today's reports are full of these |
-| Image matching (template/OCR) | needs no app changes | slow; theme and scale sensitive; fails on the white ViewCube; can't find faces or edges; ambiguous icons |
+| Image matching (template/OCR) | needs no app changes | slow; sensitive to theme (dark and light), scale and the caps rendering; can't find faces or edges; ambiguous icons |
 | **Introspection (recommended)** | exact; follows layout and camera; the overlay needs it anyway | needs a small in-app hook and stable names |
 
 **Recommendation: introspection through a read-only probe.** One class, `AnchorResolver`, maps an anchor to global
@@ -280,7 +305,9 @@ For a 3D anchor, the resolver works like this:
    point).
 2. Project each point with `worldToScreen`.
 3. Keep points that are inside the viewport and not covered by a widget (`QApplication::widgetAt` must be the GL
-   view, so no dialog, palette, ViewCube or value box covers the point).
+   view, so no command card, palette, orientation dial or ViewCube, view-tool column, breadcrumb or filter bar,
+   readout, quick toolbar or value box covers the point; the redesign's viewport overlays are separate widgets,
+   redesign 5.3 and 6.3).
 4. Keep points where `viewer.pick(x, y)` returns the target, i.e. the viewer's own pick agrees.
 5. Prefer the point nearest the visual centre.
 
@@ -306,8 +333,8 @@ New code in `src/app/tutorial/`:
 | `TutorialLauncher` | Help > Tutorials list and the first-launch welcome card ("Start tour" / "Not now", remembered). |
 
 **Layering.**
-- `TutorialOverlay` is a **child of the MainWindow**, sized to it and raised above the central widget, docks and
-  ribbon. It sets `WA_TransparentForMouseEvents` and `WA_NoSystemBackground`.
+- `TutorialOverlay` is a **child of the MainWindow**, sized to it and raised above the central widget, docks,
+  main toolbar and the viewport overlays. It sets `WA_TransparentForMouseEvents` and `WA_NoSystemBackground`.
 - An event filter re-raises it on `ChildAdded` and `ZOrderChange`.
 - The bubble is a sibling child that does accept mouse input.
 - Child widgets avoid translucent top-level windows, which render black without a compositor (the dropped SOLID-12
@@ -319,14 +346,23 @@ New code in `src/app/tutorial/`:
 
 **Spotlight.**
 - A light dim (≈ 30 % alpha, optional in Preferences) with an even-odd cut-out around the anchor rect, plus a pulsing
-  2 px ring in the theme accent colour from `theme-light.qss`.
+  2 px ring in `accent.focus` (redesign 8.2; `theme-light.qss` is deleted by the redesign). The dim colour is a new
+  token (`tutorial.dim`) added to `resources/theme/tokens.json`; the overlay has no colour literals (colour lint).
+- The bubble uses `surface.overlay`, `text.primary`, a 1 px `border.default` outline and the redesign text styles
+  (`title` for the chapter, `body` for the text, `keycap` for keys), in both themes, repainting on `themeChanged`.
+  Whether the bubble prose is caps or as typed is open (`ROADMAP.md`, needs user decision); until then it follows
+  the redesign rule (caps).
+- The bubble and spotlight avoid the rects `OverlayLayout` reports as occupied (card, dial, tool column), so the
+  bubble never covers the command card it points into.
 - For model anchors, the target face or edge is highlighted in the viewer through `setHighlighted(refs)` with a new
-  "tutorial" highlight style instead of a rectangle.
+  "tutorial" highlight style (a `ViewerPalette` entry from `accent.focus`, with the halo rule of redesign 4.5)
+  instead of a rectangle.
 
 **Tracking.**
 - Widget anchors: event filter on the target and its ancestors (Move, Resize, Show, Hide) and on scroll areas
-  (`TimelineScroll`, Browser).
-- Model anchors: a viewer `cameraChanged` signal (to add), throttled to the frame rate. The bubble arrow re-targets.
+  (`FeatureList`, `TimelineScroll`, `Browser`, `CommandDialogScroll`), and on `UiSettings::changed` (a layout or
+  theme switch re-resolves the anchor).
+- Model anchors: the viewer `cameraChanged` signal (added by redesign phase 4 for the dial), throttled to the frame rate. The bubble arrow re-targets.
   When the target is off-screen or occluded, the bubble says so.
 
 **Non-blocking.**
@@ -338,7 +374,7 @@ New code in `src/app/tutorial/`:
 - Proposed tour shortcuts: F7 show me, Alt+Right skip, Alt+Left back. **Esc stays "cancel command" and never exits
   the tour.**
 - The bubble has an accessible name and description. Step changes post `QAccessibleEvent` announcements.
-- Text follows the app font size and is not hard-coded white-on-colour.
+- Text follows the app font and `ui/fontScale` and uses tokens, never hard-coded white-on-colour.
 
 **Show me.** A ghost cursor (painted by the overlay, not the real pointer) animates along the step's `do` path from the
 bubble to the anchor. It shows clicks as ripples and typed text as keycaps. Nothing is sent to the app.
@@ -378,6 +414,14 @@ saved step.
    - `FABRICAD_NO_RECOVERY=1`, `QT_QPA_PLATFORM=xcb`
    - `QT_ENABLE_HIGHDPI_SCALING=0`, `QT_SCALE_FACTOR=1`, `QT_FONT_DPI=96`, `LANG=C.UTF-8`
    - `FABRICAD_TEST_PROBE=<socket>`
+
+   A first launch gets the redesign defaults (redesign 6.1): dark theme, `featureList`, `hexDial`, card
+   `floatRight`, toolbar `top`, sidebar `left`. **Layout presets** (redesign 8.2): `--layout <preset>` writes the
+   `ui/*` keys into the temporary `XDG_CONFIG_HOME` before launch, the same mechanism as `ui.sh prefs <N> key=value…`
+   (redesign 8.3):
+   - `default`: no keys written;
+   - `alt`: `ui/cardPlacement=sidebar`, `ui/sidebarSide=right`, `ui/toolbarArea=left`;
+   - `light`: `ui/theme=light`, `ui/orientation=viewCube`, `ui/timelineStyle=strip`.
 3. **Start.** Launch the app and connect to the probe. Wait for `ready` (window exposed and `viewInitialized`). Size the
    window with `xdotool windowmove/windowsize` and wait until the probe reports the size. There are **no fixed sleeps**.
    The X server inside the backend has no window manager, so nothing re-tiles it.
@@ -413,11 +457,12 @@ saved step.
    - Reopen equality: canonical JSON diff plus metrics.
    - Copy the chapter checkpoint `.fcad`s for comparison with `resources/tutorials/bracket/`.
 9. **ctest.**
-   - `fabricad_tutorial_bracket`: LABELS `gui;tutorial`, `RUN_SERIAL`, skip code 77.
+   - `fabricad_tutorial_bracket_{default,alt,light}`: one entry per layout preset, LABELS `gui;tutorial`,
+     `RUN_SERIAL`, skip code 77.
    - `fabricad_tutorial_offscript`: `gui`. A short scenario that does a wrong action, expects the hint, uses Back and
      Restore chapter, and checks that "show me" does not change the document.
    - `fabricad_tutorial_lint`: offscreen, label `tutorial`. Validates the JSON (anchors exist, tool ids registered,
-     conditions parse) and runs `bracket.fcs`.
+     conditions parse), checks that every widget anchor resolves in all 3 layout presets, and runs `bracket.fcs`.
 
    The default `ctest` stays headless: the GUI tests skip unless a backend is available and `FABRICAD_GUI=1` (or
    `FABRICAD_GL_DISPLAY`) is set.
@@ -432,11 +477,12 @@ saved step.
 | Risk (source) | Mitigation in the tutorial or runner | App change |
 |---|---|---|
 | Rectangle and other value boxes sit under the cursor and swallow the second click (NEW-SKETCH-1) | Never click a second corner. Type W, Tab, H, Enter. | Place boxes offset from the cursor, or make them mouse-transparent until focused |
-| ViewCube corners and edges are tiny and low contrast (UX-05, NEW-SKETCH-2) | Never use the ViewCube. Use Home and Ctrl+1..7. | none required |
+| Orientation-widget targets are small: hex dial tips (default), ViewCube corners in the `light` preset (UX-05, NEW-SKETCH-2) | Never use the dial or the ViewCube in a step. Use Home and Ctrl+1..7. | none required (the dial and the token-coloured ViewCube come with redesign phase 4) |
+| Layout variety: card placement, sidebar side, toolbar position, list vs strip, theme | Anchors resolve by name and property, never by position; `{timeline}`/`{orientation}` text placeholders; the tour runs in the 3 presets | `OverlayLayout` and `UiSettings::changed` (redesign) |
 | Origin planes win picks over bodies (NEW-ASSEMBLY-DRAWING-1); Create Sketch picks XZ instead of the top face (NEW-PART-CORE-3) | Select the face **first**, then Create Sketch. Pick YZ in the browser. Pick-check before every click. | Lower origin-plane pick priority below bodies |
 | Entering a sketch does not orient the view until the first click (NEW-SOLID-4); clicks during camera animation land wrong (SK-03) | Wait for `idle`, which includes the animation | Look At on sketch entry; expose `isAnimating()` and `cameraChanged` |
 | Stale viewport after a constraint (SK-02, partial); screenshots lag | Assert from probe state, not pixels | Request a redraw after a constraint solve |
-| Dialog height jumps and moves OK (NEW-APP-TOOLS-2, NEW-ADVANCED-PART-2) | Commit with Enter. Resolve button geometry after `idle`. | Reserve the message row |
+| Dialog height jumps and moves OK (NEW-APP-TOOLS-2, NEW-ADVANCED-PART-2) | Commit with Enter. Resolve button geometry after `idle`. | Reserve the message row (in the redesign's command card, phase 3) |
 | Wheel over dialogs changes combos (NEW-ADVANCED-PART-1) | No wheel over dialogs. Combos by click plus popup item rect, or keyboard. | Ignore wheel on unfocused combos |
 | cmd box keeps focus and swallows shortcuts (NEW-ADVANCED-SKETCH-1); log popup lingers (NEW-SOLID-2) | Avoid the cmd box. Check the focus widget before keys. | Return focus to the viewport after a command |
 | Window and display size change under Hyprland (several retests) | Use a backend without a WM; assert the root size | none |
@@ -446,21 +492,29 @@ saved step.
 | Short 8 mm vertical edges hard to hit (Fillet) | Pick-check and hover confirmation; Home view and a fixed window size | none |
 | Hole placement by face click is imprecise | Place on the fillet's circular edge (exact centre) | none |
 
-**App work before the tour.**
+**App work before the tour.** Items marked *(redesign)* or *(roadmap 2)* are delivered earlier by
+`ui-redesign.md` or by ROADMAP step 2; the tutorial only verifies them.
 1. Stable ids:
-   - ribbon buttons get property `toolId`;
+   - toolbar buttons get property `toolId`, sections get `toolbarTab`/`toolbarGroup` *(redesign phase 1,
+     `MainToolbar`; none of the three exists in today's `Ribbon.cpp`)*;
    - value boxes get property `field`;
-   - objectNames on dialog OK/Cancel, the STL dialog fields (`stl_path`, `stl_linear`, `stl_angular`, `stl_format`),
-     the welcome card and the tour bubble;
-   - a browser and timeline item lookup API.
+   - objectNames on the card's OK (`OkButton`, exists) and Cancel, the STL dialog fields (`stl_path`, `stl_linear`,
+     `stl_angular`, `stl_format`), the welcome card and the tour bubble;
+   - a FEATURES/strip and MODEL item lookup API;
+   - `closeRect(index)` on the custom-painted document tab bar, for `tabclose:`.
 2. `StateQuery` refactor out of the script `CHECK`.
 3. `TestProbe`: a read-only JSON-lines `QLocalSocket`, only with `FABRICAD_TEST_PROBE`. It answers `locate`,
    `pickcheck`, `eval`, `state` (tool, prompt, selection, focus widget, hover/preselection, tour step, `inputSeq`,
-   frame, `idle`) and `docjson`.
-4. Viewer: `cameraChanged`, `isAnimating`, a frame counter and a tutorial highlight style.
-5. The fixes in the table above: value box placement, origin-plane pick priority, Look At on sketch entry, a redraw
-   after constraints, stable dialog height, focus return.
-6. Replace `sleep 1.5` in `ui.sh` with a probe `ready` wait (optional).
+   frame, `idle`, the active `ui/*` layout keys) and `docjson`.
+4. Viewer: `cameraChanged` *(redesign phase 4)*, `isAnimating`, a frame counter and a tutorial highlight style
+   (a `ViewerPalette` entry).
+5. The fixes in the table above *(roadmap 2)*: value box placement (NEW-SKETCH-1), origin-plane pick priority
+   (NEW-ASSEMBLY-DRAWING-1, NEW-PART-CORE-3), Look At on sketch entry (NEW-SOLID-4), a redraw after constraints
+   (SK-02), stable dialog height (NEW-APP-TOOLS-2, NEW-ADVANCED-PART-2), wheel on unfocused combos
+   (NEW-ADVANCED-PART-1), focus return (NEW-ADVANCED-SKETCH-1, NEW-SOLID-2).
+6. `ui.sh`: replace `sleep 1.5` with a probe `ready` wait (optional). This sits on top of the redesign's harness
+   changes (redesign 8.3: `start <N> [bin] [WxH] [scale]`, per-display `XDG_CONFIG_HOME`, `prefs`, `cvd`), which
+   land first; the tutorial keeps their command syntax.
 
 ---
 
@@ -482,15 +536,15 @@ saved step.
 
 | Work | Days |
 |---|---|
-| Phase 0 spike (manual walk-through via `ui.sh`, verify the risks marked "Phase 0") | 1 |
+| Phase 0 spike (manual walk-through via `ui.sh` **on the redesigned UI**, verify the risks marked "Phase 0") | 1 |
 | Spec + `.fcs` twin | 0.5 |
-| App prerequisites and the fixes in §6 | 2–3 |
+| App prerequisites not delivered by the redesign or ROADMAP step 2 (probe, `StateQuery`, `field`, STL names, `closeRect`, highlight style) | 1–1.5 |
 | Overlay: engine, resolver, bubble, spotlight, show me, recovery, launcher, a11y | 5–7 |
-| Tutorial JSON and checkpoints | 1.5 |
-| Runner, backends, artefacts, ctest | 2–3 |
+| Tutorial JSON and checkpoints (with layout placeholders) | 2 |
+| Runner, backends, artefacts, ctest, 3 layout presets | 2.5–3.5 |
 | Markdown export | 0.5 |
 | Two tester rounds plus fixes | 2–3 |
-| **Total** | **≈ 15–20 agent-days**, about 1.5 weeks wall clock with 3–4 agents in parallel |
+| **Total** | **≈ 14.5–19 agent-days**, about 1.5 weeks wall clock with 3–4 agents in parallel, starting after ROADMAP steps 1–3 and the answers to section 8 |
 
 **Workflow:**
 1. **Integrator (Opus)**:
@@ -498,7 +552,8 @@ saved step.
      and owns this plan;
    - merges, in the ownership style of `docs/ARCHITECTURE.md` §2.
 2. Parallel worktrees:
-   - **A, app hooks**: ids, probe, StateQuery, viewer signals, and the §6 fixes as fix groups like the earlier G1–G4.
+   - **A, app hooks**: the ids, probe, `StateQuery` and viewer hooks not already delivered by the redesign; re-verify
+     the §6 fixes done in ROADMAP step 2.
    - **B, overlay**: `src/app/tutorial/`, coded against A's headers.
    - **C, runner**: Python, against a probe stub, then the real one.
    - **D, content**: spec, `.fcs`, `tutorial.json`, checkpoints.
@@ -510,13 +565,18 @@ saved step.
 
    Then triage into `ISSUES.md`, fix, and retest (round 2).
 4. Acceptance:
-   - `fabricad_tutorial_bracket` passes **10 runs in a row** (also with a CPU load generator running);
+   - `fabricad_tutorial_bracket_default` passes **10 runs in a row** (also with a CPU load generator running), and
+     the `alt` and `light` presets pass 3 runs each;
    - testers report no blocker;
    - the Markdown export is regenerated from the passing run.
 
 ---
 
 ## 8. Open questions
+
+Not yet answered by the user. The redesign fixes the *styling* side of Q6 (tokens, `accent.focus` ring); the dim
+versus ring-only choice is still open. Q7's shortcuts must not collide with the redesign's keycaps (`CTRL K`
+search; the workspace keycap question is in `ROADMAP.md`).
 
 1. **Part**: is this bracket (80 × 50 plate, 40 mm flange, slot, counterbores, flange hole, chamfer, rib, t 8 → 10)
    the right "mildly complex" part? Or should a rectangular pattern replace the Mirror?

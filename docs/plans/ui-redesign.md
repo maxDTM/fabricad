@@ -1,19 +1,21 @@
 # Plan: FabriCAD UI redesign ("v5/v6" dark + light, bold mono caps)
 
-Status: planned, not started. Open questions answered: see section 12 (decisions confirmed 2026-10-22).
-
-Status: planned, not started. No code yet. Owner: ui agent (`src/app`, `src/viewer`, `resources`), with requests to
+Status: planned, not started. No code yet. Open questions answered: see section 12 (decisions confirmed 2026-10-22).
+Execution order with the other plans: `docs/plans/ROADMAP.md` (this plan is step 1). Owner: ui agent (`src/app`, `src/viewer`, `resources`), with requests to
 the core, sketch, part and drawing owners through `docs/integration-notes/*.md` (see section 9).
 
-Reference: `docs/mockups/custom-ui-extrude-v5.png/.svg` (1920 × 1080). `custom-ui-extrude-v6.png` **does not exist
-yet**. The user's v6 decisions already override v5 where they differ: all UI text bold monospace ALL CAPS, straight
-toolbar dividers and straight section-caption dropdowns. Producing v6 (both themes) from the token file is task 0.4.
+Reference: `docs/mockups/custom-ui-extrude-v5.png/.svg` (1920 × 1080) and `custom-ui-extrude-v6.png/.svg` (dark
+only, added 2026-10-22; it has no `data-region` ids, no light variant and no MORE ▾ section, and it uses Noto Sans
+Mono rather than the bundled JetBrains Mono). The user's v6 decisions override v5 where they differ: all UI text
+bold monospace ALL CAPS, straight toolbar dividers and straight section-caption dropdowns. Regenerating v6 from the
+token file in both themes, with `data-region` ids, is task 0.4.
 
 Related plans this one includes or must keep working:
 - `docs/plans/feature-list-timeline.md`: the FEATURES panel (groups, suppress, rollback bar). Its data and command
   work is unchanged. This plan restyles its widget, sets its default and moves its setting to the Layout page.
 - `docs/plans/tutorial.md`: the overlay's anchors (`widget`, `tool:`, `group:`, `tab:`, `prop:`, `timeline:`,
-  `browser:`, model anchors) and its accent ring must resolve in every layout combination (section 7.2).
+  `browser:`, model anchors) and its accent ring must resolve in every layout combination (section 8.2). That plan
+  was reconciled with this one on 2026-10-22 (anchor mapping, text, presets, harness).
 
 ---
 
@@ -354,7 +356,7 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 | Document tab `#DocumentTabs` | 36 h, min 120 w, angled sides (12° slant, 8 px run), 12 px text padding | inactive `text.secondary` on `bg.app`; hover `surface.hover`; active `surface.panel` + 2 px top `accent.indicator`; modified dot | Custom `QTabBar` paint (section 7.1). The `+` tab is `#NewTabButton`. |
 | Search box | 26 h, 260 w, `>_` glyph, keycap `CTRL K` | focus ring | opens the existing `#SearchPopup` |
 | Main toolbar `#RibbonRow` (horizontal) | 70 h: button row 52 + caption row 16; sections divided by a straight 1 px `border.default`, 8 px gaps | — | sections SKETCH, CREATE, MODIFY, ASSEMBLE, CONSTRUCT, INSPECT on the left; DOCUMENT right-aligned |
-| Tool button `#RibbonTool` | 48–60 w × 50 h: 24 px icon, 4 px gap, `label.sm`; split arrow ▾ 8 px when it has variants | hover `surface.hover`; pressed `surface.pressed`; active (running tool) `accent.selFill` + 1 px `accent.indicator` border; disabled 35 % | keeps the dynamic property `toolId` |
+| Tool button `#RibbonTool` | 48–60 w × 50 h: 24 px icon, 4 px gap, `label.sm`; split arrow ▾ 8 px when it has variants | hover `surface.hover`; pressed `surface.pressed`; active (running tool) `accent.selFill` + 1 px `accent.indicator` border; disabled 35 % | gets the dynamic property `toolId` (new: today's `Ribbon.cpp` sets no dynamic properties) |
 | Section caption `#RibbonGroupLabel` | 16 h, `caption`, ▾, straight; full width of the section | hover `accent.text`; open `accent.selFill` | the dropdown lists every tool in the group (as today) |
 | Vertical toolbar | 64 w; each section = caption bar (16 h, straight rule above) + one column of 40 × 40 icon buttons, label below at 9 px if it fits, else in the tooltip | as above | for the left and right positions (section 6.2) |
 | Status bar | 28 h, `bg.app`, cells divided by 1 px `border.subtle` | — | 3 px left bar + gold square + command name; prompt (`text.primary`); key hints (`text.tertiary`); command line cell; OCCT version; units; grid; snap; rebuild meter (8 bars + ms); selection count |
@@ -424,7 +426,7 @@ All are live (no restart), stored in QSettings under `ui/` and applied through o
 | 4 | Sidebar side (`ui/sidebarSide`) | `left`, `right` | `left` |
 | 5 | Orientation widget (`ui/orientation`) | `hexDial`, `viewCube` | `hexDial` |
 | 6 | Theme (`ui/theme`) | `dark`, `light`, `system` | `dark` |
-| 7 | Timeline style (`ui/timelineStyle`, migrating the feature-list plan's `prefs/timelineStyle`) | `featureList` (sidebar), `strip` (bottom) | `featureList` (open question 1) |
+| 7 | Timeline style (`ui/timelineStyle`; a new key, no older timeline key exists in the code) | `featureList` (sidebar), `strip` (bottom) | `featureList` (open question 1) |
 | — | UI scale (`ui/fontScale`) | 90–130 % | 100 % |
 
 Preferences gets a small **live preview** thumbnail of the layout, drawn with QPainter from the same `LayoutSpec`.
@@ -586,7 +588,7 @@ Double-clicking the header returns the card to the chosen placement. The positio
 
 **Kept unchanged** (tests or the tutorial plan rely on them):
 `FabriCADMainWindow, AppBar, DocumentTabs, NewTabButton, WorkspaceSwitcher, RibbonRow, RibbonGroup, RibbonGroupLabel,
-RibbonTool (+toolId), FinishSketchButton, BrowserDock, Browser, TimelineDock, Timeline, TimelineStrip, CommandDialog,
+RibbonTool, FinishSketchButton, BrowserDock, Browser, TimelineDock, Timeline, TimelineStrip, CommandDialog,
 CommandDialogTitle, CommandDialogMessage, CommandDialogScroll, OkButton, dialogField, prop_<name>, SelectionInput,
 NavBar, SearchPopup, CommandLine, CommandHistory, StatusPrompt, StatusDim, ShowBrowserAction, ShowTimelineAction,
 ShowPanelsMenu, PreferencesDialog, PropertyEditor, measureTable, fcValueBox, MenuHeader, PaletteCollapse`.
@@ -595,10 +597,13 @@ ShowPanelsMenu, PreferencesDialog, PropertyEditor, measureTable, fcValueBox, Men
 OrientationDial, ViewToolColumn, QuickToolbar, CoordReadout, ScaleBar, StepIndicator, CardPin, SegmentedControl`
 (the last with `prop_<name>`).
 
+**New dynamic properties** (not in today's code; the tutorial plan relies on them): `toolId` on every tool button,
+`toolbarTab`/`toolbarGroup` on every toolbar section and caption.
+
 | Item | Change |
 |---|---|
-| `RibbonTabs` (the tab bar) | **Removed**: the mockup has no tab row. The toolbar shows one "page" per context: SOLID by default; the contextual SKETCH page while sketching. SURFACE and TOOLS become extra sections or dropdowns (open question 5). The property `toolbarTab` stays on each section, so the `tab:` and `group:` anchors still resolve. |
-| Tutorial anchor resolver | `tool:<id>` returns the first **visible** widget with `toolId` (toolbar, quick toolbar or caption menu). `group:TAB/GROUP` matches the section caption by properties `toolbarTab`/`toolbarGroup`. `tab:TOOLS` maps to the section holding the TOOLS tools. `prop:operation` resolves to a segmented control or a combo (the tutorial's `do` for a segmented control is a click on the cell, so update steps 5.6 and 6.2). Step 13.1's text changes from "TOOLS tab" to the new section name. |
+| `RibbonTabs` (the tab bar) | **Removed**: the mockup has no tab row. The toolbar shows one "page" per context: SOLID by default; the contextual SKETCH page while sketching. SURFACE and TOOLS become extra sections or dropdowns (open question 5). The new property `toolbarTab` on each section keeps the `tab:` and `group:` anchors resolvable. |
+| Tutorial anchor resolver | `tool:<id>` returns the first **visible** widget with `toolId` (toolbar, quick toolbar or caption menu). `group:TAB/GROUP` matches the section caption by properties `toolbarTab`/`toolbarGroup`. `tab:TOOLS` maps to the section holding the TOOLS tools. `prop:operation` resolves to a segmented control or a combo (the tutorial's `do` for a segmented control is a click on the cell, so update steps 5.6 and 6.2). Step 13.1's text changes from "TOOLS tab" to the new section name. (Applied in `tutorial.md` on 2026-10-22.) |
 | Overlay accent | The tutorial ring and spotlight use `accent.focus`, not `theme-light.qss`. The bubble uses `surface.overlay` and `text.primary` in both themes. |
 | Tutorial in all layouts | Its lint and GUI test run the bracket tour in 3 layout presets: the default; card `sidebar` + sidebar `right` + toolbar `left`; light + `viewCube` + `strip`. |
 | `test_main_window`, `test_app_logic`, `test_g2_tools` | Only `findChild` by objectName and type. `prop_type` stays a `QComboBox` (it has more than 4 values). Segmented enums get `findChild<SegmentedControl*>`. Add tests: each toggle switches live and round-trips through QSettings; `OverlayLayout` geometry; the `UiSettings` defaults. |
