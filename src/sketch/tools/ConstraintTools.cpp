@@ -344,7 +344,7 @@ class ConstraintTool : public SketchTool {
         if (addCheckedConstraint(ctx, c) >= 0) ++added;
       if (added) {
         session()->commitEdit(std::string("Constraint: ") + info().name);
-        ctx.showMessage(session()->statusText());
+        ctx.showMessage(added > 1 ? "Constraints added" : "Constraint added");
       } else {
         session()->cancelEdit();
       }

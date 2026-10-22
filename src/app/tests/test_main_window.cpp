@@ -215,15 +215,16 @@ class TestMainWindow : public QObject {
     QCOMPARE(tool_->accepted, 2);
   }
 
-  void commandDialogDocksLeftAndKeepsSize() {
+  void commandDialogDocksRightAndKeepsSize() {
     QVERIFY(w_->runCommand("test.dialog"));
     settle();
     app::CommandDialog* d = w_->commandDialog();
     QVERIFY(d->isVisible());
     QVERIFY(d->parentWidget());
-    // docked at the top-left of the viewport (UX-17), away from the ViewCube
-    QVERIFY(d->x() < d->parentWidget()->width() / 2);
-    QVERIFY(d->y() < 40);
+    // docked to the viewport's right edge (ux.md; SK-05), below the ViewCube when there is room
+    QVERIFY(d->x() > d->parentWidget()->width() / 2 || d->parentWidget()->width() < 2 * d->width());
+    QVERIFY(d->geometry().right() <= d->parentWidget()->width());
+    QVERIFY(d->parentWidget()->width() - 1 - d->geometry().right() <= 16);
     const int h0 = d->height();
     d->setMessage("A long prompt that certainly wraps onto more than one line in the fixed-width command dialog");
     const int h1 = d->height();
@@ -234,6 +235,40 @@ class TestMainWindow : public QObject {
     w_->toolManager().cancel();
     settle();
     QVERIFY(!d->isVisible());
+  }
+
+  // SK-08: closing the dialog gives the keyboard back to the viewer when the focus was in it,
+  // so the next Esc reaches the canvas (and the tool) instead of the command line
+  void dialogDismissReturnsFocusToViewer() {
+    QVERIFY(w_->runCommand("test.dialog"));
+    settle();
+    app::CommandDialog* d = w_->commandDialog();
+    QVERIFY(d->isVisible());
+    auto* field = d->body()->findChild<QLineEdit*>("dialogField");
+    QVERIFY(field);
+    w_->activateWindow();
+    field->setFocus(Qt::OtherFocusReason);
+    settle();
+    if (QApplication::focusWidget() != field) QSKIP("no keyboard focus on this platform");
+    w_->toolManager().cancel();
+    settle();
+    QVERIFY(!d->isVisible());
+    QWidget* f = QApplication::focusWidget();
+    QVERIFY(f && (f == canvas() || canvas()->isAncestorOf(f)));
+  }
+
+  // SK-01: Ctrl+Return and Ctrl+keypad Enter finish the sketch even with the sketch's idle tool
+  // active (the tool no longer swallows the combo)
+  void ctrlEnterFinishesSketch() {
+    for (int k : {int(Qt::Key_Return), int(Qt::Key_Enter)}) {
+      QVERIFY(w_->runCommand("sketch.create", {"XY"}));
+      settle();
+      QVERIFY(w_->viewer()->inSketchMode());
+      QVERIFY(w_->toolManager().isActive());  // the sketch's idle select tool
+      QVERIFY(key(k, Qt::ControlModifier | (k == Qt::Key_Enter ? Qt::KeypadModifier : 0)));
+      settle();
+      QVERIFY(!w_->viewer()->inSketchMode());
+    }
   }
 
   void themeAndMenuHeaders() {

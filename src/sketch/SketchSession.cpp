@@ -117,6 +117,7 @@ void SketchSession::enter() {
   if (doc_) {
     connections_.push_back(QObject::connect(doc_, &core::Document::recomputeFinished, this, [this] {
       if (!rendering_) render();
+      emit changed();  // undo/redo: keep the DOF label current (SK-09)
     }));
     connections_.push_back(QObject::connect(doc_, &core::Document::featureRemoved, this, [this](core::ObjectId id, int) {
       if (id == sketchId_) QTimer::singleShot(0, [] { SketchSession::end(); });
@@ -127,7 +128,13 @@ void SketchSession::enter() {
   }
   // glyphs, dimension arrows and text gaps are sized in pixels but drawn in sketch units:
   // re-render after zooming so they keep their size (UX-28)
-  if (viewer_ && viewer_->widget()) viewer_->widget()->installEventFilter(this);
+  if (viewer_ && viewer_->widget()) {
+    viewer_->widget()->installEventFilter(this);
+    zoomPoll_ = new QTimer(this);
+    zoomPoll_->setInterval(300);
+    QObject::connect(zoomPoll_, &QTimer::timeout, this, [this] { checkPixelSize(); });
+    zoomPoll_->start();
+  }
   render();
   ensureIdleTool();
 }
@@ -142,9 +149,7 @@ bool SketchSession::eventFilter(QObject* watched, QEvent* event) {
           zoomCheckPending_ = true;
           QTimer::singleShot(120, this, [this] {
             zoomCheckPending_ = false;
-            if (ending_ || rendering_ || !viewer_) return;
-            const double px = tolerance({0, 0}, 1.0);
-            if (renderedPixelSize_ > 0 && std::abs(px - renderedPixelSize_) > 0.05 * renderedPixelSize_) render();
+            checkPixelSize();
           });
         }
         break;
@@ -154,8 +159,15 @@ bool SketchSession::eventFilter(QObject* watched, QEvent* event) {
   return QObject::eventFilter(watched, event);
 }
 
+void SketchSession::checkPixelSize() {
+  if (ending_ || rendering_ || !viewer_) return;
+  const double px = tolerance({0, 0}, 1.0);
+  if (renderedPixelSize_ > 0 && std::abs(px - renderedPixelSize_) > 0.05 * renderedPixelSize_) render();
+}
+
 void SketchSession::leave() {
   ending_ = true;
+  if (zoomPoll_) zoomPoll_->stop();
   if (viewer_ && viewer_->widget()) viewer_->widget()->removeEventFilter(this);
   for (auto& c : connections_) QObject::disconnect(c);
   connections_.clear();
@@ -246,7 +258,7 @@ bool SketchSession::commitEdit(const std::string& text) {
   auto cmd = std::make_unique<core::ModifyFeatureCommand>(*doc_, sketchId_, before_, after, text);
   if (undo_) undo_->push(std::move(cmd));
   else cmd->redo();
-  if (host_) host_->showMessage(statusText());
+  // the DOF count is shown by the status bar label (changed()), not as a message (SK-09)
   render();
   emit changed();
   return true;
@@ -405,7 +417,13 @@ void SketchSession::render() {
   handles_.clear();
   renderedPixelSize_ = tolerance({0, 0}, 1.0);
   if (feature()) {
-    plane_ = feature()->plane();
+    const gp_Ax3 plane = feature()->plane();
+    // the viewer projects clicks and snaps the grid on its own copy of the plane: keep it in
+    // sync when a recompute moved the sketch plane (SK-03)
+    const bool moved = !plane.Location().IsEqual(plane_.Location(), 1e-9) || !plane.Direction().IsEqual(plane_.Direction(), 1e-12) ||
+                       !plane.XDirection().IsEqual(plane_.XDirection(), 1e-12) || !plane.YDirection().IsEqual(plane_.YDirection(), 1e-12);
+    plane_ = plane;
+    if (moved && viewer_->inSketchMode()) viewer_->enterSketchMode(plane_, false);
     if (showProfiles_) renderProfiles();
     renderGeometry();
     if (showConstraints_) renderConstraints();
@@ -413,6 +431,16 @@ void SketchSession::render() {
   }
   viewer_->requestRedraw();
   rendering_ = false;
+  // One more full frame once the event loop is idle: a render() from inside a paint, a GL
+  // callback or a dialog's signal can otherwise leave the old frame on screen until the mouse
+  // moves (SK-02). Coalesced, so a live drag does not double its frames.
+  if (!redrawPosted_ && viewer_->widget()) {
+    redrawPosted_ = true;
+    QTimer::singleShot(0, this, [this] {
+      redrawPosted_ = false;
+      if (!ending_ && viewer_) viewer_->requestRedraw();
+    });
+  }
 }
 
 void SketchSession::renderGeometry() {

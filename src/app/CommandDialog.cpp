@@ -22,8 +22,11 @@ namespace fabricad::app {
 
 namespace {
 constexpr int kWidth = 300;
-constexpr int kLeftMargin = 12;  // docked next to the browser (left edge of the viewport)
+// Docked to the viewport's right edge (ux.md: "docked to viewport right edge"), below the
+// ViewCube and its controls, like the sketch palette (SK-05).
+constexpr int kRightMargin = 12;
 constexpr int kTopMargin = 12;
+constexpr int kDockTop = 150;  // below the ViewCube (same top as the sketch palette)
 constexpr int kMaxBodyHeight = 380;  // taller bodies (Joint) scroll
 constexpr int kWrapChars = 40;       // body labels longer than this word-wrap
 }  // namespace
@@ -98,7 +101,7 @@ CommandDialog::CommandDialog(QWidget* viewport) : QFrame(viewport), viewport_(vi
 }
 
 void CommandDialog::present(const QString& title, const QIcon& icon, QWidget* body, bool buttons) {
-  dismiss();
+  clearBody();  // the next body takes over; the keyboard focus stays where it is
   stableHeight_ = 0;
   titleText_->setText(title.toUpper());
   titleIcon_->setPixmap(icon.isNull() ? QPixmap() : icon.pixmap(18, 18));
@@ -123,6 +126,18 @@ void CommandDialog::present(const QString& title, const QIcon& icon, QWidget* bo
 }
 
 void CommandDialog::dismiss() {
+  // Give the keyboard back to the viewport when the focus was inside the dialog, so the next
+  // Esc reaches the canvas (and the tool) instead of whatever widget is next in the chain
+  // (SK-08). Focus outside the dialog (the command line while typing) is never taken.
+  if (isVisible() && viewport_) {
+    QWidget* f = QApplication::focusWidget();
+    if (f && (f == this || isAncestorOf(f))) viewport_->setFocus(Qt::OtherFocusReason);
+  }
+  clearBody();
+  hide();
+}
+
+void CommandDialog::clearBody() {
   if (body_) {
     QWidget* b = body_;
     body_.clear();
@@ -132,7 +147,6 @@ void CommandDialog::dismiss() {
     b->deleteLater();       // tools may still hold QPointers; never delete synchronously
   }
   scroll_->hide();
-  hide();
 }
 
 void CommandDialog::setAcceptEnabled(bool enabled) {
@@ -153,6 +167,7 @@ void CommandDialog::relayout() {
   relayoutPending_ = false;
   if (!viewport_) return;
   const int vpH = viewport_->height();
+  const int top = dockTop();
   const int innerW = kWidth - 2 * frameWidth();
   int contentH = 0;
   if (body_) {
@@ -164,12 +179,12 @@ void CommandDialog::relayout() {
   int chrome = title_->sizeHint().height() + 8 + 4;
   chrome += std::max(message_->minimumHeight(), message_->heightForWidth(kWidth - 2 * frameWidth())) + 4;
   if (buttonRow_->isVisibleTo(this)) chrome += buttonRow_->sizeHint().height() + 4;
-  const int cap = std::max(60, std::min(kMaxBodyHeight, vpH - 2 * kTopMargin - chrome));
+  const int cap = std::max(60, std::min(kMaxBodyHeight, vpH - top - kTopMargin - chrome));
   scroll_->setFixedHeight(body_ ? std::min(contentH, cap) : 0);
   if (QLayout* l = layout()) l->activate();
   const int natural = hasHeightForWidth() ? heightForWidth(kWidth) : sizeHint().height();
   // grow freely; never shrink while the same command runs (unless the viewport got smaller)
-  const int h = std::max(natural, std::min(stableHeight_, std::max(natural, vpH - 2 * kTopMargin)));
+  const int h = std::max(natural, std::min(stableHeight_, std::max(natural, vpH - top - kTopMargin)));
   stableHeight_ = h;
   setFixedHeight(h);
 }
@@ -178,10 +193,16 @@ void CommandDialog::place() {
   if (!viewport_) return;
   const QRect area = viewport_->rect();
   QPoint p = pos();
-  if (!userMoved_) p = QPoint(kLeftMargin, kTopMargin);
+  if (!userMoved_) p = QPoint(area.width() - width() - kRightMargin, dockTop());
   p.setX(std::clamp(p.x(), 0, std::max(0, area.width() - width())));
   p.setY(std::clamp(p.y(), 0, std::max(0, area.height() - std::min(height(), area.height()))));
   move(p);
+}
+
+int CommandDialog::dockTop() const {
+  if (!viewport_) return kTopMargin;
+  // a short viewport: give the dialog the height rather than keep clear of the cube
+  return viewport_->height() < 2 * kDockTop + 200 ? kTopMargin : kDockTop;
 }
 
 void CommandDialog::reposition() {
@@ -239,7 +260,7 @@ bool CommandDialog::eventFilter(QObject* o, QEvent* e) {
       return true;
     }
     if (e->type() == QEvent::MouseButtonDblClick) {
-      userMoved_ = false;  // double-click the title: dock back to the top-left corner
+      userMoved_ = false;  // double-click the title: dock back to the right edge
       place();
       return true;
     }

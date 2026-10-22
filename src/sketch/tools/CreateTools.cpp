@@ -469,6 +469,24 @@ class LineTool : public SketchTool {
   }
 
   /// Driving dimensions for the segment `id` from pending_ (typed boxes / command line).
+  /// addLockedDimension for a chain segment, except that a typed value the geometry already has
+  /// through other constraints is not added again as a duplicate driven dimension (SK-12).
+  void lineDim(ToolContext& ctx, const ValueField& f, Constraint c) {
+    Sketch* sk = sketch();
+    if (!sk) return;
+    Sketch probe = *sk;
+    Constraint pc = c;
+    pc.value = f.value;
+    const int pid = probe.addConstraint(pc);
+    const SolveResult r = probe.solve();
+    const bool redundant = std::count(r.redundant.begin(), r.redundant.end(), pid) > 0;
+    if (redundant) {
+      auto m = sk->measure(pc);
+      if (m && std::abs(*m - f.value) < 1e-6) return;
+    }
+    addLockedDimension(ctx, f, std::move(c));
+  }
+
   void addPendingDims(ToolContext& ctx, int id) {
     PendingLineDims p = pending_;
     pending_ = {};
@@ -482,16 +500,16 @@ class LineTool : public SketchTool {
         // axis-aligned: H/V (from inference, re-added here to be safe) + the length
         sk->addConstraint(Constraint{.type = std::abs(d.y) < kEps ? ConstraintType::Horizontal : ConstraintType::Vertical, .a = {id}});
         f.value = d.length();
-        addLockedDimension(ctx, f, Constraint{.type = ConstraintType::Distance, .a = {id}});
+        lineDim(ctx, f, Constraint{.type = ConstraintType::Distance, .a = {id}});
       } else {
         f.value = d.x;
-        addLockedDimension(ctx, f, Constraint{.type = ConstraintType::DistanceX, .a = {id, PointPos::Start}, .b = {id, PointPos::End}});
+        lineDim(ctx, f, Constraint{.type = ConstraintType::DistanceX, .a = {id, PointPos::Start}, .b = {id, PointPos::End}});
         f.value = d.y;
-        addLockedDimension(ctx, f, Constraint{.type = ConstraintType::DistanceY, .a = {id, PointPos::Start}, .b = {id, PointPos::End}});
+        lineDim(ctx, f, Constraint{.type = ConstraintType::DistanceY, .a = {id, PointPos::Start}, .b = {id, PointPos::End}});
       }
       return;
     }
-    if (p.length) addLockedDimension(ctx, *p.length, Constraint{.type = ConstraintType::Distance, .a = {id}});
+    if (p.length) lineDim(ctx, *p.length, Constraint{.type = ConstraintType::Distance, .a = {id}});
     if (p.angle) {
       if (addRightAngleInstead(ctx, id, p.angle->value, p.referenceLine)) return;
       Constraint c{.type = ConstraintType::Angle};
@@ -508,7 +526,7 @@ class LineTool : public SketchTool {
         c.a = {id};
       }
       f.value = v;
-      addLockedDimension(ctx, f, c);
+      lineDim(ctx, f, c);
     }
   }
 
@@ -524,6 +542,18 @@ class LineTool : public SketchTool {
       return;
     }
     if (p.distance(*last_) < kEps) return;
+    // a segment straight back over the previous one would only overlap it (SK-12)
+    if (lastLine_ >= 0 && lastDir_) {
+      const Pt2 d = (p - *last_).normalized();
+      const Pt2 prev = lastDir_->normalized();
+      if (std::abs(prev.cross(d)) < 1e-6 && prev.dot(d) < 0) {
+        ctx.showMessage("Segment would retrace the previous line: not added", true);
+        pending_ = {};
+        values().resetInput();
+        updateBoxes();
+        return;
+      }
+    }
     session()->beginEdit();
     int id = sk->addGeometry(asCreated(Geometry::makeLine(*last_, p)));
     if (lastRef_) sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {id, PointPos::Start}, .b = *lastRef_});

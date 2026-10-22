@@ -180,6 +180,52 @@ class FeatureTest : public QObject {
     QVERIFY(near(sk2->sketch().geometry(ids[0])->length(), 50.0));
   }
 
+  // SK-04: a face sketch keeps the normal side and X axis it was created with, whatever
+  // orientation / parametrisation later recomputes resolve the face with
+  void storedPlaneAxesStayStable() {
+    SketchFeature f;
+    QVERIFY(!f.hasStoredPlaneAxes());
+    const gp_Ax3 first(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0));
+    gp_Ax3 a = f.alignToStoredAxes(first);  // first recompute stores
+    QVERIFY(f.hasStoredPlaneAxes());
+    QVERIFY(a.Direction().IsEqual(first.Direction(), 1e-12));
+    // same face, reversed and with another X: aligned back
+    const gp_Ax3 flipped(gp_Pnt(0, 0, 5), gp_Dir(0, 0, -1), gp_Dir(0, 1, 0));
+    a = f.alignToStoredAxes(flipped);
+    QVERIFY(a.Direction().IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    QVERIFY(a.XDirection().IsEqual(gp_Dir(1, 0, 0), 1e-12));
+    QVERIFY(a.YDirection().IsEqual(gp_Dir(0, 1, 0), 1e-12));
+    QVERIFY(a.Location().IsEqual(gp_Pnt(0, 0, 5), 1e-12));
+    // slightly tilted (upstream edit): stored X projected onto the new plane
+    const gp_Dir tn(0, 0.01, 1);
+    a = f.alignToStoredAxes(gp_Ax3(gp_Pnt(0, 0, 5), tn, gp_Dir(0, 1, -0.01)));
+    QVERIFY(a.Direction().IsEqual(tn, 1e-12));
+    QVERIFY(a.XDirection().IsEqual(gp_Dir(1, 0, 0), 1e-9));
+    // JSON round trip keeps the axes
+    SketchFeature g;
+    g.fromJson(f.toJson());
+    QVERIFY(g.hasStoredPlaneAxes());
+    a = g.alignToStoredAxes(flipped);
+    QVERIFY(a.Direction().IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    // a mirrored (left-handed) frame from an older file keeps its handedness
+    SketchFeature m;
+    gp_Ax3 left(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0));
+    left.YReverse();
+    QVERIFY(!left.Direct());
+    m.alignToStoredAxes(left);
+    SketchFeature m2;
+    m2.fromJson(m.toJson());
+    a = m2.alignToStoredAxes(gp_Ax3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, -1), gp_Dir(1, 0, 0)));
+    QVERIFY(!a.Direct());
+    QVERIFY(a.Direction().IsEqual(gp_Dir(0, 0, 1), 1e-12));
+    QVERIFY(a.YDirection().IsEqual(gp_Dir(0, -1, 0), 1e-12));
+    // another face (not parallel): the axes start over
+    const gp_Ax3 side(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0), gp_Dir(0, 1, 0));
+    a = g.alignToStoredAxes(side);
+    QVERIFY(a.Direction().IsEqual(side.Direction(), 1e-12));
+    QVERIFY(a.XDirection().IsEqual(side.XDirection(), 1e-12));
+  }
+
   void missingPlaneIsAnError() {
     core::Document doc;
     auto f = std::make_unique<SketchFeature>();

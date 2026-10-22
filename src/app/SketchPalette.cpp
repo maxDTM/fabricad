@@ -247,7 +247,7 @@ void SketchPalette::reposition(const QWidget* above) {
   }
   int x = p->width() - width() - kRightMargin;
   int y = kTop;
-  // the command dialog docks at the left; only avoid it when it overlaps this column
+  // the command dialog also docks top-right: stack below it, or go left of it when no room
   if (above && above->isVisible()) {
     const QRect a = above->geometry();
     if (a.right() >= x && a.left() <= x + width() && a.top() < y + height() && a.bottom() > y) {

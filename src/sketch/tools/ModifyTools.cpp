@@ -144,9 +144,17 @@ class FilletTool : public SketchTool {
   void activate(ToolContext& ctx) override {
     SketchTool::activate(ctx);
     picks_.clear();
+    firstArc_ = -1;
+    radiusText_.clear();
     radius_ = lastRadius_;
     if (!ctx.args.empty())
-      if (auto v = evaluateTyped(ctx, ctx.args[0], false)) radius_ = lastRadius_ = *v;
+      if (auto v = evaluateTyped(ctx, ctx.args[0], false)) {
+        radius_ = lastRadius_ = *v;
+        radiusText_ = ctx.args[0];
+      }
+    // typed radius in an on-screen box, like the other sketch tools (SK-06)
+    defineValues({ValueField{.id = "radius", .label = "Radius", .kind = ValueKind::Length}});
+    values().setMeasured("radius", radius_);
     if (session() && sketch()) {
       for (int id : session()->selectedCurves()) {
         const Geometry* g = sketch()->geometry(id);
@@ -163,6 +171,8 @@ class FilletTool : public SketchTool {
     Sketch* sk = sketch();
     if (!c || !sk) return false;
     clearTemp();
+    setValue("radius", radius_, *c);
+    showValueBoxes(*c);
     for (const auto& [id, at] : picks_)
       if (const Geometry* g = sk->geometry(id)) previewGeometry(*g, highlightStyle());
     if (auto hit = sk->hitCurve(*c, tol(*c))) {
@@ -197,7 +207,28 @@ class FilletTool : public SketchTool {
       return true;
     }
     radius_ = lastRadius_ = *v;
+    radiusText_ = text;
+    values().resetInput();
+    values().setMeasured("radius", radius_);
     ctx.setPrompt(prompt());
+    return true;
+  }
+
+  /// Enter in the radius box: the typed value becomes the radius of the next fillets.
+  bool commitValues(ToolContext& ctx) override {
+    const ValueField* f = values().field("radius");
+    if (!f || !f->locked) return false;
+    if (f->value <= 0) {
+      ctx.showMessage("radius must be positive", true);
+      values().resetInput();
+      return true;
+    }
+    radius_ = lastRadius_ = f->value;
+    radiusText_ = f->text;
+    values().resetInput();
+    values().setMeasured("radius", radius_);
+    ctx.setPrompt(prompt());
+    if (picks_.size() == 2) apply(ctx);
     return true;
   }
 
@@ -222,6 +253,7 @@ class FilletTool : public SketchTool {
       session()->cancelEdit();
       ctx.showMessage("Fillet cancelled: the sketch constraints cannot hold it (" + solved.message + ")", true);
     } else {
+      addRadiusDimension(ctx, *arc);
       session()->commitEdit("Fillet");
       for (const std::string& n : sk->takeDemotedDimensions())
         ctx.showMessage(n + " is now a driven dimension (its corner was filleted)");
@@ -231,8 +263,24 @@ class FilletTool : public SketchTool {
     clearTemp();
   }
 
+  /// The first fillet of a tool run gets a Radius dimension; later ones of the same radius are
+  /// made Equal to it (Fusion-like, less clutter). Same edit as the fillet (one undo step).
+  void addRadiusDimension(ToolContext& ctx, int arc) {
+    Sketch* sk = sketch();
+    if (!sk) return;
+    const Geometry* first = firstArc_ >= 0 ? sk->geometry(firstArc_) : nullptr;
+    if (first && first->type == GeomType::Arc && std::abs(first->radius() - radius_) < 1e-9) {
+      if (addCheckedConstraint(ctx, Constraint{.type = ConstraintType::Equal, .a = {arc}, .b = {firstArc_}}) >= 0) return;
+    }
+    ValueField f{.id = "radius", .label = "Radius", .kind = ValueKind::Length, .text = radiusText_, .value = radius_, .locked = true};
+    addLockedDimension(ctx, f, Constraint{.type = ConstraintType::Radius, .a = {arc}});
+    firstArc_ = arc;
+  }
+
   inline static double lastRadius_ = 5.0;
   double radius_ = 5.0;
+  std::string radiusText_;  ///< typed radius text (an expression becomes the dimension's expression)
+  int firstArc_ = -1;       ///< arc of the first fillet in this tool run
   std::vector<std::pair<int, Pt2>> picks_;
 };
 
@@ -299,7 +347,7 @@ class TrimTool : public SketchTool {
     session()->beginEdit();
     sk->trim(id, at);
     session()->commitEdit("Trim");
-    ctx.setPrompt(session()->statusText());
+    ctx.setPrompt("Select the piece of a curve to remove");
   }
   bool pressed_ = false;
 };
@@ -1132,6 +1180,13 @@ class DimensionTool : public SketchTool {
       }
       sk->constraint(id)->driven = true;
       sk->solve();
+      // a driven dimension only reports its value: add it now, no value prompt (SK-07)
+      session()->commitEdit("Dimension");
+      ctx.showMessage("Driven dimension added");
+      reset();
+      ctx.setPrompt(prompt());
+      if (ctx.host) ctx.host->refreshToolDialog();
+      return;
     }
     session()->refresh();
     pendingId_ = id;
@@ -1145,7 +1200,7 @@ class DimensionTool : public SketchTool {
     if (phase_ != Phase::Value) return;
     if (session()) {
       session()->commitEdit("Dimension");
-      ctx.showMessage(session()->statusText());
+      ctx.showMessage("Dimension added");
     }
     reset();
     ctx.setPrompt(prompt());
@@ -1228,7 +1283,7 @@ class DimensionEditTool : public SketchTool {
       return true;
     }
     session()->commitEdit("Edit dimension");
-    ctx.showMessage(session()->statusText());
+    ctx.showMessage("Dimension changed");
     ctx.finish();
     return true;
   }

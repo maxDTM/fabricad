@@ -12,6 +12,11 @@
 #include "core/ShapeUtils.h"
 #include "core/UndoStack.h"
 
+#include <BRepBndLib.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <BRepGProp.hxx>
+#include <Bnd_Box.hxx>
+#include <GProp_GProps.hxx>
 #include <QtCore/Qt>
 
 #include <algorithm>
@@ -37,6 +42,32 @@ std::string upper(std::string s) {
 
 bool isPlaneRef(const ShapeRef& r) { return core::hasKind(core::kPlaneKinds, r.kind); }
 
+/// The plane of a new sketch on a body face: the normal points out of the material (the face
+/// as resolved may come with its surface's inward normal) and the axes are right-handed, so
+/// the sketch is looked at from outside and never mirrored (SK-04).
+gp_Ax3 outwardFacePlane(const core::Document& doc, const ShapeRef& ref, const gp_Ax3& pl) {
+  gp_Dir n = pl.Direction();
+  const TopoDS_Shape face = core::resolveShape(doc, ref);
+  const TopoDS_Shape body = core::resolveShape(doc, ShapeRef::body(ref.owner));
+  if (!face.IsNull() && !body.IsNull()) {
+    GProp_GProps props;
+    BRepGProp::SurfaceProperties(face, props);
+    const gp_Pnt c = props.CentreOfMass();
+    Bnd_Box box;
+    BRepBndLib::Add(body, box);
+    const double eps = box.IsVoid() ? 1e-3 : std::max(1e-3, 1e-4 * std::sqrt(box.SquareExtent()));
+    auto state = [&](double side) {
+      BRepClass3d_SolidClassifier cls(body, c.Translated(gp_Vec(n) * (side * eps)), 1e-7);
+      return cls.State();
+    };
+    if (state(1.0) == TopAbs_IN && state(-1.0) == TopAbs_OUT) n.Reverse();
+  }
+  return gp_Ax3(pl.Location(), n, pl.XDirection());
+}
+
+/// Static prompt of the idle select tool (the DOF count is shown by the status bar label).
+constexpr const char* kSelectHint = "Select sketch geometry; drag to move";
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -53,7 +84,10 @@ core::ObjectId createSketch(ToolContext& ctx, const ShapeRef& plane) {
   }
   auto feature = std::make_unique<SketchFeature>();
   feature->prop("plane").setRef(plane);
-  feature->setPlane(*resolved);
+  // a face plane: outward and right-handed, kept on every later recompute (SK-04)
+  const gp_Ax3 start = plane.kind == core::ShapeKind::Face ? outwardFacePlane(doc, plane, *resolved) : *resolved;
+  feature->setPlane(start);
+  if (plane.kind == core::ShapeKind::Face) feature->storePlaneAxes(start);
   core::ObjectId id = core::kInvalidId;
   if (ctx.undo) {
     auto cmd = std::make_unique<core::AddFeatureCommand>(doc, std::move(feature));
@@ -247,7 +281,7 @@ class SelectTool : public SketchTool {
     if (viewer_) viewer_->setCursor(core::CursorShape::Arrow);
     pressed_ = false;
     dragging_ = false;
-    if (session()) ctx.setPrompt(session()->statusText());
+    ctx.setPrompt(kSelectHint);  // the DOF count lives in the status bar label only (SK-09)
   }
 
   // Esc / Enter must not end the idle tool: Esc clears the selection, Enter is a no-op.
@@ -329,7 +363,7 @@ class SelectTool : public SketchTool {
       dragging_ = false;
       if (sk) sk->endDrag();
       session()->commitEdit("Move");
-      ctx.setPrompt(session()->statusText());
+      ctx.setPrompt(kSelectHint);
       return true;
     }
     if (moved_) {
@@ -392,14 +426,15 @@ class SelectTool : public SketchTool {
 
   bool keyPress(ToolContext& ctx, const ViewerKeyEvent& e) override {
     if (e.key == Qt::Key_Delete || e.key == Qt::Key_Backspace) {
-      if (session() && session()->deleteSelection()) ctx.setPrompt(session()->statusText());
+      if (session() && session()->deleteSelection()) ctx.setPrompt(kSelectHint);
       return true;
     }
     if (e.key == Qt::Key_Escape) {
       cancel(ctx);
       return true;
     }
-    if (e.key == Qt::Key_Return || e.key == Qt::Key_Enter) return true;
+    // plain Enter is a no-op here; Ctrl+Enter (Finish Sketch) and other combos stay shortcuts (SK-01)
+    if ((e.key == Qt::Key_Return || e.key == Qt::Key_Enter) && !(e.modifiers & (core::ModCtrl | core::ModAlt))) return true;
     return false;
   }
 
@@ -454,6 +489,32 @@ void registerModeTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<EditSketchTool>());
   reg.registerTool(std::make_unique<FinishSketchTool>());
   reg.registerTool(std::make_unique<SelectTool>());
+  // Ctrl+A: select every sketch entity (SK-10); runs beside the active tool
+  reg.registerTool(std::make_unique<core::LambdaTool>(
+      ToolInfo{.id = "sketch.select-all",
+               .name = "Select All",
+               .tooltip = "Select every curve and point of the sketch",
+               .icon = "sketch-select-all",
+               .shortcut = "Ctrl+A",
+               .aliases = {"SELECTALL"},
+               .tab = "SKETCH",
+               .group = "SELECT",
+               .order = 2,
+               .repeatable = false,
+               .hidden = true,
+               .keepsActiveTool = true},
+      [](ToolContext& ctx) {
+        SketchSession* s = SketchSession::current();
+        Sketch* sk = s ? s->sketch() : nullptr;
+        if (!sk || !ctx.selection) return;
+        std::vector<ShapeRef> refs;
+        for (const Geometry& g : sk->geometries())
+          if (!g.projected) refs.push_back(s->toShapeRef({g.id, PointPos::None}));
+        ctx.selection->set(refs);
+        s->render();
+        ctx.showMessage(std::format("{} sketch entities selected", refs.size()));
+      },
+      [](const ToolContext& ctx) { return ctx.document && SketchSession::current(); }));
   reg.registerTool(paletteToggle("sketch.look-at", "Look At", "Look straight at the sketch plane", 1,
                                  [](SketchSession& s, ToolContext& ctx) {
                                    if (ctx.viewer) ctx.viewer->lookAt(s.feature() ? s.feature()->plane() : gp_Ax3(), true);

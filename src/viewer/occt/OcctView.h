@@ -64,6 +64,9 @@ class OcctView : public QOpenGLWidget, public AIS_ViewController {
   void animateTo(const Handle(Graphic3d_Camera)& target, double seconds = 0.25);
   /// Stop a running camera animation.
   void stopAnimation();
+  /// Jump a running camera animation to its end camera (true when one was running): input
+  /// must not be projected with a camera that is still moving (SK-03).
+  bool finishAnimation();
   /// Request a repaint of the immediate layer and Qt overlay only (the last full frame is
   /// reused): rubber band, overlay controls.
   void updateView() { update(); }

@@ -106,6 +106,7 @@ void SketchFeature::recompute(core::RecomputeContext& ctx) {
       // through the context: history name first, index/signature refreshed on a re-match
       TopoDS_Shape face = ctx.resolve(planeRef);
       if (!face.IsNull()) pl = core::facePlane(face);
+      if (pl) pl = alignToStoredAxes(*pl);
       if (pl) prop("plane").setRef(planeRef);  // keeps the refreshed index / signature / name
     } else {
       pl = ctx.plane(planeRef);
@@ -349,8 +350,38 @@ std::string SketchFeature::statusText() const {
 // JSON
 // ---------------------------------------------------------------------------
 
+void SketchFeature::storePlaneAxes(const gp_Ax3& p) { planeAxes_ = PlaneAxes{p.Direction(), p.XDirection(), p.Direct()}; }
+
+gp_Ax3 SketchFeature::alignToStoredAxes(const gp_Ax3& p) {
+  if (!planeAxes_) {
+    storePlaneAxes(p);
+    return p;
+  }
+  gp_Dir n = p.Direction();
+  const double d = n.Dot(planeAxes_->normal);
+  if (std::abs(d) < 0.999) {  // another face (the plane reference was changed): start over
+    storePlaneAxes(p);
+    return p;
+  }
+  if (d < 0) n.Reverse();  // same face, other orientation: keep the side the sketch was made on
+  // the stored X projected on the (possibly tilted) plane; the plane's own X if degenerate
+  gp_Vec x(planeAxes_->x);
+  x -= gp_Vec(n) * x.Dot(gp_Vec(n));
+  gp_Dir xd = p.XDirection();
+  if (x.Magnitude() > 1e-6) xd = gp_Dir(x);  // else the plane's X (perpendicular to +-n)
+  gp_Ax3 out(p.Location(), n, xd);
+  if (!planeAxes_->direct) out.YReverse();  // same handedness as stored
+  return out;
+}
+
 QJsonObject SketchFeature::toJson() const {
   QJsonObject o = Feature::toJson();
+  if (planeAxes_) {
+    const gp_Dir& n = planeAxes_->normal;
+    const gp_Dir& x = planeAxes_->x;
+    o["planeAxes"] = QJsonArray{n.X(), n.Y(), n.Z(), x.X(), x.Y(), x.Z()};
+    if (!planeAxes_->direct) o["planeAxesMirrored"] = true;
+  }
   QJsonObject sk = sketch_.toJson();
   o["geometry"] = sk["geometry"];
   o["constraints"] = sk["constraints"];
@@ -362,6 +393,15 @@ QJsonObject SketchFeature::toJson() const {
 void SketchFeature::fromJson(const QJsonObject& o) {
   Feature::fromJson(o);
   sketch_.fromJson(o);
+  // older files have no axes: the first recompute stores the ones it computes
+  if (const QJsonArray a = o["planeAxes"].toArray(); a.size() == 6) {
+    const gp_Vec n(a[0].toDouble(), a[1].toDouble(), a[2].toDouble());
+    gp_Vec x(a[3].toDouble(), a[4].toDouble(), a[5].toDouble());
+    if (n.Magnitude() > 1e-9) {
+      x -= n.Normalized() * x.Dot(n.Normalized());
+      if (x.Magnitude() > 1e-9) planeAxes_ = PlaneAxes{gp_Dir(n), gp_Dir(x), !o["planeAxesMirrored"].toBool()};
+    }
+  }
   invalidateProfiles();
 }
 
