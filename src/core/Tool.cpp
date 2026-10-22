@@ -8,7 +8,9 @@
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
 
+#include <QCoreApplication>
 #include <QKeySequence>
+#include <QStringList>
 
 #include <algorithm>
 #include <cctype>
@@ -16,6 +18,39 @@
 #include <sstream>
 
 namespace fabricad::core {
+
+namespace {
+std::optional<bool>& batchOverride() {
+  static std::optional<bool> v;
+  return v;
+}
+
+bool detectBatchMode() {
+  const QByteArray env = qgetenv("FABRICAD_BATCH");
+  if (!env.isEmpty()) return env != "0";
+  if (!QCoreApplication::instance()) return false;
+  const QStringList args = QCoreApplication::arguments();
+  bool script = false;
+  for (qsizetype i = 1; i < args.size(); ++i) {
+    const QString& a = args[i];
+    if (a == "--script" || a == "-s") script = true;
+    else if (a == "--stay") return false;
+    else if (a == "--step-delay" && i + 1 < args.size() && args[i + 1].toInt() > 0) return false;
+  }
+  return script;
+}
+}  // namespace
+
+bool isBatchMode() {
+  if (batchOverride()) return *batchOverride();
+  static std::optional<bool> detected;
+  if (detected) return *detected;
+  const bool v = detectBatchMode();
+  if (QCoreApplication::instance()) detected = v;  // the command line is final once the app exists
+  return v;
+}
+
+void setBatchMode(std::optional<bool> on) { batchOverride() = on; }
 
 namespace {
 std::string lower(std::string s) {

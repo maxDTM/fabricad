@@ -181,6 +181,7 @@ void TransformFeature::applyComponentTransforms(core::RecomputeContext& ctx, con
     return;
   }
   // The pattern's directions live in the frame of the component the feature belongs to.
+  noteScopeOpaque();
   const core::ObjectId owner = component() != core::kInvalidId && doc.component(component()) ? component() : core::kRootComponentId;
   const gp_Trsf frame = doc.worldPlacement(owner);
   const QJsonArray inst = prop("instances").json().toArray();

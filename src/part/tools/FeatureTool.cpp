@@ -109,6 +109,9 @@ void FeatureTool::resetState() {
   outcome_ = {};
   valid_ = false;
   message_.clear();
+  previewPending_ = false;
+  panelRebuildPending_ = false;
+  pendingCtx_ = nullptr;
 }
 
 void FeatureTool::activate(core::ToolContext& ctx) {
@@ -429,7 +432,10 @@ void FeatureTool::onManipulatorEvent(core::ToolContext& ctx, const core::Manipul
     if (ctx.selection) ctx.selection->setEnabled(true);
   }
   if (changed || ending) {
-    if (ending && !editing_) autoOperation(ctx);
+    if (ending && !editing_) {
+      flushPreview(ctx);  // autoOperation() reads the current tool solid
+      autoOperation(ctx);
+    }
     updatePreview(ctx);
     if (ending && panel_) panel_->refresh();
   }
@@ -488,7 +494,8 @@ bool FeatureTool::autoPrimitiveOperation(core::RecomputeContext& rctx) {
   if (const core::Property* t = f->property("targets"); t && !t->refs().empty()) return false;
   if (outcome_.tool.IsNull()) return false;
   bool touches = false;
-  for (core::ObjectId id : bodiesInScope(rctx)) {
+  // the scope as the feature's own compute sees it (bodiesInScope() would record a scope use)
+  for (core::ObjectId id : bodiesInComponentTree(rctx.document(), f->component(), rctx.bodies())) {
     const TopoDS_Shape& body = rctx.bodyShape(id);
     if (!body.IsNull() && shapesTouch(body, outcome_.tool)) {
       touches = true;
@@ -508,10 +515,11 @@ void FeatureTool::autoFlipForCut(core::ToolContext& ctx) {
   if (f->enumIndex("direction") != ExtrudeFeature::OneSide || f->enumIndex("extentType") != ExtrudeFeature::Distance) return;
   core::Property* flip = f->property("flip");
   if (!flip || flip->toBool()) return;
+  flushPreview(ctx);  // the decision below reads the current tool solid
   const double before = materialFraction(ctx, outcome_.tool);
   if (before < 0 || before > 0.01) return;  // already (partly) in material, or no tool yet
   flip->setBool(true);
-  updatePreview(ctx);
+  computePreview(ctx);
   const double after = materialFraction(ctx, outcome_.tool);
   if (after > 0.01) {
     flipAuto_ = true;
@@ -532,6 +540,31 @@ void FeatureTool::undoAutoFlip(core::ToolContext& ctx) {
 }
 
 void FeatureTool::updatePreview(core::ToolContext& ctx) {
+  PartFeature* f = feature();
+  if (!f || !ctx.document) return;
+  if (!editing_ && core::isBatchMode()) {
+    // script run: nobody sees the preview; compute it once, when its result is needed
+    f->updatePropertyFlags();
+    previewPending_ = true;
+    core::ToolContext* active = ctx.manager ? ctx.manager->activeContext() : nullptr;
+    pendingCtx_ = active ? active : &ctx;
+    // OK must reach accept(), which computes the result and refuses an invalid feature itself
+    if (ctx.host) ctx.host->setToolAcceptEnabled(true);
+    return;
+  }
+  computePreview(ctx);
+}
+
+void FeatureTool::flushPreview(core::ToolContext& ctx) {
+  if (previewPending_) computePreview(ctx);
+}
+
+void FeatureTool::ensurePreview() const {
+  if (previewPending_ && pendingCtx_) const_cast<FeatureTool*>(this)->computePreview(*pendingCtx_);
+}
+
+void FeatureTool::computePreview(core::ToolContext& ctx) {
+  previewPending_ = false;
   PartFeature* f = feature();
   if (!f || !ctx.document) return;
   f->updatePropertyFlags();
@@ -571,6 +604,7 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
   } else {
     auto run = [&]() {
       auto c = std::make_unique<core::RecomputeContext>(doc, *working_, doc.bodyStatesAfter(doc.rollbackIndex() - 1));
+      working_->clearScopeUse();
       try {
         working_->compute(*c, outcome_);
       } catch (const Standard_Failure& e) {
@@ -588,6 +622,8 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
     }
     core::RecomputeContext& rctx = *rc;
     valid_ = !rctx.hasError();
+    previewWarnings_ = rctx.warnings();
+    previewInput_ = rctx.state();  // compute() never writes the state: this is its input
     message_ = rctx.hasError() ? rctx.errorMessage() : (rctx.hasWarning() ? rctx.warnings().front() : std::string());
     if (valid_ && ctx.viewer) {
       for (const auto& pv : outcome_.previews) previews_.push_back(ctx.viewer->showPreviewShape(pv.shape, styleFor(pv.operation)));
@@ -612,8 +648,23 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
   if (ctx.viewer) ctx.viewer->requestRedraw();
 }
 
+void FeatureTool::rebuildPanel() {
+  if (!panel_) return;
+  if (previewPending_) {
+    panelRebuildPending_ = true;  // batch mode: rebuilt once, with the deferred preview
+    return;
+  }
+  panel_->rebuild();
+}
+
 void FeatureTool::rebuildPanelIfNeeded() {
-  if (!panel_ || !panel_->needsRebuild()) return;
+  if (!panel_) return;
+  if (panelRebuildPending_) {
+    panelRebuildPending_ = false;
+    panel_->rebuild();
+    return;
+  }
+  if (!panel_->needsRebuild()) return;
   QString focusName;
   if (QWidget* fw = QApplication::focusWidget(); fw && panel_->isAncestorOf(fw)) focusName = fw->objectName();
   panel_->rebuild();
@@ -698,7 +749,7 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
       p->setEnum(value);
       if (name == "operation") operationAuto_ = false;  // the user chose: stop switching Join/Cut automatically
       updatePreview(ctx);
-      if (panel_) panel_->rebuild();
+      rebuildPanel();
       return true;
     }
     if (p->type() == core::PropertyType::Bool) {
@@ -709,7 +760,7 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
     if (p->type() == core::PropertyType::String) {
       p->setString(value);
       updatePreview(ctx);
-      if (panel_) panel_->rebuild();
+      rebuildPanel();
       return true;
     }
     return false;
@@ -721,7 +772,7 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
   if (textProp.empty()) return false;
   feature()->prop(textProp).setString(t);
   updatePreview(ctx);
-  if (panel_) panel_->rebuild();
+  rebuildPanel();
   return true;
 }
 
@@ -769,6 +820,12 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
 void FeatureTool::accept(core::ToolContext& ctx) {
   if (!ctx.document) {
     ctx.cancel();
+    return;
+  }
+  flushPreview(ctx);  // batch mode: the one computation of the feature before it is committed
+  if (!editing_ && core::isBatchMode() && !valid_ && !(panel_ && panel_->hasInvalid())) {
+    // what the disabled OK button says interactively (MainWindow::acceptActiveTool)
+    ctx.showMessage(std::format("OK is disabled for {}{}", info().name, message_.empty() ? "" : ": " + message_), true);
     return;
   }
   if (panel_ && panel_->hasInvalid()) {
@@ -823,6 +880,10 @@ void FeatureTool::accept(core::ToolContext& ctx) {
   }
   if (prepare && ctx.undo) ctx.undo->beginMacro(text);
   if (prepare) working_->prepareCommit(*ctx.document, ctx.undo);
+  // Batch mode: the feature was just computed once for OK; the commit's recompute reuses that
+  // result when nothing changed (appended at the end of the timeline, same input state).
+  if (core::isBatchMode() && !prepare && ctx.document->rollbackIndex() == ctx.document->featureCount())
+    working_->adoptPrecomputed(outcome_, previewWarnings_, previewInput_);
   auto cmd = std::make_unique<core::AddFeatureCommand>(*ctx.document, std::move(working_));
   cmd->setText(text);
   if (ctx.undo) ctx.undo->push(std::move(cmd));
@@ -837,6 +898,7 @@ void FeatureTool::accept(core::ToolContext& ctx) {
 }
 
 void FeatureTool::cancel(core::ToolContext& ctx) {
+  previewPending_ = false;
   clearPreviews(ctx);
   if (editing_ && ctx.document) {
     editing_->fromJson(before_);
@@ -850,6 +912,8 @@ void FeatureTool::cancel(core::ToolContext& ctx) {
 }
 
 void FeatureTool::deactivate(core::ToolContext& ctx) {
+  previewPending_ = false;
+  pendingCtx_ = nullptr;
   valueBox_.reset();
   clearPreviews(ctx);
   clearManipulators(ctx);

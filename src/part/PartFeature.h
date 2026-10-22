@@ -15,6 +15,7 @@
 #include <gp_Trsf.hxx>
 
 #include <map>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -72,6 +73,17 @@ class PartFeature : public core::Feature {
   /// compute() + commit(). Final: subclasses implement compute().
   void recompute(core::RecomputeContext& ctx) final;
 
+  /// Batch mode (FeatureTool, script runs): the Outcome of the preview that was computed from
+  /// `inputState` just before the feature is committed. The next recompute commits it instead of
+  /// computing again when its input state is the same (one shot; any other input recomputes).
+  void adoptPrecomputed(Outcome out, std::vector<std::string> warnings, std::map<core::ObjectId, TopoDS_Shape> inputState);
+  bool hasPrecomputed() const { return precomputed_.has_value(); }
+
+  /// Only an Outcome with component placements (component patterns) moves components.
+  bool affectsPlacements() const override { return placementsWritten_; }
+  /// Body features work in component-local coordinates (TransformFeature overrides: component patterns).
+  bool readsPlacements() const override { return false; }
+
   /// Geometry only. Must call ctx.setError() (and return) on failure. Must not call
   /// ctx.createBody/setBodyShape. Reference indices may be written back (ctx.resolve).
   virtual void compute(core::RecomputeContext& ctx, Outcome& out) = 0;
@@ -118,6 +130,17 @@ class PartFeature : public core::Feature {
   /// Default: the "operation" enum, if present, is set to New Body when the document has
   /// no live body yet and to Join otherwise (Fusion behaviour on dialog open).
   virtual void applyDefaultsForNewFeature(const core::Document& doc);
+
+ private:
+  bool placementsWritten_ = false;  ///< the last commit() wrote component placements
+  struct Precomputed {
+    Outcome out;
+    std::vector<std::string> warnings;
+    std::map<core::ObjectId, TopoDS_Shape> input;
+    std::vector<TopoDS_Shape> scopeProbes;
+    bool scopeOpaque = false;
+  };
+  std::optional<Precomputed> precomputed_;
 };
 
 /// Convenience for features with an "operation" enum: adds the enum and the optional

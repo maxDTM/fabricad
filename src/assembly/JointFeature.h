@@ -138,6 +138,9 @@ class NewComponentFeature : public core::Feature {
   NewComponentFeature();
   std::string iconName() const override { return "component"; }
   void recompute(core::RecomputeContext& ctx) override;
+  /// A timeline marker: it only reports a deleted component.
+  bool affectsPlacements() const override { return false; }
+  bool readsPlacements() const override { return false; }
   core::ObjectId component() const { return ref("component").owner; }
   void setComponent(core::ObjectId id);
 };

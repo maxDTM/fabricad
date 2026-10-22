@@ -38,6 +38,8 @@ class TransformFeature : public PartFeature {
   std::vector<core::ObjectId> instanceComponents() const;
   bool wantsCommitPreparation() const override;
   void prepareCommit(core::Document& doc, core::UndoStack* undo) override;
+  /// Components patterns place occurrences relative to the source's world placement.
+  bool readsPlacements() const override { return true; }
 
  protected:
   void addObjectProperties();

@@ -25,6 +25,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -176,6 +177,15 @@ class ToolRegistry {
   std::vector<std::unique_ptr<ITool>> tools_;
   std::map<std::string, size_t> byId_;
 };
+
+/// Non-interactive (script / batch) run. Nobody watches a live preview there, so command tools
+/// may skip it while their inputs are typed and compute the result once at OK (FeatureTool).
+/// Interactive behaviour is unchanged. Resolution order: setBatchMode() (an explicit value), else
+/// FABRICAD_BATCH=1/0 in the environment, else the process command line: `--script` without
+/// `--stay` (the user takes over afterwards) and without `--step-delay` > 0 (a watched run).
+bool isBatchMode();
+/// Force batch mode on/off; std::nullopt returns to the automatic detection above.
+void setBatchMode(std::optional<bool> on);
 
 /// Activation and event routing. One per main window.
 /// Split a command line into words: white space separates, "..." / '...' keep spaces inside a word

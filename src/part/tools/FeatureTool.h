@@ -20,6 +20,7 @@
 
 #include <array>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,14 +55,32 @@ class FeatureTool : public core::ToolBase {
   bool isEditing() const { return editing_ != nullptr; }
   const std::string& activeInput() const { return activeInput_; }
   void setActiveInput(core::ToolContext& ctx, const std::string& propName);
-  /// Result of the last preview computation.
-  bool isValid() const { return valid_; }
-  const std::string& message() const { return message_; }
-  const Outcome& lastOutcome() const { return outcome_; }
+  /// Result of the last preview computation (a deferred batch-mode preview is computed first).
+  bool isValid() const {
+    ensurePreview();
+    return valid_;
+  }
+  const std::string& message() const {
+    ensurePreview();
+    return message_;
+  }
+  const Outcome& lastOutcome() const {
+    ensurePreview();
+    return outcome_;
+  }
   /// On-screen value box (Fusion dynamic input) for the primary numeric; nullptr before the first preview.
-  const FeatureValueBox* valueBox() const { return valueBox_.get(); }
-  /// Re-run the preview after a programmatic property change.
+  const FeatureValueBox* valueBox() const {
+    ensurePreview();
+    return valueBox_.get();
+  }
+  /// Re-run the preview after a programmatic property change. In batch mode (core::isBatchMode(),
+  /// script runs) a new feature's preview is only marked out of date: nobody watches it, and it is
+  /// computed once when its result is needed (OK, OPTIONS, the queries above). Edit mode always
+  /// recomputes at once, because its preview is the live document.
   void updatePreview(core::ToolContext& ctx);
+  /// Compute a deferred preview now (no-op when it is up to date).
+  void flushPreview(core::ToolContext& ctx);
+  bool isPreviewPending() const { return previewPending_; }
   /// Set a numeric property from text (expression allowed). False if invalid.
   bool setNumeric(core::ToolContext& ctx, const std::string& propName, const std::string& text);
 
@@ -104,6 +123,9 @@ class FeatureTool : public core::ToolBase {
   void advanceActiveInput(core::ToolContext& ctx);
   void applyFilter(core::ToolContext& ctx);
   void clearPreviews(core::ToolContext& ctx);
+  /// The preview itself (what updatePreview() did before batch mode deferred it).
+  void computePreview(core::ToolContext& ctx);
+  void ensurePreview() const;
   void highlightRefs(core::ToolContext& ctx);
   /// Edit mode: move the rollback marker just after the edited feature so previews recompute
   /// only that feature; restoreRollback() replays the downstream history (OK / Cancel).
@@ -114,6 +136,8 @@ class FeatureTool : public core::ToolBase {
   void resetState();
   /// The dialog's rows no longer match the visible properties: rebuild, keeping the focus (PART-06).
   void rebuildPanelIfNeeded();
+  /// Rebuild the dialog rows now, or with the deferred preview (batch mode).
+  void rebuildPanel();
 
   std::string featureType_;
   Creator creator_;
@@ -130,6 +154,11 @@ class FeatureTool : public core::ToolBase {
   std::string message_;
   bool inSelectionUpdate_ = false;
   bool inPreview_ = false;
+  bool previewPending_ = false;                 ///< batch mode: inputs changed since the last preview
+  core::ToolContext* pendingCtx_ = nullptr;     ///< context to compute the deferred preview with
+  bool panelRebuildPending_ = false;
+  std::vector<std::string> previewWarnings_;              ///< warnings of the last new-feature preview
+  std::map<core::ObjectId, TopoDS_Shape> previewInput_;   ///< the body states it was computed from            ///< batch mode: a row rebuild waits for the preview
   std::vector<ManipulatorLink> manipulators_;
   bool manipulatorDragging_ = false;
   bool operationAuto_ = true;  ///< the user has not chosen an operation explicitly yet

@@ -57,6 +57,9 @@ class SketchFeature : public core::Feature, public core::IProfileSource {
   // --- recompute ---------------------------------------------------------------
   void recompute(core::RecomputeContext& ctx) override;
   std::vector<core::ObjectId> extraDependencies() const override;
+  /// A sketch neither moves components nor reads their placements (component-local geometry).
+  bool affectsPlacements() const override { return false; }
+  bool readsPlacements() const override { return false; }
   /// Re-solve and rebuild the output shape without a document context (used while editing
   /// in sketch mode; expressions are evaluated with `lookup`, which may be empty).
   SolveResult updateGeometry(const Sketch::ExternalEval& eval = {});

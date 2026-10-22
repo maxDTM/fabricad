@@ -158,6 +158,28 @@ class Feature {
   /// Bodies this feature created (slot order, persisted so ids survive recompute/reload).
   const std::vector<ObjectId>& createdBodies() const { return createdBodies_; }
 
+  // --- cheap removal / re-homing (Document::takeFeature, assembly DeleteComponent) ---
+  // A feature that changed no body shape can be taken out of the timeline without replaying the
+  // features after it, unless one of them depends on it or it moved components that later
+  // features solve from. These hooks say which; the defaults are the conservative answers.
+  /// Whether the last recompute changed component placements (joints, rigid groups, Move
+  /// Component positions, component patterns). Default: true.
+  virtual bool affectsPlacements() const { return true; }
+  /// Whether the result depends on component placements. Default: true. Body features answer
+  /// false: bodies live in component-local coordinates (see assembly::recomputeJoints).
+  virtual bool readsPlacements() const { return true; }
+  /// How the last recompute used the feature's component(): automatic booleans test their tool
+  /// against the bodies of the component tree (`scopeProbes`, the tools); any other use of the
+  /// component marks `scopeOpaque`. Document::recompute clears both before each run.
+  const std::vector<TopoDS_Shape>& scopeProbes() const { return scopeProbes_; }
+  bool scopeOpaque() const { return scopeOpaque_; }
+  void noteScopeProbe(const TopoDS_Shape& tool) { scopeProbes_.push_back(tool); }
+  void noteScopeOpaque() { scopeOpaque_ = true; }
+  void clearScopeUse() {
+    scopeProbes_.clear();
+    scopeOpaque_ = false;
+  }
+
   // --- optional geometric roles (construction geometry, sketches) ------------
   virtual std::optional<gp_Ax3> asPlane() const { return std::nullopt; }
   virtual std::optional<gp_Ax1> asAxis() const { return std::nullopt; }
@@ -200,6 +222,8 @@ class Feature {
   std::map<std::string, TopoDS_Shape> namedShapes_;
   /// Body shapes after this feature (filled by Document; used for rollback/edit).
   std::map<ObjectId, TopoDS_Shape> bodyStatesAfter_;
+  std::vector<TopoDS_Shape> scopeProbes_;
+  bool scopeOpaque_ = false;
 };
 
 /// Everything a Feature::recompute() may touch.

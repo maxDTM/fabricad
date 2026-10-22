@@ -6,6 +6,7 @@
 #include "core/Commands.h"
 #include "core/Json.h"
 #include "core/ShapeUtils.h"
+#include "part/PartUtils.h"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -418,6 +419,40 @@ class CreateOccurrenceCommand : public core::UndoCommand {
   ObjectId lastId_ = kInvalidId;
 };
 
+/// Components of the sub-tree rooted at `root` (itself included).
+std::vector<ObjectId> subtree(const Document& doc, ObjectId root) {
+  std::vector<ObjectId> tree{root};
+  for (size_t i = 0; i < tree.size(); ++i)
+    if (const core::Component* c = doc.component(tree[i]))
+      for (ObjectId child : c->children) tree.push_back(child);
+  return tree;
+}
+
+/// Whether moving feature `f` from component `from` to its parent `to` can change what its last
+/// recompute produced. Only the automatic-boolean scope (part::bodiesInScope: the bodies of the
+/// feature's component tree) reads a feature's component; it grows from tree(from) to tree(to).
+/// The result stays the same when none of the gained bodies touches a tool the feature tested
+/// against the scope (its participants are then the same, see part::applyTool).
+bool rehomeChangesResult(const Document& doc, const core::Feature& f, ObjectId from, ObjectId to) {
+  if (!doc.isFeatureActive(f.id()) || f.status() == core::FeatureStatus::Stale) return false;  // replayed anyway
+  if (f.scopeOpaque()) return true;
+  if (f.scopeProbes().empty()) return false;
+  const std::vector<ObjectId> oldTree = subtree(doc, from);
+  const std::vector<ObjectId> newTree = subtree(doc, to);
+  auto in = [](const std::vector<ObjectId>& tree, ObjectId c) { return std::find(tree.begin(), tree.end(), c) != tree.end(); };
+  for (const auto& [id, shape] : doc.bodyStatesAfter(doc.indexOf(f.id()) - 1)) {
+    if (shape.IsNull()) continue;
+    const core::Body* b = doc.body(id);
+    const ObjectId comp = b ? b->component : kInvalidId;
+    const bool before = in(oldTree, comp);
+    const bool after = to == kRootComponentId || !doc.component(to) || in(newTree, comp);
+    if (before || !after) continue;
+    for (const TopoDS_Shape& probe : f.scopeProbes())
+      if (part::shapesTouch(shape, probe)) return true;
+  }
+  return false;
+}
+
 /// Delete one component: its bodies and child components move to its parent (the children keep
 /// their world placement), the features referencing it (joints, its timeline marker) are removed
 /// and the features made inside it are re-homed to the parent. Undo re-creates the component
@@ -439,13 +474,29 @@ class DeleteComponentCommand : public core::UndoCommand {
     if (!c) return;
     node_ = {*c, doc_.bodiesOf(comp_)};
     const ObjectId parent = c->parent != kInvalidId && doc_.component(c->parent) ? c->parent : kRootComponentId;
+    // Replay only what the deletion changes (not the whole history): the removed features
+    // (Document::takeFeature decides), the re-homed features whose larger component scope could
+    // change their result, and the placement solvers when child components change parent.
+    std::vector<ObjectId> replay;
+    const std::vector<ObjectId> gone{comp_};
+    for (int i = 0; i < doc_.featureCount(); ++i) {
+      const core::Feature* f = doc_.featureAt(i);
+      if (f->component() == comp_ && !referencesComponents(*f, gone, node_.bodies) && rehomeChangesResult(doc_, *f, comp_, parent))
+        replay.push_back(f->id());
+    }
+    if (!c->children.empty())
+      for (int i = 0; i < doc_.featureCount(); ++i)
+        if (const core::Feature* f = doc_.featureAt(i); doc_.isFeatureActive(f->id()) && f->readsPlacements() &&
+                                                        !referencesComponents(*f, gone, node_.bodies)) {
+          replay.push_back(f->id());
+          break;
+        }
     // children: same world placement under the grandparent
     for (ObjectId child : std::vector<ObjectId>(c->children))
       if (const core::Component* cc = doc_.component(child)) {
         children_.push_back({child, cc->placement});
         doc_.reparentComponent(child, parent, node_.comp.placement.Multiplied(cc->placement));
       }
-    const std::vector<ObjectId> gone{comp_};
     std::vector<int> doomed;
     for (int i = 0; i < doc_.featureCount(); ++i) {
       core::Feature* f = doc_.featureAt(i);
@@ -461,6 +512,7 @@ class DeleteComponentCommand : public core::UndoCommand {
     for (auto it = doomed.rbegin(); it != doomed.rend(); ++it)  // highest index first: indices stay valid
       features_.emplace_back(*it, doc_.takeFeature(doc_.featureAt(*it)->id()));
     doc_.removeComponent(comp_);  // bodies move to the parent
+    for (ObjectId id : replay) doc_.markDirty(id);
     doc_.recompute();
   }
 
