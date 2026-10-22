@@ -29,6 +29,8 @@ namespace fabricad::core {
 Document::Document(QObject* parent)
     : QObject(parent), undo_(std::make_unique<UndoStack>()), selection_(std::make_unique<SelectionModel>()) {
   resetToEmpty();
+  // undo / redo back to the saved step is unmodified again; leaving it is modified (DOC-09)
+  connect(undo_.get(), &UndoStack::cleanChanged, this, [this](bool clean) { setModified(!clean); });
 }
 
 Document::~Document() = default;
@@ -74,6 +76,11 @@ void Document::setName(std::string n) {
 }
 
 void Document::setModified(bool m) {
+  // An explicit "unmodified" (a save, a load) makes the current step the saved one (DOC-09).
+  // A change outside the stack does not reset the clean step: most edits are applied first
+  // and pushed right after (drawing snapshots); callers with a change that no undo step
+  // records call UndoStack::resetClean() themselves (a recovered file).
+  if (!m && !undo_->isExecuting()) undo_->setClean();
   if (m == modified_) return;
   modified_ = m;
   emit modifiedChanged(m);
@@ -312,6 +319,11 @@ std::vector<ObjectId> Document::dependenciesOf(ObjectId featureId) const {
     if (feature(dep)) push(dep);
     else if (bodies_.count(dep))
       for (ObjectId t : featuresTouchingBody(dep, idx)) push(t);
+    else if (dep != kRootComponentId && components_.count(dep))
+      // a component record (New Component, joints...) needs the features that made the
+      // bodies the component owns: it cannot move before them (DOC-06)
+      for (ObjectId b : bodiesOf(dep))
+        for (ObjectId t : featuresTouchingBody(b, idx)) push(t);
   }
   return out;
 }
@@ -363,6 +375,25 @@ void Document::recompute() {
     if (f.isSuppressed()) {
       f.bodyStatesAfter_ = state;
       f.setStatus(FeatureStatus::Ok, "suppressed");
+      emit featureStatusChanged(f.id());
+      continue;
+    }
+    // A feature whose direct input is suppressed or failed has nothing valid to build from:
+    // it is skipped and flagged, and the error cascades down the chain like in Fusion. Inputs
+    // reached only through a body (a fillet on a body a suppressed feature also touched) and
+    // inputs with mere warnings do not count (DOC-05).
+    std::string inputProblem;
+    for (ObjectId dep : f.dependencies()) {
+      const int di = indexOf(dep);
+      if (di < 0 || di >= i) continue;
+      const Feature& d = *features_[static_cast<size_t>(di)];
+      if (d.isSuppressed()) inputProblem = std::format("input '{}' is suppressed", d.name());
+      else if (d.status() == FeatureStatus::Error) inputProblem = std::format("input '{}' failed", d.name());
+      if (!inputProblem.empty()) break;
+    }
+    if (!inputProblem.empty()) {
+      f.bodyStatesAfter_ = state;
+      f.setStatus(FeatureStatus::Error, inputProblem);
       emit featureStatusChanged(f.id());
       continue;
     }

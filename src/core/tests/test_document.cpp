@@ -12,6 +12,16 @@
 using namespace fabricad::core;
 using namespace fabricad::core::test;
 
+namespace {
+/// References another feature directly (like an extrude its sketch); counts its builds.
+class ConsumerFeature : public Feature {
+ public:
+  ConsumerFeature() : Feature("TestConsumer") { addRef("src", mask(ShapeKind::Sketch)); }
+  void recompute(RecomputeContext&) override { ++builds; }
+  int builds = 0;
+};
+}  // namespace
+
 class DocumentTest : public QObject {
   Q_OBJECT
  private slots:
@@ -116,6 +126,42 @@ class DocumentTest : public QObject {
     QCOMPARE(h2f->status(), FeatureStatus::Ok);  // the failing feature is not an input of the hole
   }
 
+  void suppressedOrFailedInputSkipsDependent() {
+    // DOC-05: a suppressed or failed direct input skips the dependent and flags it
+    Document doc;
+    Feature* src = doc.addFeature(std::make_unique<BoxFeature>());
+    auto c = std::make_unique<ConsumerFeature>();
+    c->prop("src").setRef(ShapeRef::feature(src->id(), ShapeKind::Sketch));
+    auto* consumer = static_cast<ConsumerFeature*>(doc.addFeature(std::move(c)));
+    auto c2 = std::make_unique<ConsumerFeature>();
+    c2->prop("src").setRef(ShapeRef::feature(consumer->id(), ShapeKind::Sketch));
+    auto* second = static_cast<ConsumerFeature*>(doc.addFeature(std::move(c2)));
+    doc.recompute();
+    QCOMPARE(consumer->status(), FeatureStatus::Ok);
+    QCOMPARE(consumer->builds, 1);
+    src->setSuppressed(true);
+    doc.notifyFeatureChanged(src->id());
+    doc.recompute();
+    QCOMPARE(consumer->status(), FeatureStatus::Error);
+    QVERIFY2(consumer->statusMessage().find("suppressed") != std::string::npos, consumer->statusMessage().c_str());
+    QCOMPARE(consumer->builds, 1);
+    QCOMPARE(second->status(), FeatureStatus::Error);  // cascades
+    QVERIFY(second->statusMessage().find("failed") != std::string::npos);
+    src->setSuppressed(false);
+    src->prop("dx").setDouble(-1.0);  // fails on its own
+    doc.notifyFeatureChanged(src->id());
+    doc.recompute();
+    QCOMPARE(src->status(), FeatureStatus::Error);
+    QCOMPARE(consumer->status(), FeatureStatus::Error);
+    QVERIFY(consumer->statusMessage().find("failed") != std::string::npos);
+    src->prop("dx").setDouble(10.0);
+    doc.notifyFeatureChanged(src->id());
+    doc.recompute();
+    QCOMPARE(consumer->status(), FeatureStatus::Ok);
+    QCOMPARE(second->status(), FeatureStatus::Ok);
+    QCOMPARE(consumer->builds, 2);
+  }
+
   void parametersAndExpressions() {
     Document doc;
     QVERIFY(doc.setParameter("width", "40 mm"));
@@ -162,12 +208,24 @@ class DocumentTest : public QObject {
     QVERIFY(std::abs(volume(doc.bodyShape(bodyId)) - 10 * 20 * 30) < 1e-6);
     undo.redo();
     QVERIFY(std::abs(volume(doc.bodyShape(bodyId)) - 5 * 20 * 30) < 1e-6);
+    const std::string bodyName = doc.body(bodyId)->name;
+    doc.body(bodyId)->color = {1.0f, 0.0f, 0.0f, 1.0f};
+    doc.body(bodyId)->material = "ABS";
+    Feature* other = doc.addFeature(std::make_unique<BoxFeature>());  // takes the next name
+    doc.recompute();
     undo.push(std::make_unique<RemoveFeatureCommand>(doc, boxId));
-    QCOMPARE(doc.featureCount(), 0);
+    QCOMPARE(doc.featureCount(), 1);
     QVERIFY(!doc.body(bodyId));
     undo.undo();
-    QCOMPARE(doc.featureCount(), 1);
+    QCOMPARE(doc.featureCount(), 2);
     QVERIFY(doc.body(bodyId));
+    // DOC-07: the body comes back as it was, not as a fresh "Body2"
+    QCOMPARE(doc.body(bodyId)->name, bodyName);
+    QCOMPARE(doc.body(bodyId)->color[1], 0.0f);
+    QCOMPARE(doc.body(bodyId)->material, std::string("ABS"));
+    doc.takeFeature(other->id());
+    doc.recompute();
+    QCOMPARE(doc.featureCount(), 1);
     QVERIFY(std::abs(volume(doc.bodyShape(bodyId)) - 5 * 20 * 30) < 1e-6);
     undo.undo();  // modify
     undo.undo();  // add
@@ -293,6 +351,73 @@ class DocumentTest : public QObject {
     QCOMPARE(doc.body(bodyId)->component, kRootComponentId);
     QCOMPARE(doc.activeComponent(), kRootComponentId);
     QVERIFY(!doc.removeComponent(kRootComponentId));
+  }
+
+  void componentRecordDependsOnBodyProducers() {
+    // DOC-06: a record of a component (New Component) cannot move before the feature that
+    // made the component's body
+    Document doc;
+    Component& c = doc.addComponent("C");
+    doc.setActiveComponent(c.id);
+    Feature* box = doc.addFeature(std::make_unique<BoxFeature>());
+    doc.setActiveComponent(kRootComponentId);
+    auto rec = std::make_unique<ConsumerFeature>();
+    rec->prop("src").setRef(ShapeRef::component(c.id));
+    Feature* record = doc.addFeature(std::move(rec));
+    doc.recompute();
+    const auto deps = doc.dependenciesOf(record->id());
+    QCOMPARE(deps.size(), size_t(1));
+    QCOMPARE(deps[0], box->id());
+    std::string why;
+    QVERIFY(!doc.canMoveFeature(record->id(), 0, &why));
+    QVERIFY(why.find(box->name()) != std::string::npos);
+    QVERIFY(!doc.moveFeature(record->id(), 0));
+    QCOMPARE(doc.indexOf(record->id()), 1);
+  }
+
+  void modifiedFollowsUndoCleanState() {
+    // DOC-09: undo/redo back to the saved step clears the modified flag; leaving it sets it
+    QTemporaryDir dir;
+    Document doc;
+    UndoStack& undo = doc.undoStack();
+    undo.push(std::make_unique<AddFeatureCommand>(doc, std::make_unique<BoxFeature>()));
+    QVERIFY(doc.isModified());
+    QVERIFY(doc.save(dir.filePath("a.fcad").toStdString()));
+    QVERIFY(!doc.isModified());
+    const ObjectId boxId = doc.featureAt(0)->id();
+    undo.push(std::make_unique<ModifyFeatureCommand>(doc, boxId, [](Feature& f) { f.prop("dx").setDouble(5.0); }));
+    QVERIFY(doc.isModified());
+    undo.undo();
+    QVERIFY(!doc.isModified());  // back at the saved step
+    undo.redo();
+    QVERIFY(doc.isModified());
+    undo.undo();
+    undo.undo();
+    QVERIFY(doc.isModified());  // before the saved step
+    undo.redo();
+    QVERIFY(!doc.isModified());
+    // a change no step records (a recovered file): no undo gets back to the saved state
+    doc.setModified(true);
+    undo.resetClean();
+    QVERIFY(doc.isModified());
+    QVERIFY(!undo.isClean());
+    undo.undo();
+    undo.redo();
+    QVERIFY(doc.isModified());
+    // a merge into the saved step leaves it
+    UndoStack s;
+    struct Merging : UndoCommand {
+      void redo() override {}
+      void undo() override {}
+      int mergeId() const override { return 7; }
+      bool mergeWith(const UndoCommand&) override { return true; }
+    };
+    s.push(std::make_unique<Merging>());
+    s.setClean();
+    QSignalSpy cleanSpy(&s, &UndoStack::cleanChanged);
+    s.push(std::make_unique<Merging>());
+    QVERIFY(!s.isClean());
+    QCOMPARE(cleanSpy.count(), 1);
   }
 
   void moveFeature() {

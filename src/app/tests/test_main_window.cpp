@@ -30,6 +30,7 @@
 #include <QElapsedTimer>
 #include <QLockFile>
 #include <QSysInfo>
+#include <QDockWidget>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QDir>
@@ -598,6 +599,13 @@ class TestMainWindow : public QObject {
     const QString recA = w_->recoveryFilePath();
     QVERIFY(w_->newDocument());
     app::DocumentTab* b = w_->activeTab();
+    // DOC-10: new documents are numbered; give both the same name for this check
+    QVERIFY(a->document().name() != b->document().name());
+    QVERIFY(core::qs(b->document().name()).startsWith("Untitled"));
+    QVERIFY(app::isAutoDocumentName(b->document().name()));
+    QVERIFY(!b->document().isModified());
+    QVERIFY(b->isPristine());
+    b->document().setName(a->document().name());
     addBox(b->document(), 13);
     const QString recB = w_->recoveryFilePath();
     QCOMPARE(a->document().name(), b->document().name());
@@ -767,6 +775,25 @@ class TestMainWindow : public QObject {
       if (w_->tabAt(i) != w_->activeTab()) QVERIFY(w_->closeTab(i));
   }
 
+  void failedSaveKeepsName() {
+    // DOC-04: a save that fails leaves the name, path and modified flag as they were
+    w_->addDesignTab();
+    core::Document& doc = w_->document();
+    QCOMPARE(core::qs(doc.name()), QString("Untitled"));
+    QVERIFY(!doc.isModified());
+    QString err;
+    QVERIFY(!w_->saveTo("/proc/nope/x.fcad", &err));
+    QVERIFY(!err.isEmpty());
+    QCOMPARE(core::qs(doc.name()), QString("Untitled"));
+    QVERIFY(doc.filePath().empty());
+    QVERIFY(!doc.isModified());
+    addBox(doc, 4);
+    QVERIFY(!w_->saveTo("/proc/nope/x.fcad", &err));
+    QVERIFY(doc.isModified());
+    QCOMPARE(core::qs(doc.name()), QString("Untitled"));
+    doc.setModified(false);
+  }
+
   void failedFeatureShowsMessage() {
     // DOC-08: a feature that newly fails after a recompute is named in the status bar
     QVERIFY(w_->newDocument());
@@ -781,6 +808,13 @@ class TestMainWindow : public QObject {
     QCOMPARE(box->status(), core::FeatureStatus::Error);
     QVERIFY2(w_->messageText().startsWith(core::qs(box->name()) + " failed"), qPrintable(w_->messageText()));
     doc.undoStack().undo();
+    settle();
+    QVERIFY2(w_->messageText().isEmpty(), qPrintable(w_->messageText()));  // fixed: the error goes
+    // an error left on display is cleared when the next command starts
+    w_->showMessage("something broke", core::MessageLevel::Error);
+    QVERIFY(w_->runCommand("test.dialog"));
+    QVERIFY2(w_->messageText().isEmpty(), qPrintable(w_->messageText()));
+    w_->toolManager().cancel();
     settle();
     w_->document().setModified(false);
   }
@@ -821,6 +855,98 @@ class TestMainWindow : public QObject {
     QCOMPARE(w_->tabCount(), tabs);
     QCOMPARE(&w_->document(), doc);
     QCOMPARE(w_->activeTab(), design);
+  }
+
+  void closeDesignClosesItsDrawings() {
+    // DOC-01: closing the design closes the document (one prompt), its drawing tabs with it
+    app::DocumentTab* design = w_->addDesignTab();
+    addBox(design->document(), 7);
+    QVERIFY(design->document().isModified());
+    w_->setWorkspace(core::Workspace::Drawing);
+    app::DocumentTab* drawing = w_->activeTab();
+    QVERIFY(!drawing->isDesign());
+    const int tabs = w_->tabCount();
+    QVERIFY(w_->closeTab(design));  // the drawing is the active tab: it closes last
+    QCOMPARE(w_->tabCount(), tabs - 2);
+    QVERIFY(w_->indexOfTab(drawing) < 0);
+    QVERIFY(w_->activeTab() != nullptr);
+    QVERIFY(w_->activeTab()->isDesign());
+  }
+
+  void browserDockSurvivesDrawing() {
+    // DOC-02: closing the drawing tab when it is the last one brings the browser back
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    settle();
+    QVERIFY(!w_->browserDock()->isHidden());
+    w_->setWorkspace(core::Workspace::Drawing);
+    QVERIFY(w_->browserDock()->isHidden());
+    app::DocumentTab* design = w_->tabForDocument(w_->document(), app::DocumentTab::Kind::Design);
+    QVERIFY(w_->closeTab(design));  // closes the drawing too: the fresh design shows the browser
+    QVERIFY(w_->activeTab()->isDesign());
+    QVERIFY(!w_->browserDock()->isHidden());
+    // hidden on purpose: stays hidden across a drawing round trip; the menu brings it back
+    w_->setBrowserVisible(false);
+    w_->setWorkspace(core::Workspace::Drawing);
+    w_->setWorkspace(core::Workspace::Design);
+    QVERIFY(w_->browserDock()->isHidden());
+    QAction* show = w_->findChild<QAction*>("ShowBrowserAction");
+    QVERIFY(show);
+    show->trigger();
+    QVERIFY(!w_->browserDock()->isHidden());
+  }
+
+  void tabMoveKeepsLabels() {
+    // DOC-11: after a tab is moved the labels and the active tab follow the documents
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    QVERIFY(w_->newDocument());
+    app::DocumentTab* b = w_->activeTab();
+    b->document().setName("Second");
+    w_->activateTab(0);
+    app::DocumentTab* a = w_->activeTab();
+    a->document().setName("First");
+    settle();
+    w_->tabBar()->moveTab(0, 1);
+    settle();
+    QCOMPARE(w_->tabAt(0), b);
+    QCOMPARE(w_->tabAt(1), a);
+    QVERIFY(w_->tabBar()->tabText(0).startsWith("Second"));
+    QVERIFY(w_->tabBar()->tabText(1).startsWith("First"));
+    QCOMPARE(w_->tabBar()->currentIndex(), w_->indexOfTab(w_->activeTab()));
+    QCOMPARE(w_->activeTab(), a);
+    a->document().setModified(false);
+    b->document().setModified(false);
+  }
+
+  void markingLabelsAndTimelineFrame() {
+    // DOC-12: long marking menu labels get wider slots, within limits
+    app::MarkingMenu menu;
+    app::MarkingMenuModel m;
+    m.radial[0] = {"test.dialog", "OK"};
+    menu.popup(m, QPoint(400, 400));
+    QCOMPARE(menu.slotWidth(), 120);
+    menu.hide();
+    m.radial[2] = {"test.dialog", "Repeat Rectangle"};
+    m.radial[6] = {"test.dialog", "A label that is much too long to ever fit in a slot"};
+    menu.popup(m, QPoint(400, 400));
+    QVERIFY(menu.slotWidth() > 120);
+    QVERIFY(menu.slotWidth() <= 170);
+    QVERIFY(menu.width() >= 2 * (112 + menu.slotWidth() / 2));
+    menu.hide();
+    // the timeline frame of a picked feature goes when the pick goes / the command ends
+    QVERIFY(w_->newDocument());
+    core::Document& doc = w_->document();
+    const core::ObjectId f = addBox(doc, 6);
+    settle();
+    emit w_->timeline()->strip()->selectRequested(f, false);
+    QCOMPARE(w_->timeline()->strip()->highlightedFeature(), f);
+    QVERIFY(w_->runCommand("test.dialog"));
+    w_->toolManager().cancel();
+    settle();
+    QCOMPARE(w_->timeline()->strip()->highlightedFeature(), f);  // still selected
+    doc.selection().clear();
+    settle();
+    QCOMPARE(w_->timeline()->strip()->highlightedFeature(), core::kInvalidId);
+    doc.setModified(false);
   }
 
   void tabsOwnTheirState() {

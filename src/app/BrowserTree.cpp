@@ -109,6 +109,14 @@ BrowserTree::BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWid
   connect(&doc_, &core::Document::activeComponentChanged, this, rebId);
   connect(&doc_, &core::Document::documentReset, this, reb);
   connect(&doc_, &core::Document::nameChanged, this, reb);
+  // the root shows the dirty marker: refresh just its label after a save / undo to clean (DOC-09)
+  connect(&doc_, &core::Document::modifiedChanged, this, [this](bool modified) {
+    if (pending_) return;  // a rebuild is on its way
+    QTreeWidgetItem* root = topLevelItem(0);
+    if (!root || root->data(0, RoleKind).toInt() != KindRoot) return;
+    const QSignalBlocker block(this);
+    root->setText(0, core::qs(doc_.name()) + (modified ? " *" : ""));
+  });
   connect(&doc_.selection(), &core::SelectionModel::changed, this, &BrowserTree::syncSelectionFromModel);
   if (viewer_) connect(viewer_, &viewer::ViewerWidget::featureVisibilityChanged, this, reb);
   rebuildNow();

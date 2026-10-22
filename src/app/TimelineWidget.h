@@ -34,6 +34,7 @@ class TimelineStrip : public QWidget {
   QSize sizeHint() const override;
   /// Selected/highlighted entry (feature id) for painting.
   void setHighlightedFeature(core::ObjectId id);
+  core::ObjectId highlightedFeature() const { return highlighted_; }
 
  signals:
   void editRequested(fabricad::core::ObjectId id);

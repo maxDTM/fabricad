@@ -12,6 +12,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QPushButton>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QTabBar>
 #include <QToolButton>
@@ -72,6 +74,25 @@ DrawingWorkspaceWidget::DrawingWorkspaceWidget(QWidget* parent) : QWidget(parent
   cl->setSpacing(0);
   canvas_ = new DrawingCanvas(centre);
   cl->addWidget(canvas_, 1);
+  emptyState_ = new QWidget(centre);
+  emptyState_->setObjectName("DrawingEmptyState");
+  {
+    auto* el = new QVBoxLayout(emptyState_);
+    el->addStretch(1);
+    auto* text = new QLabel(tr("This drawing has no sheets yet."), emptyState_);
+    text->setAlignment(Qt::AlignCenter);
+    text->setStyleSheet("color: #666;");
+    el->addWidget(text);
+    auto* create = new QPushButton(tr("Create Drawing..."), emptyState_);
+    create->setObjectName("CreateDrawingButton");
+    connect(create, &QPushButton::clicked, this, [this] {
+      if (manager_) manager_->run("drawing.create");
+    });
+    el->addWidget(create, 0, Qt::AlignCenter);
+    el->addStretch(2);
+  }
+  emptyState_->hide();
+  cl->addWidget(emptyState_, 1);
   auto* bottom = new QHBoxLayout();
   bottom->setContentsMargins(4, 0, 4, 0);
   tabs_ = new QTabBar(centre);
@@ -176,6 +197,7 @@ ObjectId DrawingWorkspaceWidget::activeSheetId() const { return canvas_->sheetId
 
 void DrawingWorkspaceWidget::setActiveSheet(ObjectId id) {
   if (!model_ || !model_->sheet(id)) return;
+  model_->setActiveSheet(id);
   canvas_->setSheet(id);
   refreshSheets();
   emit sheetActivated(id);
@@ -184,32 +206,56 @@ void DrawingWorkspaceWidget::setActiveSheet(ObjectId id) {
 void DrawingWorkspaceWidget::setBrowserVisible(bool visible) { browser_->setVisible(visible); }
 
 void DrawingWorkspaceWidget::refreshSheets() {
-  if (refreshing_) return;
+  // A model edit (an undo restores a whole snapshot) emits several signals in a row; a call
+  // that arrives during a rebuild is run right after it instead of being dropped (DOC-03).
+  if (refreshing_) {
+    refreshAgain_ = true;
+    return;
+  }
   refreshing_ = true;
-  sheetList_->clear();
-  while (tabs_->count() > 0) tabs_->removeTab(0);
+  do {
+    refreshAgain_ = false;
+    rebuildSheetList();
+  } while (refreshAgain_);
+  refreshing_ = false;
+}
+
+void DrawingWorkspaceWidget::rebuildSheetList() {
+  const QSignalBlocker blockList(sheetList_);
+  const QSignalBlocker blockTabs(tabs_);
+  // the canvas shows the model's active sheet (an undo may have restored another one)
+  if (model_)
+    if (Sheet* active = model_->activeSheet(); active && active->id != canvas_->sheetId()) canvas_->setSheet(active->id);
+  const std::vector<Sheet> none;
+  const auto& sheets = model_ ? model_->sheets() : none;
   int current = -1;
-  if (model_) {
-    const auto& sheets = model_->sheets();
-    for (size_t i = 0; i < sheets.size(); ++i) {
-      const Sheet& s = sheets[i];
-      QString label = QString::fromStdString(s.name);
-      auto* item = new QListWidgetItem(QStringLiteral("%1  (%2, %3 views)")
-                                           .arg(label, QString::fromStdString(s.format.name))
-                                           .arg(static_cast<int>(s.views.size())));
-      item->setData(Qt::UserRole, static_cast<qulonglong>(s.id));
-      sheetList_->addItem(item);
-      tabs_->addTab(label);
-      tabs_->setTabData(static_cast<int>(i), static_cast<qulonglong>(s.id));
-      if (s.id == canvas_->sheetId()) current = static_cast<int>(i);
-    }
+  sheetList_->clear();
+  // tabs are updated in place: removing and re-adding them all left stale labels painted
+  while (tabs_->count() > static_cast<int>(sheets.size())) tabs_->removeTab(tabs_->count() - 1);
+  for (size_t i = 0; i < sheets.size(); ++i) {
+    const Sheet& s = sheets[i];
+    const QString label = QString::fromStdString(s.name);
+    auto* item = new QListWidgetItem(QStringLiteral("%1  (%2, %3 views)")
+                                         .arg(label, QString::fromStdString(s.format.name))
+                                         .arg(static_cast<int>(s.views.size())));
+    item->setData(Qt::UserRole, static_cast<qulonglong>(s.id));
+    sheetList_->addItem(item);
+    const int t = static_cast<int>(i);
+    if (t >= tabs_->count()) tabs_->addTab(label);
+    else tabs_->setTabText(t, label);
+    tabs_->setTabData(t, static_cast<qulonglong>(s.id));
+    if (s.id == canvas_->sheetId()) current = t;
   }
   if (current >= 0) {
     sheetList_->setCurrentRow(current);
     tabs_->setCurrentIndex(current);
   }
+  tabs_->update();
   removeSheet_->setEnabled(model_ && model_->sheets().size() > 1);
-  refreshing_ = false;
+  // no sheet yet: say so and offer to make one instead of a blank page (DOC-10)
+  const bool empty = sheets.empty();
+  canvas_->setVisible(!empty);
+  emptyState_->setVisible(empty);
 }
 
 void DrawingWorkspaceWidget::onSheetTabChanged(int index) {
@@ -240,6 +286,9 @@ void DrawingWorkspaceWidget::onAddSheet() {
 }
 
 void DrawingWorkspaceWidget::onRemoveSheet() {
+  // "-" deletes the sheet selected in the panel (the tool deletes the active one) (DOC-03)
+  if (QListWidgetItem* item = sheetList_->currentItem())
+    if (const auto id = static_cast<ObjectId>(item->data(Qt::UserRole).toULongLong()); id != canvas_->sheetId()) setActiveSheet(id);
   if (manager_ && manager_->registry().has("drawing.delete-sheet")) {
     manager_->run("drawing.delete-sheet");
     return;

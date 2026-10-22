@@ -43,6 +43,7 @@ class RemoveFeatureCommand : public UndoCommand {
   Document& doc_;
   ObjectId id_;
   std::unique_ptr<Feature> feature_;
+  std::vector<Body> bodies_;  ///< records of the bodies the feature created (restored on undo)
   int index_ = -1;
   int rollbackBefore_ = 0;
 };

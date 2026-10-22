@@ -4,19 +4,23 @@
 
 #include "core/Json.h"
 
+#include <QFontMetrics>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QTimer>
 
+#include <algorithm>
 #include <cmath>
 
 namespace fabricad::app {
 
 namespace {
-constexpr int kSize = 320;     // widget square
-constexpr int kSlotW = 120, kSlotH = 26;
+constexpr int kMinSize = 320;  // widget square (wider for long labels)
+constexpr int kMinSlotW = 120, kMaxSlotW = 170, kSlotH = 26;
+constexpr double kRadiusX = 112, kRadiusY = 88;
+constexpr double kLabelPointSize = 9;
 constexpr int kRowH = 22;      // overflow rows
 constexpr int kListW = 180;
 }  // namespace
@@ -24,16 +28,26 @@ constexpr int kListW = 180;
 MarkingMenu::MarkingMenu(QWidget* parent) : QWidget(parent, Qt::Popup | Qt::FramelessWindowHint) {
   setAttribute(Qt::WA_TranslucentBackground);
   setMouseTracking(true);
-  setFixedSize(kSize, kSize);
+  setFixedSize(kMinSize, kMinSize);
 }
 
 void MarkingMenu::popup(const MarkingMenuModel& model, const QPoint& globalCentre) {
   model_ = model;
+  // slots as wide as the longest label ("Repeat Rectangle"), within limits; the square grows
+  // so the east and west slots still fit (DOC-12). Picking goes by angle, so it is unaffected.
+  QFont f = font();
+  f.setPointSizeF(kLabelPointSize);
+  const QFontMetrics fm(f);
+  int widest = 0;
+  for (const MarkingEntry& e : model_.radial)
+    if (!e.command.empty()) widest = std::max(widest, fm.horizontalAdvance(core::qs(e.label)));
+  slotW_ = std::clamp(widest + 16, kMinSlotW, kMaxSlotW);
+  size_ = std::max(kMinSize, static_cast<int>(2 * (kRadiusX + slotW_ / 2.0)) + 6);
   hover_ = -1;
   hoverRow_ = -1;
   const int rows = static_cast<int>(model_.overflow.size());
-  setFixedSize(kSize, kSize + (rows ? rows * kRowH + 8 : 0));
-  move(globalCentre - QPoint(kSize / 2, kSize / 2));
+  setFixedSize(size_, size_ + (rows ? rows * kRowH + 8 : 0));
+  move(globalCentre - QPoint(size_ / 2, size_ / 2));
   opening_ = true;
   show();
   setFocus();
@@ -41,19 +55,19 @@ void MarkingMenu::popup(const MarkingMenuModel& model, const QPoint& globalCentr
 }
 
 QRect MarkingMenu::rowRect(int row) const {
-  return QRect((kSize - kListW) / 2, kSize + 4 + row * kRowH, kListW, kRowH);
+  return QRect((size_ - kListW) / 2, size_ + 4 + row * kRowH, kListW, kRowH);
 }
 
 QRect MarkingMenu::slotRect(int slot) const {
   // ellipse layout: diagonals pulled in vertically so neighbouring labels never overlap
-  constexpr double rx = 112, ry = 88;
+  constexpr double rx = kRadiusX, ry = kRadiusY;
   double dx = 0, dy = 0;
   slotDirection(slot, dx, dy);
   const bool diagonal = slot % 2 == 1;
   const double x = diagonal ? (dx > 0 ? 1 : -1) * rx * 0.72 : dx * rx;
   const double y = diagonal ? (dy > 0 ? 1 : -1) * ry * 0.58 : dy * ry;
-  const QPoint c(kSize / 2 + static_cast<int>(x), kSize / 2 + static_cast<int>(y));
-  return QRect(c.x() - kSlotW / 2, c.y() - kSlotH / 2, kSlotW, kSlotH);
+  const QPoint c(size_ / 2 + static_cast<int>(x), size_ / 2 + static_cast<int>(y));
+  return QRect(c.x() - slotW_ / 2, c.y() - kSlotH / 2, slotW_, kSlotH);
 }
 
 int MarkingMenu::rowAt(const QPoint& p) const {
@@ -63,15 +77,15 @@ int MarkingMenu::rowAt(const QPoint& p) const {
 }
 
 int MarkingMenu::slotAt(const QPoint& p) const {
-  if (p.y() > kSize) return -1;
-  const int s = slotForOffset(p.x() - kSize / 2.0, p.y() - kSize / 2.0, 18.0);
+  if (p.y() > size_) return -1;
+  const int s = slotForOffset(p.x() - size_ / 2.0, p.y() - size_ / 2.0, 18.0);
   return s >= 0 && !model_.radial[static_cast<size_t>(s)].command.empty() ? s : -1;
 }
 
 void MarkingMenu::paintEvent(QPaintEvent*) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
-  const QPointF c(kSize / 2.0, kSize / 2.0);
+  const QPointF c(size_ / 2.0, size_ / 2.0);
   // centre hub and direction pointer
   p.setPen(QPen(QColor("#9AA0A8"), 1.5));
   p.setBrush(QColor(255, 255, 255, 230));
@@ -83,7 +97,7 @@ void MarkingMenu::paintEvent(QPaintEvent*) {
     p.drawLine(c + QPointF(dx * 8, dy * 8), c + QPointF(dx * 16, dy * 16));
   }
   QFont f = font();
-  f.setPointSizeF(9);
+  f.setPointSizeF(kLabelPointSize);
   p.setFont(f);
   for (int s = 0; s < kSlotCount; ++s) {
     const MarkingEntry& e = model_.radial[static_cast<size_t>(s)];
@@ -141,7 +155,7 @@ void MarkingMenu::mouseReleaseEvent(QMouseEvent* e) {
   const int s = slotAt(pos);
   if (s >= 0) choose(model_.radial[static_cast<size_t>(s)].command);
   else if (const int r = rowAt(pos); r >= 0) choose(model_.overflow[static_cast<size_t>(r)].command);
-  else if (std::hypot(pos.x() - kSize / 2.0, pos.y() - kSize / 2.0) < 18) hide();
+  else if (std::hypot(pos.x() - size_ / 2.0, pos.y() - size_ / 2.0) < 18) hide();
 }
 
 void MarkingMenu::keyPressEvent(QKeyEvent* e) {

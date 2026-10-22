@@ -47,6 +47,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QSettings>
@@ -255,6 +256,7 @@ QWidget* MainWindow::buildAppBar() {
     std::unique_ptr<DocumentTab> t = std::move(tabs_[static_cast<size_t>(from)]);
     tabs_.erase(tabs_.begin() + from);
     tabs_.insert(tabs_.begin() + to, std::move(t));
+    scheduleTabBarRefresh();  // labels, tooltips and the active tab once the move settles (DOC-11)
   });
   h->addWidget(tabBar_, 1);
   auto* newTab = appBarButton(bar, "new", "New Design (Ctrl+N)");
@@ -349,6 +351,27 @@ void MainWindow::buildFileMenu(QMenu* m) {
   });
   m->addSeparator();
   add("parameters", "Change Parameters...", "app.parameters");
+  m->addSeparator();
+  // the panels can always be brought back, also after closing the browser with its x (DOC-02)
+  QMenu* panels = m->addMenu("Show Panels");
+  panels->setObjectName("ShowPanelsMenu");
+  QAction* browserToggle = panels->addAction("Browser");
+  browserToggle->setObjectName("ShowBrowserAction");
+  browserToggle->setCheckable(true);
+  QAction* timelineToggle = panels->addAction("Timeline");
+  timelineToggle->setObjectName("ShowTimelineAction");
+  timelineToggle->setCheckable(true);
+  connect(panels, &QMenu::aboutToShow, this, [this, browserToggle, timelineToggle] {
+    const bool design = active_ && active_->isDesign();
+    browserToggle->setChecked(design ? !browserDock_->isHidden() : browserDockWanted_);
+    timelineToggle->setChecked(timelineDockWanted_);
+    timelineToggle->setEnabled(design);
+  });
+  connect(browserToggle, &QAction::triggered, this, [this](bool on) { setBrowserVisible(on); });
+  connect(timelineToggle, &QAction::triggered, this, [this](bool on) {
+    timelineDockWanted_ = on;
+    timelineDock_->setVisible(on && active_ && active_->isDesign());
+  });
   m->addSeparator();
   m->addAction("Exit", this, [this] { close(); });
 }
@@ -477,15 +500,12 @@ void MainWindow::activateTab(DocumentTab* tab) {
   central_->setCurrentWidget(tab->centralWidget());
   if (tab->browser()) browserStack_->setCurrentWidget(tab->browser());
   if (tab->timeline()) timelineStack_->setCurrentWidget(tab->timeline());
-  if (previous && previous->isDesign() != tab->isDesign()) {
-    if (tab->isDesign()) {
-      browserDock_->setVisible(browserDockWanted_);
-    } else {
-      browserDockWanted_ = !browserDock_->isHidden();
-      browserDock_->hide();
-    }
-  }
-  timelineDock_->setVisible(tab->isDesign());
+  // The dock follows the tab being shown, not the change of kind: after the last tab closes
+  // there is no previous tab and the new design must still get its browser back (DOC-02).
+  if (previous && previous->isDesign()) browserDockWanted_ = !browserDock_->isHidden();
+  if (tab->isDesign()) browserDock_->setVisible(browserDockWanted_);
+  else browserDock_->hide();
+  timelineDock_->setVisible(tab->isDesign() && timelineDockWanted_);
   if (tab->isDesign() && glEnabled_ && isVisible()) tab->initializeViewer();
 
   const core::Workspace ws = tab->workspace();
@@ -505,6 +525,11 @@ void MainWindow::activateTab(DocumentTab* tab) {
   emit activeTabChanged(tab);
 }
 
+void MainWindow::setBrowserVisible(bool on) {
+  browserDockWanted_ = on;
+  browserDock_->setVisible(on);
+}
+
 void MainWindow::syncActivePointers() {
   document_ = active_ ? &active_->document() : nullptr;
   manager_ = active_ ? &active_->manager() : nullptr;
@@ -521,7 +546,35 @@ void MainWindow::syncActivePointers() {
   }
 }
 
+bool MainWindow::tabDragging() const {
+  // the button state guards against a release that never reached the tab bar
+  return tabDragActive_ && (QGuiApplication::mouseButtons() & Qt::LeftButton);
+}
+
+void MainWindow::scheduleTabBarRefresh() {
+  if (tabBarRefreshPending_) return;
+  tabBarRefreshPending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    tabBarRefreshPending_ = false;
+    if (tabDragging()) {
+      tabBarRefreshDeferred_ = true;  // runs on release
+      return;
+    }
+    refreshTabBar();
+    switchingTabs_ = true;
+    if (active_) tabBar_->setCurrentIndex(indexOfTab(active_));
+    switchingTabs_ = false;
+    tabBar_->update();
+  });
+}
+
 void MainWindow::refreshTabBar() {
+  // Setting tab texts by index while a tab is being dragged paints the moving tab's label on
+  // the wrong slot: wait for the release (DOC-11)
+  if (tabDragging()) {
+    tabBarRefreshDeferred_ = true;
+    return;
+  }
   // Same-named tabs get their folder appended so they can be told apart (DOC-11)
   auto plain = [](QString t) {
     if (t.endsWith(" *")) t.chop(2);
@@ -544,39 +597,54 @@ void MainWindow::refreshTabBar() {
 }
 
 bool MainWindow::closeTab(DocumentTab* tab) {
-  if (!tab) return false;
-  // the prompt belongs to the last tab showing the document
-  if (tab->documentPtr().use_count() == 1 && !maybeSave(*tab)) return false;
+  if (!tab || indexOfTab(tab) < 0) return false;
+  // Closing the design closes the document, drawings included (Fusion); closing a drawing
+  // closes just that tab unless it is the document's last one. Tabs are counted rather than
+  // shared_ptr owners, which anything may hold (DOC-01).
+  std::vector<DocumentTab*> group;
+  for (const auto& t : tabs_)
+    if (&t->document() == &tab->document()) group.push_back(t.get());
+  const bool closesDocument = tab->isDesign() || group.size() == 1;
+  if (closesDocument && !maybeSave(*tab)) return false;
+  if (!closesDocument) group = {tab};
+  // the active tab goes last, so the neighbour it hands over to is not about to close as well
+  std::stable_partition(group.begin(), group.end(), [this](DocumentTab* t) { return t != active_; });
+  if (closesDocument) clearRecoveryFile(*tab);
+  for (DocumentTab* t : group)
+    if (indexOfTab(t) >= 0) closeOneTab(t);
+  echoCommand("close");
+  return true;
+}
+
+void MainWindow::closeOneTab(DocumentTab* tab) {
   if (sketch::SketchSession* s = sketch::SketchSession::current(); s && s->manager() == &tab->manager()) sketch::SketchSession::end();
   if (tab->manager().isActive()) tab->manager().cancel();
-  if (tab->documentPtr().use_count() == 1) clearRecoveryFile(*tab);
   const int index = indexOfTab(tab);
-  const bool wasActive = tab == active_;
-  if (wasActive) {
+  if (tab == active_) {
     // choose the neighbour (Fusion: the tab to the left)
-    DocumentTab* next = nullptr;
-    if (tabCount() > 1) next = tabAt(index > 0 ? index - 1 : 1);
+    DocumentTab* next = tabCount() > 1 ? tabAt(index > 0 ? index - 1 : 1) : nullptr;
     if (!next) {
       destroyTab(tab);
       addDesignTab();
-      echoCommand("close");
-      return true;
+      return;
     }
     activateTab(next);
   }
   destroyTab(tab);
-  echoCommand("close");
-  return true;
 }
 
 void MainWindow::destroyTab(DocumentTab* tab) {
   const int index = indexOfTab(tab);
   if (index < 0) return;
   if (tab == active_) {
+    if (tab->isDesign()) browserDockWanted_ = !browserDock_->isHidden();  // closed with its x (DOC-02)
     active_ = nullptr;
     syncActivePointers();
   }
-  if (tab->documentPtr().use_count() == 1) failedFeatures_.erase(&tab->document());
+  bool lastOfDocument = true;
+  for (const auto& t : tabs_)
+    if (t.get() != tab && &t->document() == &tab->document()) lastOfDocument = false;
+  if (lastOfDocument) failedFeatures_.erase(&tab->document());
   switchingTabs_ = true;
   tabBar_->removeTab(index);
   switchingTabs_ = false;
@@ -791,6 +859,7 @@ bool MainWindow::recoverFile(const QString& path, QString* error) {
   document_->undoStack().clear();
   document_->setName(name.toStdString());
   document_->setModified(true);  // it only lives in memory: Save (As) stores it for good
+  document_->undoStack().resetClean();  // and no undo gets back to an unmodified state (DOC-09)
   afterDocumentReplaced();
   // keep a recovery copy at all times (DOC-02): write this session's copy first, then drop the
   // orphaned one; if the write fails the old file stays and is offered again next time
@@ -902,6 +971,8 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
   connect(&d->selection(), &core::SelectionModel::changed, this, whenActive([this] {
             updateSelectionStatus();
             scheduleStateRefresh();
+            // the feature being edited keeps its frame until the command ends
+            if (timelineFrameFollowsSelection_ && !(manager_->isActive() && !isIdleTool())) clearTimelineFrameUnlessSelected();
           }));
   // a rename (or a recompute) changes what the status bar says about the selection
   connect(d, &core::Document::bodyChanged, this, whenActive([this](core::ObjectId) { scheduleSelectionStatus(); }));
@@ -919,6 +990,7 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     connect(browser, &BrowserTree::deleteRequested, this, &MainWindow::deleteRefs);
     connect(browser, &BrowserTree::runToolRequested, this, [this](const std::string& id) { runCommand(id); });
     connect(browser, &BrowserTree::findInTimelineRequested, this, [this](ObjectId id) {
+      timelineFrameFollowsSelection_ = false;  // a "find" frame stays until something else happens
       if (timeline_) timeline_->scrollToFeature(id);
     });
     connect(browser, &BrowserTree::suppressRequested, this, [this](ObjectId id, bool s) {
@@ -969,6 +1041,7 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
       if (add) document_->selection().toggle(r);
       else document_->selection().set(r);
       if (timeline_) timeline_->strip()->setHighlightedFeature(id);
+      timelineFrameFollowsSelection_ = true;
     });
   }
   if (viewer::ViewerWidget* viewer = tab->viewer()) {
@@ -1010,6 +1083,9 @@ bool MainWindow::isIdleTool() const {
 
 void MainWindow::onToolActivated(const std::string& id) {
   const quint64 serial = ++activation_;
+  // a new command starts from a clean status bar: an old error or warning would read as its
+  // own; a message the tool posts while activating comes after this and stays (DOC-08)
+  if (messageLevel_ != core::MessageLevel::Info && !messageLabel_->text().isEmpty()) clearStatusMessage();
   acceptEnabled_ = true;
   dialog_->dismiss();
   // ToolManager emits toolActivated before ITool::activate(); toolStarted (after it) builds the
@@ -1048,8 +1124,19 @@ void MainWindow::layoutOverlays() {
   if (palette_ && palette_->isVisible()) palette_->reposition(dialog_);
 }
 
+void MainWindow::clearTimelineFrameUnlessSelected() {
+  // the timeline frame marks the feature picked or being edited; it goes with it (DOC-12)
+  if (!timeline_ || !document_) return;
+  const ObjectId framed = timeline_->strip()->highlightedFeature();
+  if (framed == core::kInvalidId) return;
+  for (const ShapeRef& r : document_->selection().items())
+    if (r.owner == framed) return;
+  timeline_->strip()->setHighlightedFeature(core::kInvalidId);
+}
+
 void MainWindow::onToolFinished(const std::string& id, bool accepted) {
   ++activation_;  // invalidate a pending dialog build
+  clearTimelineFrameUnlessSelected();
   dialog_->dismiss();
   layoutOverlays();
   acceptEnabled_ = true;
@@ -1109,11 +1196,26 @@ void MainWindow::reportNewFailures(bool announce) {
     now.insert(f->id());
     if (!first && !before.count(f->id())) first = f;
   }
+  // the failure on display is fixed (undo, edit): its text goes too (DOC-08)
+  if (failureDoc_ == document_ && failureFeature_ != core::kInvalidId && !now.count(failureFeature_)) {
+    if (messageLabel_->text() == failureText_) clearStatusMessage();
+    failureFeature_ = core::kInvalidId;
+  }
   before = std::move(now);
   if (!announce || !first) return;
   std::string msg = first->name() + " failed";
   if (!first->statusMessage().empty()) msg += ": " + first->statusMessage();
   showMessage(msg, core::MessageLevel::Error);
+  failureDoc_ = document_;
+  failureFeature_ = first->id();
+  failureText_ = messageLabel_->text();
+}
+
+void MainWindow::clearStatusMessage() {
+  messageLabel_->clear();
+  messageLabel_->setToolTip({});
+  messageTimer_->stop();
+  messageLevel_ = core::MessageLevel::Info;
 }
 
 void MainWindow::scheduleStateRefresh() {
@@ -1143,6 +1245,7 @@ void MainWindow::showMessage(const std::string& text, core::MessageLevel level) 
   const QString firstLine = q.section('\n', 0, 0);
   messageLabel_->setStyleSheet(QString("color: %1;").arg(color));
   messageLabel_->setText(firstLine);
+  messageLevel_ = level;
   messageLabel_->setToolTip(q);
   messageTimer_->start(level == core::MessageLevel::Info ? 5000 : 9000);
   commandLine_->appendHistory(q);
@@ -1314,7 +1417,16 @@ bool MainWindow::maybeSave(DocumentTab& tab) {
 bool MainWindow::maybeSave() { return active_ ? maybeSave(*active_) : true; }
 
 bool MainWindow::newDocument() {
+  // "Untitled", "Untitled 2", ...: the lowest number no open document uses (DOC-10)
+  std::set<std::string> used;
+  for (const auto& t : tabs_) used.insert(t->document().name());
+  std::string name = "Untitled";
+  for (int n = 2; used.count(name); ++n) name = "Untitled " + std::to_string(n);
   addDesignTab();
+  if (document_->name() != name) {
+    document_->setName(name);
+    document_->setModified(false);
+  }
   if (viewer_) {
     viewer_->setStandardView(core::StandardView::Home, false);
     viewer_->setOriginVisible(false);
@@ -1413,7 +1525,7 @@ bool MainWindow::openFile(const QString& path, QString* error) {
     if (created && tabCount() > 1) closeTab(created);  // do not leave an empty tab behind
     return false;
   }
-  if (document_->name().empty() || document_->name() == "Untitled") document_->setName(QFileInfo(path).completeBaseName().toStdString());
+  if (isAutoDocumentName(document_->name())) document_->setName(QFileInfo(path).completeBaseName().toStdString());
   document_->setModified(false);
   recent_.add(canonical);
   recent_.save();
@@ -1444,12 +1556,12 @@ bool MainWindow::saveAs() {
                       : core::qs(document_->filePath());
   QString path = QFileDialog::getSaveFileName(this, "Save As", start, "FabriCAD design (*.fcad)");
   if (path.isEmpty()) return false;
-  s.setValue("file/lastDir", QFileInfo(path).absolutePath());
   QString err;
   if (!saveTo(path, &err)) {
     QMessageBox::warning(this, "Save As", "Cannot save:\n" + err);
     return false;
   }
+  s.setValue("file/lastDir", QFileInfo(path).absolutePath());  // only a folder that worked (DOC-04)
   return true;
 }
 
@@ -1459,14 +1571,21 @@ bool MainWindow::saveTo(const QString& p, QString* error) {
   path = canonicalPath(path);
   // The document name follows the file (Fusion) unless the user gave it a name of its own: an
   // automatic name is "Untitled" or the stem of the file it came from (DOC-06).
-  const std::string& name = document_->name();
+  // The name is set before writing (the file stores it) and put back when the write fails, with
+  // the modified flag the rename touched (DOC-04).
+  const std::string oldName = document_->name();
+  const bool wasModified = document_->isModified();
+  const std::string& name = oldName;
   const std::string oldStem =
       document_->filePath().empty() ? std::string() : QFileInfo(core::qs(document_->filePath())).completeBaseName().toStdString();
-  if (name.empty() || name == "Untitled" || (!oldStem.empty() && name == oldStem))
+  if (isAutoDocumentName(name) || (!oldStem.empty() && name == oldStem))
     document_->setName(QFileInfo(path).completeBaseName().toStdString());
   std::string err;
   if (!document_->save(path.toStdString(), &err)) {
     if (error) *error = core::qs(err);
+    if (document_->name() != oldName) document_->setName(oldName);
+    document_->setModified(wasModified);
+    updateTitle();
     return false;
   }
   recent_.add(path);
@@ -1493,6 +1612,8 @@ void MainWindow::closeEvent(QCloseEvent* e) {
     if (t->manager().isActive()) t->manager().cancel();
   QSettings s;
   s.setValue("window/geometry", saveGeometry());
+  // a drawing tab hides the browser only for itself: store the design layout (DOC-02)
+  if (active_ && !active_->isDesign() && browserDockWanted_) browserDock_->show();
   s.setValue("window/state", saveState());
   s.setValue("search/recent", recentCommands_);
   s.setValue("ui/commandLine", commandLine_->isVisible());
@@ -1816,6 +1937,17 @@ void closeMenus(const std::vector<QMenu*>& menus) {
 }  // namespace
 
 bool MainWindow::eventFilter(QObject* o, QEvent* e) {
+  if (o == tabBar_) {
+    if (e->type() == QEvent::MouseButtonPress && static_cast<QMouseEvent*>(e)->button() == Qt::LeftButton)
+      tabDragActive_ = true;
+    else if (e->type() == QEvent::MouseButtonRelease && tabDragActive_) {
+      tabDragActive_ = false;
+      if (tabBarRefreshDeferred_) {
+        tabBarRefreshDeferred_ = false;
+        scheduleTabBarRefresh();
+      }
+    }
+  }
   if (viewer_ && o == viewer_ && e->type() == QEvent::Resize) QTimer::singleShot(0, this, &MainWindow::layoutOverlays);
   // DOC-12: without a pointer/keyboard grab (XWayland, no window manager) a click on the main
   // window or a key typed into it does not reach the open menu, so the menu would stay up and

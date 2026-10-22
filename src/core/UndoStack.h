@@ -80,6 +80,11 @@ class UndoStack : public QObject {
   /// Clean state tracking (for the "modified" flag).
   void setClean();
   bool isClean() const { return cleanIndex_ == index_; }
+  /// No index is clean any more: a change was made outside the stack (or merged into the saved
+  /// step), so no undo or redo gets back to the saved state.
+  void resetClean();
+  /// True while a command's redo()/undo() runs (push, undo, redo).
+  bool isExecuting() const { return executing_ > 0; }
 
  signals:
   void changed();          ///< anything: push/undo/redo/clear
@@ -94,6 +99,12 @@ class UndoStack : public QObject {
   int index_ = 0;
   int cleanIndex_ = 0;
   int limit_ = 200;
+  int executing_ = 0;
+  struct Busy {
+    explicit Busy(UndoStack& s) : s_(s) { ++s_.executing_; }
+    ~Busy() { --s_.executing_; }
+    UndoStack& s_;
+  };
 };
 
 }  // namespace fabricad::core
