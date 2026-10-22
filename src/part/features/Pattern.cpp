@@ -9,6 +9,8 @@
 #include "core/ShapeUtils.h"
 #include "part/PartUtils.h"
 
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 #include <QJsonArray>
 
 #include <gp_Ax2.hxx>
@@ -219,6 +221,74 @@ std::vector<int> TransformFeature::suppressedInstances() const {
   return out;
 }
 
+bool TransformFeature::checkInstanceSpacing(core::RecomputeContext& ctx, const std::vector<gp_Trsf>& transforms,
+                                            bool newBodies) {
+  // G3 PART-10: bounding box of what is patterned (bodies, or the features' tool shapes)
+  Bnd_Box box;
+  const bool bodiesMode = enumIndex("patternType") == Bodies;
+  for (const auto& ref : prop("objects").refs()) {
+    TopoDS_Shape s;
+    if (ref.kind == core::ShapeKind::Body || (bodiesMode && ref.isBrep())) s = ctx.resolve(ref);
+    else if (ref.kind == core::ShapeKind::Feature)
+      if (const PartFeature* src = ctx.featureAs<PartFeature>(ref.owner)) s = src->toolShape();
+    if (!s.IsNull()) BRepBndLib::Add(s, box);
+  }
+  if (box.IsVoid() || transforms.empty()) return true;
+  double x0, y0, z0, x1, y1, z1;
+  box.Get(x0, y0, z0, x1, y1, z1);
+  std::vector<gp_Pnt> corners;
+  for (double x : {x0, x1})
+    for (double y : {y0, y1})
+      for (double z : {z0, z1}) corners.emplace_back(x, y, z);
+  const gp_Pnt centre((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  // instances: identity (the original) + transforms
+  std::vector<gp_Trsf> all{gp_Trsf()};
+  all.insert(all.end(), transforms.begin(), transforms.end());
+  // max corner displacement between two instances: 0 = the very same place
+  auto apart = [&](const gp_Trsf& a, const gp_Trsf& b) {
+    double d = 0;
+    for (const gp_Pnt& c : corners) d = std::max(d, c.Transformed(a).Distance(c.Transformed(b)));
+    return d;
+  };
+  double minApart = 1e100;
+  double overlapStep = 1e100;  // centre step of the closest pair
+  gp_Vec overlapDir;
+  const size_t n = all.size();
+  const size_t maxPairs = 200000;  // O(n^2) is fine up to the instance limit; cap anyway
+  size_t pairs = 0;
+  for (size_t i = 0; i < n && pairs < maxPairs; ++i)
+    for (size_t j = i + 1; j < n && pairs < maxPairs; ++j, ++pairs) {
+      const double d = apart(all[i], all[j]);
+      if (d < minApart) {
+        minApart = d;
+        gp_Vec v(centre.Transformed(all[i]), centre.Transformed(all[j]));
+        overlapStep = v.Magnitude();
+        overlapDir = v;
+      }
+    }
+  if (minApart < 1e-3) {
+    ctx.setError(std::format("pattern instances coincide (spacing {:.4g} mm)", minApart));
+    return false;
+  }
+  if (newBodies) {
+    // extent of the patterned shape along the step between the closest instances
+    double extent = 0;
+    if (overlapStep > 1e-12) {
+      const gp_Dir d(overlapDir);
+      double lo = 1e100, hi = -1e100;
+      for (const gp_Pnt& c : corners) {
+        const double t = gp_Vec(c.XYZ()).Dot(gp_Vec(d));
+        lo = std::min(lo, t);
+        hi = std::max(hi, t);
+      }
+      extent = hi - lo;
+    }
+    if (overlapStep < extent - 1e-6)
+      ctx.setWarning(std::format("pattern instances overlap (spacing {:.4g} mm, size {:.4g} mm)", overlapStep, extent));
+  }
+  return true;
+}
+
 void TransformFeature::applyTransforms(core::RecomputeContext& ctx, const std::vector<gp_Trsf>& transforms, Outcome& out,
                                        bool joinBodies) {
   if (transforms.empty()) {
@@ -236,6 +306,7 @@ void TransformFeature::applyTransforms(core::RecomputeContext& ctx, const std::v
   }
   const bool bodiesMode = enumIndex("patternType") == Bodies;
   const std::string base = name().empty() ? type() : name();
+  if (!checkInstanceSpacing(ctx, transforms, bodiesMode && !joinBodies)) return;
 
   // Working copy of the body shapes: several features may hit the same body in sequence.
   std::map<core::ObjectId, TopoDS_Shape> working;

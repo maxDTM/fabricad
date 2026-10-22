@@ -171,6 +171,14 @@ TorusFeature::TorusFeature() : PrimitiveFeature(kType) {
   addTail();
 }
 
+void TorusFeature::applyDefaultsForNewFeature(const core::Document& doc) {
+  PrimitiveFeature::applyDefaultsForNewFeature(doc);
+  core::Property& major = prop("majorDiameter");
+  core::Property& minor = prop("minorDiameter");
+  if (major.toDouble() <= 0) major.setDouble(40.0);
+  if (minor.toDouble() <= 0 || minor.toDouble() >= major.toDouble()) minor.setDouble(major.toDouble() / 4);
+}
+
 TopoDS_Shape TorusFeature::makeLocal(core::RecomputeContext& ctx, NameMap& names) {
   const double big = ctx.length("majorDiameter") / 2, small = ctx.length("minorDiameter") / 2;
   if (big <= 1e-9 || small <= 1e-9) {

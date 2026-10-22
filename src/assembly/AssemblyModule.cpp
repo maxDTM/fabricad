@@ -125,11 +125,15 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
     ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) { deleteSelectedComponents(c); }, hasComponentSelection));
   }
   {
-    ToolInfo i = assembleInfo("assembly.copy", "Copy Component", "Copy the selected components (paste creates occurrences)", 14);
+    ToolInfo i = assembleInfo("assembly.copy", "Copy", "Copy the selected bodies or components (paste creates copies / occurrences)", 14);
     i.aliases = {"COPYCOMPONENT", "CC"};
     i.shortcut = "Ctrl+C";
     i.hidden = true;  // shortcut, browser context menu and search
-    ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) { copySelectedComponents(c); }, hasComponentSelection));
+    // G3 PART-05: enabled with any selection, so Ctrl+C on a body (copied as a body) or on
+    // something that cannot be copied (a face: reported) is never silently ignored
+    ctx.tools.registerTool(std::make_unique<LambdaTool>(
+        i, [](ToolContext& c) { copySelectedComponents(c); },
+        [](const ToolContext& c) { return c.document && c.selection && !c.selection->isEmpty(); }));
   }
   {
     ToolInfo i = assembleInfo("assembly.paste", "Paste Component",
@@ -139,12 +143,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
     i.hidden = true;
     ctx.tools.registerTool(std::make_unique<LambdaTool>(
         i, [](ToolContext& c) { pasteComponents(c, true); },
-        [](const ToolContext& c) {
-          if (!c.document) return false;
-          for (core::ObjectId id : componentClipboard())
-            if (c.document->component(id)) return true;
-          return false;
-        }));
+        [](const ToolContext& c) { return c.document != nullptr; }));  // empty clipboard: "Nothing to paste"
   }
   {
     ToolInfo i = assembleInfo("assembly.paste-new", "Paste New",
@@ -154,12 +153,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
     i.hidden = true;
     ctx.tools.registerTool(std::make_unique<LambdaTool>(
         i, [](ToolContext& c) { pasteNewComponents(c, true); },
-        [](const ToolContext& c) {
-          if (!c.document) return false;
-          for (core::ObjectId id : componentClipboard())
-            if (c.document->component(id)) return true;
-          return false;
-        }));
+        [](const ToolContext& c) { return c.document != nullptr; }));
   }
   {
     ToolInfo i = assembleInfo("assembly.insert-design", "Insert Design", "Insert an external .fcad part as a linked component", 11);

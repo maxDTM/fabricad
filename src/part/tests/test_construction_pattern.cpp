@@ -261,6 +261,45 @@ class ConstructionPatternTest : public QObject {
     QVERIFY(cf->statusMessage().find("too large") != std::string::npos);
   }
 
+  // G3 PART-10: coincident instances are an error; overlapping new bodies warn.
+  void patternOverlapAndCoincidence() {
+    core::Document doc;
+    core::Feature* base = addBox(doc, 0, 0, 10, 10, 10);
+    core::ObjectId body = base->createdBodies()[0];
+    auto bp = std::make_unique<RectangularPatternFeature>();
+    bp->prop("patternType").setEnum("Bodies");
+    bp->prop("objects").addRef(core::ShapeRef::body(body));
+    bp->prop("direction1").setRef(core::ShapeRef::originAxis("X"));
+    bp->prop("quantity1").setInt(3);
+    bp->prop("distance1").setDouble(0.0002);  // extent: steps of 0.0001 mm
+    core::Feature* bf = doc.addFeature(std::move(bp));
+    doc.recompute();
+    QCOMPARE(bf->status(), core::FeatureStatus::Error);
+    QVERIFY2(bf->statusMessage().find("coincide") != std::string::npos, bf->statusMessage().c_str());
+    bf->prop("quantity1").setInt(50);
+    bf->prop("distance1").setDouble(10);  // 0.2 mm steps on a 10 mm box
+    doc.notifyFeatureChanged(bf->id());
+    doc.recompute();
+    QCOMPARE(bf->status(), core::FeatureStatus::Warning);
+    QVERIFY2(bf->statusMessage().find("overlap") != std::string::npos, bf->statusMessage().c_str());
+    bf->prop("distance1").setDouble(490);  // 10 mm steps: touching, not overlapping
+    doc.notifyFeatureChanged(bf->id());
+    doc.recompute();
+    QVERIFY2(bf->status() == core::FeatureStatus::Ok, bf->statusMessage().c_str());
+    // circular: a full turn of 1 instance per 360 deg... two instances at 0 and 360 coincide
+    auto cp = std::make_unique<CircularPatternFeature>();
+    cp->prop("patternType").setEnum("Bodies");
+    cp->prop("objects").addRef(core::ShapeRef::body(body));
+    cp->prop("axis").setRef(core::ShapeRef::originAxis("Z"));
+    cp->prop("type").setEnum("Angle");
+    cp->prop("angle").setDouble(0.00001);
+    cp->prop("quantity").setInt(2);
+    core::Feature* cf = doc.addFeature(std::move(cp));
+    doc.recompute();
+    QCOMPARE(cf->status(), core::FeatureStatus::Error);
+    QVERIFY2(cf->statusMessage().find("coincide") != std::string::npos, cf->statusMessage().c_str());
+  }
+
   void circularPatternAndMirror() {
     core::Document doc;
     // ring: big box with a small boss joined at a radius, pattern the boss 6x about Z

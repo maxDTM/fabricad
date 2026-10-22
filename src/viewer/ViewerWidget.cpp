@@ -20,6 +20,7 @@
 #include <AIS_ViewCube.hxx>
 #include <Aspect_Grid.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepLib.hxx>
 #include <Bnd_Box.hxx>
 #include <Font_FontMgr.hxx>
 #include <Font_SystemFont.hxx>
@@ -460,6 +461,7 @@ void ViewerWidget::onGlInitialized() {
   dr->UIsoAspect()->SetNumber(0);
   dr->VIsoAspect()->SetNumber(0);
   dr->SetFaceBoundaryDraw(true);
+  dr->SetFaceBoundaryUpperContinuity(GeomAbs_C1);  // PART-11: no seam edges (see makeDisplayObject)
   dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(hexq("#1A1A1A"), Aspect_TOL_SOLID, 1.0));
   ctx->SetPixelTolerance(4);
   ctx->SetAutomaticHilight(true);
@@ -648,7 +650,11 @@ void ViewerWidget::onFilterInputsChanged() {
   ShapeKindMask toolMask = toolFilter_;
   if (document_) toolMask &= document_->selection().filter();
   const bool restricted = toolMask != core::kAllKinds;
-  const bool planes = restricted && core::hasKind(toolMask, ShapeKind::OriginPlane);
+  // G3 PART-09: origin planes are forced visible for picking only while a tool asks for a
+  // plane (its own filter, Selection::filter(), is restricted and has OriginPlane). Idle, the
+  // filter is the user's (Faces, ...), and the planes follow the browser's Origin eye.
+  const bool toolRestricted = document_ && document_->selection().filter() != core::kAllKinds;
+  const bool planes = restricted && toolRestricted && core::hasKind(toolMask, ShapeKind::OriginPlane);
   const bool profiles = restricted && core::hasKind(toolMask, ShapeKind::Profile);
   if (planes != sceneOptions_.showOriginPlanes || profiles != sceneOptions_.showProfiles) {
     sceneOptions_.showOriginPlanes = planes;
@@ -726,6 +732,15 @@ namespace {
 
 Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, core::DisplayMode mode, int& dispMode,
                                                 Graphic3d_ZLayerId& layer) {
+  // G3 PART-11: tag edge regularity once so the face-boundary pass (upper continuity C1 on
+  // the default drawer) skips seam edges of closed surfaces (CN); real and tangent (G1)
+  // edges stay. Metadata only: the TShapes stay the same, so picking maps are unaffected.
+  if (it.style == SceneStyle::Body && !it.shape.IsNull()) {
+    try {
+      BRepLib::EncodeRegularity(it.shape, 1.0e-6);
+    } catch (const Standard_Failure&) {
+    }
+  }
   Handle(AIS_Shape) s = new AIS_Shape(it.shape);
   if (!isIdentity(it.placement)) s->SetLocalTransformation(it.placement);
   Handle(Prs3d_Drawer) dr = s->Attributes();
@@ -825,7 +840,10 @@ std::vector<int> modesFor(const SceneItem& it, ShapeKindMask eff, bool pickGhost
   }
   if (isSketchStyle(it.style)) {
     if (hasKind(eff, ShapeKind::SketchCurve)) m.push_back(AIS_Shape::SelectionMode(TopAbs_EDGE));
-    else if (hasKind(eff, ShapeKind::Sketch)) m.push_back(0);
+    // G3 PART-03: an input taking profiles (Extrude/Revolve "Profile|Face|Sketch") must not
+    // turn a click on or near a curve into the whole sketch (= every profile). The profile
+    // presentations cover the click; a whole sketch is still picked from the browser.
+    else if (hasKind(eff, ShapeKind::Sketch) && !hasKind(eff, ShapeKind::Profile)) m.push_back(0);
     return m;
   }
   if (hasKind(eff, it.ref.kind) || (it.style == SceneStyle::Profile && hasKind(eff, ShapeKind::Profile))) m.push_back(0);
@@ -835,6 +853,12 @@ std::vector<int> modesFor(const SceneItem& it, ShapeKindMask eff, bool pickGhost
 }  // namespace
 
 void ViewerWidget::doSync() {
+  if (syncing_) return;
+  struct Guard {
+    bool& b;
+    explicit Guard(bool& f) : b(f) { b = true; }
+    ~Guard() { b = false; }
+  } guard(syncing_);
   syncPending_ = false;
   ++syncCount_;
   if (!document_) {
@@ -1078,6 +1102,9 @@ bool ownerToRef(const Document& doc, SceneModel& scene, const SceneItem& item, c
 bool ViewerWidget::detect(int x, int y, ShapeKindMask kinds, ShapeRef& out, gp_Pnt* hit, bool* onCube) {
   if (onCube) *onCube = false;
   if (!d_->ready() || !document_) return false;
+  // G3 PART-12: a tool that just started (plane input: origin planes / profiles shown) has a
+  // scene rebuild pending; pick on the current scene and selection modes, not the stale ones.
+  if (syncPending_ && !syncing_) doSync();
   const double dpr = d_->view->devicePixelRatioF();
   const int px = static_cast<int>(std::lround(x * dpr)), py = static_cast<int>(std::lround(y * dpr));
   const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
@@ -1144,6 +1171,7 @@ bool ViewerWidget::pick(int x, int y, ShapeKindMask kinds, ShapeRef& out, gp_Pnt
 std::vector<ShapeRef> ViewerWidget::pickAll(int x, int y, ShapeKindMask kinds) {
   std::vector<ShapeRef> out;
   if (!d_->ready() || !document_) return out;
+  if (syncPending_ && !syncing_) doSync();
   const double dpr = d_->view->devicePixelRatioF();
   const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
   ctx->MoveTo(static_cast<int>(std::lround(x * dpr)), static_cast<int>(std::lround(y * dpr)), d_->v3d(), false);

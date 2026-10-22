@@ -94,7 +94,7 @@ std::string FeatureTool::primaryNumeric() const {
   return f ? f->primaryNumeric() : std::string();
 }
 
-void FeatureTool::activate(core::ToolContext& ctx) {
+void FeatureTool::resetState() {
   working_.reset();
   editing_ = nullptr;
   before_ = {};
@@ -109,6 +109,10 @@ void FeatureTool::activate(core::ToolContext& ctx) {
   outcome_ = {};
   valid_ = false;
   message_.clear();
+}
+
+void FeatureTool::activate(core::ToolContext& ctx) {
+  resetState();
   if (!ctx.document) {
     ctx.cancel();
     return;
@@ -882,8 +886,7 @@ std::unique_ptr<PartFeature> PressPullTool::featureFor(const std::vector<core::S
 }
 
 void PressPullTool::activate(core::ToolContext& ctx) {
-  working_.reset();
-  editing_ = nullptr;
+  resetState();  // same fresh state as every feature command (PART-07)
   if (!ctx.document) {
     ctx.cancel();
     return;

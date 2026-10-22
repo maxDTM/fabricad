@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/tools/ComponentTools.h"
 
+#include "assembly/BaseBodyFeature.h"
 #include "assembly/JointFeature.h"
 #include "assembly/StepExport.h"
 #include "assembly/tools/ToolCommon.h"
@@ -20,7 +21,10 @@
 #include <QLineEdit>
 #include <QWidget>
 
+#include <TopLoc_Location.hxx>
 #include <cctype>
+#include <algorithm>
+#include <memory>
 #include <format>
 
 namespace fabricad::assembly {
@@ -300,20 +304,119 @@ bool isDescendantOf(const Document& doc, ObjectId node, ObjectId ancestor) {
 const std::vector<ObjectId>& componentClipboard() { return clipboardStorage(); }
 void setComponentClipboard(std::vector<ObjectId> ids) { clipboardStorage() = std::move(ids); }
 
+namespace {
+std::vector<ObjectId>& bodyClipboardStorage() {
+  static std::vector<ObjectId> ids;
+  return ids;
+}
+}  // namespace
+
+const std::vector<ObjectId>& bodyClipboard() { return bodyClipboardStorage(); }
+void setBodyClipboard(std::vector<ObjectId> ids) { bodyClipboardStorage() = std::move(ids); }
+
+bool clipboardHasContent(const Document& doc) {
+  for (ObjectId id : componentClipboard())
+    if (doc.component(id) && id != kRootComponentId) return true;
+  for (ObjectId id : bodyClipboard())
+    if (doc.body(id) && !doc.bodyShape(id).IsNull()) return true;
+  return false;
+}
+
 int copySelectedComponents(ToolContext& ctx) {
   if (!ctx.document) return 0;
-  std::vector<ObjectId> comps = componentsOf(*ctx.document, ctx.preselection);
-  if (comps.empty() && ctx.selection) comps = componentsOf(*ctx.document, ctx.selection->items());
+  const Document& doc = *ctx.document;
+  std::vector<ShapeRef> refs = ctx.preselection;
+  if (refs.empty() && ctx.selection) refs = ctx.selection->items();
+  // G3 PART-05: bodies of the active component (a part design: the root) are copied as bodies;
+  // a body of another component stands for that component (selection priority), as before.
+  ObjectId active = doc.activeComponent();
+  if (active == kInvalidId || !doc.component(active)) active = kRootComponentId;
+  bool anyComponentRef = false;
+  std::vector<ObjectId> bodies;
+  for (const ShapeRef& r : refs) {
+    if (r.kind == ShapeKind::Component) anyComponentRef = true;
+    if (r.kind != ShapeKind::Body) continue;
+    const core::Body* b = doc.body(r.owner);
+    if (!b || b->component != active) continue;
+    if (std::find(bodies.begin(), bodies.end(), r.owner) == bodies.end()) bodies.push_back(r.owner);
+  }
+  if (!anyComponentRef && !bodies.empty()) {
+    setBodyClipboard(bodies);
+    setComponentClipboard({});
+    const core::Body* b = doc.body(bodies.front());
+    ctx.showMessage(bodies.size() == 1 ? std::format("Copied {}", b ? b->name : std::string("body"))
+                                       : std::format("Copied {} bodies", bodies.size()),
+                    false);
+    return static_cast<int>(bodies.size());
+  }
+  std::vector<ObjectId> comps = componentsOf(doc, refs);
   comps.erase(std::remove(comps.begin(), comps.end(), core::kRootComponentId), comps.end());
   if (comps.empty()) {
-    ctx.showMessage("Select a component to copy", true);
+    ctx.showMessage("Select a body or component to copy", true);
     return 0;
   }
   setComponentClipboard(comps);
-  ctx.showMessage(comps.size() == 1 ? std::format("Copied {}", componentLabel(*ctx.document, comps.front()))
+  setBodyClipboard({});
+  ctx.showMessage(comps.size() == 1 ? std::format("Copied {}", componentLabel(doc, comps.front()))
                                     : std::format("Copied {} components", comps.size()),
                   false);
   return static_cast<int>(comps.size());
+}
+
+std::vector<ObjectId> pasteBodies(ToolContext& ctx, bool startMove) {
+  std::vector<ObjectId> created;
+  if (!ctx.document) return created;
+  Document& doc = *ctx.document;
+  std::vector<ObjectId> sources;
+  for (ObjectId id : bodyClipboard())
+    if (doc.body(id) && !doc.bodyShape(id).IsNull()) sources.push_back(id);
+  if (sources.empty()) {
+    ctx.showMessage("Nothing to paste: copy a body or component first (Ctrl+C)", true);
+    return created;
+  }
+  ObjectId target = doc.activeComponent();
+  if (target == kInvalidId || !doc.component(target)) target = kRootComponentId;
+  auto out = std::make_shared<std::vector<ObjectId>>();
+  auto edit = [&doc, sources, target, out] {
+    out->clear();
+    const gp_Trsf toTarget = doc.worldPlacement(target).Inverted();
+    std::vector<ObjectId> features;
+    for (ObjectId src : sources) {
+      const core::Body* b = doc.body(src);
+      if (!b) continue;
+      const gp_Trsf t = toTarget.Multiplied(doc.worldPlacement(b->component));
+      TopoDS_Shape shape = doc.bodyShape(src);
+      if (t.Form() != gp_Identity) shape = shape.Moved(TopLoc_Location(t));
+      auto nf = std::make_unique<BaseBodyFeature>();
+      nf->setName(doc.uniqueFeatureName("BaseBody"));
+      nf->setComponent(target);
+      nf->setShape(shape, b->name + " (1)");
+      if (core::Feature* f = doc.addFeature(std::move(nf))) features.push_back(f->id());
+    }
+    doc.recompute();
+    for (ObjectId fid : features)
+      if (const core::Feature* f = doc.feature(fid))
+        for (ObjectId nb : f->createdBodies()) out->push_back(nb);
+  };
+  if (ctx.undo) ctx.undo->push(std::make_unique<core::DocumentSnapshotCommand>(doc, "Paste Body", edit));
+  else edit();
+  created = *out;
+  if (created.empty()) {
+    ctx.showMessage("Paste failed: the copied body could not be recreated", true);
+    return created;
+  }
+  std::vector<ShapeRef> refs;
+  for (ObjectId id : created) refs.push_back(ShapeRef::body(id));
+  if (ctx.selection) ctx.selection->set(refs);
+  const core::Body* nb = doc.body(created.front());
+  ctx.showMessage(created.size() == 1 ? std::format("Pasted {}", nb ? nb->name : std::string("body"))
+                                      : std::format("Pasted {} bodies", created.size()),
+                  false);
+  if (startMove && ctx.manager && ctx.manager->registry().has("part.move")) {
+    ctx.preselection = refs;
+    ctx.manager->run("part.move");
+  }
+  return created;
 }
 
 std::vector<ObjectId> pasteComponents(ToolContext& ctx, bool startMove) {
@@ -323,10 +426,7 @@ std::vector<ObjectId> pasteComponents(ToolContext& ctx, bool startMove) {
   std::vector<ObjectId> sources;
   for (ObjectId id : componentClipboard())
     if (doc.component(id) && id != core::kRootComponentId) sources.push_back(id);
-  if (sources.empty()) {
-    ctx.showMessage("Nothing to paste: copy a component first (Ctrl+C)", true);
-    return created;
-  }
+  if (sources.empty()) return pasteBodies(ctx, startMove);  // bodies copied (or nothing: reported there)
   if (ctx.undo && sources.size() > 1) ctx.undo->beginMacro("Paste components");
   for (ObjectId src : sources) {
     const core::Component* c = doc.component(src);

@@ -240,10 +240,8 @@ std::vector<ObjectId> pasteNewComponents(core::ToolContext& ctx, bool startMove)
   std::vector<ObjectId> sources;
   for (ObjectId id : componentClipboard())
     if (doc.component(id) && id != core::kRootComponentId) sources.push_back(id);
-  if (sources.empty()) {
-    ctx.showMessage("Nothing to paste: copy a component first (Ctrl+C)", true);
-    return created;
-  }
+  // G3 PART-05: copied bodies paste as independent (frozen) copies; nothing copied is reported
+  if (sources.empty()) return pasteBodies(ctx, startMove);
   auto out = std::make_shared<std::vector<ObjectId>>();
   auto edit = [&doc, sources, out] {
     std::vector<ObjectId>& created = *out;

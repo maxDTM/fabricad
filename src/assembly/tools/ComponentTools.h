@@ -94,4 +94,15 @@ int copySelectedComponents(core::ToolContext& ctx);
 /// copy can be dragged into place with the triad. Returns the new component ids.
 std::vector<core::ObjectId> pasteComponents(core::ToolContext& ctx, bool startMove = true);
 
+/// Bodies copied last (G3 PART-05): Ctrl+C on bodies of the active component copies the bodies,
+/// not their component. Copying components clears it and vice versa.
+const std::vector<core::ObjectId>& bodyClipboard();
+void setBodyClipboard(std::vector<core::ObjectId> ids);
+/// True when either clipboard holds something that still exists in `doc`.
+bool clipboardHasContent(const core::Document& doc);
+/// Paste / Paste New of copied bodies: one frozen copy (BaseBody feature) per body in the active
+/// component, at the source's world position, in one undo step; the copies become the
+/// selection and Move starts on them (`startMove`). Returns the new body ids.
+std::vector<core::ObjectId> pasteBodies(core::ToolContext& ctx, bool startMove = true);
+
 }  // namespace fabricad::assembly
