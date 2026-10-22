@@ -52,6 +52,11 @@ void applyLightTheme(QApplication& app) {
   f.setStyleHint(QFont::SansSerif);
   f.setPointSizeF(9.0);
   app.setFont(f);
+  // platform themes also hand out per-class fonts (item views, menus, tabs...); override those
+  for (const char* cls : {"QAbstractItemView", "QHeaderView", "QMenu", "QMenuBar", "QTabBar", "QLabel", "QPushButton",
+                          "QToolButton", "QLineEdit", "QComboBox", "QAbstractSpinBox", "QCheckBox", "QRadioButton",
+                          "QGroupBox", "QDockWidget", "QStatusBar", "QTextEdit", "QPlainTextEdit", "QMessageBox"})
+    QApplication::setFont(f, cls);
   if (QFile qss(":/theme-light.qss"); qss.open(QIODevice::ReadOnly)) app.setStyleSheet(QString::fromUtf8(qss.readAll()));
   QToolTip::setPalette(pal);
   QToolTip::setFont(f);

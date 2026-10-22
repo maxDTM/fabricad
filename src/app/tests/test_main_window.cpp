@@ -212,7 +212,7 @@ class TestMainWindow : public QObject {
   void commandDialogDocksLeftAndKeepsSize() {
     QVERIFY(w_->runCommand("test.dialog"));
     settle();
-    CommandDialog* d = w_->commandDialog();
+    app::CommandDialog* d = w_->commandDialog();
     QVERIFY(d->isVisible());
     QVERIFY(d->parentWidget());
     // docked at the top-left of the viewport (UX-17), away from the ViewCube

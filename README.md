@@ -280,5 +280,7 @@ resources/                icons, stylesheet (.qrc)
   reference edges by index + position (no history names).
 * App: `EXPORTSTEP` is the part exporter (the assembly XCAF export is `assembly.export-step`);
   `SCREENSHOT` is blank in
-  `--offscreen` runs; light theme only (icons and value boxes have no dark palette); no "Select
+  `--offscreen` runs; light theme only (icons and value boxes have no dark palette): the app sets its
+  own light palette and font, so a dark desktop theme (qt6ct, GTK) does not leak in, and file
+  dialogs are Qt's own (no GTK bookmarks or portal); no "Select
   Other"; the manipulator rendering was verified by hand only (no GL in the test environment).

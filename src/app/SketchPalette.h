@@ -17,6 +17,7 @@
 
 class QCheckBox;
 class QGridLayout;
+class QToolButton;
 
 namespace fabricad::core {
 class ToolManager;
@@ -61,7 +62,7 @@ class SketchPalette : public QFrame {
   QWidget* constraintBox_ = nullptr;
   QWidget* title_ = nullptr;
   QWidget* opts_ = nullptr;
-  class QToolButton* collapse_ = nullptr;
+  QToolButton* collapse_ = nullptr;
   bool collapsed_ = false;
   bool hasConstraints_ = false;
   bool userMoved_ = false;

@@ -10,10 +10,10 @@ QLabel:disabled { color: #A9AEB5; }
 #AppBar QToolButton { border: none; padding: 3px; border-radius: 3px; }
 #AppBar QToolButton:hover { background: #E8EEF4; }
 QTabBar#DocumentTabs { background: transparent; }
-QTabBar#DocumentTabs::tab { color: #6B7079; background: #F2F3F5; padding: 5px 8px 5px 12px; border: 1px solid #D3D6DB; border-bottom: none; border-top: 2px solid transparent; margin-right: 2px; min-width: 60px; }
-QTabBar#DocumentTabs::tab:selected { color: #2B2E33; background: #FFFFFF; font-weight: 600; border-top: 2px solid #0696D7; }
+QTabBar#DocumentTabs::tab { color: #6B7079; background: #F2F3F5; padding: 5px 6px 5px 12px; border: 1px solid #D3D6DB; border-bottom: none; border-top: 2px solid transparent; margin-right: 2px; min-width: 60px; }
+QTabBar#DocumentTabs::tab:selected { color: #2B2E33; background: #FFFFFF; border-top: 2px solid #0696D7; }
 QTabBar#DocumentTabs::tab:hover:!selected { color: #2B2E33; background: #E8EEF4; }
-QTabBar#DocumentTabs::close-button { image: url(:/icons/app-close.svg); subcontrol-position: right; margin-left: 4px; width: 12px; height: 12px; }
+QTabBar#DocumentTabs::close-button { image: url(:/ui/tab-close.svg); subcontrol-position: right; margin: 0 2px 0 6px; width: 14px; height: 14px; }
 QTabBar#DocumentTabs::close-button:hover { background: #E1E4E8; border-radius: 2px; }
 
 /* workspace switcher + ribbon */
