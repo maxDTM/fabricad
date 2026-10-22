@@ -3,6 +3,7 @@
 #include "app/Icons.h"
 
 #include "core/Feature.h"
+#include "theme/Tokens.h"
 #include "core/Tool.h"
 
 #include <QFile>
@@ -20,27 +21,37 @@ namespace fabricad::app {
 
 namespace {
 
-/// Draws a rounded badge at any size (crisp at 16 and 32 px).
+// badge hues (icon.badge.* tokens); resolved at paint time so a theme switch needs no setIcon
+constexpr theme::Tok kBadgeTokens[] = {theme::Tok::IconBadgeBlue,   theme::Tok::IconBadgeGreen, theme::Tok::IconBadgeAmber,
+                                       theme::Tok::IconBadgeViolet, theme::Tok::IconBadgeTeal,  theme::Tok::IconBadgeRed,
+                                       theme::Tok::IconBadgeSlate,  theme::Tok::IconBadgeCyan};
+
+theme::Tok badgeToken(const QString& key) {
+  return kBadgeTokens[qHash(key) % (sizeof(kBadgeTokens) / sizeof(kBadgeTokens[0]))];
+}
+
+/// Draws a square badge at any size (crisp at 16 and 32 px).
 class BadgeEngine : public QIconEngine {
  public:
-  BadgeEngine(QString text, QColor color) : text_(std::move(text)), color_(color) {}
+  BadgeEngine(QString text, theme::Tok tok) : text_(std::move(text)), tok_(tok) {}
   void paint(QPainter* p, const QRect& rect, QIcon::Mode mode, QIcon::State) override {
     p->save();
     p->setRenderHint(QPainter::Antialiasing);
-    QColor c = color_;
-    if (mode == QIcon::Disabled) c = QColor(0xB8, 0xBC, 0xC2);
+    const QColor c = theme::color(mode == QIcon::Disabled ? theme::Tok::TextDisabled : tok_);
     const QRectF r = QRectF(rect).adjusted(rect.width() * 0.08, rect.height() * 0.08, -rect.width() * 0.08,
                                            -rect.height() * 0.08);
     QPainterPath path;
-    path.addRoundedRect(r, r.width() * 0.22, r.height() * 0.22);
-    p->fillPath(path, QColor(c.red(), c.green(), c.blue(), 38));
+    path.addRect(r);
+    QColor fill = c;
+    fill.setAlpha(38);
+    p->fillPath(path, fill);
     p->setPen(QPen(c, std::max(1.0, rect.width() / 16.0)));
     p->drawPath(path);
     QFont f = p->font();
     f.setBold(true);
     f.setPixelSize(std::max(6, static_cast<int>(r.height() * (text_.size() > 1 ? 0.42 : 0.55))));
     p->setFont(f);
-    p->setPen(c.darker(130));
+    p->setPen(c);
     p->drawText(r, Qt::AlignCenter, text_);
     p->restore();
   }
@@ -51,11 +62,11 @@ class BadgeEngine : public QIconEngine {
     paint(&p, QRect(QPoint(0, 0), size), mode, state);
     return pm;
   }
-  QIconEngine* clone() const override { return new BadgeEngine(text_, color_); }
+  QIconEngine* clone() const override { return new BadgeEngine(text_, tok_); }
 
  private:
   QString text_;
-  QColor color_;
+  theme::Tok tok_;
 };
 
 QHash<QString, QIcon>& cache() {
@@ -75,13 +86,7 @@ QString badgeText(const QString& label) {
   return QString(words[0][0].toUpper()) + words[1][0].toUpper();
 }
 
-QColor badgeColor(const QString& key) {
-  // A few calm hues that read well on the light theme.
-  static const QColor kPalette[] = {QColor("#1E6FD9"), QColor("#2E9E2E"), QColor("#C27C0E"), QColor("#8E44AD"),
-                                    QColor("#00838F"), QColor("#C0392B"), QColor("#5D6D7E"), QColor("#0696D7")};
-  const size_t h = qHash(key);
-  return kPalette[h % (sizeof(kPalette) / sizeof(kPalette[0]))];
-}
+QColor badgeColor(const QString& key) { return theme::color(badgeToken(key)); }
 
 QString resourceIconPath(const QString& nameOrPath) {
   if (nameOrPath.isEmpty()) return {};
@@ -109,7 +114,7 @@ QIcon iconOr(const std::string& nameOrPath, const std::string& label) {
   auto& c = cache();
   const QString key = "badge:" + l;
   if (auto it = c.find(key); it != c.end()) return *it;
-  QIcon badge(new BadgeEngine(badgeText(l), badgeColor(l)));
+  QIcon badge(new BadgeEngine(badgeText(l), badgeToken(l)));
   c.insert(key, badge);
   return badge;
 }

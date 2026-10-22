@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/Ribbon.h"
 
+#include "app/ThemeManager.h"
+#include "theme/Tokens.h"
+
 #include "app/Icons.h"
 #include "core/Json.h"
 
@@ -17,6 +20,8 @@
 
 namespace fabricad::app {
 
+using theme::Tok;
+
 namespace {
 constexpr int kBigIcon = 30;
 
@@ -30,6 +35,7 @@ QString menuText(const core::ToolInfo& i) {
 }  // namespace
 
 Ribbon::Ribbon(core::ToolManager& manager, QWidget* parent) : QWidget(parent), manager_(&manager) {
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] { updateTabStyle(); });
   setObjectName("RibbonRow");
   setAttribute(Qt::WA_StyledBackground);
   auto* row = new QHBoxLayout(this);
@@ -246,7 +252,7 @@ std::vector<std::string> Ribbon::tabNames() const { return tabNames_; }
 void Ribbon::updateTabStyle() {
   // contextual tabs use the sketch accent colour
   for (int i = 0; i < static_cast<int>(tabNames_.size()); ++i)
-    tabs_->setTabTextColor(i, contextual_.count(tabNames_[static_cast<size_t>(i)]) ? QColor("#3BA55C") : QColor());
+    tabs_->setTabTextColor(i, contextual_.count(tabNames_[static_cast<size_t>(i)]) ? theme::color(Tok::StatusSuccess) : QColor());
 }
 
 void Ribbon::refreshStates() {

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/ParametersDialog.h"
 
+#include "theme/Tokens.h"
+
 #include "app/AppActions.h"
 
 #include "core/Commands.h"
@@ -18,6 +20,8 @@
 
 namespace fabricad::app {
 
+using theme::Tok;
+
 ParametersDialog::ParametersDialog(core::Document& doc, QWidget* parent) : QDialog(parent), doc_(doc) {
   setWindowTitle("Parameters");
   resize(620, 360);
@@ -31,7 +35,6 @@ ParametersDialog::ParametersDialog(core::Document& doc, QWidget* parent) : QDial
   // refusals are shown inline, not in a modal box (scripted/headless use must not block)
   error_ = new QLabel(this);
   error_->setObjectName("ParametersError");
-  error_->setStyleSheet("color: #D93025;");
   error_->setWordWrap(true);
   error_->hide();
   v->addWidget(error_);
@@ -61,7 +64,7 @@ void ParametersDialog::reload() {
     table_->setItem(r, 1, new QTableWidgetItem(core::qs(p.expression)));
     auto* val = new QTableWidgetItem(p.ok ? core::qs(core::formatQuantity(p.value, doc_.units())) : core::qs(p.error));
     val->setFlags(val->flags() & ~Qt::ItemIsEditable);
-    if (!p.ok) val->setForeground(QColor("#D93025"));
+    if (!p.ok) val->setForeground(theme::color(Tok::StatusError));
     table_->setItem(r, 2, val);
     table_->setItem(r, 3, new QTableWidgetItem(core::qs(p.comment)));
   }

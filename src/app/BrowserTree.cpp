@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/BrowserTree.h"
 
+#include "app/ThemeManager.h"
+#include "theme/Tokens.h"
+
 #include "app/AppearancePicker.h"
 
 #include "core/Materials.h"
@@ -38,6 +41,8 @@
 
 namespace fabricad::app {
 
+using theme::Tok;
+
 using core::ObjectId;
 using core::ShapeKind;
 using core::ShapeRef;
@@ -49,6 +54,8 @@ const char* kOriginNames[] = {"O", "X", "Y", "Z", "XY", "XZ", "YZ"};
 
 BrowserTree::BrowserTree(core::Document& doc, viewer::ViewerWidget* viewer, QWidget* parent)
     : QTreeWidget(parent), doc_(doc), viewer_(viewer) {
+  // item colours come from tokens when rows are built: rebuild after a live theme switch
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] { scheduleRebuild(); });
   setObjectName("Browser");
   setColumnCount(2);
   setHeaderHidden(true);
@@ -143,7 +150,7 @@ void BrowserTree::updateEye(QTreeWidgetItem* item, bool hasEye, bool visible) {
   item->setIcon(1, resourceIcon(visible ? "eye" : "eye-off"));
   item->setToolTip(1, visible ? "Hide" : "Show");
   item->setData(1, Qt::UserRole, visible);
-  if (!visible) item->setForeground(0, QColor("#9AA0A8"));
+  if (!visible) item->setForeground(0, theme::color(Tok::TextSecondary));
 }
 
 bool BrowserTree::folderVisible(ObjectId compId, const QString& folder) const {
@@ -252,10 +259,10 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
         if (!f->statusMessage().empty()) tip += "\n" + core::qs(f->statusMessage());
         it->setToolTip(0, tip);
         if (f->status() == core::FeatureStatus::Error) {
-          it->setForeground(0, QColor("#D93025"));
+          it->setForeground(0, theme::color(Tok::StatusError));
           it->setIcon(0, resourceIcon("error"));
         } else if (f->status() == core::FeatureStatus::Warning) {
-          it->setForeground(0, QColor("#B07C00"));
+          it->setForeground(0, theme::color(Tok::StatusWarning));
           it->setIcon(0, resourceIcon("warning"));
         }
         if (!active || f->isSuppressed()) {
@@ -263,7 +270,7 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
           ft.setItalic(true);
           ft.setStrikeOut(f->isSuppressed());
           it->setFont(0, ft);
-          it->setForeground(0, QColor("#9AA0A8"));
+          it->setForeground(0, theme::color(Tok::TextDisabled));
         }
         updateEye(it, true, viewer_ ? !viewer_->isFeatureHidden(f->id()) && fv : true);
       }

@@ -138,5 +138,44 @@ and `DISPLAY` is set (XWayland). `offscreen`/`xcb` are kept; `FABRICAD_ALLOW_WAY
 * "Select Other" (hold LMB on stacked entities) not implemented yet; `pickAll()` exists.
 * Rollback marker applies on release (no live roll while dragging); timeline groups not implemented.
 * Single document (no document tabs); no Preferences dialog yet (navigation preset, reverse zoom and
-  grid settings are in the nav-bar menus and persisted in QSettings); light theme only.
+  grid settings are in the nav-bar menus and persisted in QSettings); themes: dark/light/system from
+  design tokens since the redesign phase 0 (2026-10-22).
 * Shortcut remapping UI, marking-menu customisation, F7 slice not implemented.
+
+## 2026-10-22 — UI redesign phase 0: design tokens (branch ui/tokens)     (status: open — integrator merge)
+What changed (docs/plans/ui-redesign.md sections 2-4, phase 0 items 0.1-0.3):
+* New static library `fabricad_theme` (`src/theme/`, QtGui only): `theme::Tokens` (colours per theme,
+  aliases, text styles, sizes; tables generated into `src/theme/ThemeTokens.inc`), `ColorMath`
+  (WCAG contrast, CIEDE2000, Machado CVD), `renderQss()`. Linked by `fabricad_viewer` and the app.
+* **Top-level `CMakeLists.txt`**: one line `add_subdirectory(src/theme)` before `src/viewer` (the
+  plan assigns `src/theme` to this worktree; please keep it when merging).
+* `resources/theme/tokens.json` is the single source; `tools/theme/gen_tokens.py` regenerates
+  `ThemeTokens.inc`, `docs/design/palette.md`, `resources/theme/icon-palette.json` (for the icons
+  worktree) and `resources/ui/{dark,light}/*.svg`. ctest `theme_tokens` checks sync, contrast and CVD.
+* `app::ThemeManager` replaces `Theme.{h,cpp}` and `resources/theme-light.qss` (deleted): Dark /
+  Light / Follow system, QSettings `ui/theme` (default dark), `FABRICAD_THEME` env override, live
+  switch (`THEME dark|light|system` command, also in the S-box), JetBrains Mono bundled, caps via
+  `QFont::AllUppercase` (values, typed text and user names keep their case).
+* `viewer::ViewerPalette` (phase-0 interface) + `ViewerWidget::setViewerPalette()` (not
+  `setPalette`, which would hide `QWidget::setPalette`): background, grid, face edges, selection,
+  preselection, ViewCube, cube controls, rubber band. The rest of the viewer is phase 4.
+* Colour lint: ctest `theme_color_lint` (`tools/theme/audit_colors.py`, allow-list
+  `tools/theme/color-allowlist.txt`). New colour literals in `src/` fail the build's tests.
+* Integrator (plan section 9): add `fabricad_theme` to the `ARCHITECTURE.md` module map.
+
+## 2026-10-22 — Colour roles and token styling for other modules            (status: open — requests)
+What I need (plan section 9; until then each file is allow-listed with its count):
+* core: `core::ColorRole` on `PreviewStyle` (`Live`, `Join`, `Cut`, `NewBody`, `SketchFree`,
+  `Inference`, `Dimension`, ...) and roles for the manipulator colours; RGBA stays as a fallback.
+* sketch: `colors::` constants in `SketchSession.h` -> roles (note the NEW `sk.free`:
+  `#4775FF` dark / `#00248F` light, chosen so free curves stay apart from selection purple under
+  protan/deutan/tritan simulation, decision 8); `ValueInputOverlay` inline QSS -> objectName/property
+  hooks styled by `resources/theme/app.qss.tmpl`.
+* part: `PropertyPanel` inline styles (`#D93025` error border, `#0B6CFF` checked button,
+  `#6B7079` message) -> dynamic properties (`invalid="true"`, `messageLevel`) that the token QSS
+  already styles; the SELECT button reads bright blue on both themes until then.
+* assembly: `ToolCommon` inline QLineEdit error style -> `invalid="true"`; joint/triad/interference
+  colours -> roles.
+* drawing: `DrawingWorkspaceWidget` label colours (`#555`, `#666`: low contrast on the dark theme)
+  -> QSS/tokens; canvas surround `drawing.canvas`, selection `drawing.select`; paper/ink stay.
+Why: the dark theme is the default; these spots still carry light-theme colours.

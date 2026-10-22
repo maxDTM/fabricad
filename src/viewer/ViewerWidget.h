@@ -22,6 +22,7 @@
 #include "core/ViewerContext.h"
 #include "viewer/SceneModel.h"
 #include "viewer/ViewerMath.h"
+#include "viewer/ViewerPalette.h"
 
 #include <QMargins>
 #include <QPoint>
@@ -80,6 +81,10 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   /// Screen areas covered by overlays (the nav bar at the bottom): Fit/Home keep the model
   /// clear of them. Default: 56 px at the bottom.
   void setViewportInsets(QMargins m);
+  /// Viewport colours (background, grid, edges, highlight, ViewCube, overlays); applied live.
+  /// Named setViewerPalette so it does not hide QWidget::setPalette.
+  void setViewerPalette(const ViewerPalette& p);
+  const ViewerPalette& viewerPalette() const { return palette_; }
   QMargins viewportInsets() const { return insets_; }
   void setReverseZoom(bool r) { reverseZoom_ = r; }
   bool reverseZoom() const { return reverseZoom_; }
@@ -270,6 +275,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   bool gridSnap_ = false;
   double gridSnapSpacing_ = 0.0;  ///< 0 = adaptive
   double gridStep_ = 10.0;        ///< current displayed minor step
+  ViewerPalette palette_ = ViewerPalette::fromTokens(theme::current());
+  void applyPaletteToView();
   core::ProjectionMode projection_ = core::ProjectionMode::Orthographic;
   core::DisplayMode displayMode_ = core::DisplayMode::ShadedEdges;
 

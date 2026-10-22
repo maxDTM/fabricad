@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MainWindow.h"
 #include "app/ScriptRunner.h"
-#include "app/Theme.h"
+#include "app/ThemeManager.h"
 #include "drawing/DrawingWorkspaceWidget.h"
 #include "viewer/ViewerWidget.h"
 
@@ -142,7 +142,10 @@ int main(int argc, char** argv) {
   QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
   QApplication app(argc, argv);
   mark("QApplication");
-  fabricad::app::applyLightTheme(app);  // explicit light palette + QSS (the desktop theme may be dark)
+  // tokens: palette, fonts (JetBrains Mono, caps) and QSS for ui/theme, before any window exists so
+  // the first frame is already in the right theme (the desktop's platform theme must not leak in)
+  fabricad::app::ThemeManager::instance().install(app);
+  mark("theme applied");
   app.setWindowIcon(QIcon(":/icons/fabricad.svg"));
 
   // Drawing workspace central widget (created lazily on the first switch to DRAWING).
