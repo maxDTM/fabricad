@@ -101,7 +101,8 @@ class ToolsTest : public QObject {
     QVERIFY(tool->isValid());
     QVERIFY(!rig.viewer.previews().empty());  // live preview shown
     QVERIFY(rig.host.acceptEnabled());
-    QCOMPARE(rig.host.prompt().rfind("Select", 0), size_t(0));
+    // the prompt follows the picks (p1-check 4): the preselected profile is reported
+    QCOMPARE(rig.host.prompt().rfind("Profiles: 1 selected", 0), size_t(0));
     // typed value on the command line goes to the distance
     QVERIFY(rig.manager.runCommandLine("25"));
     QVERIFY(near(tool->feature()->length("distance"), 25));

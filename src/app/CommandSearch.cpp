@@ -164,6 +164,27 @@ void CommandSearch::popup(const QPoint& globalPos) {
   edit_->setFocus();
 }
 
+void CommandSearch::popupBelow(const QRect& anchor, const QRect& bounds) {
+  edit_->clear();
+  updateResults();
+  constexpr int kMargin = 8;
+  QRect area = bounds;
+  if (QScreen* s = QGuiApplication::screenAt(anchor.center())) area = area.intersected(s->availableGeometry());
+  if (area.isEmpty()) area = bounds;
+  setFixedWidth(std::max(240, std::min(380, area.width() - 2 * kMargin)));
+  adjustSize();
+  QRect r(QPoint(anchor.left(), anchor.bottom() + 4), size());
+  // left edge on the box; shifted left when it would pass the window's right edge
+  if (r.right() > area.right() - kMargin) r.moveRight(area.right() - kMargin);
+  if (r.left() < area.left() + kMargin) r.moveLeft(area.left() + kMargin);
+  if (r.bottom() > area.bottom() - kMargin) r.setBottom(area.bottom() - kMargin);
+  if (r.height() < 120) r.moveBottom(area.bottom() - kMargin);
+  move(r.topLeft());
+  resize(r.size());
+  show();
+  edit_->setFocus();
+}
+
 bool CommandSearch::eventFilter(QObject* o, QEvent* e) {
   if (o == edit_ && e->type() == QEvent::KeyPress) {
     auto* k = static_cast<QKeyEvent*>(e);

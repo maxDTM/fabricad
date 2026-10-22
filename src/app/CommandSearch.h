@@ -38,6 +38,9 @@ class CommandSearch : public QFrame {
   core::ToolManager& manager() const { return *manager_; }
 
   void popup(const QPoint& globalPos);
+  /// Open under `anchor` (the title-bar search box, global coordinates), left-aligned with it
+  /// and kept inside `bounds` (the main window) and the screen (p1-check 5).
+  void popupBelow(const QRect& anchor, const QRect& bounds);
   void setRecent(const QStringList& recent) { recent_ = recent; }
   const QStringList& pinned() const { return pinned_; }
   /// Current result ids (tests).

@@ -426,6 +426,78 @@ class TestMainWindow : public QObject {
     }
   }
 
+  void p1CheckShellFixes() {
+    app::CommandLine* cl = w_->commandLine();
+    cl->show();
+    settle();
+    // p1-check 2: output of several lines opens the history pane, in full
+    cl->hideHistoryPane();
+    QVERIFY(cl->submit("LIST tools"));
+    settle();
+    QVERIFY(cl->isHistoryPaneVisible());
+    QVERIFY(cl->historyView()->toPlainText().count('\n') > 3);
+    QVERIFY2(w_->messageText().contains("lines"), qPrintable(w_->messageText()));
+    // inside the window, above the command line
+    QWidget* pane = cl->historyView()->parentWidget();
+    QVERIFY(pane->parentWidget() == w_.get());
+    QVERIFY(w_->rect().contains(pane->geometry()));
+    QVERIFY(pane->geometry().bottom() < cl->mapTo(w_.get(), QPoint(0, 0)).y());
+    // one-line results do not open it; Esc in the empty box closes it
+    cl->hideHistoryPane();
+    w_->showMessage("one line", core::MessageLevel::Info);
+    QVERIFY(!cl->isHistoryPaneVisible());
+    cl->showHistoryPane();
+    cl->edit()->setFocus();
+    QTest::keyClick(cl->edit(), Qt::Key_Escape);
+    QVERIFY(!cl->isHistoryPaneVisible());
+    // p1-check 5: the search popup opens under the search box, inside the window
+    for (QSize sz : {QSize(1280, 800), QSize(1920, 1080)}) {
+      w_->resize(sz);
+      settle();
+      w_->openCommandSearch();
+      settle();
+      const QRect win(w_->mapToGlobal(QPoint(0, 0)), w_->size());
+      const QRect pop = w_->commandSearch()->frameGeometry();
+      QVERIFY2(win.contains(pop), qPrintable(QString("%1x%2: popup %3,%4 %5x%6").arg(sz.width()).arg(sz.height())
+                                                 .arg(pop.x()).arg(pop.y()).arg(pop.width()).arg(pop.height())));
+      w_->commandSearch()->hide();
+    }
+    // p1-check 6: collapsed captions sit on the same line as the others (Assembly filter)
+    QVERIFY(w_->runCommand("app.workspace-assembly"));
+    settle();
+    app::MainToolbar* tb = w_->mainToolbar();
+    QVERIFY(tb->isSectionCollapsed("CREATE"));
+    std::set<int> baselines;
+    QString where;
+    for (QToolButton* c : tb->findChildren<QToolButton*>("RibbonGroupLabel"))
+      if (c->isVisibleTo(tb)) {
+        const int y = c->mapTo(tb, QPoint(0, c->height())).y();
+        baselines.insert(y);
+        where += QString(" %1@%2").arg(c->text()).arg(y);
+      }
+    QVERIFY2(baselines.size() == 1, qPrintable(where));
+    QVERIFY(w_->runCommand("app.workspace-design"));
+    settle();
+    // p1-check 7: toggles in the sketch MORE dropdown show their state
+    QVERIFY(w_->runCommand("sketch.create", {"XY"}));
+    settle();
+    tb->refreshStates();
+    QAction* snap = nullptr;
+    for (QAction* a : tb->findChildren<QAction*>())
+      if (a->property("toolId") == "sketch.toggle-snap" && a->isVisible()) snap = a;
+    QVERIFY(snap);
+    const bool was = snap->isChecked();
+    QVERIFY(snap->isCheckable());
+    QVERIFY(w_->runCommand("sketch.toggle-snap"));
+    settle();
+    tb->refreshStates();
+    QCOMPARE(snap->isChecked(), !was);
+    QVERIFY(w_->runCommand("sketch.toggle-snap"));
+    QVERIFY(w_->runCommand("sketch.finish"));
+    settle();
+    cl->hideHistoryPane();
+  }
+
   void themeAndMenuHeaders() {
     for (theme::Theme th : {theme::Theme::Dark, theme::Theme::Light}) {
       const QPalette p = app::ThemeManager::palette(th);

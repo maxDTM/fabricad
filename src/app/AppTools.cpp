@@ -525,7 +525,7 @@ void registerAppTools(MainWindow& w, core::ToolRegistry& reg) {
     i.group = "SELECT";
     i.order = f.order;
     i.keepsActiveTool = true;
-    i.checked = [win, kinds = f.kinds] { return (win->document().selection().userFilter() & kinds) == kinds; };
+    i.checked = [win, kinds = f.kinds] { return win->hasDocument() && (win->document().selection().userFilter() & kinds) == kinds; };
     const std::string id = i.id;
     auto toggle = [win, kinds = f.kinds, name = std::string(f.name)] {
       core::SelectionModel& sel = win->document().selection();

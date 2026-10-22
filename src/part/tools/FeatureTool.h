@@ -121,6 +121,9 @@ class FeatureTool : public core::ToolBase {
   void applyPreselection(core::ToolContext& ctx, const std::vector<core::ShapeRef>& refs);
   bool addRefToInput(core::ToolContext& ctx, const std::string& propName, core::ShapeRef ref);
   void advanceActiveInput(core::ToolContext& ctx);
+  /// Status prompt for the active input: "Select Profiles" while it is empty, "Profiles:
+  /// 1 selected" once something is picked (p1-check 4), "Editing Extrude1" while editing.
+  void updatePrompt(core::ToolContext& ctx);
   void applyFilter(core::ToolContext& ctx);
   void clearPreviews(core::ToolContext& ctx);
   /// The preview itself (what updatePreview() did before batch mode deferred it).

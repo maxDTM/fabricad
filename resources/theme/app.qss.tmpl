@@ -4,6 +4,9 @@
    fonts per class and objectName (section 3). tools/theme/gen_tokens.py --check validates this file.
    Radii: 0 for containers, 1 px for inputs and chips. */
 QMainWindow, QDialog { background: @{window.bg}; color: @{text.primary}; }
+/* own windows get an edge: without window decorations (frameless, light theme on a light
+   viewport) the dialog would dissolve into what is behind it (p1-check 9) */
+QDialog#PreferencesDialog, QDialog#ParametersDialog, QMessageBox, QInputDialog { border: 1px solid @{border.control}; }
 QToolTip { background: @{tooltip.bg}; color: @{text.primary}; border: 1px solid @{edge}; padding: 4px; }
 QLabel { color: @{text.primary}; }
 QLabel:disabled { color: @{text.disabled}; }
@@ -49,7 +52,12 @@ QToolButton#RibbonGroupLabel { border: none; border-top: 1px solid @{border.subt
 QToolButton#RibbonGroupLabel:hover { color: @{accent.text}; }
 QToolButton#RibbonGroupLabel:pressed, QToolButton#RibbonGroupLabel:open { background: @{accent.selFill}; color: @{accent.text}; }
 QToolButton#RibbonGroupLabel::menu-indicator { image: none; width: 0; }
-#RibbonGroup[collapsed="true"] QToolButton#RibbonGroupLabel { border-top: none; color: @{text.primary}; padding: 4px; }
+/* collapsed section: icon button over the usual caption (same baseline as the others, p1-check 6) */
+QToolButton#RibbonCollapsedTool { border: 1px solid transparent; border-radius: 1px; padding: 2px 4px; background: transparent; }
+QToolButton#RibbonCollapsedTool:hover { background: @{row.hover.bg}; }
+QToolButton#RibbonCollapsedTool:pressed, QToolButton#RibbonCollapsedTool:open { background: @{accent.selFill}; }
+QToolButton#RibbonCollapsedTool::menu-indicator { image: url(:/ui/@{theme}/arrow-down.svg); subcontrol-position: bottom right; subcontrol-origin: padding; width: 8px; height: 8px; }
+#RibbonGroup[collapsed="true"] QToolButton#RibbonGroupLabel { color: @{text.primary}; }
 QToolButton#FinishSketchButton { background: @{button.finish.bg}; color: @{button.finish.text}; border-radius: 1px; padding: 6px 12px; border: none; }
 QToolButton#FinishSketchButton:hover { background: @{button.finish.bg/85}; }
 
@@ -197,7 +205,14 @@ QLabel#StatusValue { color: @{text.primary}; padding: 0; }
 QLabel#CommandLinePrompt { color: @{accent.text}; padding: 0 0 0 6px; background: transparent; }
 #CommandLineBox QLineEdit#CommandLine { background: transparent; border: none; padding: 0 4px; min-width: 80px; }
 QToolButton#CommandLineHistory { color: @{text.tertiary}; border: none; background: transparent; padding: 0 6px; }
-QToolButton#CommandLineHistory:hover { color: @{accent.text}; }
+QToolButton#CommandLineHistory:hover, QToolButton#CommandLineHistory[open="true"] { color: @{accent.text}; }
+/* command history overlay (p1-check 2): header band clearly apart from the text below (5.2) */
+#CommandHistoryPanel { background: @{surface.panel}; border: 1px solid @{border.control}; }
+#CommandHistoryHeader { background: @{surface.header}; border-bottom: 1px solid @{border.default}; }
+QLabel#CommandHistoryTitle { color: @{text.primary}; padding: 0; background: transparent; }
+#CommandHistoryHeader QToolButton { color: @{text.secondary}; border: none; background: transparent; padding: 1px 6px; }
+#CommandHistoryHeader QToolButton:hover { color: @{accent.text}; background: @{surface.hover}; }
+QPlainTextEdit#CommandHistory { background: @{surface.panel}; border: none; color: @{text.primary}; padding: 2px 4px; }
 #CommandLine { min-width: 80px; }
 
 /* preferences */
