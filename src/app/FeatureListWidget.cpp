@@ -385,7 +385,6 @@ void FeatureListWidget::startRename(ObjectId id) {
   editor_->setFont(theme::font(theme::TextStyle::Value));
   editor_->setGeometry(rowRect(row).adjusted(kIconX + 20 + r.depth * kIndent, 3, -kRightPad, -3));
   editor_->selectAll();
-  connect(editor_, &QLineEdit::returnPressed, this, &FeatureListWidget::commitRename);
   connect(editor_, &QLineEdit::editingFinished, this, [this] {
     if (editor_ && !editor_->hasFocus()) commitRename();
   });
@@ -417,10 +416,26 @@ void FeatureListWidget::cancelRename() {
 }
 
 bool FeatureListWidget::eventFilter(QObject* o, QEvent* e) {
-  if (editor_ && o == editor_ && e->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(e)->key() == Qt::Key_Escape) {
-    cancelRename();
-    setFocus();
-    return true;
+  if (editor_ && o == editor_ && e->type() == QEvent::ShortcutOverride) {
+    // Return / Enter / Escape belong to the editor, not to window shortcuts (repeat, accept)
+    const int key = static_cast<QKeyEvent*>(e)->key();
+    if (key == Qt::Key_Return || key == Qt::Key_Enter || key == Qt::Key_Escape) {
+      e->accept();
+      return true;
+    }
+  }
+  if (editor_ && o == editor_ && e->type() == QEvent::KeyPress) {
+    const int key = static_cast<QKeyEvent*>(e)->key();
+    if (key == Qt::Key_Escape) {
+      cancelRename();
+      setFocus();
+      return true;
+    }
+    if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+      // handled here: QLineEdit ignores Return, which would reach the list and edit the feature
+      commitRename();
+      return true;
+    }
   }
   return QAbstractScrollArea::eventFilter(o, e);
 }
@@ -441,7 +456,7 @@ void FeatureListWidget::paintEvent(QPaintEvent*) {
     const FeatureRow& row = model_.rows()[static_cast<size_t>(i)];
     if (row.kind == Kind::Rollback) {
       const bool dragging = drag_ == Drag::Bar && dragStarted_;
-      paintBar(p, r, dragging ? false : (hover_ == i || current_ == i));
+      paintBar(p, r, dragging ? false : hover_ == i);
       if (dragging) p.fillRect(r, alpha(theme::color(Tok::SurfacePanel), 0.6));
     } else if (row.kind == Kind::Insert) {
       paintInsert(p, r, hover_ == i);
@@ -465,6 +480,25 @@ void FeatureListWidget::paintEvent(QPaintEvent*) {
     const int x0 = kIconX - 4 + drop_.depth * kIndent;
     p.fillRect(QRect(x0, gy - 1, viewport()->width() - x0 - 8, 2), c);
     p.fillRect(QRect(x0 - 3, gy - 4, 3, 8), c);
+    if (!drop_.valid) {
+      // inline tip under the drop line: CANNOT MOVE HERE / the core's reason
+      const QFont tf = theme::font(theme::TextStyle::Body);
+      const QFont rf = theme::font(theme::TextStyle::Caption);
+      const int w = viewport()->width() - 24;
+      const QRect reasonRect = QFontMetrics(rf).boundingRect(QRect(0, 0, w - 18, 200), Qt::TextWordWrap, drop_.reason);
+      QRect box(12, gy + 6, w, 12 + QFontMetrics(tf).height() + reasonRect.height());
+      if (box.bottom() > viewport()->height() - 2) box.moveBottom(gy - 6);
+      p.fillRect(box, theme::color(Tok::SurfaceOverlay));
+      p.setPen(theme::color(Tok::BorderDefault));
+      p.drawRect(box.adjusted(0, 0, -1, -1));
+      p.fillRect(QRect(box.left(), box.top(), 3, box.height()), theme::color(Tok::StatusError));
+      p.setFont(tf);
+      p.setPen(theme::color(Tok::TextPrimary));
+      p.drawText(box.adjusted(11, 5, -6, 0), Qt::AlignTop | Qt::AlignLeft, "Cannot move here");
+      p.setFont(rf);
+      p.setPen(theme::color(Tok::TextSecondary));
+      p.drawText(box.adjusted(11, 5 + QFontMetrics(tf).height(), -6, -4), Qt::AlignTop | Qt::AlignLeft | Qt::TextWordWrap, drop_.reason);
+    }
   }
   if (model_.rowCount() <= 2 && !compact_ && doc_.featureCount() == 0) {
     p.setFont(theme::font(theme::TextStyle::Caption));
@@ -780,13 +814,9 @@ void FeatureListWidget::mouseMoveEvent(QMouseEvent* e) {
   } else if (drag_ == Drag::Row) {
     if (model_.row(gap) && model_.row(gap)->kind == Kind::Origin) gap = 1;
     drop_ = model_.dropForGap(doc_, dragRow_, gap, depthAtX(pos.x()));
-    if (!drop_.valid) {
-      const QRect at(0, pos.y() - kRowH / 2, viewport()->width(), kRowH);
-      InlineTip::forWidget(this)->showBeside(viewport(), at, "Cannot move here", drop_.reason, InlineTip::Kind::Error);
-      tipShown_ = true;
-    } else {
-      hideTip();
-    }
+    // the refusal is painted inside the list (paintEvent): a separate tip widget shown during
+    // the drag can take the pointer grab on X11 (native GL view next to it) and lose the release
+    hideTip();
   }
   // auto-scroll near the edges
   if (pos.y() < 12) verticalScrollBar()->setValue(verticalScrollBar()->value() - 8);

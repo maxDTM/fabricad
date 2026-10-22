@@ -12,9 +12,12 @@ namespace fabricad::app {
 
 using theme::Tok;
 
-InlineTip::InlineTip(QWidget* window) : QFrame(window) {
+InlineTip::InlineTip(QWidget* window) : QFrame(window, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus) {
+  // a tool-tip window, like QToolTip: a child widget over the native OCCT view would be made
+  // native itself and could steal the X pointer grab of a click or drag in the list
   setObjectName("InlineTip");
   setAttribute(Qt::WA_TransparentForMouseEvents);
+  setAttribute(Qt::WA_ShowWithoutActivating);
   setFocusPolicy(Qt::NoFocus);
   auto* v = new QVBoxLayout(this);
   v->setContentsMargins(11, 6, 8, 6);
@@ -25,6 +28,8 @@ InlineTip::InlineTip(QWidget* window) : QFrame(window) {
   text_ = new QLabel(this);
   text_->setObjectName("InlineTipText");
   text_->setFont(theme::font(theme::TextStyle::Caption));
+  text_->setWordWrap(true);
+  text_->setMaximumWidth(300);
   v->addWidget(title_);
   v->addWidget(text_);
   hide();
@@ -53,16 +58,16 @@ void InlineTip::showBeside(QWidget* anchor, const QRect& rowRect, const QString&
   text_->setPalette(pal);
   adjustSize();
   QWidget* win = parentWidget();
-  const QPoint rowTopRight = anchor->mapTo(win, rowRect.topRight());
-  const QPoint rowTopLeft = anchor->mapTo(win, rowRect.topLeft());
-  const QRect anchorRect(anchor->mapTo(win, QPoint(0, 0)), anchor->size());
+  const QRect winRect(win->mapToGlobal(QPoint(0, 0)), win->size());
+  const QPoint rowTopRight = anchor->mapToGlobal(rowRect.topRight());
+  const QPoint rowTopLeft = anchor->mapToGlobal(rowRect.topLeft());
+  const QRect anchorRect(anchor->mapToGlobal(QPoint(0, 0)), anchor->size());
   int x = anchorRect.right() + 6;
-  if (x + width() > win->width() - 4) x = anchorRect.left() - width() - 6;  // sidebar on the right
-  if (x < 4) x = std::max(4, rowTopLeft.x() + 24);                          // no room: over the list
+  if (x + width() > winRect.right() - 4) x = anchorRect.left() - width() - 6;  // sidebar on the right
+  if (x < winRect.left() + 4) x = std::max(winRect.left() + 4, rowTopLeft.x() + 24);  // no room: over the list
   int y = rowTopRight.y() + (rowRect.height() - height()) / 2;
-  y = std::clamp(y, 4, std::max(4, win->height() - height() - 4));
+  y = std::clamp(y, winRect.top() + 4, std::max(winRect.top() + 4, winRect.bottom() - height() - 4));
   move(x, y);
-  raise();
   show();
 }
 

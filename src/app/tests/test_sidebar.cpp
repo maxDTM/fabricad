@@ -486,7 +486,7 @@ class TestSidebar : public QObject {
     settle();
     auto* tip = w_->findChild<app::InlineTip*>("InlineTip");
     QVERIFY(tip && tip->isVisible());
-    QVERIFY(tip->geometry().right() < dock->geometry().left());  // beside the sidebar, inside the window
+    QVERIFY(tip->geometry().right() < dock->mapToGlobal(QPoint(0, 0)).x());  // beside the sidebar (global coordinates)
     QTest::mouseMove(list()->viewport(), center(rowOf("Extrude3")));
     ui.reset("ui/sidebarSide");
     settle();

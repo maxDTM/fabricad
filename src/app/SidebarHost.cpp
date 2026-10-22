@@ -150,7 +150,7 @@ SidebarHost::SidebarHost(QWidget* parent) : QWidget(parent) {
   panels_ = {features, model, sel};
   for (size_t i = 0; i < panels_.size(); ++i) {
     splitter_->addWidget(panels_[i]);
-    splitter_->setStretchFactor(static_cast<int>(i) + 1, i == 1 ? 1 : 0);
+    splitter_->setStretchFactor(static_cast<int>(i) + 1, i == 2 ? 0 : 1);
     connect(panels_[i]->header(), &PanelHeader::toggled, this, [this, i](bool c) {
       collapsed_[i] = c;
       applyLayout();
@@ -167,6 +167,11 @@ SidebarHost::SidebarHost(QWidget* parent) : QWidget(parent) {
 
 SidebarHost::~SidebarHost() {
   for (const auto& c : docConns_) disconnect(c);
+}
+
+void SidebarHost::resizeEvent(QResizeEvent* e) {
+  QWidget::resizeEvent(e);
+  applyLayout();  // keeps the panels' proportions
 }
 
 void SidebarHost::paintEvent(QPaintEvent*) {
@@ -201,6 +206,16 @@ void SidebarHost::setActive(core::Document* doc, FeatureListWidget* features, Br
     }));
   }
   if (model) modelStack_->setCurrentWidget(model);
+  // keyboard order (T-keyboard): FEATURES header, search, filter, list, MODEL header, eye, tree,
+  // SELECTION header
+  QWidget* chain[] = {panels_[0]->header(), searchButton_, filterButton_, search_, features,
+                      panels_[1]->header(), eyeButton_, model, panels_[2]->header()};
+  QWidget* prev = nullptr;
+  for (QWidget* w : chain) {
+    if (!w) continue;
+    if (prev) QWidget::setTabOrder(prev, w);
+    prev = w;
+  }
   selection_->setDocument(doc);
   if (doc) {
     docConns_.push_back(connect(&doc->selection(), &core::SelectionModel::filterChanged, this, [this] { updateFeatureSelection(); }));
@@ -344,6 +359,19 @@ void SidebarHost::applyLayout() {
       s[1] = std::max(PanelHeader::kHeight, s[1] * avail / sum);
       s[2] = std::max(PanelHeader::kHeight, avail - s[1]);
     }
+  }
+  // fit the remembered sizes to the height there is, in proportion (open panels only)
+  if (!docked && splitter_->height() > 0) {
+    const int avail = splitter_->height() - 2 * splitter_->handleWidth();
+    int fixed = 0, flexible = 0;
+    for (size_t i = 0; i < 3; ++i) {
+      if (!panels_[i]->isVisible() && i == 0 && !showFeatures) continue;
+      if (panels_[i]->isCollapsed()) fixed += s[i];
+      else flexible += s[i];
+    }
+    if (flexible > 0 && avail > fixed)
+      for (size_t i = 0; i < 3; ++i)
+        if (!panels_[i]->isCollapsed() && !(i == 0 && !showFeatures)) s[i] = s[i] * (avail - fixed) / flexible;
   }
   splitter_->setSizes({cardH, s[0], s[1], s[2]});
   applying_ = false;

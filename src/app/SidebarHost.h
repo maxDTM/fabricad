@@ -120,6 +120,7 @@ class SidebarHost : public QWidget {
 
  protected:
   void paintEvent(QPaintEvent* e) override;
+  void resizeEvent(QResizeEvent* e) override;
 
  private:
   void applyLayout();
