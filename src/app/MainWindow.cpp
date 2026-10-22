@@ -202,7 +202,7 @@ void MainWindow::applyUiSetting(const QString& key) {
     applyToolbarArea();
   } else if (key == "ui/quickToolbar") {
     applyQuickToolbar();
-  } else if (key == "ui/orientation") {
+  } else if (key == "ui/orientation" || key == "ui/edgeRuler") {
     for (const auto& t : tabs_) applyViewportSettings(t.get());
     layoutOverlays();
   }
@@ -313,6 +313,7 @@ void MainWindow::applyViewportSettings(DocumentTab* tab) {
   if (!tab || !tab->viewer()) return;
   const bool cube = UiSettings::instance().string("ui/orientation") == "viewCube";
   tab->viewer()->setOrientationWidget(cube ? viewer::OrientationWidget::ViewCube : viewer::OrientationWidget::HexDial);
+  tab->viewer()->setEdgeRulersEnabled(UiSettings::instance().flag("ui/edgeRuler"));
   if (NavBar* nb = tab->navBar()) nb->reposition();
 }
 

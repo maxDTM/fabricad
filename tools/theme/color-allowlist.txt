@@ -15,10 +15,7 @@ src/core/Materials.cpp                    26  core     document material library
 src/core/Materials.h                       1  core     material default colour (document data): stays
 src/core/Body.h                            1  core     default body colour (document data, saved in .fcad): stays
 #
-# --- sketch: replace colors:: constants with roles, value box QSS hooks (request)
-src/sketch/SketchSession.h                11  sketch   colors:: constants -> ColorRole (sk.free, sk.constrained, sk.construction, sk.projected, ...)
-src/sketch/SketchSession.cpp               1  sketch   -> ColorRole
-src/sketch/tools/SketchToolBase.cpp        4  sketch   preview colours -> ColorRole
+# --- sketch: none since redesign phase 5 (sketch session colours are core::ColorRole values resolved by ViewerPalette)
 #
 # --- part: PropertyPanel styling through QSS properties (request)
 src/part/tools/PropertyPanel.cpp           9  part     inline error/message styles (SELECT button done in phase 3) -> dynamic properties (invalid, messageLevel) styled by app.qss.tmpl

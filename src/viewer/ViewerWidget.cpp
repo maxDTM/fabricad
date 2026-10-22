@@ -307,10 +307,18 @@ ViewerWidget::ViewerWidget(QWidget* parent) : QWidget(parent), d_(std::make_uniq
   readout_ = new CoordReadout(*this);
   scaleBar_ = new ScaleBar(*this);
   for (QWidget* w : std::initializer_list<QWidget*>{dial_, breadcrumb_, filterBar_, readout_, scaleBar_}) w->show();
+  rulerTop_ = new EdgeRuler(*this, Qt::Horizontal);  // shown by refresh() in sketch mode only
+  rulerLeft_ = new EdgeRuler(*this, Qt::Vertical);
   filterBar_->refresh();
   connect(this, &ViewerWidget::cameraChanged, this, [this] {
     dial_->update();
     scaleBar_->refresh();
+    rulerTop_->refresh();
+    rulerLeft_->refresh();
+  });
+  connect(this, &ViewerWidget::displaySettingsChanged, this, [this] {  // sketch mode, grid
+    rulerTop_->refresh();
+    rulerLeft_->refresh();
   });
   layoutOverlayWidgets();
 }
@@ -367,7 +375,8 @@ void ViewerWidget::setViewerPalette(const ViewerPalette& p) {
   palette_ = p;
   sceneOptions_.palette = p;
   applyPaletteToView();
-  for (QWidget* w : std::initializer_list<QWidget*>{dial_, breadcrumb_, filterBar_, readout_, scaleBar_}) w->update();
+  for (QWidget* w : std::initializer_list<QWidget*>{dial_, breadcrumb_, filterBar_, readout_, scaleBar_, rulerTop_, rulerLeft_})
+    w->update();
   update();
 }
 
@@ -622,6 +631,14 @@ void ViewerWidget::applyCubeStyle() {
   if (!d_->view) return;
   const Handle(AIS_ViewCube)& cube = d_->view->viewCube();
   if (cube.IsNull()) return;
+  // the body's material, so the three faces of an ISO view shade apart like the model and the
+  // light cube keeps face boundaries on the near-white viewport (p4-check M2)
+  Graphic3d_MaterialAspect mat(Graphic3d_NameOfMaterial_Plastified);
+  auto grey = [](float k) { return Quantity_Color(Graphic3d_Vec3(k, k, k)); };
+  mat.SetAmbientColor(grey(palette_.matAmbient));
+  mat.SetDiffuseColor(grey(palette_.matDiffuse));
+  mat.SetSpecularColor(grey(palette_.matSpecular * 0.5f));
+  cube->SetMaterial(mat);
   cube->SetBoxColor(qcol(palette_.cubeBox));  // sides, edges and corners
   cube->BoxEdgeStyle()->SetColor(qcol(palette_.cubeEdge));
   cube->BoxCornerStyle()->SetColor(qcol(palette_.cubeEdge));
@@ -1852,6 +1869,11 @@ void ViewerWidget::layoutOverlayWidgets() {
     scaleBar_->move(sb.topLeft());
     scaleBar_->refresh();
   }
+  // sketch-mode edge rulers along the very top and left edges (outside the 16 px overlay margin)
+  rulerTop_->setGeometry(0, 0, w, EdgeRuler::kThickness);
+  rulerLeft_->setGeometry(0, 0, EdgeRuler::kThickness, h);
+  rulerTop_->refresh();
+  rulerLeft_->refresh();
   // tell the app (card, palette, view-tool column) only when something moved
   const std::array<QRect, 5> now{dial_->geometry(), breadcrumb_->isVisible() ? breadcrumb_->geometry() : QRect(),
                                  filterBar_->isVisible() ? filterBar_->geometry() : QRect(),
@@ -1860,6 +1882,11 @@ void ViewerWidget::layoutOverlayWidgets() {
   if (now == lastOverlayRects_) return;
   lastOverlayRects_ = now;
   emit overlayGeometryChanged();
+}
+
+void ViewerWidget::setEdgeRulersEnabled(bool on) {
+  rulerTop_->setEnabledByUser(on);
+  rulerLeft_->setEnabledByUser(on);
 }
 
 void ViewerWidget::setViewToolRect(const QRect& r) {
@@ -2101,7 +2128,7 @@ PreviewHandle ViewerWidget::showPreviewShape(const TopoDS_Shape& shape, const Pr
     mode = AIS_Shaded;
     s->SetColor(qcol(pc.fill));
     if (pc.fill[3] < 0.999f) s->SetTransparency(1.0 - pc.fill[3]);
-    dr->SetFaceBoundaryDraw(true);
+    dr->SetFaceBoundaryDraw(style.role != core::ColorRole::SketchProfile);  // a profile tint has no outline
     dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(edge, pc.dashed ? Aspect_TOL_DASH : Aspect_TOL_SOLID, pc.edgeWidth));
   }
   ctx->Display(s, mode, -1, false);
@@ -2122,9 +2149,24 @@ Handle(PrimitivePrs) makePrimitive(PrimitivePrs::Kind kind, const std::vector<co
   if (style.role == core::ColorRole::None) col[3] = style.color[3];
   Handle(PrimitivePrs) p = new PrimitivePrs(kind, qrgba(col), style.lineWidth, style.dashed, style.pointSize);
   // the halo rule for accent strokes (live, cut, new body, sketch rubber band)
-  const bool halo = style.role == core::ColorRole::Live || style.role == core::ColorRole::Cut ||
-                    style.role == core::ColorRole::NewBody || style.role == core::ColorRole::SketchFree;
-  if (halo) p->setHalo(qrgba(style.role == core::ColorRole::Live ? pc.halo : pal.halo), static_cast<float>(pal.haloWidth));
+  // and sketch curves (4.5: a blue or black curve on the lit body face needs it too)
+  using core::ColorRole;
+  bool halo = false;
+  switch (style.role) {
+    case ColorRole::Live:
+    case ColorRole::Cut:
+    case ColorRole::NewBody:
+    case ColorRole::SketchFree:
+    case ColorRole::SketchConstrained:
+    case ColorRole::SketchConstruction:
+    case ColorRole::SketchProjected:
+    case ColorRole::SketchFixed:
+    case ColorRole::SketchConflict:
+    case ColorRole::SketchSelected:
+    case ColorRole::Preselect: halo = true; break;
+    default: break;
+  }
+  if (halo) p->setHalo(qrgba(style.role == ColorRole::Live ? pc.halo : pal.halo), static_cast<float>(pal.haloWidth));
   p->setPoints(toPnts(pts));
   return p;
 }
@@ -2375,7 +2417,10 @@ void ViewerWidget::syncManipulatorPrs() {
       }
       continue;
     }
-    const gp_Pnt at = m->handlePoint(hl, ps).Translated(gp_Vec(upDirection()) * (14.0 * ps));
+    // right of the handle and a little up, so the arrow glyph never covers the first letters
+    // (p4-check L1: "istance"); camera right = Direction x Up = Up x viewDirection()
+    const gp_Vec right = gp_Vec(upDirection()).Crossed(gp_Vec(viewDirection()));
+    const gp_Pnt at = m->handlePoint(hl, ps).Translated(right * (16.0 * ps) + gp_Vec(upDirection()) * (8.0 * ps));
     if (obj.label.IsNull()) {
       obj.label = new AIS_TextLabel();
       // value chip: surface.input with primary text (was a light-yellow box in both themes)

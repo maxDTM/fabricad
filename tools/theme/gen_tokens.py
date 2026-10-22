@@ -26,7 +26,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import colormath as cm  # noqa: E402
 
 THEMES = ("dark", "light")
-KIND_MIN = {"text": 4.5, "ui": 3.0, "exempt": 0.0}
+KIND_MIN = {"text": 4.5, "ui": 3.0, "shape": 1.25, "exempt": 0.0}
+# shape: a shaded body against the viewport gradient (phase 5, p4-check M1): the silhouette must read
+# without its edge lines (the light body was 1.2:1). Faces are lit to about body.default (ViewerPalette).
 PLACEHOLDER = re.compile(r"@\{([A-Za-z0-9_.]+)(?:/(\d{1,3}))?\}")
 RAW_COLOR = re.compile(r"#[0-9A-Fa-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(")
 
@@ -249,12 +251,12 @@ def gen_palette_md(t, colors, crow, vrow):
     for a, target in t["alias"].items():
         w("| `%s` | `%s` |" % (a, target))
     w("")
-    w("## Contrast (T = text ≥ 4.5, U = UI ≥ 3.0, X = exempt)")
+    w("## Contrast (T = text ≥ 4.5, U = UI ≥ 3.0, S = shape ≥ 1.25, X = exempt)")
     w("")
     w("| Foreground | Background | Kind | Dark | Light | |")
     w("|---|---|---|---|---|---|")
     for fg, bg, kind, vals, ok in crow:
-        w("| `%s` | `%s` | %s | %.2f | %.2f | %s |" % (fg, bg, {"text": "T", "ui": "U", "exempt": "X"}[kind],
+        w("| `%s` | `%s` | %s | %.2f | %.2f | %s |" % (fg, bg, {"text": "T", "ui": "U", "shape": "S", "exempt": "X"}[kind],
                                                     vals["dark"], vals["light"], "pass" if ok else "**FAIL**"))
     w("")
     w("## Colour vision (ΔE00 normal / protan / deutan / tritan; floor in brackets, 0 = not gated)")

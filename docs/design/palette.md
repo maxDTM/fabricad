@@ -54,20 +54,20 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `vp.rubberBandFill` | `#8B5CF624` | `#6D3FE01A` |
 | `vp.overlayText` | `#A7AEB9` | `#4A515D` |
 | `vp.light` | `#FFFFFF` | `#FFFFFF` |
-| `vp.cube.face` | `#2E343E` | `#E4E8EE` |
+| `vp.cube.face` | `#2E343E` | `#C3CAD3` |
 | `vp.cube.edge` | `#6E7682` | `#7E8794` |
 | `axis.x` | `#F0525F` | `#C42B38` |
 | `axis.y` | `#4CC27A` | `#1B7A43` |
 | `axis.z` | `#5B8CFF` | `#2F5FD9` |
 | `axis.onAxis` | `#101217` | `#FFFFFF` |
-| `body.default` | `#B4BAC4` | `#C9CDD2` |
+| `body.default` | `#9BA0A9` | `#BFC3C8` |
 | `body.edge` | `#1A1D22` | `#1A1A1A` |
 | `body.hiddenLine` | `#6E7682` | `#5E6675` |
 | `sel.edge` | `#B49CFF` | `#6D3FE0` |
 | `sel.fill` | `#8B5CF638` | `#6D3FE02E` |
 | `pre.edge` | `#E0D6FF` | `#8257F0` |
 | `halo` | `#0E0A1F` | `#FFFFFF` |
-| `preview.live.fill` | `#F5B70066` | `#F5B70073` |
+| `preview.live.fill` | `#F5B70080` | `#F5B7008C` |
 | `preview.live.edge` | `#FFD24D` | `#6B4A00` |
 | `preview.live.halo` | `#1A1400` | `#FFFFFF` |
 | `preview.cut.fill` | `#FF5C8A4D` | `#C4125E4D` |
@@ -82,7 +82,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `sk.projected` | `#3CC8F0` | `#0A6F91` |
 | `sk.fixed` | `#4CC27A` | `#1E7F45` |
 | `sk.conflict` | `#FF5C8A` | `#C4125E` |
-| `sk.profileFill` | `#A7AEB914` | `#4A515D0F` |
+| `sk.profileFill` | `#A7AEB924` | `#4A515D1F` |
 | `sk.profileFillSel` | `#8B5CF624` | `#6D3FE01A` |
 | `dim.line` | `#3CC8F0` | `#0A6F91` |
 | `dim.text` | `#F3F5F8` | `#171A20` |
@@ -144,7 +144,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `divider` | `border.subtle` |
 | `edge` | `border.default` |
 
-## Contrast (T = text ≥ 4.5, U = UI ≥ 3.0, X = exempt)
+## Contrast (T = text ≥ 4.5, U = UI ≥ 3.0, S = shape ≥ 1.25, X = exempt)
 
 | Foreground | Background | Kind | Dark | Light | |
 |---|---|---|---|---|---|
@@ -200,7 +200,9 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `axis.onAxis` | `axis.x` | T | 5.42 | 5.60 | pass |
 | `axis.onAxis` | `axis.y` | T | 8.30 | 5.37 | pass |
 | `axis.onAxis` | `axis.z` | T | 5.92 | 5.59 | pass |
-| `body.edge` | `body.default` | U | 8.66 | 10.90 | pass |
+| `body.edge` | `body.default` | U | 6.43 | 9.83 | pass |
+| `body.default` | `vp.bgTop` | S | 5.48 | 1.72 | pass |
+| `body.default` | `vp.bgBottom` | S | 6.84 | 1.27 | pass |
 | `body.hiddenLine` | `vp.bgTop` | U | 3.14 | 5.63 | pass |
 | `body.hiddenLine` | `vp.bgBottom` | U | 3.92 | 4.15 | pass |
 | `sel.edge` | `vp.bgTop` | U | 6.27 | 5.95 | pass |
@@ -226,7 +228,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `dim.text` | `dim.chip` | T | 15.96 | 17.43 | pass |
 | `vp.overlayText` | `vp.bgTop` | T | 6.45 | 7.78 | pass |
 | `vp.cube.edge` | `vp.bgTop` | U | 3.14 | 3.54 | pass |
-| `text.primary` | `vp.cube.face` | T | 11.47 | 14.17 | pass |
+| `text.primary` | `vp.cube.face` | T | 11.47 | 10.55 | pass |
 | `drawing.ink` | `drawing.paper` | T | 21.00 | 21.00 | pass |
 | `drawing.select` | `drawing.paper` | U | 6.11 | 6.11 | pass |
 | `icon.ink` | `surface.panel` | U | 10.46 | 9.42 | pass |

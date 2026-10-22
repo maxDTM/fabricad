@@ -280,6 +280,50 @@ class OverlaysTest : public QObject {
     QVERIFY(s->pixels() <= ScaleBar::kRuler);
   }
 
+  void edgeRulerTicks() {
+    // 10 mm grid over 0..100 mm on 500 px: 11 ticks, majors at 0 and 50
+    auto t = EdgeRuler::ticks(0.0, 100.0, 500.0, 10.0);
+    QCOMPARE(t.size(), size_t(11));
+    QCOMPARE(t.front().pos, 0.0);
+    QCOMPARE(t.back().pos, 500.0);
+    QVERIFY(t[0].major && t[5].major && !t[1].major);
+    // reversed axis (screen down = sketch -Y): positions still run along the ruler
+    t = EdgeRuler::ticks(20.0, -20.0, 400.0, 10.0);
+    QCOMPARE(t.size(), size_t(5));
+    for (const auto& k : t) QVERIFY(k.pos >= -1e-9 && k.pos <= 400.0 + 1e-9);
+    // too dense (1 mm grid at 0.5 px / mm): thinned to every 5th step, never below 6 px
+    t = EdgeRuler::ticks(0.0, 1000.0, 500.0, 1.0);
+    QVERIFY(!t.empty());
+    QVERIFY(t[1].pos - t[0].pos >= 6.0 - 1e-9);
+    QVERIFY(EdgeRuler::ticks(0.0, 0.0, 500.0, 10.0).empty());
+  }
+
+  void edgeRulersInSketchModeOnly() {
+    core::Document doc;
+    ViewerWidget w;
+    w.setDocument(&doc);
+    w.resize(1200, 800);
+    w.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&w));
+    EdgeRuler* top = w.edgeRuler(Qt::Horizontal);
+    EdgeRuler* left = w.edgeRuler(Qt::Vertical);
+    QVERIFY(top && left);
+    QVERIFY(!top->isVisible() && !left->isVisible());
+    w.enterSketchMode(gp_Ax3(), true);
+    top->refresh();
+    left->refresh();
+    QVERIFY(top->isVisible());
+    QVERIFY(left->isVisible());
+    QCOMPARE(top->geometry(), QRect(0, 0, 1200, EdgeRuler::kThickness));
+    QVERIFY(std::abs(std::abs(top->endValue() - top->startValue()) - 1200.0 * w.pixelSize(gp_Pnt())) < 1.0);
+    w.setEdgeRulersEnabled(false);
+    QVERIFY(!top->isVisible());
+    w.setEdgeRulersEnabled(true);
+    QVERIFY(top->isVisible());
+    w.exitSketchMode();
+    QVERIFY(!top->isVisible() && !left->isVisible());
+  }
+
   void overlaysCanBeHidden() {
     ViewerWidget w;
     w.resize(1400, 860);

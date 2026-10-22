@@ -306,6 +306,13 @@ QWidget* PreferencesDialog::buildLayoutPage() {
   });
   uiControls_.emplace_back("ui/cardRememberDrag", remember);
   f->addRow(remember);
+  auto* rulers = new QCheckBox("Edge rulers in sketch mode", form);
+  rulers->setObjectName("pref_edgeRuler");
+  connect(rulers, &QCheckBox::toggled, this, [this](bool on) {
+    if (!loading_) UiSettings::instance().set("ui/edgeRuler", on);
+  });
+  uiControls_.emplace_back("ui/edgeRuler", rulers);
+  f->addRow(rulers);
   auto* note = new QLabel("Every choice applies right away.", form);
   note->setObjectName("StatusDim");
   note->setWordWrap(true);

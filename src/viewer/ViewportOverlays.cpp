@@ -871,4 +871,116 @@ void ScaleBar::paintEvent(QPaintEvent*) {
   p.drawText(QRect(kRuler + 8, 0, width() - kRuler - 8, height()), Qt::AlignVCenter | Qt::AlignRight, label());
 }
 
+// =============================================================================================
+// EdgeRuler (7.3: sketch mode, ticks at the grid step along the top and left edges)
+// =============================================================================================
+
+std::vector<EdgeRuler::Tick> EdgeRuler::ticks(double c0, double c1, double length, double step) {
+  std::vector<Tick> out;
+  if (step <= 0 || length <= 0 || std::abs(c1 - c0) < 1e-12) return out;
+  const double pxPerMm = length / std::abs(c1 - c0);
+  int every = 1;  // draw every n-th grid step
+  while (step * every * pxPerMm < 6.0 && every < 625) every *= 5;
+  const double s = step * every;
+  const double lo = std::min(c0, c1), hi = std::max(c0, c1);
+  const long long first = static_cast<long long>(std::ceil(lo / s - 1e-9));
+  const long long last = static_cast<long long>(std::floor(hi / s + 1e-9));
+  if (last - first > 2000) return out;
+  for (long long i = first; i <= last; ++i) {
+    const double v = static_cast<double>(i) * s;
+    const double pos = (v - c0) / (c1 - c0) * length;
+    out.push_back({pos, v, i % 5 == 0});  // every 5th drawn tick is major
+  }
+  return out;
+}
+
+EdgeRuler::EdgeRuler(ViewerWidget& viewer, Qt::Orientation o) : QWidget(viewer.overlayParent()), viewer_(viewer), orient_(o) {
+  setObjectName(o == Qt::Horizontal ? "EdgeRulerTop" : "EdgeRulerLeft");
+  setAttribute(Qt::WA_NoSystemBackground);
+  setAttribute(Qt::WA_TransparentForMouseEvents);
+  hide();
+}
+
+void EdgeRuler::setEnabledByUser(bool on) {
+  enabled_ = on;
+  refresh();
+}
+
+void EdgeRuler::refresh() {
+  bool show = enabled_ && viewer_.inSketchMode();
+  double c0 = 0, c1 = 0;
+  if (show) {
+    const gp_Ax3 ax = viewer_.sketchPlane();
+    const gp_Pln pln(ax);
+    const QWidget* p = parentWidget();
+    const int w = p ? p->width() : 0, h = p ? p->height() : 0;
+    const int mid = kThickness / 2;
+    const QPoint a = orient_ == Qt::Horizontal ? QPoint(0, mid) : QPoint(mid, 0);
+    const QPoint b = orient_ == Qt::Horizontal ? QPoint(w, mid) : QPoint(mid, h);
+    gp_Pnt pa, pb;
+    show = w > 0 && h > 0 && viewer_.screenToPlane(a.x(), a.y(), pln, pa) && viewer_.screenToPlane(b.x(), b.y(), pln, pb);
+    if (show) {
+      const gp_Vec d(pa, pb);
+      const double du = d.Dot(gp_Vec(ax.XDirection())), dv = d.Dot(gp_Vec(ax.YDirection()));
+      // face-on only: the edge must run along one sketch axis (else the labels would lie)
+      const bool alongU = std::abs(du) >= std::abs(dv);
+      const double main = alongU ? du : dv, other = alongU ? dv : du;
+      show = std::abs(main) > 1e-9 && std::abs(other) <= 0.02 * std::abs(main);
+      if (show) {
+        const gp_Vec o(ax.Location(), pa);
+        c0 = alongU ? o.Dot(gp_Vec(ax.XDirection())) : o.Dot(gp_Vec(ax.YDirection()));
+        c1 = c0 + main;
+      }
+    }
+  }
+  const bool changed = show != shown_ || std::abs(c0 - c0_) > 1e-9 || std::abs(c1 - c1_) > 1e-9;
+  shown_ = show;
+  c0_ = c0;
+  c1_ = c1;
+  setVisible(show);
+  if (changed) update();
+}
+
+void EdgeRuler::paintEvent(QPaintEvent*) {
+  if (!shown_) return;
+  const ViewerWidget& v = viewer_;
+  QPainter p(this);
+  const bool horiz = orient_ == Qt::Horizontal;
+  const double length = horiz ? width() : height();
+  // a faint band so the labels read over the grid, ticks in vp.gridMajor, labels caption
+  p.fillRect(rect(), tok(v, Tok::VpBgTop, 0.72));
+  p.setPen(hairline(tok(v, Tok::VpGridMajor)));
+  if (horiz) p.drawLine(QPointF(0, height() - 0.5), QPointF(width(), height() - 0.5));
+  else p.drawLine(QPointF(width() - 0.5, 0), QPointF(width() - 0.5, height()));
+  const core::UnitSystem u = v.document() ? v.document()->units() : core::UnitSystem{};
+  const double toUnit = 1.0 / core::lengthUnitToMm(u.length);
+  const std::vector<Tick> ts = ticks(c0_, c1_, length, v.gridSpacing());
+  QFont f = theme::font(theme::TextStyle::Caption);
+  p.setFont(f);
+  const QFontMetrics fm(f);
+  double lastLabel = -1e9;
+  for (const Tick& t : ts) {
+    const double pos = std::round(t.pos) + 0.5;
+    const double len = t.major ? 6.0 : 3.0;
+    p.setPen(hairline(tok(v, t.major ? Tok::VpOverlayText : Tok::VpGridMajor)));
+    if (horiz) p.drawLine(QPointF(pos, height()), QPointF(pos, height() - len));
+    else p.drawLine(QPointF(width(), pos), QPointF(width() - len, pos));
+    if (!t.major) continue;
+    const QString label = QString::number(t.value * toUnit, 'g', 6);
+    const int tw = fm.horizontalAdvance(label);
+    if (t.pos - lastLabel < tw + 10) continue;  // no overlapping labels
+    lastLabel = t.pos;
+    p.setPen(tok(v, Tok::VpOverlayText));
+    if (horiz) {
+      p.drawText(QPointF(pos + 3, fm.ascent()), label);
+    } else {
+      p.save();
+      p.translate(fm.ascent(), pos - 3);
+      p.rotate(-90);
+      p.drawText(QPointF(0, 0), label);
+      p.restore();
+    }
+  }
+}
+
 }  // namespace fabricad::viewer

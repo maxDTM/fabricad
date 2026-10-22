@@ -256,6 +256,47 @@ class ValueInputTest : public QObject {
     overlay.setVisible(false);
     QVERIFY(!f0->isVisible());
   }
+
+  void boxesKeepClearOfOverlays() {
+    // p4-check M3: the box must not cover the command card when its handle sits behind it
+    const QRect bounds(0, 0, 1000, 700);
+    const QSize size(130, 46);
+    const QRect card(600, 100, 360, 500);
+    // free spot: right / below the anchor, as before
+    QCOMPARE(ValueInputOverlay::placeClear({200, 200}, size, {18, 14}, {card}, bounds).topLeft(), QPoint(218, 214));
+    // right of the anchor is the card: the box flips to the left of the anchor
+    QRect r = ValueInputOverlay::placeClear({560, 300}, size, {18, 14}, {card}, bounds);
+    QVERIFY(!r.intersects(card));
+    QCOMPARE(r.right(), 560 - 18 - 1);
+    // the anchor is behind the card: the box goes beside the card, near its first choice
+    r = ValueInputOverlay::placeClear({700, 300}, size, {18, 14}, {card}, bounds);
+    QVERIFY(!r.intersects(card));
+    QVERIFY(bounds.contains(r));
+    QCOMPARE(r.right(), card.left() - 8 - 1);
+    QCOMPARE(r.top(), 314);
+
+    // published keep-out rects move a live overlay's box, and the leader ties it to the anchor
+    QWidget viewport;
+    viewport.resize(800, 600);
+    core::NullViewerContext viewer;
+    ValueInputModel m = lineModel();
+    ValueInputOverlay overlay(m, &viewer, &viewport);
+    m.setChangedCallback([&overlay] { overlay.sync(); });
+    viewport.show();
+    m.setVisible("angle", false);
+    m.setAnchor("length", core::Vec3{0, 0, 0});
+    double sx = 0, sy = 0;
+    QVERIFY(viewer.worldToScreen(gp_Pnt(0, 0, 0), sx, sy));
+    const QRect keep(static_cast<int>(sx) + 10, static_cast<int>(sy) - 100, 300, 300);
+    viewport.setProperty("fcOverlayKeepOut", QVariantList{keep});
+    overlay.reposition();
+    QVERIFY(!overlay.frameAt(0)->geometry().intersects(keep));
+    QVERIFY(overlay.leader() && overlay.leader()->isVisible());
+    QCOMPARE(overlay.leader()->from(), QPoint(static_cast<int>(sx), static_cast<int>(sy)));
+    QVERIFY(overlay.frameAt(0)->geometry().adjusted(-1, -1, 1, 1).contains(overlay.leader()->to()));
+    overlay.setVisible(false);
+    QVERIFY(!overlay.leader()->isVisible());
+  }
 };
 
 QTEST_MAIN(ValueInputTest)

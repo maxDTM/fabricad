@@ -36,8 +36,10 @@ struct ViewerPalette {
   Rgba hiddenLineFill{};  ///< unlit fill of the hidden-line mode (the viewport background)
   Rgba wire{};            ///< wireframe display mode
   float ghostAlpha = 0.25f;  ///< ghosted components, rolled-back preview
-  /// Material multipliers (reflectance, not colours): ambient, diffuse, specular.
-  float matAmbient = 0.32f, matDiffuse = 0.62f, matSpecular = 0.18f;
+  /// Material multipliers (reflectance, not colours): ambient, diffuse, specular. Calibrated so
+  /// the best-lit face of the default ISO view renders at about body.default (the mockup's lit
+  /// face), the faces turned away step down like the mockup's walls (phase 5, p4-check M1).
+  float matAmbient = 0.24f, matDiffuse = 0.50f, matSpecular = 0.12f;
 
   // --- selection and preselection (halo rule)
   Rgba preselect{}, select{};  ///< hover and selection edge colours
@@ -64,8 +66,9 @@ struct ViewerPalette {
   Rgba onAxis{};               ///< letters on axis squares
   float originAxisAlpha = 0.7f;
 
-  // --- sketch (finished sketches; the open sketch session draws its own previews)
+  // --- sketch (finished sketches, and the open sketch session through the Sketch* colour roles)
   Rgba skFree{}, skConstrained{}, skConstruction{}, skProjected{}, skFixed{}, skConflict{};
+  Rgba skGlyph{};      ///< constraint glyphs, control polygons, dynamic text
   Rgba profileFill{};  ///< closed profiles of visible, finished sketches (SK-12)
   Rgba profilePick{};  ///< profiles while a tool picks them (sk.profileFillSel)
 

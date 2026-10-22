@@ -75,6 +75,7 @@ ViewerPalette ViewerPalette::fromTokens(theme::Theme th) {
   p.skConflict = c(Tok::SkConflict);
   p.profileFill = c(Tok::SkProfileFill);
   p.profilePick = c(Tok::SkProfileFillSel);
+  p.skGlyph = c(Tok::TextSecondary);  // sk.constraintGlyph: glyph text.secondary
 
   // construction and origin geometry stay neutral: gold is reserved for live operations (4.2)
   p.construction = c(Tok::SkConstruction);
@@ -132,6 +133,20 @@ ViewerPalette::PreviewColors ViewerPalette::preview(const core::PreviewStyle& s)
       if (!sameColor(s.color, preset(s.role))) return plain(s.color);
       return plain(inference);
     case ColorRole::Dimension: return plain(dimLine);
+    case ColorRole::SketchConstrained: return plain(skConstrained);
+    case ColorRole::SketchConstruction: return plain(skConstruction);
+    case ColorRole::SketchProjected: return plain(skProjected);
+    case ColorRole::SketchFixed: return plain(skFixed);
+    case ColorRole::SketchConflict: return plain(skConflict);
+    case ColorRole::SketchSelected: return plain(select);
+    case ColorRole::SketchGlyph: return plain(skGlyph);
+    case ColorRole::SketchProfile: {
+      PreviewColors pc = plain(profileFill);
+      pc.fill = profileFill;  // tint only: the curves are the boundary
+      return pc;
+    }
+    case ColorRole::SketchOrigin: return plain(originPoint);
+    case ColorRole::Preselect: return plain(preselect);
     case ColorRole::None: break;
   }
   return plain(s.color);

@@ -51,6 +51,7 @@ class Breadcrumb;
 class SelectionFilterBar;
 class CoordReadout;
 class ScaleBar;
+class EdgeRuler;
 class OverlayLayout;
 
 /// ui/orientation (docs/plans/ui-redesign.md 6.1 #5, 7.2).
@@ -112,6 +113,9 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   SelectionFilterBar* selectionFilterBar() const { return filterBar_; }
   CoordReadout* coordReadout() const { return readout_; }
   ScaleBar* scaleBar() const { return scaleBar_; }
+  EdgeRuler* edgeRuler(Qt::Orientation o) const { return o == Qt::Horizontal ? rulerTop_ : rulerLeft_; }
+  /// Sketch-mode edge rulers (7.3, ui/edgeRuler): ticks along the top and left edges.
+  void setEdgeRulersEnabled(bool on);
   /// Show or hide the breadcrumb / filter row, the coordinate readout and the scale bar (the
   /// orientation widget always shows).
   void setOverlaysVisible(bool topBar, bool readout, bool scaleBar);
@@ -358,6 +362,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   SelectionFilterBar* filterBar_ = nullptr;
   CoordReadout* readout_ = nullptr;
   ScaleBar* scaleBar_ = nullptr;
+  EdgeRuler* rulerTop_ = nullptr;
+  EdgeRuler* rulerLeft_ = nullptr;
   bool topBarShown_ = true, readoutShown_ = true, scaleBarShown_ = true;
   std::array<double, 10> lastCamera_{};
   std::array<QRect, 5> lastOverlayRects_{};

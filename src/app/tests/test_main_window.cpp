@@ -258,7 +258,8 @@ class TestMainWindow : public QObject {
         // no label is cut (section 3.4 / test_layout_text)
         for (QToolButton* b : tb->findChildren<QToolButton*>())
           if (b->isVisible() && !b->text().isEmpty() && b->toolButtonStyle() != Qt::ToolButtonIconOnly) {
-            const int need = b->fontMetrics().horizontalAdvance(b->text());
+            int need = 0;  // per line: long vertical-toolbar labels wrap onto two lines
+            for (const QString& line : b->text().split('\n')) need = std::max(need, b->fontMetrics().horizontalAdvance(line));
             QVERIFY2(need <= b->width(), qPrintable(QString("'%1' needs %2 px, has %3").arg(b->text()).arg(need).arg(b->width())));
           }
         if (sz.width() == 1920 && !sketch)

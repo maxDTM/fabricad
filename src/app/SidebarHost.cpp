@@ -357,6 +357,10 @@ void SidebarHost::applyLayout() {
   // card plus the panels never set a window minimum taller than the screen
   for (size_t i = 1; i < 3; ++i) panels_[i]->setMinimumHeight(docked ? PanelHeader::kHeight : 0);
   cardSlot_->setVisible(docked);
+  // the slot is never taller than the card wants: a dragged splitter handle gives the room to the
+  // panels below instead of opening a blank gap under the card (p4-check M5)
+  cardSlot_->setMaximumHeight(docked && card_ ? std::max(card_->sizeHint().height(), card_->minimumSizeHint().height())
+                                              : QWIDGETSIZE_MAX);
 
   // sizes: the panels' remembered sizes; a docked card takes what FEATURES gives up
   const int total = std::max(splitter_->height(), 400);
@@ -458,7 +462,10 @@ void SidebarHost::updateFeatureSelection() {
   bool on = false;
   if (doc_) {
     const core::ShapeKindMask f = doc_->selection().filter();
-    on = f != core::kAllKinds && core::hasKind(f, core::ShapeKind::Feature);
+    // a feature input (Mirror, patterns) or a profile input that takes whole sketches (Extrude,
+    // Revolve, Sweep: a FEATURES sketch row picks its profiles, p2 fix): FEATURES must show
+    // its rows, also beside a docked card (p4-check M5)
+    on = f != core::kAllKinds && (core::hasKind(f, core::ShapeKind::Feature) || core::hasKind(f, core::ShapeKind::Sketch));
   }
   filterFeatureSelection_ = on;
   if (before != featureSelectionActive()) {
