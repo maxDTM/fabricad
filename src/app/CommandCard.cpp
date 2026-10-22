@@ -132,11 +132,14 @@ QPushButton* footerButton(const QString& text, const QString& keys, bool primary
   auto* label = new QLabel(text, b);
   label->setObjectName("CardButtonText");
   label->setAttribute(Qt::WA_TransparentForMouseEvents);
+  label->setProperty("primary", primary);  // styled by its own state (QSS has no ancestor states)
   h->addWidget(label);
   h->addStretch(1);
   auto* cap = new Keycap(keys, b);
   cap->setAttribute(Qt::WA_TransparentForMouseEvents);
   cap->setFixedHeight(18);
+  cap->setProperty("primary", primary);
+  cap->setProperty("footer", true);
   h->addWidget(cap, 0, Qt::AlignVCenter);
   b->setMinimumHeight(32);
   b->setMinimumWidth(h->sizeHint().width());
@@ -244,8 +247,14 @@ CommandCard::CommandCard(QWidget* viewport) : QFrame(viewport), viewport_(viewpo
   context_->setProperty("textStyle", "label.sm");
   docName_ = new QLabel(title_);
   docName_->setObjectName("CardDocName");
-  docName_->setProperty("textStyle", "label.sm");
-  docName_->setProperty("textCase", "as-is");  // user-entered names keep their case (decision 3)
+  // user-entered names keep their case (decision 3): the font is set here, not by the caps rules
+  auto docFont = [this] {
+    QFont f = theme::font(theme::TextStyle::LabelSm);
+    f.setCapitalization(QFont::MixedCase);
+    docName_->setFont(f);
+  };
+  docFont();
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged, docName_, docFont);
   th->addWidget(titleIcon_);
   th->addWidget(titleText_);
   th->addWidget(keycap_, 0, Qt::AlignVCenter);
@@ -421,6 +430,14 @@ void CommandCard::upgradeForms() {
       seg->setObjectName(combo->objectName());  // prop_<name> (8.2)
       seg->bindCombo(combo);
       hv->addWidget(seg);
+      // a choice that rebuilds the panel (Two Sides adds rows) must not drop the keyboard focus
+      connect(seg, &SegmentedControl::aboutToChange, this, [this, seg] {
+        if (seg->hasFocus()) refocusSegment_ = seg->objectName();
+      });
+      if (!refocusSegment_.isEmpty() && seg->objectName() == refocusSegment_) {
+        refocusSegment_.clear();
+        QTimer::singleShot(0, seg, [seg] { seg->setFocus(Qt::OtherFocusReason); });
+      }
       combo->setParent(holder);
       combo->hide();
       combo->setProperty("segmented", true);
@@ -465,6 +482,7 @@ void CommandCard::clearBody() {
     b->deleteLater();       // tools may still hold QPointers; never delete synchronously
   }
   stepTargets_.clear();
+  refocusSegment_.clear();
   scroll_->hide();
 }
 
@@ -783,6 +801,7 @@ void CommandCard::dragTo(const QPoint& global) {
     t.push_back({dropTargetGlobal(Placement::FloatLeft), "FLOAT LEFT", hit && hot == Placement::FloatLeft});
     t.push_back({dropTargetGlobal(Placement::FloatRight), "FLOAT RIGHT", hit && hot == Placement::FloatRight});
     o->setTargets(std::move(t));
+    if (slotHost_) slotHost_->setDropHighlight(hit && hot == Placement::Sidebar);
     o->raise();
     raise();
   }
@@ -792,7 +811,12 @@ void CommandCard::endDrag(const QPoint& global) {
   bool hit = false;
   const Placement target = dropTargetAt(global, &hit);
   dragging_ = false;
-  if (dropOverlay_) delete dropOverlay_.data();
+  if (slotHost_) slotHost_->setDropHighlight(false);
+  if (dropOverlay_) {
+    dropOverlay_->hide();  // repaints what it covered (the sidebar, the viewport)
+    dropOverlay_->deleteLater();
+    dropOverlay_ = nullptr;
+  }
   if (hit) {
     setPlacement(target);
     emit placementChosen(target, free_);

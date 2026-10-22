@@ -169,6 +169,7 @@ class CommandCard : public QFrame {
   bool live_ = false;
   bool relayoutPending_ = false;
   int stableHeight_ = 0;  ///< height since present(); only grows
+  QString refocusSegment_;  ///< segmented control to focus again after a panel rebuild
   std::vector<QPointer<QWidget>> stepTargets_;  ///< input focused by clicking a done step
 
   Placement requested_ = Placement::FloatRight;

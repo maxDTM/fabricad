@@ -36,6 +36,7 @@ int SegmentedControl::currentIndex() const { return combo_ ? combo_->currentInde
 
 void SegmentedControl::setCurrentIndex(int index) {
   if (index < 0 || index >= count() || index == currentIndex()) return;
+  emit aboutToChange(index);
   if (combo_) {
     combo_->setCurrentIndex(index);  // its currentIndexChanged drives the tool
   } else {

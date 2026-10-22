@@ -49,6 +49,8 @@ class SegmentedControl : public QWidget {
 
  signals:
   void currentIndexChanged(int index);
+  /// Emitted before the bound combo changes (its handlers may rebuild the panel around us).
+  void aboutToChange(int index);
 
  protected:
   void paintEvent(QPaintEvent* e) override;

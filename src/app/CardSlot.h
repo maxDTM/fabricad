@@ -15,6 +15,8 @@
 #include <QRect>
 #include <QWidget>
 
+#include <algorithm>
+
 namespace fabricad::app {
 
 class CardSlotHost {
@@ -37,6 +39,34 @@ class CardSlotHost {
   /// Decision 6: FEATURES expands while the docked command's feature-selection input is active
   /// (Mirror, patterns) and collapses again afterwards.
   virtual void setFeatureSelectionActive(bool active) = 0;
+  /// The slot is the drop target under the cursor while the card is dragged (optional outline;
+  /// the card paints its own drop-target overlay as well).
+  virtual void setDropHighlight(bool /*on*/) {}
+};
+
+/// Adapter for phase 2's SidebarHost (ui/sidebar, docs/uiux/redesign/p2.md "Command card
+/// interface"). Header-only template so this branch compiles without SidebarHost; on merge:
+///   cardSlotAdapter_ = std::make_unique<SidebarCardSlotAdapter<SidebarHost>>(sidebarHost_);
+///   setCardSlotHost(cardSlotAdapter_.get());
+///   connect(sidebarHost_, &SidebarHost::cardDockAvailabilityChanged, this, [this] { if (dialog_) dialog_->reposition(); });
+template <class Host>
+class SidebarCardSlotAdapter : public CardSlotHost {
+ public:
+  explicit SidebarCardSlotAdapter(Host* host) : host_(host) {}
+  bool cardSlotAvailable() const override { return host_ && host_->canDockCard(); }
+  void dockCard(QWidget* card) override {
+    if (card) host_->dockCard(card);
+    else host_->releaseCard(nullptr);  // the card reparents itself to its viewport
+  }
+  QWidget* dockedCard() const override { return host_ ? host_->dockedCard() : nullptr; }
+  int cardSlotWidth() const override { return host_->cardSlot()->width() > 0 ? host_->cardSlot()->width() : host_->width(); }
+  int cardSlotMaxHeight() const override { return std::max(200, host_->height() - 120); }  // FEATURES header + live row stay
+  QRect cardSlotGlobalRect() const override { return cardSlotAvailable() ? host_->cardDropRect() : QRect(); }
+  void setFeatureSelectionActive(bool active) override { host_->setFeatureSelectionActive(active); }
+  void setDropHighlight(bool on) override { host_->setDropHighlight(on); }
+
+ private:
+  Host* host_;
 };
 
 /// Stand-in slot until SidebarHost exists: a plain container at the top of the sidebar.

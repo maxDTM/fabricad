@@ -106,11 +106,11 @@ QPushButton#CancelButton { background: transparent; border: 1px solid @{border.c
 QPushButton#CancelButton:hover { background: @{surface.hover}; border-color: @{accent.text}; }
 QPushButton#CancelButton:focus, QPushButton#OkButton:focus { border: 2px solid @{accent.focus}; }
 #CardFooter QPushButton#OkButton { padding: 0; }
-QPushButton#OkButton QLabel, QPushButton#CancelButton QLabel { background: transparent; }
-QPushButton#OkButton QLabel#CardButtonText { color: @{accent.onSolid}; }
-QPushButton#OkButton:disabled QLabel#CardButtonText { color: @{text.disabled}; }
-QPushButton#OkButton QLabel#Keycap { color: @{accent.onSolid}; background: @{accent.pressed}; border-color: @{accent.pressed}; }
-QPushButton#OkButton:disabled QLabel#Keycap { color: @{text.disabled}; background: transparent; border-color: @{border.default}; }
+#CardFooter QPushButton#OkButton:disabled { background: @{surface.pressed}; border-color: @{surface.pressed}; }
+QLabel#CardButtonText { background: transparent; }
+QLabel#CardButtonText[primary="true"] { color: @{accent.onSolid}; }
+QLabel#Keycap[primary="true"] { color: @{accent.onSolid}; background: @{accent.pressed}; border-color: @{accent.pressed}; }
+QLabel#CardButtonText:disabled, QLabel#Keycap[primary="true"]:disabled { color: @{text.disabled}; background: transparent; border-color: @{border.default}; }
 QPushButton { background: @{button.bg}; border: 1px solid @{button.border}; border-radius: 1px; padding: 4px 14px; color: @{text.primary}; }
 QPushButton:hover { background: @{button.hover.bg}; border-color: @{accent.text}; }
 QPushButton:pressed { background: @{button.pressed.bg}; }

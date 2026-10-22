@@ -114,7 +114,8 @@ class TestCommandCard : public QObject {
     send(t, QEvent::MouseButtonRelease, toGlobal, Qt::LeftButton, Qt::NoButton);
     settle();
     QVERIFY(!card()->isDragging());
-    QVERIFY(!w_->findChild<QWidget*>("CardDropTargets"));
+    auto* overlay = w_->findChild<QWidget*>("CardDropTargets");
+    QVERIFY(!overlay || !overlay->isVisible());
   }
   QRect cardInViewport() {
     QRect r = card()->geometry();
@@ -432,6 +433,24 @@ class TestCommandCard : public QObject {
     QTest::keyClick(seg, Qt::Key_Right);
     QCOMPARE(combo->currentIndex(), 1);
     QTest::mouseClick(seg, Qt::LeftButton, {}, seg->cellRect(nb).center());
+    // a choice that rebuilds the panel (Two Sides adds rows) keeps the keyboard in the control
+    settle();  // an operation change may rebuild the panel; the card upgrades the new rows
+    auto* dir = card()->body()->findChild<app::SegmentedControl*>("prop_direction");
+    QVERIFY(dir);
+    w_->activateWindow();
+    dir->setFocus();
+    settle();
+    if (QApplication::focusWidget() == dir) {
+      QTest::keyClick(dir, Qt::Key_Right);
+      settle();
+      auto* dir2 = card()->body()->findChild<app::SegmentedControl*>("prop_direction");
+      QVERIFY(dir2);
+      QCOMPARE(QApplication::focusWidget(), static_cast<QWidget*>(dir2));
+      QTest::keyClick(dir2, Qt::Key_Left);
+      settle();
+    }
+    QCOMPARE(card()->body()->findChild<QComboBox*>("prop_direction")->currentIndex(), 0);
+    QCOMPARE(card()->body()->findChild<QComboBox*>("prop_operation")->currentIndex(), nb);
     QTest::mouseClick(card()->okButton(), Qt::LeftButton);
     settle();
     QCOMPARE(run({"CHECK bodies == 2"}), 0);
