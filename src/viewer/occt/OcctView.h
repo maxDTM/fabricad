@@ -20,6 +20,8 @@
 #include <Graphic3d_Camera.hxx>
 #include <V3d_View.hxx>
 
+#include <functional>
+
 class AIS_ViewCube;
 class QPainter;
 
@@ -62,8 +64,20 @@ class OcctView : public QOpenGLWidget, public AIS_ViewController {
   void animateTo(const Handle(Graphic3d_Camera)& target, double seconds = 0.25);
   /// Stop a running camera animation.
   void stopAnimation();
-  /// Request a repaint (all OCCT/context changes go through this).
+  /// Request a repaint of the immediate layer and Qt overlay only (the last full frame is
+  /// reused): rubber band, overlay controls.
   void updateView() { update(); }
+  /// Request a full repaint: the scene changed (Display/Remove/SetLocation/Redisplay with
+  /// update=false never invalidate the view, so updateView() alone would show a stale frame).
+  void redrawAll()
+  {
+    if (!myView.IsNull())
+      myView->Invalidate();
+    update();
+  }
+  /// Fit hook used by the ViewCube animation (null = OCCT default fit).
+  using CubeFitter = std::function<void(const Handle(V3d_View)&, const Handle(Graphic3d_Camera)&)>;
+  void setCubeFitter(CubeFitter f);
 
   QSize minimumSizeHint() const override { return QSize(200, 200); }
   QSize sizeHint() const override { return QSize(720, 480); }

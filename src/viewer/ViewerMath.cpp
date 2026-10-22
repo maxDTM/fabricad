@@ -85,6 +85,32 @@ double niceStep(double value) {
 
 double adaptiveGridStep(double pixelSizeMm, double minPixels) { return niceStep(pixelSizeMm * minPixels); }
 
+bool isFaceOnView(const gp_Dir& viewDir, const gp_Dir& up, double tolDeg) {
+  const double c = std::cos(tolDeg * M_PI / 180.0);
+  auto onAxis = [c](const gp_Dir& d) {
+    return std::abs(d.X()) >= c || std::abs(d.Y()) >= c || std::abs(d.Z()) >= c;
+  };
+  return onAxis(viewDir) && onAxis(up);
+}
+
+void applyViewportInset(Graphic3d_Camera& cam, int width, int height, int insetTop, int insetBottom) {
+  insetTop = std::max(0, insetTop);
+  insetBottom = std::max(0, insetBottom);
+  const int free = height - insetTop - insetBottom;
+  if (width <= 0 || height <= 0 || free < height / 4 || (insetTop == 0 && insetBottom == 0)) return;
+  cam.SetScale(cam.Scale() * double(height) / double(free));
+  // content centred in the free band: its centre is (insetBottom - insetTop)/2 px above the
+  // widget centre, so the camera centre moves that far down
+  const double ps = cameraPixelSize(cam, cam.Center(), width, height);
+  const gp_Vec shift = gp_Vec(cam.Up()) * (-0.5 * (insetBottom - insetTop) * ps);
+  cam.SetEyeAndCenter(cam.Eye().Translated(shift), cam.Center().Translated(shift));
+}
+
+double originPlaneHalfSize(double diagonal) {
+  if (!(diagonal > 0) || !std::isfinite(diagonal)) return 40.0;
+  return niceStep(std::max(20.0, 0.35 * diagonal));
+}
+
 ViewOrientation standardViewOrientation(core::StandardView view) {
   using V = core::StandardView;
   switch (view) {

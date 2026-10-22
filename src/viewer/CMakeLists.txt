@@ -7,3 +7,7 @@ target_link_libraries(fabricad_viewer PUBLIC
   Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets
   fabricad_occt_vis)
 fabricad_add_tests(fabricad_viewer)
+# GL picking regression test: runs only with FABRICAD_GL_DISPLAY=:N (skips otherwise)
+if(TEST fabricad_viewer_test_viewer_gl)
+  set_tests_properties(fabricad_viewer_test_viewer_gl PROPERTIES LABELS gui)
+endif()

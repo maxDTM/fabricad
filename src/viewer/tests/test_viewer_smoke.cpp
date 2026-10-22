@@ -9,6 +9,8 @@
 #include "core/tests/support/TestFeatures.h"
 #include "support/ViewerTestFeatures.h"
 
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
@@ -129,6 +131,30 @@ class ViewerSmokeTest : public QObject {
     w.setFeatureVisibilityOverride(sk->id(), std::nullopt);
     w.syncNow();
     QCOMPARE(w.sceneItems().size(), size_t(8));
+  }
+
+  void originPlanesFollowModelSize() {
+    core::Document doc;
+    auto* box = doc.addFeature(std::make_unique<core::test::BoxFeature>());
+    box->prop("dx").setDouble(400.0);
+    box->prop("dy").setDouble(300.0);
+    box->prop("dz").setDouble(200.0);
+    doc.recompute();
+    viewer::ViewerWidget w;
+    w.setDocument(&doc);
+    w.setOriginVisible(true);
+    w.syncNow();
+    double halfSize = 0;
+    for (const viewer::SceneItem& it : w.sceneItems())
+      if (it.key == "origin:XY") {
+        Bnd_Box b;
+        BRepBndLib::Add(it.shape, b);
+        double x0, y0, z0, x1, y1, z1;
+        b.Get(x0, y0, z0, x1, y1, z1);
+        halfSize = (x1 - x0) / 2 / 0.9;  // planeFace(.., 0.9 h)
+      }
+    // diagonal ~539 -> 0.35 * 539 = 189 -> 200
+    QVERIFY2(std::abs(halfSize - 200.0) < 1.0, qPrintable(QString::number(halfSize)));
   }
 };
 

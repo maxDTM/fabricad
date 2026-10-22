@@ -48,6 +48,19 @@ struct ViewOrientation {
 ViewOrientation standardViewOrientation(core::StandardView view);
 /// "Look at" a plane: eye on the +normal side, up = plane Y direction.
 ViewOrientation planeViewOrientation(const gp_Ax3& plane);
+/// Face-on view: the view direction and the up direction both lie along world axes (within
+/// `tolDeg`). The ViewCube shows its face-step arrows only then.
+bool isFaceOnView(const gp_Dir& viewDir, const gp_Dir& up, double tolDeg = 1.0);
+
+// --- fit ---------------------------------------------------------------------------------
+/// Adjust a camera fitted to the whole widget so the fitted content fills only the part not
+/// covered by overlays: `insetTop`/`insetBottom` pixels of a `height`-pixel view. The scale
+/// grows by height/(height-insets) and the centre shifts so the content is centred in the
+/// free band.
+void applyViewportInset(Graphic3d_Camera& cam, int width, int height, int insetTop, int insetBottom);
+/// Half size of the origin planes for a scene bounding-box diagonal (0 = empty scene):
+/// max(20, 0.35 * diag) rounded up to a 1-2-5 step; 40 without geometry.
+double originPlaneHalfSize(double diagonal);
 
 // --- selection -------------------------------------------------------------------------
 /// User "selection priority" from the SELECT menu (combined with the tool filter).

@@ -23,7 +23,9 @@
 #include "viewer/SceneModel.h"
 #include "viewer/ViewerMath.h"
 
+#include <QMargins>
 #include <QPoint>
+#include <QRect>
 #include <QWidget>
 
 #include <memory>
@@ -68,6 +70,12 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   NavAction leftButtonNavigation() const { return lmbNav_; }
   /// Rotate the camera about the view centre (Shift+arrow keys: 15 degree steps).
   void orbitBy(double yawDeg, double pitchDeg, bool animate = true);
+  /// Roll the camera about the viewing direction (ViewCube roll arrows: +-90 degrees).
+  void rollBy(double deg, bool animate = true);
+  /// Screen areas covered by overlays (the nav bar at the bottom): Fit/Home keep the model
+  /// clear of them. Default: 56 px at the bottom.
+  void setViewportInsets(QMargins m);
+  QMargins viewportInsets() const { return insets_; }
   void setReverseZoom(bool r) { reverseZoom_ = r; }
   bool reverseZoom() const { return reverseZoom_; }
   void setSelectionPriority(SelectionPriority p);
@@ -182,6 +190,7 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void doSync();
   void syncOverlays();
   void applySelectionModes();
+  void syncOriginLabels();
   void applyGestureMap();
   void onFilterInputsChanged();
 
@@ -202,11 +211,29 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void defaultClickSelect(const core::ViewerMouseEvent& ev);
   void rectangleSelect(QPoint a, QPoint b, int modifiers);
   void updateHover(const core::ViewerMouseEvent& ev);
+  /// Repaint only the immediate layer + Qt overlay (rubber band, cube controls).
+  void requestImmediateRedraw();
+  /// Re-apply the chosen projection type to the view camera (and `cam`, when given).
+  void assertProjection(const Handle(Graphic3d_Camera)& cam = {});
+  /// Animate to a copy of `target` with the chosen projection.
+  void animateCamera(const Handle(Graphic3d_Camera)& target, double seconds);
+  // ViewCube overlay controls (home, roll arrows, face-step arrows), see ux.md 5.1
+  enum class CubeCtl { None = -1, Home, RollCcw, RollCw, StepLeft, StepRight, StepUp, StepDown };
+  QPointF cubeCenter() const;
+  std::vector<std::pair<CubeCtl, QRectF>> cubeControls() const;
+  CubeCtl cubeControlAt(QPointF p) const;
+  void triggerCubeControl(CubeCtl c);
   void updateGrid(bool force);
   /// Rebuild the AIS presentations of all manipulators from the controller state.
   void syncManipulatorPrs();
   /// Auto-sized gizmos follow the zoom level: rebuild those whose pixel size changed.
   void refreshManipulatorSizes();
+  /// Gizmo drawing/hit-test pixel size (scaled so the Move triad is large enough).
+  double gizmoPixelSize(const gp_Pnt& at) const;
+  bool gizmoRay(int x, int y, gp_Pnt& o, gp_Dir& d) const;
+  bool gizmoPress(int x, int y, int modifiers);
+  bool gizmoMove(int x, int y, int modifiers);
+  bool gizmoRelease(int x, int y, int modifiers);
   std::string manipulatorValueText(const core::ManipulatorModel& m, core::ManipulatorHandle highlight) const;
 
   fabricad::core::Document* document_ = nullptr;
@@ -248,6 +275,12 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   bool rightDown_ = false, rightConsumed_ = false, rightDragged_ = false, rightOnCube_ = false;
   bool navigating_ = false;
   QPoint pressPos_, rubberEnd_, rightPressPos_;
+  bool cubePress_ = false, cubeDrag_ = false;  ///< LMB went down on the ViewCube / is orbiting
+  bool ctlPress_ = false;  ///< LMB went down on a ViewCube overlay control
+  QPoint cubeLast_;
+  const void* cubeHoverOwner_ = nullptr;  ///< detected ViewCube part (hover redraws on change)
+  CubeCtl hoverCtl_ = CubeCtl::None;
+  QMargins insets_{0, 0, 0, 56};
 };
 
 /// Call once before QApplication is constructed: forces the xcb platform when unset
