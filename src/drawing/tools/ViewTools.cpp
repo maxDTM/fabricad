@@ -1280,7 +1280,23 @@ void EditViewTool::applyDialog() {
 
 void EditViewTool::accept(core::ToolContext& ctx) {
   applyDialog();
-  if (DrawingModel* m = model(ctx)) m->commitSnapshot("Edit view", ctx.undo, before_);
+  if (DrawingModel* m = model(ctx)) {
+    m->commitSnapshot("Edit view", ctx.undo, before_);
+    // after a scale change the automatic layout keeps the views apart; when they no longer fit
+    // the sheet, say so rather than leaving it to be noticed (DRW-VIEWS-ANNOT-8)
+    m->waitForIdle(30000);
+    if (Sheet* s = m->sheetOf(viewId_)) {
+      const BBox2 f = s->frameRect();
+      for (const auto& v : s->views)
+        if (v.geometryValid) {
+          const BBox2 b = v.sheetBBox();
+          if (b.min.x < f.min.x - 0.5 || b.max.x > f.max.x + 0.5 || b.min.y < f.min.y - 0.5 || b.max.y > f.max.y + 0.5) {
+            ctx.showMessage("The views no longer fit inside the frame: use a smaller scale or a larger sheet", true);
+            break;
+          }
+        }
+    }
+  }
   committed_ = true;
   ctx.finish();
 }
@@ -1366,6 +1382,27 @@ bool EditSheetTool::commandLineInput(core::ToolContext& ctx, const std::string& 
     std::string k, v;
     if (parseKeyValue(t, k, v)) any = applySetting(ctx, k, v) || any;
   }
+  // keep the open dialog in step, or its OK would re-apply the old values
+  if (any)
+    if (DrawingModel* m = model(ctx))
+      if (const Sheet* s = m->sheet(sheetId_)) {
+        auto sync = [](QWidget* w, auto fn) {
+          if (!w) return;
+          const bool b = w->blockSignals(true);
+          fn();
+          w->blockSignals(b);
+        };
+        sync(standardCombo_, [&] { standardCombo_->setCurrentIndex(s->standard == ProjectionStandard::FirstAngle ? 0 : 1); });
+        sync(orientationCombo_, [&] { orientationCombo_->setCurrentIndex(s->format.landscape ? 0 : 1); });
+        sync(formatCombo_, [&] {
+          int i = formatCombo_->findData(QString::fromStdString(s->format.name));
+          if (i >= 0) formatCombo_->setCurrentIndex(i);
+        });
+        sync(nameEdit_, [&] { nameEdit_->setText(QString::fromStdString(s->name)); });
+        sync(zonesCheck_, [&] { zonesCheck_->setChecked(s->showZones); });
+        sync(titleCheck_, [&] { titleCheck_->setChecked(s->titleBlock.visible); });
+        sync(scaleCombo_, [&] { scaleCombo_->setEditText(QString::fromStdString(scaleLabel(s->scale))); });
+      }
   return any;
 }
 

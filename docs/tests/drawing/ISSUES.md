@@ -60,11 +60,15 @@ Findings of the two round-1 drawing testers:
   the name failed. Refs now fall back to the other pieces of the same split edge. A hidden edge
   that is dropped under a visible one (ASM-OUTPUT-4) keeps its identity for refs.
 * **VIEWS-ANNOT-7**: `DrawingModel::changeSheetStandard` mirrors each projected view to the other
-  side of its parent, keeping what it shows. Attached annotations follow.
+  side of its parent, keeping what it shows. Section and detail views stay where they were,
+  keeping only their alignment. The family is then moved back inside the frame
+  (`fitFamilyInFrame`), and free views are moved clear of the others. Attached annotations
+  follow.
 * **VIEWS-ANNOT-8**: on a scale edit (`viewDefinitionChanged`), projected children and sections
   drawn at the parent scale take the new scale. Their offsets scale with it, and the auto layout
   then restores the gaps, clears other views, keeps the views in the frame and off the title
-  block.
+  block. When the family cannot fit at the new scale (the repro's 2:1 on A3), views extend past
+  the frame rather than overlapping each other, and Edit View says so in the status bar.
 * **VIEWS-ANNOT-9**: the auto layout uses `DrawingView::layoutBBox()`, which includes the view
   label. A view is moved up or left to clear the title block.
 * **VIEWS-ANNOT-10**: the detail label sits 2 mm outside the circle, on the diagonal that points
@@ -100,6 +104,23 @@ Findings of the two round-1 drawing testers:
 * **ASM-OUTPUT-8**: for SVG/DXF with several sheets, the suggested file name ends in the sheet
   name and the status message says that only that sheet was written.
 * **ASM-OUTPUT-10**: PDF metadata and SVG `<title>` use the title block Title (`documentTitle`).
+
+## GUI verification (display :74, worktree build, mouse and keyboard)
+
+The tester's repro model was opened and the DRAWING workspace selected from the dropdown. The
+screenshots are in `round1/be-drawing-verify/`:
+- `01`: the hole callout reads `⌴ Ø11 ↓6`, "41.34" is readable and the angle reads `90°`.
+- `02`: clicking R6 and pressing the Delete key removed it.
+- `03`: Edit Sheet with standard ASME (third angle), then OK. The top view moves above the
+  front view, the side view to its left, all inside the frame.
+- `04`: front view at 2:1. The children re-flow without overlapping, but the family no longer
+  fits A3.
+
+The display kept resizing during the session, as the tester reported, so the app ran with
+`QT_SCALE_FACTOR` 0.5-0.6. At that size the Edit Sheet dialog clipped its fields, which is a
+shell layout matter, so the standard was entered through the in-app command line with the dialog
+open (`standard=asme`). That exposed a bug, now fixed: the dialog's OK re-applied the old
+standard, because command-line input did not update the dialog's widgets.
 
 Outside the drawing area: the three design-workspace observations in views-annot.md, and the
 asm-output tester's unverified note about sketches started on the plate's top face ending up

@@ -306,10 +306,10 @@ class Round1Test : public QObject {
 
   void thirdAngleSwitchMirrorsProjectedViews() {  // DRW-VIEWS-ANNOT-7
     BoxFixture fx(ProjectionStandard::FirstAngle);
-    DrawingView& base = fx.base(ViewOrientation::Front, {150, 120});
+    DrawingView& base = fx.base(ViewOrientation::Front, {50, 40});
     core::ObjectId baseId = base.id;
-    core::ObjectId below = fx.model->addProjectedView(fx.sheet(), baseId, ProjectionDirection::Below, {150, 200})->id;
-    core::ObjectId right = fx.model->addProjectedView(fx.sheet(), baseId, ProjectionDirection::Right, {230, 120})->id;
+    core::ObjectId below = fx.model->addProjectedView(fx.sheet(), baseId, ProjectionDirection::Below, {50, 120})->id;
+    core::ObjectId right = fx.model->addProjectedView(fx.sheet(), baseId, ProjectionDirection::Right, {130, 40})->id;
     fx.model->updateGeometry();
     const gp_Ax2 belowFrame = fx.model->view(below)->customFrame;
     QVERIFY(fx.model->changeSheetStandard(fx.sheet(), ProjectionStandard::ThirdAngle));
@@ -327,6 +327,11 @@ class Round1Test : public QObject {
     gp_Ax2 fresh = fx.model->frameForProjection(*b, fx.sheet(), ProjectionDirection::Above);
     QVERIFY(fresh.Direction().IsEqual(top->customFrame.Direction(), 1e-9));
     QVERIFY(!overlap(top->sheetBBox(), b->sheetBBox()));
+    const BBox2 f = fx.sheet().frameRect();
+    for (const DrawingView* v : {b, top, side}) {
+      BBox2 vb = v->sheetBBox();
+      QVERIFY2(vb.min.x >= f.min.x && vb.max.x <= f.max.x && vb.min.y >= f.min.y && vb.max.y <= f.max.y, v->label.c_str());
+    }
     QVERIFY(!fx.model->changeSheetStandard(fx.sheet(), ProjectionStandard::ThirdAngle));
   }
 

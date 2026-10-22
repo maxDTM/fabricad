@@ -199,6 +199,9 @@ class DrawingModel : public QObject {
   /// A view's scale went from oldScale to its current one: rescale following children and
   /// their offsets, then let the automatic layout re-flow them.
   void rescaleLayout(Sheet& s, core::ObjectId id, double oldScale);
+  /// Move a top-level view with all its descendants so that they fit inside the frame (and clear
+  /// the title block) when they can.
+  void fitFamilyInFrame(Sheet& s, core::ObjectId rootId);
   /// Move the annotations attached to a view by `delta`.
   void shiftAttached(Sheet& s, core::ObjectId viewId, const Point2& delta);
   void finishView(Sheet& sheet, DrawingView& v);

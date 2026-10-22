@@ -1031,7 +1031,10 @@ bool DrawingModel::changeSheetStandard(Sheet& s, ProjectionStandard standard) {
       if (!c) continue;
       const Point2 oldParentPos = parentPos - parentDelta;
       const Point2 off = c->position - oldParentPos;
-      Point2 target = parentPos + off;
+      // section / detail views were placed freely: they stay, keeping only their alignment
+      Point2 target = c->position;
+      if (c->alignment == ViewAlignment::Horizontal) target.y += parentDelta.y;
+      if (c->alignment == ViewAlignment::Vertical) target.x += parentDelta.x;
       if (c->type == ViewType::Projected) {
         target = parentPos - off;
         c->direction = oppositeDirection(c->direction);
@@ -1043,9 +1046,85 @@ bool DrawingModel::changeSheetStandard(Sheet& s, ProjectionStandard standard) {
     }
   };
   for (const DrawingView& v : std::vector<DrawingView>(s.views))
-    if (v.parent == core::kInvalidId) relayout(v.id, {});
+    if (v.parent == core::kInvalidId) {
+      relayout(v.id, {});
+      fitFamilyInFrame(s, v.id);  // the mirrored family may now stick out of the frame
+    }
   notifyChanged(s.id);
   return true;
+}
+
+void DrawingModel::fitFamilyInFrame(Sheet& s, ObjectId rootId) {
+  DrawingView* root = s.view(rootId);
+  if (!root) return;
+  // the views tied to the root by alignment move as one block; free ones (details, unaligned
+  // sections) are fitted on their own afterwards
+  BBox2 fam;
+  std::vector<ObjectId> loose;
+  std::function<void(ObjectId)> add = [&](ObjectId id) {
+    for (ObjectId c : s.childrenOf(id))
+      if (const DrawingView* v = s.view(c)) {
+        if (v->type == ViewType::Projected || v->alignment != ViewAlignment::None) {
+          if (v->geometryValid) fam.add(v->layoutBBox());
+        } else {
+          loose.push_back(c);
+        }
+        add(c);
+      }
+  };
+  if (root->geometryValid) fam.add(root->layoutBBox());
+  add(rootId);
+  if (fam.isValid()) {
+    DrawingView probe;  // alignment None: free to move both ways
+    Point2 sh = frameShift(s, probe, fam);
+    if (sh.length() > 1e-9) {
+      // loose views stay where they are
+      std::vector<std::pair<ObjectId, Point2>> keep;
+      for (ObjectId id : loose)
+        if (const DrawingView* v = s.view(id)) keep.push_back({id, v->position});
+      moveView(rootId, root->position + sh);
+      for (const auto& [id, pos] : keep)
+        if (DrawingView* v = s.view(id)) {
+          shiftAttached(s, id, pos - v->position);
+          v->position = pos;
+        }
+    }
+  }
+  for (ObjectId id : loose)
+    if (DrawingView* v = s.view(id); v && v->geometryValid) {
+      const Point2 start = v->position;
+      v->position += frameShift(s, *v, v->layoutBBox());
+      // clear of the other views: the smallest move up/down/left/right that stays on the sheet
+      const BBox2 f = s.frameRect().expanded(-kFrameInset);
+      for (int iter = 0; iter < 8; ++iter) {
+        const BBox2 cb = v->layoutBBox();
+        const DrawingView* hit = nullptr;
+        for (const auto& o : s.views)
+          if (o.id != v->id && o.geometryValid && boxesOverlap(cb, o.layoutBBox(), kViewGap * 0.5)) {
+            hit = &o;
+            break;
+          }
+        if (!hit) break;
+        const BBox2 ob = hit->layoutBBox();
+        Point2 best;
+        double bestLen = 1e300;
+        for (Point2 cand : {Point2{0, ob.max.y + kViewGap - cb.min.y}, Point2{0, ob.min.y - kViewGap - cb.max.y},
+                            Point2{ob.max.x + kViewGap - cb.min.x, 0}, Point2{ob.min.x - kViewGap - cb.max.x, 0}}) {
+          BBox2 nb = cb;
+          nb.min += cand;
+          nb.max += cand;
+          if (nb.min.x < f.min.x || nb.max.x > f.max.x || nb.min.y < f.min.y || nb.max.y > f.max.y) continue;
+          if (s.titleBlock.visible && boxesOverlap(nb, s.titleBlockRect(), 0.0)) continue;
+          if (cand.length() < bestLen) {
+            bestLen = cand.length();
+            best = cand;
+          }
+        }
+        if (bestLen >= 1e300) break;
+        v->position += best;
+      }
+      shiftAttached(s, id, v->position - start);
+    }
 }
 
 bool DrawingModel::changeSheetFormat(Sheet& s, const SheetFormat& format) {
