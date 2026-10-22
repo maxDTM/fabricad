@@ -16,7 +16,9 @@
 #include <QTimer>
 #include <QPointer>
 #include <QtCore/Qt>
+#include <BRepAlgoAPI_Section.hxx>
 #include <TopExp_Explorer.hxx>
+#include <gp_Pln.hxx>
 #include <TopoDS.hxx>
 
 #include <algorithm>
@@ -783,7 +785,7 @@ class MirrorTool : public SketchTool {
 class ProjectTool : public SketchTool {
  public:
   ProjectTool()
-      : SketchTool(ToolInfo{.id = "sketch.project",
+      : ProjectTool(false, ToolInfo{.id = "sketch.project",
                             .name = "Project",
                             .tooltip = "Project edges, vertices or faces of bodies onto the sketch plane",
                             .icon = "sketch-project",
@@ -793,6 +795,7 @@ class ProjectTool : public SketchTool {
                             .group = "CREATE",
                             .order = 15,
                             .promoted = true}) {}
+  ProjectTool(bool intersect, ToolInfo info) : SketchTool(std::move(info)), intersect_(intersect) {}
 
   void activate(ToolContext& ctx) override {
     SketchTool::activate(ctx);
@@ -802,7 +805,9 @@ class ProjectTool : public SketchTool {
     for (const ShapeRef& r : ctx.preselection)
       if (r.isBrep()) project(ctx, r);
     if (ctx.selection) ctx.selection->clear();
-    ctx.setPrompt("Select edges, vertices, faces or bodies to project (Enter to finish)");
+    done_.clear();
+    ctx.setPrompt(intersect_ ? "Select bodies, faces or edges to intersect with the sketch plane (Enter to finish)"
+                             : "Select edges, vertices, faces or bodies to project (Enter to finish)");
   }
 
   void selectionChanged(ToolContext& ctx) override {
@@ -830,6 +835,10 @@ class ProjectTool : public SketchTool {
     TopoDS_Shape shape = core::resolveShape(*doc, ref);
     if (shape.IsNull()) {
       ctx.showMessage("Cannot resolve the selected geometry", true);
+      return;
+    }
+    if (intersect_) {
+      intersect(ctx, shape, ref);
       return;
     }
     std::vector<std::pair<TopoDS_Shape, ShapeRef>> items;
@@ -867,6 +876,46 @@ class ProjectTool : public SketchTool {
       session()->cancelEdit();
     }
   }
+
+  /// SK-13 Intersect: the section of the picked shape with the sketch plane, added as fixed
+  /// (blocked) curves and points. Not associative: they do not follow later body edits.
+  void intersect(ToolContext& ctx, const TopoDS_Shape& shape, const ShapeRef& ref) {
+    Sketch* sk = sketch();
+    SketchFeature* f = feature();
+    for (const ShapeRef& d : done_)
+      if (d == ref) return;
+    BRepAlgoAPI_Section sec(shape, gp_Pln(f->plane()), Standard_False);
+    sec.Approximation(Standard_True);
+    sec.Build();
+    if (!sec.IsDone()) {
+      ctx.showMessage("Cannot intersect the selection with the sketch plane", true);
+      return;
+    }
+    const TopoDS_Shape& result = sec.Shape();
+    session()->beginEdit();
+    int added = 0;
+    auto add = [&](const TopoDS_Shape& sub) {
+      auto g = projectShape(sub, f->plane(), nullptr);
+      if (!g) return;
+      g->blocked = true;
+      g->construction = session()->constructionMode();
+      sk->addGeometry(*g);
+      ++added;
+    };
+    for (TopExp_Explorer ex(result, TopAbs_EDGE); ex.More(); ex.Next()) add(ex.Current());
+    for (TopExp_Explorer ex(result, TopAbs_VERTEX, TopAbs_EDGE); ex.More(); ex.Next()) add(ex.Current());
+    if (added) {
+      done_.push_back(ref);
+      session()->commitEdit("Intersect");
+      ctx.showMessage(std::format("Intersected: {} item(s) added", added));
+    } else {
+      session()->cancelEdit();
+      ctx.showMessage("The selection does not cross the sketch plane", true);
+    }
+  }
+
+  bool intersect_ = false;
+  std::vector<ShapeRef> done_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1443,6 +1492,15 @@ void registerModifyTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<OffsetTool>());
   reg.registerTool(std::make_unique<MirrorTool>());
   reg.registerTool(std::make_unique<ProjectTool>());
+  reg.registerTool(std::make_unique<ProjectTool>(
+      true, ToolInfo{.id = "sketch.intersect",
+                     .name = "Intersect",
+                     .tooltip = "Add the intersection of bodies, faces or edges with the sketch plane (fixed curves)",
+                     .icon = "sketch-intersect",
+                     .aliases = {"INTERSECT"},
+                     .tab = "SKETCH",
+                     .group = "CREATE",
+                     .order = 15}));
   reg.registerTool(std::make_unique<ConstructionTool>());
   reg.registerTool(std::make_unique<DimensionTool>());
   reg.registerTool(std::make_unique<DimensionEditTool>());

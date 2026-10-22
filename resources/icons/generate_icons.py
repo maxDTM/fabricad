@@ -277,6 +277,8 @@ I["sketch-polygon-edge"] = (C(12, 12, 8, s=GREY, da=DASH) +
 I["sketch-point"] = P("M12 4 V8 M12 16 V20 M4 12 H8 M16 12 H20", s=GREY) + C(12, 12, 2.75, s=SK, f=WH)
 I["sketch-project"] = (cube(12, 7.5, 0.6, fill=BODY) + P("M12 13 V17.5", s=INK) + arrow_head(12, 17.5, "down", INK, 2) +
                        P("M3 21 H21", s=SK) + dot(3, 21, SK, 1.2) + dot(21, 21, SK, 1.2))
+I["sketch-intersect"] = (cube(12, 9, 0.6, fill=BODY) + P("M3 15 H21", s=SK) + dot(6.8, 15, SK, 1.2) +
+                         dot(17.2, 15, SK, 1.2))
 I["sketch-mirror"] = (P("M12 3 V21", s=GREY, da=DASHDOT) + P("M3.5 18 L9.5 6.5 V18 Z", s=SK) +
                       P("M20.5 18 L14.5 6.5 V18 Z", s=SK))
 I["sketch-offset"] = (P("M4 20 V11 A7 7 0 0 1 11 4 H20", s=GREY) + P("M8.5 20 V12 A3.5 3.5 0 0 1 12 8.5 H20", s=SK) +

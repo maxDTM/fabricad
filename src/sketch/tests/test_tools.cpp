@@ -1584,6 +1584,37 @@ class ToolsTest : public QObject {
     QVERIFY2(res.ok(), res.message.c_str());
     QCOMPARE(r.sketchFeature()->regions().size(), size_t(3));
   }
+
+  // SK-13: Intersect adds the section of a body with the sketch plane as fixed curves
+  void intersectBodyWithSketchPlane() {
+    Rig r;
+    r.doc.addFeature(std::make_unique<BoxFeature>());  // x,y 0..20, z 5..25
+    r.doc.recompute();
+    core::ObjectId bodyId = r.doc.liveBodies()[0];
+    r.mgr.run("sketch.create", {"XZ"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.intersect"));
+    // the XZ plane (y = 0) cuts the box along its front face boundary
+    TopoDS_Shape box = r.doc.bodyShape(bodyId);
+    core::ShapeRef bodyRef = core::ShapeRef::subShape(bodyId, box, box);
+    r.doc.selection().set(bodyRef);
+    QVERIFY2(r.sk().geometryCount() >= 4, std::format("{} curves", r.sk().geometryCount()).c_str());
+    int lines = 0;
+    for (const Geometry& g : r.sk().geometries()) {
+      QVERIFY(!g.projected && g.blocked);
+      if (g.type == GeomType::Line) {
+        ++lines;
+        QVERIFY(near(g.length(), 20.0, 1e-6));
+      }
+    }
+    QCOMPARE(lines, 4);
+    QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
+    QVERIFY(near(r.sketchFeature()->profiles()[0].area, 400.0, 1e-6));
+    // the same body again adds nothing
+    int n = r.sk().geometryCount();
+    r.doc.selection().set(bodyRef);
+    QCOMPARE(r.sk().geometryCount(), n);
+  }
 };
 
 QTEST_GUILESS_MAIN(ToolsTest)
