@@ -27,7 +27,9 @@
 #include "core/Selection.h"
 #include "core/UndoStack.h"
 #include "core/tests/support/TestFeatures.h"
+#include "viewer/OverlayHost.h"
 #include "viewer/ViewerWidget.h"
+#include "viewer/ViewportOverlays.h"
 
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <STEPControl_Writer.hxx>
@@ -369,6 +371,44 @@ class TestMainWindow : public QObject {
     settle();
     w_->commandDialog()->okButton()->click();
     QCOMPARE(tool_->accepted, 2);
+  }
+
+  void viewportOverlaysPhase4() {
+    // phase 4: the orientation widget follows ui/orientation live; breadcrumb + chip follow the
+    // document and the command; the view-tool column (#NavBar) sits below the orientation widget
+    viewer::ViewerWidget* v = w_->viewer();
+    QVERIFY(v);
+    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::HexDial);
+    QVERIFY(app::UiSettings::instance().set("ui/orientation", "viewCube"));
+    settle();
+    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::ViewCube);
+    QVERIFY(!v->orientationDial()->plateVisible());
+    QVERIFY(app::UiSettings::instance().set("ui/orientation", "hexDial"));
+    settle();
+    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::HexDial);
+    QVERIFY(v->orientationDial()->plateVisible());
+    QWidget* column = v->findChild<QWidget*>("NavBar");
+    QVERIFY(column && column->isVisible());
+    QCOMPARE(column->property("overlay").toString(), QString("ViewToolColumn"));
+    QVERIFY(column->height() > column->width());  // a column, not the old bottom bar
+    QVERIFY(!column->geometry().intersects(v->orientationRect()));
+    // breadcrumb: the document name, and the command chip while one runs
+    viewer::Breadcrumb* bc = v->breadcrumb();
+    QVERIFY(bc && !bc->crumbs().isEmpty());
+    QCOMPARE(bc->crumbs().front(), QString::fromStdString(w_->document().name()));
+    QVERIFY(w_->runCommand("test.dialog"));
+    settle();
+    QVERIFY(bc->hasChip());
+    w_->toolManager().cancel();
+    settle();
+    QVERIFY(!bc->hasChip());
+    // the published overlay layout lists the viewer's overlays and the column, without overlaps
+    const auto& occ = viewer::OverlayHost::of(v)->occupied();
+    QVERIFY(occ.size() >= 4);
+    for (size_t i = 0; i < occ.size(); ++i)
+      for (size_t j = i + 1; j < occ.size(); ++j)
+        QVERIFY2(!occ[i].rect.intersects(occ[j].rect),
+                 qPrintable(QString("%1 / %2").arg(viewer::OverlayLayout::slotName(occ[i].slot), viewer::OverlayLayout::slotName(occ[j].slot))));
   }
 
   void commandDialogDocksRightAndKeepsSize() {

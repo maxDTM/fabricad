@@ -192,7 +192,7 @@ QRect OverlayLayout::placeCard(CardPlacement p, const QSize& size, int* maxHeigh
   const QRect orient = rect(Slot::Orientation);
   if (!usable(orient)) return finish(QRect(QPoint(right - vs.width() + 1, in.top()), vs));
   // A: left of the orientation widget, below its top edge (mockup v6), when the model keeps room
-  const int rightA = std::min(right, orient.left() - 2 * opt_.gap - 1);
+  const int rightA = std::min(right, orient.left() - opt_.cardOrientGap - 1);
   const bool roomA = rightA - vs.width() + 1 - viewport_.left() >= opt_.minModelWidth;
   if (roomA) {
     const int topA = orient.top() + opt_.cardTopOffset;

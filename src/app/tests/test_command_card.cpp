@@ -207,7 +207,7 @@ class TestCommandCard : public QObject {
     QCOMPARE(card()->effectivePlacement(), CardPlacement::FloatLeft);
     QVERIFY(card()->x() <= 16);  // live, without restarting the command
     setPlacement("floatRight");
-    QVERIFY(card()->x() > vp()->width() / 2);
+    QVERIFY(card()->geometry().center().x() > vp()->width() / 2);
   }
 
   void sidebarDocksAndFallsBack() {
@@ -272,7 +272,7 @@ class TestCommandCard : public QObject {
     QTest::mouseDClick(title(), Qt::LeftButton, {}, QPoint(100, 20));
     settle();
     QCOMPARE(ui().string("ui/cardPlacement"), QString("floatRight"));
-    QVERIFY(card()->x() > vp()->width() / 2);
+    QVERIFY(card()->geometry().center().x() > vp()->width() / 2);
   }
 
   void dragWithoutMemory() {

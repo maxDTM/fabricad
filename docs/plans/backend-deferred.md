@@ -48,7 +48,8 @@ to change and what the backend already provides. Append new sections at the end.
 ## be/logic (2026-10-22)
 
 ### SK-12 (general round): no profile shading after Finish Sketch
-- Still open. The shading is drawn by the viewer, not by the sketch module:
+- **Fixed in redesign phase 4 (`ui/viewport`)**: `SceneOptions::shadeProfiles` (on in the viewer) adds a non-pickable `SceneStyle::ProfileShade` tint (`sk.profileFill`) for visible, finished sketches.
+- Was open: The shading is drawn by the viewer, not by the sketch module:
   `src/viewer/SceneModel.cpp` adds `SceneStyle::Profile` items only when `opt.showProfiles` is
   set ("profiles (only while a tool picks them)").
 - Fix: show the closed profiles of visible, finished sketches as well (Fusion shades them
