@@ -429,6 +429,7 @@ class SketchOpsTest : public QObject {
     QVERIFY(near(g->start(), {0, 0}));
     QVERIFY(std::abs(g->end().x - 25) < 1e-3);
     QVERIFY(maxDeviation(*g, orig) < 0.05);  // refitted, close to the original
+    QVERIFY2(g->vertexCount() <= 8, qPrintable(QString::number(g->vertexCount())));  // few added fit points
     QVERIFY(sk.solve().ok());
     QVERIFY(maxDeviation(*sk.geometry(s), orig) < 0.2);
     // break: two connected pieces

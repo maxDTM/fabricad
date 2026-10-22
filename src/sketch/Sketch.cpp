@@ -625,16 +625,32 @@ std::vector<FitPt> fitPoints(const Geometry& g, double u0, double u1) {
     if (u1 <= b + eps) break;
   }
   out.push_back({at(u1), u1, -1});
-  // the refit has other knots and end conditions than the original: extra samples of the
-  // original (no gap wider than 1/8 of the piece) keep it within a small fraction of a mm
-  const double maxGap = (u1 - u0) / 8.0;
-  for (size_t i = out.size() - 1; i-- > 0;) {
-    double gap = out[i + 1].t - out[i].t;
-    int k = static_cast<int>(std::ceil(gap / maxGap - 1e-9)) - 1;
-    for (int j = k; j >= 1; --j) {
-      double m = out[i].t + gap * j / (k + 1);
-      out.insert(out.begin() + static_cast<std::ptrdiff_t>(i) + 1, FitPt{at(m), m, -1});
+  // the refit has other knots and end conditions than the original: add samples of the original
+  // where the refit strays (adaptive, so the piece keeps few fit points)
+  const double tolDev = 1e-3 * std::max(1.0, g.bbox().second.distance(g.bbox().first));
+  for (int iter = 0; iter < 24 && out.size() >= 2; ++iter) {
+    std::vector<Pt2> ps;
+    std::vector<double> ts;
+    for (const FitPt& f : out) {
+      ps.push_back(f.p);
+      ts.push_back(f.t);
     }
+    BSpline2 fit = interpolateSpline(ps, ts);
+    if (!fit.isValid()) break;
+    size_t worst = 0;
+    double worstDev = 0;
+    for (size_t i = 0; i + 1 < out.size(); ++i)
+      for (double f : {0.25, 0.5, 0.75}) {
+        double m = out[i].t + (out[i + 1].t - out[i].t) * f;
+        double d = fit.value(m).distance(at(m));
+        if (d > worstDev) {
+          worstDev = d;
+          worst = i;
+        }
+      }
+    if (worstDev <= tolDev) break;
+    double m = 0.5 * (out[worst].t + out[worst + 1].t);
+    out.insert(out.begin() + static_cast<std::ptrdiff_t>(worst) + 1, FitPt{at(m), m, -1});
   }
   // keep it cubic and close to the original: add samples in the widest gaps
   while (out.size() < 4) {

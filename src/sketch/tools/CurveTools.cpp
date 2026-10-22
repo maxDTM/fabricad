@@ -314,7 +314,7 @@ class EllipseTool : public ClickTool {
     previewShapes(ctx, c);
     std::vector<Pt2> p = points();
     if (p.size() == 1) {
-      setValue("major", p[0].distance(c), (p[0] + c) * 0.5);
+      setValue("major", p[0].distance(c), c);
       setValue("angle", deg360((c - p[0]).angle()), c);
     } else if (p.size() == 2) {
       if (auto b = minorFor(p[0], p[1], c)) setValue("minor", *b, c);
