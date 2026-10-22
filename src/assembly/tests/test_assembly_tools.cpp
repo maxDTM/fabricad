@@ -16,6 +16,7 @@
 #include "core/Document.h"
 #include "core/Registry.h"
 #include "core/Selection.h"
+#include "core/ShapeUtils.h"
 #include "core/Tool.h"
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
@@ -274,6 +275,57 @@ class AssemblyToolsTest : public QObject {
     h.manager.cancel();
   }
 
+  // G3 PART-05: Ctrl+C on a body of the active component copies the body; Paste / Paste New add
+  // a frozen copy (one undo step); an empty clipboard and an uncopyable selection are reported.
+  void copyPasteBodies() {
+    Harness h;
+    setComponentClipboard({});
+    setBodyClipboard({});
+    auto f = std::make_unique<core::test::BoxFeature>();
+    f->prop("dx").setDouble(5);
+    f->prop("dy").setDouble(6);
+    f->prop("dz").setDouble(7);
+    core::Feature* raw = h.doc.addFeature(std::move(f));
+    h.doc.recompute();
+    const ObjectId body = raw->createdBodies().front();
+    QCOMPARE(h.doc.body(body)->component, core::kRootComponentId);
+    // empty clipboard: paste runs and says so
+    QVERIFY(h.manager.run("assembly.paste-new"));
+    QVERIFY(!h.host.messages().empty());
+    QVERIFY(h.host.messages().back().second.find("Nothing to paste") != std::string::npos);
+    // a face cannot be copied
+    h.select({ShapeRef::face(body, 1)});
+    QVERIFY(h.manager.run("assembly.copy"));
+    QVERIFY(h.host.messages().back().second.find("Select a body or component") != std::string::npos);
+    h.select({ShapeRef::body(body)});
+    QVERIFY(h.manager.run("assembly.copy"));
+    QCOMPARE(bodyClipboard(), std::vector<ObjectId>{body});
+    QVERIFY(componentClipboard().empty());
+    QVERIFY(clipboardHasContent(h.doc));
+    const size_t before = h.doc.liveBodies().size();
+    const int undoCount = h.doc.undoStack().count();
+    QVERIFY(h.manager.run("assembly.paste-new"));
+    QCOMPARE(h.doc.liveBodies().size(), before + 1);
+    QCOMPARE(h.doc.undoStack().count(), undoCount + 1);
+    std::vector<ShapeRef> sel = h.doc.selection().items();
+    QCOMPARE(sel.size(), size_t(1));
+    const ObjectId pasted = sel.front().owner;
+    QVERIFY(pasted != body);
+    QVERIFY(std::abs(core::volume(h.doc.bodyShape(pasted)) - 210) < 1e-6);
+    h.doc.undoStack().undo();
+    QCOMPARE(h.doc.liveBodies().size(), before);
+    // Ctrl+V pastes bodies too
+    h.manager.cancel();
+    QVERIFY(h.manager.run("assembly.paste"));
+    QCOMPARE(h.doc.liveBodies().size(), before + 1);
+    // copying a component clears the body clipboard
+    h.manager.cancel();
+    h.select({ShapeRef::component(h.boxes.compB)});
+    QVERIFY(h.manager.run("assembly.copy"));
+    QVERIFY(bodyClipboard().empty());
+    QCOMPARE(componentClipboard(), std::vector<ObjectId>{h.boxes.compB});
+  }
+
   void copyPasteCreatesOccurrences() {
     Harness h;
     const TwoBoxes& b = h.boxes;
@@ -285,7 +337,10 @@ class AssemblyToolsTest : public QObject {
     idle.document = &h.doc;
     idle.selection = &h.doc.selection();
     setComponentClipboard({});
-    QVERIFY(!h.tools.tool("assembly.paste")->isEnabled(idle));
+    setBodyClipboard({});
+    // G3 PART-05: enabled with an empty clipboard so Ctrl+V reports "Nothing to paste"
+    QVERIFY(h.tools.tool("assembly.paste")->isEnabled(idle));
+    QVERIFY(!clipboardHasContent(h.doc));
     // copy Top (selected through its body), paste twice: two occurrences of Top's definition
     h.select({ShapeRef::body(b.bodyB)});
     QVERIFY(h.manager.run("assembly.copy"));
@@ -327,7 +382,7 @@ class AssemblyToolsTest : public QObject {
     QCOMPARE(h.doc.components().size(), components + 1);
     // pasting a stale clipboard entry is refused
     setComponentClipboard({ObjectId(999999)});
-    QVERIFY(!h.tools.tool("assembly.paste")->isEnabled(idle));
+    QVERIFY(!clipboardHasContent(h.doc));
   }
 
   void asBuiltJointKeepsPositions() {

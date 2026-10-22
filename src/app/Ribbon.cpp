@@ -11,6 +11,7 @@
 #include <QMenu>
 #include <QStackedWidget>
 #include <QTabBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -83,7 +84,12 @@ QToolButton* Ribbon::bigButton(core::ITool* tool, QWidget* parent) {
   b->setAutoRaise(true);
   b->setFocusPolicy(Qt::NoFocus);
   const std::string id = info.id;
-  connect(b, &QToolButton::clicked, this, [this, id] { emit toolTriggered(id); });
+  connect(b, &QToolButton::clicked, this, [this, id] {
+    emit toolTriggered(id);
+    // G3 PART-09: the click toggled the check state; a rejected, instant or already finished
+    // command must not leave the button highlighted
+    QTimer::singleShot(0, this, [this] { refreshStates(); });
+  });
   actions_.emplace_back(id, b);
   return b;
 }

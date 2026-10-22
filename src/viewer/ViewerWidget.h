@@ -254,6 +254,7 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   std::vector<SceneItem> sceneItems_;
   int syncCount_ = 0;
   bool syncPending_ = false;
+  bool syncing_ = false;  ///< inside doSync() (detect() syncs a pending scene first, never re-entrantly)
   bool overlayPending_ = false;
 
   core::ShapeKindMask toolFilter_ = core::kAllKinds;

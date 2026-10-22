@@ -63,10 +63,22 @@ TopoDS_Wire makeHelix(double radius, double pitch, double height, double taperDe
       surf = new Geom_CylindricalSurface(gp_Ax3(gp::Origin(), gp::DZ(), gp::DX()), radius);
     }
     gp_Lin2d line(gp_Pnt2d(0, 0), gp_Dir2d(du, dv));
-    const double len = turns * std::sqrt(du * du + dv * dv);
-    TopoDS_Edge e = BRepBuilderAPI_MakeEdge(new Geom2d_Line(line), surf, 0.0, len).Edge();
-    BRepLib::BuildCurves3d(e, 1e-6, GeomAbs_C1, 14, 200);
-    return BRepBuilderAPI_MakeWire(e).Wire();
+    const double perTurn = std::sqrt(du * du + dv * dv);
+    const double len = turns * perTurn;
+    // One edge per turn: the 3D approximation of a long single-edge helix drifts (and its
+    // tolerance grows) towards the end, which made booleans with the far end unreliable.
+    Handle(Geom2d_Line) l2d = new Geom2d_Line(line);
+    BRepBuilderAPI_MakeWire wire;
+    const int n = std::max(1, static_cast<int>(std::ceil(turns - 1e-9)));
+    for (int i = 0; i < n; ++i) {
+      const double a = i * perTurn, b = std::min(len, (i + 1) * perTurn);
+      if (b - a < 1e-9) break;
+      TopoDS_Edge e = BRepBuilderAPI_MakeEdge(l2d, surf, a, b).Edge();
+      BRepLib::BuildCurves3d(e, 1e-7, GeomAbs_C1, 14, 50);
+      wire.Add(e);
+      if (!wire.IsDone()) return {};
+    }
+    return wire.Wire();
   } catch (const Standard_Failure&) {
     return {};
   }
@@ -235,7 +247,7 @@ const IsoThread* isoThreadForDiameter(double diameter, bool internal) {
 }
 
 TopoDS_Shape makeThreadCutter(const IsoThread& t, double length, bool internal, bool leftHanded, bool runOutStart,
-                              bool runOutEnd, std::string* error) {
+                              bool runOutEnd, std::string* error, double surfaceRadius) {
   auto fail = [&](const std::string& m) {
     if (error) *error = m;
     return TopoDS_Shape();
@@ -245,19 +257,40 @@ TopoDS_Shape makeThreadCutter(const IsoThread& t, double length, bool internal, 
   const double rMaj = t.nominal / 2.0;
   const double rMin = t.minorDiameter() / 2.0;
   const double ext = 0.25 * P;
-  // Groove cross-section in the meridian plane (x radial, z axial), centred on z = 0.
+  // Groove cross-section in the meridian plane (x radial, z axial), centred on z = 0. The flank
+  // kink (where the groove stops widening) is kept 0.05 P off the body surface: a profile vertex
+  // exactly on the cylinder (Auto size: nominal == cylinder diameter) sweeps a helical edge that
+  // lies on the body face, which makes the boolean result invalid. The groove width beyond the
+  // flank is clamped to 0.95 P so neighbouring turns never touch.
+  const double maxHalfW = 0.475 * P;
   std::vector<gp_Pnt> pts;
   if (!internal) {
-    const double wRoot = P / 4, wTop = 7 * P / 8;  // groove width at d1 and at D
-    pts = {{rMin, 0, -wRoot / 2}, {rMaj, 0, -wTop / 2}, {rMaj + ext, 0, -wTop / 2},
-           {rMaj + ext, 0, wTop / 2}, {rMaj, 0, wTop / 2}, {rMin, 0, wRoot / 2}};
+    const double wRoot = P / 4, wTop = 7 * P / 8;  // groove width at d1 and at D (basic profile)
+    const double slope = (wTop - wRoot) / 2 / (rMaj - rMin);  // half-width growth per radial mm
+    double rK = std::max(rMaj, surfaceRadius) + 0.05 * P;
+    double hw = wRoot / 2 + slope * (rK - rMin);
+    double rF = rK;
+    if (hw > maxHalfW) {
+      hw = maxHalfW;
+      rF = rMin + (maxHalfW - wRoot / 2) / slope;
+    }
+    const double rOut = rK + ext;
+    pts = {{rMin, 0, -wRoot / 2}, {rF, 0, -hw}, {rOut, 0, -hw}, {rOut, 0, hw}, {rF, 0, hw}, {rMin, 0, wRoot / 2}};
   } else {
     const double wIn = 3 * P / 4, wOut = P / 8;  // groove width at D1 and at D
-    pts = {{rMin - ext, 0, -wIn / 2}, {rMin, 0, -wIn / 2}, {rMaj, 0, -wOut / 2},
-           {rMaj, 0, wOut / 2}, {rMin, 0, wIn / 2}, {rMin - ext, 0, wIn / 2}};
+    const double slope = (wIn - wOut) / 2 / (rMaj - rMin);  // half-width growth per radial mm inwards
+    double rK = (surfaceRadius > 0 ? std::min(rMin, surfaceRadius) : rMin) - 0.05 * P;
+    double hw = wOut / 2 + slope * (rMaj - rK);
+    double rF = rK;
+    if (hw > maxHalfW) {
+      hw = maxHalfW;
+      rF = rMaj - (maxHalfW - wOut / 2) / slope;
+    }
+    const double rIn = rK - ext;
+    pts = {{rIn, 0, -hw}, {rF, 0, -hw}, {rMaj, 0, -wOut / 2}, {rMaj, 0, wOut / 2}, {rF, 0, hw}, {rIn, 0, hw}};
   }
   // Start/end: run out through an end face by a pitch, else keep the groove inside the length.
-  const double halfW = (internal ? 3 * P / 4 : 7 * P / 8) / 2;
+  const double halfW = maxHalfW;
   const double z0 = runOutStart ? -P : halfW;
   const double z1 = runOutEnd ? length + P : length - halfW;
   if (z1 - z0 < P * 0.25) return fail("thread is too short for its pitch");

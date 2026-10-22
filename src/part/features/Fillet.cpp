@@ -41,6 +41,19 @@ TopoDS_Shape healed(const TopoDS_Shape& s) {
   }
 }
 
+/// G3 PART-08: why a dress-up result is rejected ("" = accepted). Each check is named so the
+/// error points at the failing step. The self-intersection analyzer only judges the result when
+/// it accepts the input: drafted faces (large tolerances) and split, coplanar face pieces make
+/// it flag the untouched body already, and then its verdict on the fillet means nothing.
+std::string dressUpProblem(const TopoDS_Shape& before, const TopoDS_Shape& raw, TopoDS_Shape& result) {
+  result = healed(raw);
+  if (result.IsNull()) return "the result is not a valid solid, even after healing";
+  std::string why;
+  if (!sameKindSolid(before, result, &why)) return why;
+  if (hasSelfIntersection(result) && !hasSelfIntersection(before)) return "the result intersects itself";
+  return {};
+}
+
 std::string edgeLabel(const std::string& name, size_t index) {
   return name.empty() ? std::format("edge{}", index + 1) : name;
 }
@@ -197,16 +210,16 @@ void FilletFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         ctx.setError("fillet failed (radius too large for the geometry?)");
         return;
       }
-      TopoDS_Shape r = healed(mk.Shape());
-      if (r.IsNull() || !sameKindSolid(g.bodyShape, r) || hasSelfIntersection(r)) {
-        ctx.setError("fillet produced an invalid shape (radius too large for the geometry?)");
+      TopoDS_Shape r;
+      if (std::string why = dressUpProblem(g.bodyShape, mk.Shape(), r); !why.empty()) {
+        ctx.setError(std::format("fillet produced an invalid shape: {} (radius too large for the geometry?)", why));
         return;
       }
       {
         // fillets add or remove material along the edges; a large jump means broken geometry
         const double v0 = core::volume(g.bodyShape), v1 = core::volume(r);
         if (std::abs(v1 - v0) >= 0.5 * v0) {
-          ctx.setError("fillet produced an invalid shape (radius too large for the geometry?)");
+          ctx.setError("fillet produced an invalid shape: the volume jumped (radius too large for the geometry?)");
           return;
         }
       }
@@ -296,9 +309,9 @@ void ChamferFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
         ctx.setError("chamfer failed (distance too large for the geometry?)");
         return;
       }
-      TopoDS_Shape r = healed(mk.Shape());
-      if (r.IsNull() || !sameKindSolid(g.bodyShape, r) || hasSelfIntersection(r)) {
-        ctx.setError("chamfer produced an invalid shape (distance too large for the geometry?)");
+      TopoDS_Shape r;
+      if (std::string why = dressUpProblem(g.bodyShape, mk.Shape(), r); !why.empty()) {
+        ctx.setError(std::format("chamfer produced an invalid shape: {} (distance too large for the geometry?)", why));
         return;
       }
       {

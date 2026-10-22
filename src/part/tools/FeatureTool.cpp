@@ -94,7 +94,7 @@ std::string FeatureTool::primaryNumeric() const {
   return f ? f->primaryNumeric() : std::string();
 }
 
-void FeatureTool::activate(core::ToolContext& ctx) {
+void FeatureTool::resetState() {
   working_.reset();
   editing_ = nullptr;
   before_ = {};
@@ -109,6 +109,10 @@ void FeatureTool::activate(core::ToolContext& ctx) {
   outcome_ = {};
   valid_ = false;
   message_.clear();
+}
+
+void FeatureTool::activate(core::ToolContext& ctx) {
+  resetState();
   if (!ctx.document) {
     ctx.cancel();
     return;
@@ -590,14 +594,31 @@ void FeatureTool::updatePreview(core::ToolContext& ctx) {
     }
     if (ctx.viewer) syncManipulators(ctx, rctx);
   }
+  // PART-02: a dialog field holding an expression that does not evaluate blocks OK
+  if (panel_ && panel_->hasInvalid()) {
+    valid_ = false;
+    message_ = panel_->invalidMessage();
+  }
   if (ctx.host) ctx.host->setToolAcceptEnabled(valid_);
   if (panel_) {
+    inPreview_ = true;
+    rebuildPanelIfNeeded();
+    inPreview_ = false;
     panel_->refresh();
     panel_->setMessage(message_, !valid_);
   }
   if (!valueBox_) valueBox_ = std::make_unique<FeatureValueBox>(ctx, *this);
   else valueBox_->update(ctx);
   if (ctx.viewer) ctx.viewer->requestRedraw();
+}
+
+void FeatureTool::rebuildPanelIfNeeded() {
+  if (!panel_ || !panel_->needsRebuild()) return;
+  QString focusName;
+  if (QWidget* fw = QApplication::focusWidget(); fw && panel_->isAncestorOf(fw)) focusName = fw->objectName();
+  panel_->rebuild();
+  if (!focusName.isEmpty())
+    if (QWidget* w = panel_->findChild<QWidget*>(focusName)) w->setFocus(Qt::OtherFocusReason);
 }
 
 bool FeatureTool::keyPress(core::ToolContext& ctx, const core::ViewerKeyEvent& e) {
@@ -738,6 +759,9 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     }
   });
   QObject::connect(panel, &PropertyPanel::refsCleared, panel, [this, pctx](const std::string&) { highlightRefs(*pctx); });
+  QObject::connect(panel, &PropertyPanel::validityChanged, panel, [this, pctx] {
+    if (!inPreview_) updatePreview(*pctx);
+  });
   panel->setMessage(message_, !valid_);
   return panel;
 }
@@ -745,6 +769,10 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
 void FeatureTool::accept(core::ToolContext& ctx) {
   if (!ctx.document) {
     ctx.cancel();
+    return;
+  }
+  if (panel_ && panel_->hasInvalid()) {
+    ctx.showMessage(panel_->invalidMessage(), true);
     return;
   }
   if (!valid_) {
@@ -858,8 +886,7 @@ std::unique_ptr<PartFeature> PressPullTool::featureFor(const std::vector<core::S
 }
 
 void PressPullTool::activate(core::ToolContext& ctx) {
-  working_.reset();
-  editing_ = nullptr;
+  resetState();  // same fresh state as every feature command (PART-07)
   if (!ctx.document) {
     ctx.cancel();
     return;

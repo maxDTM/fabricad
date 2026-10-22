@@ -204,7 +204,11 @@ class ToolManager : public QObject {
   bool runCommandLine(const std::string& line);
   void accept();                ///< OK / Enter
   void cancel();                ///< Esc
+  /// Re-run the last repeatable tool, without the numeric arguments of its last run.
   bool repeatLast();
+  /// The arguments a repeat replays: text such as file paths; numbers / expressions and
+  /// "edit <id>" are dropped (PART-07).
+  static std::vector<std::string> repeatableArgs(const std::vector<std::string>& args);
   ITool* activeTool() const { return active_; }
   const std::string& activeToolId() const;
   const std::string& lastToolId() const { return lastToolId_; }

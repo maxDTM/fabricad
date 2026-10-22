@@ -61,6 +61,8 @@ class TorusFeature : public PrimitiveFeature {
   TorusFeature();
   TopoDS_Shape makeLocal(core::RecomputeContext& ctx, NameMap& names) override;
   std::string primaryNumeric() const override { return "majorDiameter"; }
+  /// A new torus always starts valid: the tube is clamped below the ring (PART-04).
+  void applyDefaultsForNewFeature(const core::Document& doc) override;
 };
 
 /// Coil (helical sweep): Revolution and Height / Revolution and Pitch / Height and Pitch;

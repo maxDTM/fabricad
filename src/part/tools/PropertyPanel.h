@@ -11,6 +11,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <vector>
 
 class QCheckBox;
 class QComboBox;
@@ -50,16 +51,35 @@ class PropertyPanel : public QWidget {
   /// under its own feet (shared with app::PropertyEditor).
   static void retireFormRows(QFormLayout* form);
 
+  /// A numeric field holds text that does not evaluate (PART-02): the feature must not be
+  /// accepted until it is fixed. The text stays in the field (red, error as tooltip).
+  bool hasInvalid() const { return !invalid_.empty(); }
+  /// "<Label>: <evaluation error>" of the first invalid field ("" when none).
+  std::string invalidMessage() const;
+  /// The set of rows shown differs from the feature's visible properties (a Bool / Enum
+  /// toggled PropertyFlags::hidden): rebuild() is needed (PART-06).
+  bool needsRebuild() const;
+
  signals:
   void valueChanged(const std::string& property);
   void activeInputChanged(const std::string& property);
   void refsCleared(const std::string& property);
+  /// hasInvalid() / invalidMessage() changed.
+  void validityChanged();
 
  private:
   void addRow(core::Property& p);
   void applyNumericText(core::Property& p, QLineEdit* edit, bool immediate);
   void flushPending();
   QString refText(const core::Property& p) const;
+  std::vector<std::string> visibleRows() const;
+  void setInvalid(const std::string& name, const std::string& text, const std::string& error);
+  void clearInvalid(const std::string& name);
+  struct InvalidText {
+    std::string text, error;
+  };
+  std::map<std::string, InvalidText> invalid_;
+  std::vector<std::string> rows_;  ///< property names shown by the last rebuild()
 
   core::Document& doc_;
   PartFeature& feature_;

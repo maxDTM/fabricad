@@ -366,6 +366,22 @@ void ToolManager::cancel() {
   active_->cancel(context_);
 }
 
+std::vector<std::string> ToolManager::repeatableArgs(const std::vector<std::string>& args) {
+  // G3 PART-07: repeating a command (Enter / Space / marking-menu Repeat) starts it fresh:
+  // numeric values typed for the last run ("EXTRUDE -8", "OFFSETPLANE -12") are not replayed
+  // into the new dialog, nor is "edit <id>". Text arguments (file paths) are kept.
+  if (!args.empty() && args.front() == "edit") return {};
+  std::vector<std::string> out;
+  for (const std::string& a : args) {
+    if (a.empty()) continue;
+    const char c = a.front();
+    const bool numeric = std::isdigit(static_cast<unsigned char>(c)) || c == '-' || c == '+' || c == '.' || c == '(' ||
+                         c == '@' || c == '=';
+    if (!numeric) out.push_back(a);
+  }
+  return out;
+}
+
 bool ToolManager::repeatLast() {
   if (lastToolId_.empty()) return false;
   ITool* t = registry_.tool(lastToolId_);
@@ -392,7 +408,7 @@ void ToolManager::finishActive(bool accepted) {
   active_ = nullptr;
   if (tool->info().repeatable) {
     lastToolId_ = id;
-    lastArgs_ = context_.args;
+    lastArgs_ = repeatableArgs(context_.args);
     if (tool->info().tab != "SKETCH") lastModelToolId_ = id;
   }
   finishing_ = false;

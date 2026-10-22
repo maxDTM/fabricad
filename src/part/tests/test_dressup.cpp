@@ -349,6 +349,63 @@ class DressUpTest : public QObject {
     QVERIFY(v > 3000 && v < 5000);
   }
 
+  // G3 PART-08: box -> Split Body (YZ) -> Draft a side face -> 2 mm fillet on vertical edges.
+  void filletOnSplitDraftedBox() {
+    core::Document doc;
+    TestSketch* sk = addRectSketch(doc, "XY", -15, -10, 15, 10);
+    auto ex = std::make_unique<ExtrudeFeature>();
+    ex->prop("profiles").addRef(sk->rectProfile(0));
+    ex->prop("distance").setDouble(20);
+    ex->prop("operation").setEnum("New Body");
+    core::Feature* exf = doc.addFeature(std::move(ex));
+    doc.recompute();
+    core::ObjectId body = exf->createdBodies()[0];
+    auto sp = std::make_unique<SplitBodyFeature>();
+    sp->prop("bodies").addRef(core::ShapeRef::body(body));
+    sp->prop("splitTool").setRef(core::ShapeRef::originPlane("YZ"));
+    core::Feature* spf = doc.addFeature(std::move(sp));
+    doc.recompute();
+    QVERIFY2(spf->status() == core::FeatureStatus::Ok, spf->statusMessage().c_str());
+    // draft the faces with normal +-Y (the long sides) of the first body around XY
+    auto dr = std::make_unique<DraftFeature>();
+    {
+      const TopoDS_Shape& s = doc.bodyShape(body);
+      for (const auto& f : core::subShapes(s, TopAbs_FACE)) {
+        auto pl = core::facePlane(f);
+        if (pl && std::abs(std::abs(pl->Direction().Y()) - 1) < 1e-3) dr->prop("faces").addRef(core::ShapeRef::subShape(body, s, f));
+      }
+    }
+    QVERIFY(!dr->prop("faces").refs().empty());
+    dr->prop("plane").setRef(core::ShapeRef::originPlane("XY"));
+    dr->prop("angle").setDouble(5);
+    core::Feature* df = doc.addFeature(std::move(dr));
+    doc.recompute();
+    QVERIFY2(df->status() == core::FeatureStatus::Ok, df->statusMessage().c_str());
+    // every (near) vertical edge takes a 2 mm fillet
+    const TopoDS_Shape drafted = doc.bodyShape(body);
+    int tried = 0;
+    for (const auto& e : core::subShapes(drafted, TopAbs_EDGE)) {
+      BRepAdaptor_Curve c(TopoDS::Edge(e));
+      if (c.GetType() != GeomAbs_Line || std::abs(c.Line().Direction().Z()) < 0.9) continue;
+      core::Document* d = &doc;
+      auto fl = std::make_unique<FilletFeature>();
+      core::ShapeRef r = core::ShapeRef::subShape(body, drafted, e);
+      annotateRef(*d, r);
+      fl->prop("edges").addRef(r);
+      fl->prop("radius").setDouble(2);
+      core::Feature* ff = doc.addFeature(std::move(fl));
+      doc.recompute();
+      ++tried;
+      QVERIFY2(ff->status() != core::FeatureStatus::Error,
+               qPrintable(QString("edge %1 at (%2,%3): %4").arg(tried).arg(core::centroid(e).x).arg(core::centroid(e).y)
+                              .arg(QString::fromStdString(ff->statusMessage()))));
+      QVERIFY(core::isValidShape(doc.bodyShape(body)));
+      doc.takeFeature(ff->id());
+      doc.recompute();
+    }
+    QVERIFY(tried >= 4);
+  }
+
   void offsetFacePressPull() {
     core::Document doc;
     core::ObjectId body = makeBox(doc);

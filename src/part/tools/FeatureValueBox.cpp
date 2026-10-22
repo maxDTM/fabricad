@@ -112,11 +112,22 @@ bool FeatureValueBox::keyPress(core::ToolContext& ctx, const core::ViewerKeyEven
     case sketch::ValueInputModel::KeyResult::Consumed:
       applyTyped(ctx);
       return true;
-    case sketch::ValueInputModel::KeyResult::Commit:
+    case sketch::ValueInputModel::KeyResult::Commit: {
+      // PART-02: Enter on text that does not evaluate reports the error and keeps the
+      // command open (it used to accept with the last good value).
+      if (const sketch::ValueField* f = model_.activeField(); f && !f->text.empty()) {
+        std::string err;
+        sketch::ValueInputModel::Evaluator ev = sketch::makeSketchEvaluator(ctx.document);
+        if (!ev(f->text, f->kind, &err)) {
+          ctx.showMessage(err.empty() ? std::string("invalid expression") : err, true);
+          return true;
+        }
+      }
       applyTyped(ctx);
       model_.resetInput();
       tool_.accept(ctx);
       return true;
+    }
     case sketch::ValueInputModel::KeyResult::Ignored: break;
   }
   return false;

@@ -44,6 +44,9 @@ class TransformFeature : public PartFeature {
   /// Applies `transforms` (identity excluded) to every object. `joinBodies`: fuse body
   /// copies into the source body when they touch (Mirror), else create new bodies.
   void applyTransforms(core::RecomputeContext& ctx, const std::vector<gp_Trsf>& transforms, Outcome& out, bool joinBodies);
+  /// G3 PART-10: error when two instances (the original included) sit at the same place
+  /// ("instances coincide"); with `newBodies` warn when neighbours overlap. False on error.
+  bool checkInstanceSpacing(core::RecomputeContext& ctx, const std::vector<gp_Trsf>& transforms, bool newBodies);
   /// Instance indices listed in the "suppressed" Json property.
   std::vector<int> suppressedInstances() const;
   /// Instance index of each transform passed to applyTransforms (same order; filled by compute()).

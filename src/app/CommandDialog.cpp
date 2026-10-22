@@ -103,7 +103,16 @@ CommandDialog::CommandDialog(QWidget* viewport) : QFrame(viewport), viewport_(vi
 }
 
 void CommandDialog::present(const QString& title, const QIcon& icon, QWidget* body, bool buttons) {
-  clearBody();  // the next body takes over; the keyboard focus stays where it is
+  // G3 PART-04/07: a field of the previous command's body must not keep (or hand on) the
+  // keyboard focus: digits typed next would land in a field of the new dialog (Torus
+  // "Torus diameter" = 50 typed for the previous Sphere). The viewport takes it, so typing
+  // goes to the new command's on-canvas value box. Focus outside the dialog (the command
+  // line) is never taken.
+  if (viewport_) {
+    QWidget* f = QApplication::focusWidget();
+    if (f && (f == this || isAncestorOf(f))) viewport_->setFocus(Qt::OtherFocusReason);
+  }
+  clearBody();  // the next body takes over
   stableHeight_ = 0;
   titleText_->setText(title.toUpper());
   titleIcon_->setPixmap(icon.isNull() ? QPixmap() : icon.pixmap(18, 18));

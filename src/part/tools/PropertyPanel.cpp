@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <functional>
 
 namespace fabricad::part {
@@ -85,6 +86,40 @@ void PropertyPanel::retireFormRows(QFormLayout* form) {
   }
 }
 
+std::vector<std::string> PropertyPanel::visibleRows() const {
+  std::vector<std::string> out;
+  for (const auto& p : feature_.properties()) {
+    if (p.flags().hidden || p.flags().output) continue;
+    if (p.type() == core::PropertyType::Json) continue;
+    out.push_back(p.name());
+  }
+  return out;
+}
+
+bool PropertyPanel::needsRebuild() const { return visibleRows() != rows_; }
+
+std::string PropertyPanel::invalidMessage() const {
+  // first invalid field in dialog order
+  for (const auto& name : rows_) {
+    auto it = invalid_.find(name);
+    if (it == invalid_.end()) continue;
+    const core::Property* p = feature_.property(name);
+    return std::format("{}: {}", p ? p->label() : name, it->second.error);
+  }
+  return invalid_.empty() ? std::string() : invalid_.begin()->second.error;
+}
+
+void PropertyPanel::setInvalid(const std::string& name, const std::string& text, const std::string& error) {
+  auto it = invalid_.find(name);
+  bool changed = it == invalid_.end() || it->second.error != error;
+  invalid_[name] = {text, error};
+  if (changed) emit validityChanged();
+}
+
+void PropertyPanel::clearInvalid(const std::string& name) {
+  if (invalid_.erase(name)) emit validityChanged();
+}
+
 void PropertyPanel::rebuild() {
   rebuilding_ = true;
   retireFormRows(form_);
@@ -92,10 +127,22 @@ void PropertyPanel::rebuild() {
   numericEdits_.clear();
   enumCombos_.clear();
   boolChecks_.clear();
-  for (auto& p : feature_.properties()) {
-    if (p.flags().hidden || p.flags().output) continue;
-    if (p.type() == core::PropertyType::Json) continue;
-    addRow(p);
+  rows_ = visibleRows();
+  for (const auto& name : rows_)
+    if (core::Property* p = feature_.property(name)) addRow(*p);
+  // invalid text survives a rebuild in rows that still exist; hidden rows can't block OK
+  bool dropped = false;
+  for (auto it = invalid_.begin(); it != invalid_.end();) {
+    auto e = numericEdits_.find(it->first);
+    if (e == numericEdits_.end()) {
+      it = invalid_.erase(it);
+      dropped = true;
+      continue;
+    }
+    e->second->setText(qs(it->second.text));
+    e->second->setStyleSheet("border: 1px solid #D93025;");
+    e->second->setToolTip(qs(it->second.error));
+    ++it;
   }
   if (!active_.empty() && !refButtons_.count(active_)) active_.clear();
   if (active_.empty() && !refButtons_.empty()) {
@@ -112,6 +159,7 @@ void PropertyPanel::rebuild() {
   }
   for (auto& [name, btn] : refButtons_) btn->setChecked(name == active_);
   rebuilding_ = false;
+  if (dropped) emit validityChanged();
 }
 
 void PropertyPanel::refresh() {
@@ -120,6 +168,7 @@ void PropertyPanel::refresh() {
     btn->setChecked(name == active_);
   }
   for (auto& [name, edit] : numericEdits_) {
+    if (invalid_.count(name)) continue;  // keep the user's (invalid) text until it is fixed
     if (const core::Property* p = feature_.property(name); p && !edit->hasFocus()) edit->setText(qs(p->displayText(doc_.units())));
   }
   for (auto& [name, combo] : enumCombos_) {
@@ -151,13 +200,21 @@ void PropertyPanel::setMessage(const std::string& text, bool error) {
 
 void PropertyPanel::applyNumericText(core::Property& p, QLineEdit* edit, bool immediate) {
   std::string text = ss(edit->text().trimmed());
-  if (text.empty()) return;
+  if (text.empty()) {
+    // an emptied field is not an expression; editingFinished restores the value
+    edit->setStyleSheet({});
+    edit->setToolTip(qs(p.tooltip()));
+    clearInvalid(p.name());
+    return;
+  }
   core::EvalResult r = doc_.evaluate(text, p.dimension());
   if (!r.ok) {
     edit->setStyleSheet("border: 1px solid #D93025;");
     edit->setToolTip(qs(r.error));
+    setInvalid(p.name(), text, r.error.empty() ? std::string("invalid expression") : r.error);
     return;
   }
+  clearInvalid(p.name());
   edit->setStyleSheet({});
   edit->setToolTip(qs(p.tooltip()));
   // plain numbers are stored as values, anything else as an expression
@@ -197,7 +254,8 @@ void PropertyPanel::addRow(core::Property& p) {
       connect(edit, &QLineEdit::editingFinished, this, [this, name, edit] {
         if (auto* prop = feature_.property(name)) {
           applyNumericText(*prop, edit, true);
-          edit->setText(qs(prop->displayText(doc_.units())));
+          // PART-02: invalid text stays (red) instead of silently snapping back to the last value
+          if (!invalid_.count(name)) edit->setText(qs(prop->displayText(doc_.units())));
         }
       });
       form_->addRow(label, edit);

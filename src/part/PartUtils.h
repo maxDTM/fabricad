@@ -85,7 +85,9 @@ struct BoolResult {
 
 /// Fuse/cut/common with fuzzy value, parallel mode, then ShapeUpgrade_UnifySameDomain and a
 /// BRepCheck validity check. `unify` can be disabled for shapes where merging faces hurts.
-BoolResult booleanOp(Operation op, const TopoDS_Shape& target, const std::vector<TopoDS_Shape>& tools, bool unify = true);
+/// `heal`: run ShapeFix on a result that fails the validity check before reporting an error.
+BoolResult booleanOp(Operation op, const TopoDS_Shape& target, const std::vector<TopoDS_Shape>& tools, bool unify = true,
+                     bool heal = false);
 /// Fuse several shapes together (first = argument, rest = tools).
 BoolResult fuseAll(const std::vector<TopoDS_Shape>& shapes, bool unify = true);
 

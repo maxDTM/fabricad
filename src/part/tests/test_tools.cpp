@@ -16,13 +16,19 @@
 #include "part/features/Fillet.h"
 #include "part/features/Hole.h"
 #include "part/features/Import.h"
+#include "part/features/Primitives.h"
+#include "part/features/Thread.h"
 #include "part/tools/ExportStlTool.h"
 #include "part/tools/FeatureTool.h"
 #include "part/tools/MeasureTool.h"
 #include "part/tools/PropertyPanel.h"
 #include "support/TestSketch.h"
 
+#include <BRepAdaptor_Surface.hxx>
+#include <TopoDS.hxx>
+
 #include <QCheckBox>
+#include <QJsonObject>
 #include <QComboBox>
 #include <QSpinBox>
 #include <QFileInfo>
@@ -231,6 +237,99 @@ class ToolsTest : public QObject {
     QCOMPARE(rig.doc.featureCount(), 2);
     QVERIFY(near(core::volume(rig.doc.bodyShape(rig.doc.featureAt(1)->createdBodies()[0])), 10 * 10 * 28));
     delete w;
+  }
+
+  // G3 PART-02: text that does not evaluate keeps the tool invalid (OK disabled, error shown)
+  // and stays in the field instead of snapping back to the last good value.
+  void invalidExpressionBlocksAccept() {
+    Rig rig;
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    rig.doc.selection().set(sk->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    core::ToolContext* ctx = rig.manager.activeContext();
+    std::unique_ptr<QWidget> w(tool->createDialog(*ctx, nullptr));
+    auto* panel = qobject_cast<PropertyPanel*>(w.get());
+    QVERIFY(panel);
+    auto* distance = panel->findChild<QLineEdit*>("prop_distance");
+    QVERIFY(tool->isValid() && rig.host.acceptEnabled());
+    distance->setText("12 +* mm");
+    emit distance->textEdited(distance->text());
+    emit distance->editingFinished();
+    QCOMPARE(distance->text(), QString("12 +* mm"));  // not reset
+    QVERIFY(panel->hasInvalid());
+    QVERIFY(!tool->isValid());
+    QVERIFY(!rig.host.acceptEnabled());
+    QVERIFY2(tool->message().rfind("Distance", 0) == 0, tool->message().c_str());
+    rig.manager.accept();
+    QCOMPARE(rig.doc.featureCount(), 1);  // refused: only the sketch
+    QVERIFY(rig.manager.activeTool() == tool);
+    distance->setText("12");
+    emit distance->textEdited(distance->text());
+    QVERIFY(!panel->hasInvalid() && tool->isValid() && rig.host.acceptEnabled());
+    rig.manager.accept();
+    QCOMPARE(rig.doc.featureCount(), 2);
+  }
+
+  // G3 PART-06: toggling a Bool that unhides rows (Thread Auto size, Full length) rebuilds the
+  // dialog; Size / Designation / Class follow each other.
+  void threadDialogShowsSizeFields() {
+    Rig rig;
+    auto cyl = std::make_unique<CylinderFeature>();
+    cyl->prop("diameter").setDouble(10);
+    cyl->prop("height").setDouble(20);
+    cyl->prop("operation").setEnum("New Body");
+    rig.doc.addFeature(std::move(cyl));
+    rig.doc.recompute();
+    core::ObjectId body = rig.doc.featureAt(0)->createdBodies().front();
+    core::ShapeRef face;
+    for (const auto& f : core::subShapes(rig.doc.bodyShape(body), TopAbs_FACE)) {
+      BRepAdaptor_Surface a(TopoDS::Face(f));
+      if (a.GetType() == GeomAbs_Cylinder) face = core::ShapeRef::subShape(body, rig.doc.bodyShape(body), f);
+    }
+    QVERIFY(face.isValid());
+    rig.doc.selection().set(face);
+    QVERIFY(rig.manager.run("part.thread"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    core::ToolContext* ctx = rig.manager.activeContext();
+    std::unique_ptr<QWidget> w(tool->createDialog(*ctx, nullptr));
+    auto* panel = qobject_cast<PropertyPanel*>(w.get());
+    QVERIFY(panel);
+    QVERIFY(!panel->findChild<QComboBox*>("prop_size"));
+    QVERIFY(!panel->findChild<QLineEdit*>("prop_length"));
+    panel->findChild<QCheckBox*>("prop_autoSize")->setChecked(false);
+    auto* size = panel->findChild<QComboBox*>("prop_size");
+    QVERIFY(size);
+    QVERIFY(panel->findChild<QComboBox*>("prop_sizeDesignation"));
+    QVERIFY(panel->findChild<QComboBox*>("prop_threadClass"));
+    QVERIFY(!panel->findChild<QComboBox*>("prop_designation"));  // stored field, not shown
+    QCOMPARE(size->currentText(), QString("M10"));
+    size->setCurrentIndex(size->findText("M8"));
+    auto* des = panel->findChild<QComboBox*>("prop_sizeDesignation");
+    QCOMPARE(des->currentText(), QString("M8x1.25"));
+    QCOMPARE(tool->feature()->enumName("designation"), std::string("M8x1.25"));
+    QVERIFY(des->findText("M8x1") >= 0 && des->findText("M10x1.5") < 0);
+    des->setCurrentIndex(des->findText("M8x1"));
+    QCOMPARE(tool->feature()->enumName("designation"), std::string("M8x1"));
+    panel->findChild<QCheckBox*>("prop_fullLength")->setChecked(false);
+    QVERIFY(panel->findChild<QLineEdit*>("prop_length"));
+    QVERIFY(panel->findChild<QLineEdit*>("prop_offset"));
+    auto* cls = panel->findChild<QComboBox*>("prop_threadClass");
+    cls->setCurrentIndex(cls->findText("4g6g"));
+    auto* tf = dynamic_cast<ThreadFeature*>(tool->feature());
+    QVERIFY(tf && !tf->threads().empty());
+    QCOMPARE(tf->threads().front().callout(), std::string("M8x1 - 4g6g"));
+    // a stored file without the size fields loads its designation into the dialog fields
+    QJsonObject j = tf->toJson();
+    QJsonObject props = j["properties"].toObject();
+    props.remove("size");
+    props.remove("sizeDesignation");
+    j["properties"] = props;
+    ThreadFeature copy;
+    copy.fromJson(j);
+    QCOMPARE(copy.enumName("size"), std::string("M8"));
+    QCOMPARE(copy.enumName("sizeDesignation"), std::string("M8x1"));
+    QCOMPARE(copy.enumName("designation"), std::string("M8x1"));
   }
 
   // PART-04: a Cut on a sketch lying on the body's top face defaults into the body (Flip is set

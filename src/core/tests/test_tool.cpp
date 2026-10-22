@@ -139,7 +139,7 @@ class ToolTest : public QObject {
     // repeat with Enter, then Esc cancels
     QVERIFY(mgr.repeatLast());
     QCOMPARE(line->activations, 2);
-    QCOMPARE(line->args, std::vector<std::string>{"10"});
+    QVERIFY(line->args.empty());  // G3 PART-07: a repeat starts fresh, without the typed value
     mgr.cancel();
     QVERIFY(!mgr.isActive());
     QVERIFY(!finished.last()[1].toBool());
@@ -170,6 +170,15 @@ class ToolTest : public QObject {
     QVERIFY(mgr.run("view.fit"));
     QVERIFY(!mgr.isActive());
     QCOMPARE(activated.count() >= 6, true);
+  }
+
+  void repeatDropsNumericArgs() {
+    using V = std::vector<std::string>;
+    QCOMPARE(ToolManager::repeatableArgs(V{"-8"}), V{});
+    QCOMPARE(ToolManager::repeatableArgs(V{"12", "5"}), V{});
+    QCOMPARE(ToolManager::repeatableArgs(V{"edit", "42"}), V{});
+    QCOMPARE(ToolManager::repeatableArgs(V{"/tmp/part.step"}), V{"/tmp/part.step"});
+    QCOMPARE(ToolManager::repeatableArgs(V{"part.step", ".5"}), V{"part.step"});
   }
 
   void nullViewerMapping() {

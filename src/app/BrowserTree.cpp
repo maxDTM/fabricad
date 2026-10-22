@@ -509,9 +509,7 @@ void BrowserTree::contextMenuEvent(QContextMenuEvent* e) {
       menu.addAction(resourceIcon("visibility"), "Isolate", this, [this] { emit runToolRequested("app.isolate"); });
       menu.addAction("Copy\tCtrl+C", this, [this] { emit runToolRequested("assembly.copy"); });
     }
-    bool canPaste = false;
-    for (ObjectId cid : assembly::componentClipboard())
-      if (doc_.component(cid)) canPaste = true;
+    const bool canPaste = assembly::clipboardHasContent(doc_);  // components or bodies (G3 PART-05)
     QAction* paste = menu.addAction("Paste\tCtrl+V", this, [this, id] {
       doc_.setActiveComponent(id);  // paste into the clicked component
       emit runToolRequested("assembly.paste");
