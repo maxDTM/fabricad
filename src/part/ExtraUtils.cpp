@@ -63,10 +63,22 @@ TopoDS_Wire makeHelix(double radius, double pitch, double height, double taperDe
       surf = new Geom_CylindricalSurface(gp_Ax3(gp::Origin(), gp::DZ(), gp::DX()), radius);
     }
     gp_Lin2d line(gp_Pnt2d(0, 0), gp_Dir2d(du, dv));
-    const double len = turns * std::sqrt(du * du + dv * dv);
-    TopoDS_Edge e = BRepBuilderAPI_MakeEdge(new Geom2d_Line(line), surf, 0.0, len).Edge();
-    BRepLib::BuildCurves3d(e, 1e-6, GeomAbs_C1, 14, 200);
-    return BRepBuilderAPI_MakeWire(e).Wire();
+    const double perTurn = std::sqrt(du * du + dv * dv);
+    const double len = turns * perTurn;
+    // One edge per turn: the 3D approximation of a long single-edge helix drifts (and its
+    // tolerance grows) towards the end, which made booleans with the far end unreliable.
+    Handle(Geom2d_Line) l2d = new Geom2d_Line(line);
+    BRepBuilderAPI_MakeWire wire;
+    const int n = std::max(1, static_cast<int>(std::ceil(turns - 1e-9)));
+    for (int i = 0; i < n; ++i) {
+      const double a = i * perTurn, b = std::min(len, (i + 1) * perTurn);
+      if (b - a < 1e-9) break;
+      TopoDS_Edge e = BRepBuilderAPI_MakeEdge(l2d, surf, a, b).Edge();
+      BRepLib::BuildCurves3d(e, 1e-7, GeomAbs_C1, 14, 50);
+      wire.Add(e);
+      if (!wire.IsDone()) return {};
+    }
+    return wire.Wire();
   } catch (const Standard_Failure&) {
     return {};
   }

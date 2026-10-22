@@ -226,7 +226,7 @@ bool TransformFeature::checkInstanceSpacing(core::RecomputeContext& ctx, const s
   // G3 PART-10: bounding box of what is patterned (bodies, or the features' tool shapes)
   Bnd_Box box;
   const bool bodiesMode = enumIndex("patternType") == Bodies;
-  for (const auto& ref : prop("objects").refs()) {
+  for (core::ShapeRef ref : prop("objects").refs()) {  // a copy: resolve() may annotate it
     TopoDS_Shape s;
     if (ref.kind == core::ShapeKind::Body || (bodiesMode && ref.isBrep())) s = ctx.resolve(ref);
     else if (ref.kind == core::ShapeKind::Feature)
