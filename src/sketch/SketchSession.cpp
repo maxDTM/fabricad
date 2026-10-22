@@ -600,7 +600,7 @@ void SketchSession::drawDimension(const Constraint& c) {
   };
   const double tick = tolerance(label, 4.0);
   // the text sits beside its dimension line, not on it (the line would strike it through, UX-28)
-  const double textGap = tolerance(label, 9.0);
+  const double textGap = tolerance(label, 12.0);
   Pt2 textShift{0, textGap};
   auto arrow = [&](Pt2 tip, Pt2 dir) {
     Pt2 d = dir.normalized();
