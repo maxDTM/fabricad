@@ -10,8 +10,10 @@
 #include "core/Tool.h"
 #include "core/Units.h"
 #include "viewer/ManipulatorPrs.h"
+#include "viewer/OverlayLayout.h"
 #include "viewer/PrimitivePrs.h"
 #include "viewer/TopoHelpers.h"
+#include "viewer/ViewportOverlays.h"
 #include "viewer/occt/OcctQtTools.h"
 #include "viewer/occt/OcctView.h"
 
@@ -25,6 +27,7 @@
 #include <Font_FontMgr.hxx>
 #include <Font_SystemFont.hxx>
 #include <Graphic3d_MaterialAspect.hxx>
+#include <Graphic3d_Vec3.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_IsoAspect.hxx>
 #include <Prs3d_LineAspect.hxx>
@@ -45,6 +48,7 @@
 #include <QMouseEvent>
 #include <QPainterPath>
 #include <QPainter>
+#include <QResizeEvent>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -69,10 +73,12 @@ constexpr PreviewHandle kFirstGlPreview = 1000000;
 
 Quantity_Color qcol(const std::array<float, 4>& c) { return Quantity_Color(c[0], c[1], c[2], Quantity_TOC_sRGB); }
 QColor qtColor(const std::array<float, 4>& c) { return QColor::fromRgbF(c[0], c[1], c[2], c[3]); }
-Quantity_Color hexq(const char* hex) {
-  Rgb c = hexColor(hex);
-  return Quantity_Color(c.r, c.g, c.b, Quantity_TOC_sRGB);
-}
+Quantity_ColorRGBA qrgba(const std::array<float, 4>& c) { return Quantity_ColorRGBA(qcol(c), c[3]); }
+
+// Display priorities inside a Z layer: glow strokes, then halos, then the item itself.
+constexpr auto kPrioGlow = static_cast<Graphic3d_DisplayPriority>(3);
+constexpr auto kPrioHalo = static_cast<Graphic3d_DisplayPriority>(4);
+constexpr auto kPrioMain = static_cast<Graphic3d_DisplayPriority>(6);
 
 bool sameTrsf(const gp_Trsf& a, const gp_Trsf& b) {
   for (int r = 1; r <= 3; ++r)
@@ -127,6 +133,39 @@ TopAbs_ShapeEnum contentType(const TopoDS_Shape& s) {
     if (ex.More()) return t;
   }
   return TopAbs_SHAPE;
+}
+
+/// Give every line aspect of a drawer a colour with alpha (blended), for glow strokes.
+void setLinesRgba(const Handle(Prs3d_Drawer)& dr, const Quantity_ColorRGBA& c) {
+  for (const Handle(Prs3d_LineAspect)& la :
+       {dr->WireAspect(), dr->FreeBoundaryAspect(), dr->UnFreeBoundaryAspect(), dr->LineAspect(), dr->FaceBoundaryAspect()}) {
+    if (la.IsNull()) continue;
+    la->Aspect()->SetInteriorColor(c);
+    if (c.Alpha() < 0.999f) la->Aspect()->SetAlphaMode(Graphic3d_AlphaMode_Blend);
+  }
+}
+
+/// Outline-only presentation: the edges of an edge/wire shape, or the face boundaries (no fill)
+/// of a face/shell/solid. Used for halos, glows and selection outlines (halo rule, 4.5).
+Handle(AIS_Shape) makeOutline(const TopoDS_Shape& shape, const gp_Trsf& placement, const std::array<float, 4>& color, double width,
+                              bool dashed, int& mode) {
+  Handle(AIS_Shape) o = new AIS_Shape(shape);
+  if (!isIdentity(placement)) o->SetLocalTransformation(placement);
+  const Quantity_Color col = qcol(color);
+  o->SetColor(col);
+  o->SetWidth(width);
+  Handle(Prs3d_Drawer) dr = o->Attributes();
+  if (contentType(shape) == TopAbs_FACE) {
+    mode = AIS_Shaded;
+    dr->ShadingAspect()->Aspect()->SetInteriorStyle(Aspect_IS_EMPTY);
+    dr->SetFaceBoundaryDraw(true);
+    dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(col, dashed ? Aspect_TOL_DASH : Aspect_TOL_SOLID, width));
+  } else {
+    mode = AIS_WireFrame;
+    setLineStyle(dr, dashed);
+  }
+  if (color[3] < 0.999f) setLinesRgba(dr, qrgba(color));
+  return o;
 }
 
 /// Sans-serif UI font for all viewer text (labels, ViewCube): the first installed of Inter
@@ -192,6 +231,7 @@ struct ViewerWidget::Impl {
   struct Preview {
     Handle(AIS_InteractiveObject) obj;
     PreviewStyle style;
+    std::vector<Handle(AIS_InteractiveObject)> extras;  ///< halo / glow strokes under `obj`
   };
   std::map<PreviewHandle, Preview> previews;
   PreviewHandle nextPreview = kFirstGlPreview;
@@ -258,6 +298,21 @@ ViewerWidget::ViewerWidget(QWidget* parent) : QWidget(parent), d_(std::make_uniq
   d_->listener = std::make_unique<ViewerListener>(this);
   d_->insets = insets_;
   manipulators_.setChangeListener([this] { syncManipulatorPrs(); });
+  sceneOptions_.palette = palette_;
+  sceneOptions_.shadeProfiles = true;  // SK-12: finished sketches show their closed profiles
+  // viewport overlays (5.3): placed by layoutOverlayWidgets(), reported to OverlayLayout
+  dial_ = new OrientationDial(*this);
+  breadcrumb_ = new Breadcrumb(*this);
+  filterBar_ = new SelectionFilterBar(*this);
+  readout_ = new CoordReadout(*this);
+  scaleBar_ = new ScaleBar(*this);
+  for (QWidget* w : std::initializer_list<QWidget*>{dial_, breadcrumb_, filterBar_, readout_, scaleBar_}) w->show();
+  filterBar_->refresh();
+  connect(this, &ViewerWidget::cameraChanged, this, [this] {
+    dial_->update();
+    scaleBar_->refresh();
+  });
+  layoutOverlayWidgets();
 }
 
 ViewerWidget::~ViewerWidget() {
@@ -310,7 +365,9 @@ bool ViewerWidget::ghostedPickable() const {
 
 void ViewerWidget::setViewerPalette(const ViewerPalette& p) {
   palette_ = p;
+  sceneOptions_.palette = p;
   applyPaletteToView();
+  for (QWidget* w : std::initializer_list<QWidget*>{dial_, breadcrumb_, filterBar_, readout_, scaleBar_}) w->update();
   update();
 }
 
@@ -324,30 +381,18 @@ void ViewerWidget::applyPaletteToView() {
     ctx->HighlightStyle(type)->SetColor(qcol(palette_.preselect));
   for (auto type : {Prs3d_TypeOfHighlight_Selected, Prs3d_TypeOfHighlight_LocalSelected})
     ctx->HighlightStyle(type)->SetColor(qcol(palette_.select));
-  if (const Handle(AIS_ViewCube)& cube = d_->view->viewCube(); !cube.IsNull()) {
-    cube->SetBoxColor(qcol(palette_.cubeBox));
-    cube->SetTextColor(qcol(palette_.cubeText));
-    cube->SetInnerColor(qcol(palette_.cubeInner));
-    for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()}) {
-      if (hl.IsNull()) continue;
-      hl->SetColor(qcol(palette_.cubeHover));
-      if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(qcol(palette_.cubeHover));
-    }
-    if (ctx->IsDisplayed(cube)) ctx->Redisplay(cube, false);
-  }
+  applyCubeStyle();
   const Handle(V3d_Viewer)& viewer = view->Viewer();
+  for (V3d_ListOfLightIterator it(viewer->DefinedLightIterator()); it.More(); it.Next()) it.Value()->SetColor(qcol(palette_.light));
   if (!viewer->Grid().IsNull()) viewer->Grid()->SetColors(qcol(palette_.gridMinor), qcol(palette_.gridMajor));
-  // bodies carry their edge colour in their own drawer: rebuild them
-  for (auto it = d_->objects.begin(); it != d_->objects.end();) {
-    if (it->second.item.style != SceneStyle::Body) {
-      ++it;
-      continue;
-    }
-    d_->objectKeys.erase(it->second.obj.get());
-    ctx->Remove(it->second.obj, false);
-    it = d_->objects.erase(it);
-  }
+  // items carry their colours in their own drawers: rebuild them (origin labels too)
+  for (auto& [k, o] : d_->objects) ctx->Remove(o.obj, false);
+  d_->objects.clear();
+  d_->objectKeys.clear();
+  for (auto& l : d_->originLabels) ctx->Remove(l, false);
+  d_->originLabels.clear();
   doSync();
+  syncManipulatorPrs();
   scheduleOverlaySync();
   requestRedraw();
 }
@@ -475,7 +520,8 @@ void ViewerWidget::onGlInitialized() {
   if (qEnvironmentVariableIsSet("FABRICAD_MSAA")) msaa = qEnvironmentVariableIntValue("FABRICAD_MSAA");
   view->ChangeRenderingParams().NbMsaaSamples = std::clamp(msaa, 0, 8);
   view->ChangeRenderingParams().IsAntialiasingEnabled = msaa > 0;
-  view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_GRAY40, 0.08, V3d_ZBUFFER);
+  // no corner triad: the orientation dial (or ViewCube) shows the axes, and the bottom-left
+  // corner belongs to the coordinate readout (5.3)
 
   // lighting: camera headlight + soft ambient + a world key light from above, so every face
   // facing the user reads as the light steel grey of ux.md 6.1 (OCCT's default rig leaves
@@ -485,11 +531,12 @@ void ViewerWidget::onGlInitialized() {
     std::vector<Handle(V3d_Light)> old;
     for (V3d_ListOfLightIterator it(v->DefinedLightIterator()); it.More(); it.Next()) old.push_back(it.Value());
     for (const Handle(V3d_Light)& l : old) v->DelLight(l);
-    Handle(V3d_AmbientLight) amb = new V3d_AmbientLight(Quantity_NOC_WHITE);
+    const Quantity_Color white = qcol(palette_.light);
+    Handle(V3d_AmbientLight) amb = new V3d_AmbientLight(white);
     amb->SetIntensity(1.0f);
-    Handle(V3d_DirectionalLight) head = new V3d_DirectionalLight(gp_Dir(0.25, 0.35, -1.0), Quantity_NOC_WHITE, true);
+    Handle(V3d_DirectionalLight) head = new V3d_DirectionalLight(gp_Dir(0.25, 0.35, -1.0), white, true);
     head->SetIntensity(0.8f);
-    Handle(V3d_DirectionalLight) key = new V3d_DirectionalLight(gp_Dir(-0.35, -0.55, -1.0), Quantity_NOC_WHITE, false);
+    Handle(V3d_DirectionalLight) key = new V3d_DirectionalLight(gp_Dir(-0.35, -0.55, -1.0), white, false);
     key->SetIntensity(0.3f);
     for (const Handle(V3d_Light)& l : {Handle(V3d_Light)(amb), Handle(V3d_Light)(head), Handle(V3d_Light)(key)}) {
       v->AddLight(l);
@@ -511,39 +558,33 @@ void ViewerWidget::onGlInitialized() {
   ctx->SetPixelTolerance(4);
   ctx->SetAutomaticHilight(true);
 
-  // highlight styles: preselection light blue
+  // highlight styles: preselection (pre.edge) as a light tint, so the face below still reads
   for (auto type : {Prs3d_TypeOfHighlight_Dynamic, Prs3d_TypeOfHighlight_LocalDynamic}) {
     Handle(Prs3d_Drawer) hs = ctx->HighlightStyle(type);
     hs->SetColor(qcol(palette_.preselect));
     hs->SetDisplayMode(AIS_Shaded);
-    hs->SetTransparency(0.4f);
+    hs->SetTransparency(0.7f);
   }
   for (auto type : {Prs3d_TypeOfHighlight_Selected, Prs3d_TypeOfHighlight_LocalSelected}) {
     Handle(Prs3d_Drawer) hs = ctx->HighlightStyle(type);
     hs->SetColor(qcol(palette_.select));
   }
 
-  // ViewCube top-right, upper-case labels, light theme with an outline; generous edge and
-  // corner zones (facet extension + minimum sizes) so they are easy to hit
+  // ViewCube (ui/orientation=viewCube) top-right, upper-case labels, token colours with a darker
+  // outline (edges and corners in vp.cube.edge, so it reads on the light viewport too); generous
+  // edge and corner zones (facet extension + minimum sizes) so they are easy to hit
   const Handle(AIS_ViewCube)& cube = d_->view->viewCube();
   cube->SetSize(80.0);
-  cube->SetBoxFacetExtension(14.0);
-  cube->SetRoundRadius(0.1);
-  cube->SetBoxEdgeMinSize(5.0);
-  cube->SetBoxCornerMinSize(5.0);
+  cube->SetBoxFacetExtension(12.0);
+  cube->SetRoundRadius(0.08);
+  cube->SetBoxEdgeMinSize(8.0);
+  cube->SetBoxCornerMinSize(13.0);
   cube->SetBoxEdgeGap(0.0);
   cube->SetFontHeight(13.0);
   cube->SetFont(viewerFont());
-  cube->SetBoxColor(qcol(palette_.cubeBox));
-  cube->SetTextColor(qcol(palette_.cubeText));
-  cube->SetInnerColor(qcol(palette_.cubeInner));
-  // token hover tint instead of OCCT's cyan
-  for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()}) {
-    if (hl.IsNull()) continue;
-    hl->SetColor(qcol(palette_.cubeHover));
-    hl->SetTransparency(0.0f);
-    if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(qcol(palette_.cubeHover));
-  }
+  applyCubeStyle();
+  for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()})
+    if (!hl.IsNull()) hl->SetTransparency(0.0f);
   cube->SetDrawAxes(false);
   cube->SetBoxSideLabel(V3d_Xpos, "RIGHT");
   cube->SetBoxSideLabel(V3d_Xneg, "LEFT");
@@ -554,7 +595,7 @@ void ViewerWidget::onGlInitialized() {
   cube->SetDuration(0.25);
   cube->SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_TriedronPers, Aspect_TOTP_RIGHT_UPPER,
                                                             Graphic3d_Vec2i(int(kCubeOffset), int(kCubeOffset))));
-  ctx->Display(cube, 0, 0, false);
+  if (orientation_ == OrientationWidget::ViewCube) ctx->Display(cube, 0, 0, false);
   // after a cube click: rotate, then fit with our margin/nav-bar inset (OCCT's own fit leaves
   // almost no margin), keeping the chosen projection
   d_->view->setCubeFitter([this](const Handle(V3d_View)&, const Handle(Graphic3d_Camera)& cam) {
@@ -573,7 +614,26 @@ void ViewerWidget::onGlInitialized() {
   updateGrid(true);
   doSync();
   if (d_->hasGeometry()) fitAll(false);
+  layoutOverlayWidgets();
   emit viewInitialized();
+}
+
+void ViewerWidget::applyCubeStyle() {
+  if (!d_->view) return;
+  const Handle(AIS_ViewCube)& cube = d_->view->viewCube();
+  if (cube.IsNull()) return;
+  cube->SetBoxColor(qcol(palette_.cubeBox));  // sides, edges and corners
+  cube->BoxEdgeStyle()->SetColor(qcol(palette_.cubeEdge));
+  cube->BoxCornerStyle()->SetColor(qcol(palette_.cubeEdge));
+  cube->SetTextColor(qcol(palette_.cubeText));
+  cube->SetInnerColor(qcol(palette_.cubeInner));
+  // token hover tint instead of OCCT's cyan
+  for (Handle(Prs3d_Drawer) hl : {cube->DynamicHilightAttributes(), cube->HilightAttributes()}) {
+    if (hl.IsNull()) continue;
+    hl->SetColor(qcol(palette_.cubeHover));
+    if (hl->HasOwnShadingAspect()) hl->ShadingAspect()->SetColor(qcol(palette_.cubeHover));
+  }
+  if (d_->ready() && d_->ctx()->IsDisplayed(cube)) d_->ctx()->Redisplay(cube, false);
 }
 
 void ViewerWidget::applyGestureMap() {
@@ -714,6 +774,7 @@ void ViewerWidget::onFilterInputsChanged() {
     scheduleSync();
   }
   applySelectionModes();
+  filterBar_->refresh();
   requestRedraw();
 }
 
@@ -803,14 +864,16 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
     case SceneStyle::Body: {
       // ASPECT material: ambient/diffuse act as multipliers of the body colour. Plastified's
       // defaults render the steel grey far too dark; these give Fusion-like light parts.
+      // (palette reflectance multipliers, linear RGB grey levels)
       Graphic3d_MaterialAspect mat(Graphic3d_NameOfMaterial_Plastified);
-      mat.SetAmbientColor(Quantity_Color(0.32, 0.32, 0.32, Quantity_TOC_RGB));
-      mat.SetDiffuseColor(Quantity_Color(0.62, 0.62, 0.62, Quantity_TOC_RGB));
-      mat.SetSpecularColor(Quantity_Color(0.18, 0.18, 0.18, Quantity_TOC_RGB));
+      auto grey = [](float k) { return Quantity_Color(Graphic3d_Vec3(k, k, k)); };
+      mat.SetAmbientColor(grey(pal.matAmbient));
+      mat.SetDiffuseColor(grey(pal.matDiffuse));
+      mat.SetSpecularColor(grey(pal.matSpecular));
       mat.SetShininess(0.35f);
       s->SetMaterial(mat);
       if (mode == core::DisplayMode::HiddenLine) {
-        s->SetColor(Quantity_NOC_WHITE);
+        s->SetColor(qcol(pal.hiddenLineFill));
         dr->ShadingAspect()->Aspect()->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
       } else {
         s->SetColor(col);
@@ -823,7 +886,7 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
       } else {
         dispMode = AIS_Shaded;
       }
-      if (it.ghosted) s->SetTransparency(0.7);
+      if (it.ghosted) s->SetTransparency(1.0 - pal.ghostAlpha);
       else if (it.color[3] < 0.999f) s->SetTransparency(1.0 - it.color[3]);
       break;
     }
@@ -850,12 +913,25 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
       layer = Graphic3d_ZLayerId_Top;
       break;
     }
+    case SceneStyle::ProfileShade: {
+      // SK-12: a light tint in the scene's own depth (hidden behind bodies), pulled toward the
+      // eye so it does not fight with a face the sketch lies on; unlit so it reads the same at
+      // every angle
+      s->SetColor(col);
+      s->SetTransparency(1.0 - it.color[3]);
+      dr->SetFaceBoundaryDraw(false);
+      dr->ShadingAspect()->Aspect()->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
+      dr->ShadingAspect()->Aspect()->SetPolygonOffsets(Aspect_POM_Fill, -1.0f, -4.0f);
+      dispMode = AIS_Shaded;
+      break;
+    }
     case SceneStyle::ConstructionPlane:
     case SceneStyle::OriginPlane: {
       s->SetColor(col);
       s->SetTransparency(1.0 - it.color[3]);
       dr->SetFaceBoundaryDraw(true);
-      dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(hexq("#E58A00"), Aspect_TOL_SOLID, 1.0));
+      dr->SetFaceBoundaryAspect(
+          new Prs3d_LineAspect(qcol(it.style == SceneStyle::OriginPlane ? pal.originEdge : pal.construction), Aspect_TOL_SOLID, 1.0));
       dispMode = AIS_Shaded;
       break;
     }
@@ -890,6 +966,7 @@ std::vector<int> modesFor(const SceneItem& it, ShapeKindMask eff, bool pickGhost
     if (b.vertex) m.push_back(AIS_Shape::SelectionMode(TopAbs_VERTEX));
     return m;
   }
+  if (it.style == SceneStyle::ProfileShade) return m;  // a tint only (SK-12); tools pick SceneStyle::Profile
   if (isSketchStyle(it.style)) {
     if (hasKind(eff, ShapeKind::SketchCurve)) m.push_back(AIS_Shape::SelectionMode(TopAbs_EDGE));
     // G3 PART-03: an input taking profiles (Extrude/Revolve "Profile|Face|Sketch") must not
@@ -998,7 +1075,7 @@ void ViewerWidget::syncOriginLabels() {
     t->SetPosition(at);
     t->SetHeight(12.0);
     t->SetFont(viewerFont());
-    t->SetColor(hexq("#8A5A00"));
+    t->SetColor(qcol(palette_.originLabel));
     t->SetZoomable(false);
     ctx->Display(t, 0, -1, false);  // never pickable
     d_->originLabels.push_back(t);
@@ -1041,7 +1118,15 @@ void ViewerWidget::syncOverlays() {
     }
     return nullptr;
   };
-  auto add = [&](const ShapeRef& r, const Quantity_Color& col, double transparency) {
+  // Halo rule (4.5): accent lines over shaded bodies get a 1 px halo; faces a light tint
+  enum class Look { Selected, Highlighted, Preselected };
+  auto display = [&](const Handle(AIS_InteractiveObject)& o, int mode, Graphic3d_DisplayPriority prio) {
+    ctx->Display(o, mode, -1, false);
+    ctx->SetZLayer(o, Graphic3d_ZLayerId_Top);
+    ctx->SetDisplayPriority(o, prio);
+    d_->overlays.push_back(o);
+  };
+  auto add = [&](const ShapeRef& r, Look look) {
     TopoDS_Shape shape;
     gp_Trsf placement;
     for (const SceneItem& it : sceneItems_)
@@ -1057,41 +1142,46 @@ void ViewerWidget::syncOverlays() {
       placement = owner->placement;
     }
     if (shape.IsNull()) return;
-    const bool wholeBody = r.kind == ShapeKind::Body || r.kind == ShapeKind::Component;
-    Handle(AIS_Shape) o = new AIS_Shape(shape);
-    if (!isIdentity(placement)) o->SetLocalTransformation(placement);
-    Handle(Prs3d_Drawer) dr = o->Attributes();
-    o->SetColor(col);
+    const bool pre = look == Look::Preselected;
+    const ViewerPalette::Rgba edge = pre ? palette_.preselect : palette_.select;
+    const ViewerPalette::Rgba fill = pre ? palette_.preFill : palette_.selFill;
+    const double width = pre ? palette_.preWidth : palette_.selWidth;
     const TopAbs_ShapeEnum type = contentType(shape);
-    int mode = AIS_WireFrame;
-    if (type == TopAbs_FACE) {
-      mode = AIS_Shaded;
-      if (transparency > 0.0) o->SetTransparency(transparency);
-      // whole bodies get a dark-blue outline so the selection reads against the model
-      dr->SetFaceBoundaryDraw(wholeBody);
-      if (wholeBody) dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(hexq("#0B4FC0"), Aspect_TOL_SOLID, 2.0));
-      dr->ShadingAspect()->Aspect()->SetPolygonOffsets(Aspect_POM_Fill, 0.0f, -2.0f);
-    } else if (type == TopAbs_EDGE) {
-      o->SetWidth(3.0);
-    } else {
-      dr->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, col, 1.0));
+    if (type == TopAbs_VERTEX || type == TopAbs_SHAPE) {
+      Handle(AIS_Shape) o = new AIS_Shape(shape);
+      if (!isIdentity(placement)) o->SetLocalTransformation(placement);
+      o->SetColor(qcol(edge));
+      o->Attributes()->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, qcol(edge), 1.0));
+      display(o, AIS_WireFrame, kPrioMain);
+      return;
     }
-    ctx->Display(o, mode, -1, false);
-    ctx->SetZLayer(o, Graphic3d_ZLayerId_Top);
-    d_->overlays.push_back(o);
+    if (type == TopAbs_FACE) {
+      // the tint (sel.fill / pre tint), never an opaque wash: the face keeps its shading (p1 L8)
+      Handle(AIS_Shape) o = new AIS_Shape(shape);
+      if (!isIdentity(placement)) o->SetLocalTransformation(placement);
+      o->SetColor(qcol(fill));
+      o->SetTransparency(1.0 - fill[3] * (look == Look::Highlighted ? 0.8 : 1.0));
+      Handle(Prs3d_Drawer) dr = o->Attributes();
+      dr->SetFaceBoundaryDraw(false);
+      dr->ShadingAspect()->Aspect()->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
+      dr->ShadingAspect()->Aspect()->SetPolygonOffsets(Aspect_POM_Fill, 0.0f, -2.0f);
+      display(o, AIS_Shaded, kPrioMain);
+    }
+    int mode = 0;
+    display(makeOutline(shape, placement, palette_.halo, width + 2.0 * palette_.haloWidth, false, mode), mode, kPrioHalo);
+    display(makeOutline(shape, placement, edge, width, false, mode), mode, kPrioMain);
   };
 
-  const Quantity_Color selCol = qcol(palette_.select);
   // a component highlights each of its displayed bodies (with that body's placement)
-  auto addRef = [&](const ShapeRef& r, const Quantity_Color& col, double transparency) {
-    if (r.kind != ShapeKind::Component) return add(r, col, transparency);
-    for (ObjectId b : document_->bodiesOf(r.owner)) add(ShapeRef::body(b), col, transparency);
+  auto addRef = [&](const ShapeRef& r, Look look) {
+    if (r.kind != ShapeKind::Component) return add(r, look);
+    for (ObjectId b : document_->bodiesOf(r.owner)) add(ShapeRef::body(b), look);
   };
-  for (const ShapeRef& r : document_->selection().items()) addRef(r, selCol, 0.15);
+  for (const ShapeRef& r : document_->selection().items()) addRef(r, Look::Selected);
   for (const ShapeRef& r : highlighted_)
-    if (!document_->selection().contains(r)) addRef(r, selCol, 0.3);
+    if (!document_->selection().contains(r)) addRef(r, Look::Highlighted);
   const auto& pre = document_->selection().preselection();
-  if (pre && pre != hoverRef_) addRef(*pre, qcol(palette_.preselect), 0.6);
+  if (pre && pre != hoverRef_) addRef(*pre, Look::Preselected);
   requestRedraw();
 }
 
@@ -1386,6 +1476,7 @@ Qt::MouseButtons ViewerWidget::onMouseMove(QMouseEvent* e) {
   core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::None, !rubber_ && !onGizmo);
   if (manager_) manager_->mouseMove(ev);
   if (!rubber_) updateHover(ev);
+  updateCursorReadout(ev);
   if (d_->ready()) {  // ViewCube hover tint: repaint when the hovered cube part changes
     const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
     const void* co = nullptr;
@@ -1556,6 +1647,7 @@ void ViewerWidget::onLeave() {
   if (d_->ready()) d_->ctx()->ClearDetected(false);
   cubeHoverOwner_ = nullptr;
   hoverCtl_ = CubeCtl::None;
+  readout_->setPoint(std::nullopt);
   requestRedraw();
 }
 
@@ -1627,6 +1719,169 @@ void ViewerWidget::beforeRedraw() {
   assertProjection();
   updateGrid(false);
   refreshManipulatorSizes();
+  checkCameraChanged();
+}
+
+void ViewerWidget::checkCameraChanged() {
+  if (!d_->ready()) return;
+  const Handle(Graphic3d_Camera)& cam = d_->v3d()->Camera();
+  const gp_Pnt e = cam->Eye(), c = cam->Center();
+  const gp_Dir u = cam->Up();
+  const std::array<double, 10> now{e.X(), e.Y(), e.Z(), c.X(), c.Y(), c.Z(), u.X(), u.Y(), u.Z(), cam->Scale()};
+  if (now == lastCamera_) return;
+  lastCamera_ = now;
+  // the dial and the scale bar repaint after this frame (never from inside the GL paint)
+  QMetaObject::invokeMethod(this, &ViewerWidget::cameraChanged, Qt::QueuedConnection);
+}
+
+// ---------------------------------------------------------------------------------------
+// orientation widget and overlays (docs/plans/ui-redesign.md 5.3, 6.3, 7.2)
+// ---------------------------------------------------------------------------------------
+
+void ViewerWidget::setOrientationWidget(OrientationWidget w) {
+  if (orientation_ == w) return;
+  orientation_ = w;
+  dial_->setPlateVisible(w == OrientationWidget::HexDial);
+  if (d_->ready()) {
+    const Handle(AIS_ViewCube)& cube = d_->view->viewCube();
+    if (w == OrientationWidget::ViewCube) d_->ctx()->Display(cube, 0, 0, false);
+    else d_->ctx()->Erase(cube, false);
+    d_->ctx()->ClearDetected(false);
+    cubeHoverOwner_ = nullptr;
+    hoverCtl_ = CubeCtl::None;
+    requestRedraw();
+  }
+  layoutOverlayWidgets();
+}
+
+void ViewerWidget::setViewAzEl(double azDeg, double elDeg, bool animate) {
+  const ViewOrientation o = azElOrientation(azDeg, elDeg);
+  if (!d_->ready()) {
+    // headless: the fallback context keeps the view as a plane (Y = up)
+    null_.lookAt(gp_Ax3(gp_Pnt(0, 0, 0), o.toEye, gp_Dir(gp_Vec(o.up).Crossed(gp_Vec(o.toEye)))), false);
+    emit cameraChanged();
+    return;
+  }
+  Handle(Graphic3d_Camera) cam = d_->cameraCopy();
+  const gp_Pnt c = cam->Center();
+  const double dist = std::max(cam->Distance(), 1.0);
+  cam->SetEyeAndCenter(c.Translated(gp_Vec(o.toEye) * dist), c);
+  cam->SetUp(o.up);
+  animateCamera(cam, animate ? 0.25 : 0.0);
+}
+
+gp_Pnt ViewerWidget::viewCenter() const {
+  if (!d_->ready()) return gp_Pnt(0, 0, 0);
+  return d_->v3d()->Camera()->Center();
+}
+
+ShapeKindMask ViewerWidget::availableKinds() const {
+  ShapeKindMask m = toolFilter_;
+  if (document_) m &= const_cast<Document*>(document_)->selection().filter();
+  return m;
+}
+
+void ViewerWidget::setOverlaysVisible(bool topBar, bool readout, bool scaleBar) {
+  topBarShown_ = topBar;
+  readoutShown_ = readout;
+  scaleBarShown_ = scaleBar;
+  layoutOverlayWidgets();
+}
+
+QRect ViewerWidget::orientationRect() const {
+  QRect r = dial_->geometry();
+  if (orientation_ == OrientationWidget::ViewCube && d_->ready()) {
+    // the cube and its full control ring (home, roll and face-step arrows), whether or not the
+    // step arrows show right now: docked panels must not move when the view turns face-on
+    const QPointF c = cubeCenter();
+    const double dpr = d_->view->devicePixelRatioF();
+    const double half = kCubeCtlRadius / dpr + 22.0 / 2;
+    r = r.united(QRectF(c.x() - half, c.y() - half, 2 * half, 2 * half).toAlignedRect());
+  }
+  return r;
+}
+
+void ViewerWidget::layoutOverlayWidgets() {
+  constexpr int kMargin = 16, kGap = 8;
+  const int w = width(), h = height();
+  // orientation: the dial at the top-right; in ViewCube mode its readout and buttons sit below
+  // the cube's control ring
+  dial_->resize(dial_->sizeHint());
+  int dialTop = kMargin;
+  if (orientation_ == OrientationWidget::ViewCube) {
+    const double dpr = d_->view ? d_->view->devicePixelRatioF() : devicePixelRatioF();
+    dialTop = static_cast<int>(std::ceil(kCubeOffset / dpr + kCubeCtlRadius / dpr + 11.0)) + 4;
+  }
+  dial_->move(w - kMargin - dial_->width(), dialTop);
+  dial_->raise();
+  const QRect orient = orientationRect();
+  // top-left row: breadcrumb, then the filter bar (a second row when they do not fit)
+  breadcrumb_->setVisible(topBarShown_);
+  filterBar_->setVisible(topBarShown_);
+  if (topBarShown_) {
+    const int right = orient.left() - kGap;
+    breadcrumb_->resize(std::min(breadcrumb_->sizeHint().width(), std::max(0, right - kMargin)), breadcrumb_->sizeHint().height());
+    breadcrumb_->move(kMargin, kMargin);
+    filterBar_->resize(filterBar_->sizeHint());
+    QPoint fp(breadcrumb_->geometry().right() + 1 + kGap, kMargin);
+    if (fp.x() + filterBar_->width() > right || w < 900) fp = QPoint(kMargin, breadcrumb_->geometry().bottom() + 1 + 4);
+    filterBar_->move(fp);
+    breadcrumb_->raise();
+    filterBar_->raise();
+  }
+  readout_->setVisible(readoutShown_);
+  if (readoutShown_) {
+    readout_->resize(readout_->sizeHint());
+    readout_->move(kMargin, h - kMargin - readout_->height());
+    readout_->raise();
+  }
+  scaleBar_->setVisible(scaleBarShown_);
+  if (scaleBarShown_) {
+    scaleBar_->resize(scaleBar_->sizeHint());
+    scaleBar_->move(w - kMargin - scaleBar_->width(), h - kMargin - scaleBar_->height());
+    scaleBar_->refresh();
+    scaleBar_->raise();
+  }
+  // tell the app (card, palette, view-tool column) only when something moved
+  const std::array<QRect, 5> now{dial_->geometry(), breadcrumb_->isVisible() ? breadcrumb_->geometry() : QRect(),
+                                 filterBar_->isVisible() ? filterBar_->geometry() : QRect(),
+                                 readout_->isVisible() ? readout_->geometry() : QRect(),
+                                 scaleBar_->isVisible() ? scaleBar_->geometry() : QRect()};
+  if (now == lastOverlayRects_) return;
+  lastOverlayRects_ = now;
+  emit overlayGeometryChanged();
+}
+
+void ViewerWidget::addOverlayRegions(OverlayLayout& l) const {
+  auto fixed = [&l](OverlayLayout::Slot s, const QRect& r, const char* id) {
+    if (r.isEmpty()) return;
+    OverlayLayout::Item it;
+    it.slot = s;
+    it.fixed = r;
+    it.id = QString::fromLatin1(id);
+    l.add(it);
+  };
+  fixed(OverlayLayout::Slot::Orientation, orientationRect(), "orientation");
+  if (topBarShown_) fixed(OverlayLayout::Slot::TopBar, breadcrumb_->geometry().united(filterBar_->geometry()), "topBar");
+  if (readoutShown_) fixed(OverlayLayout::Slot::Readout, readout_->geometry(), "readout");
+  if (scaleBarShown_) fixed(OverlayLayout::Slot::ScaleBar, scaleBar_->geometry(), "scaleBar");
+}
+
+void ViewerWidget::resizeEvent(QResizeEvent* e) {
+  QWidget::resizeEvent(e);
+  layoutOverlayWidgets();
+}
+
+void ViewerWidget::updateCursorReadout(const core::ViewerMouseEvent& ev) {
+  std::optional<gp_Pnt> p;
+  if (ev.hasPick) p = ev.pickPoint.toPnt();
+  else if (ev.hasPlanePoint) p = ev.planePoint.toPnt();
+  else {
+    gp_Pnt o, q;
+    gp_Dir d;
+    if (screenRay(ev.x, ev.y, o, d) && intersectLinePlane(o, d, gp_Pln(gp_Ax3()), q)) p = q;  // the ground (XY) plane
+  }
+  readout_->setPoint(p);
 }
 
 QPointF ViewerWidget::cubeCenter() const {
@@ -1637,7 +1892,7 @@ QPointF ViewerWidget::cubeCenter() const {
 
 std::vector<std::pair<ViewerWidget::CubeCtl, QRectF>> ViewerWidget::cubeControls() const {
   std::vector<std::pair<CubeCtl, QRectF>> out;
-  if (!d_->ready()) return out;
+  if (!d_->ready() || orientation_ != OrientationWidget::ViewCube) return out;
   const QPointF c = cubeCenter();
   // the cube's size and offset are in device pixels (OCCT), the controls in logical ones
   const double dpr = d_->view->devicePixelRatioF();
@@ -1653,18 +1908,6 @@ std::vector<std::pair<ViewerWidget::CubeCtl, QRectF>> ViewerWidget::cubeControls
     out.push_back({CubeCtl::StepDown, box(c + QPointF(0, r))});
   }
   return out;
-}
-
-QRect ViewerWidget::viewCubeRect() const {
-  if (!d_->ready()) return {};
-  // The full control ring (home, roll and face-step arrows), whether or not the step arrows
-  // are shown right now: docked panels must not move when the view turns face-on.
-  const QPointF c = cubeCenter();
-  const double dpr = d_->view->devicePixelRatioF();
-  const double half = kCubeCtlRadius / dpr + 22.0 / 2;
-  QRectF r(c.x() - half, c.y() - half, 2 * half, 2 * half);
-  for (const auto& [ctl, box] : cubeControls()) r = r.united(box);
-  return r.toAlignedRect();
 }
 
 ViewerWidget::CubeCtl ViewerWidget::cubeControlAt(QPointF p) const {
@@ -1787,9 +2030,6 @@ void ViewerWidget::setCursor(core::CursorShape shape) {
 
 namespace {
 
-Quantity_ColorRGBA rgba(const PreviewStyle& s) {
-  return Quantity_ColorRGBA(Quantity_Color(s.color[0], s.color[1], s.color[2], Quantity_TOC_sRGB), s.color[3]);
-}
 
 std::vector<gp_Pnt> toPnts(const std::vector<core::Vec3>& v) {
   std::vector<gp_Pnt> out;
@@ -1802,30 +2042,59 @@ std::vector<gp_Pnt> toPnts(const std::vector<core::Vec3>& v) {
 
 PreviewHandle ViewerWidget::showPreviewShape(const TopoDS_Shape& shape, const PreviewStyle& style) {
   if (!d_->ready()) return null_.showPreviewShape(shape, style);
+  // two-tone previews (4.5): fill + edge from the role, a dark halo under the edges and, for
+  // live operations, a wide faint glow stroke under both
+  const ViewerPalette::PreviewColors pc = palette_.preview(style);
+  const Graphic3d_ZLayerId layer = style.onTop ? Graphic3d_ZLayerId_Topmost : Graphic3d_ZLayerId_Top;
+  const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+  Impl::Preview prev;
+  prev.style = style;
+  auto extra = [&](const ViewerPalette::Rgba& col, double width, Graphic3d_DisplayPriority prio) {
+    int mode = 0;
+    Handle(AIS_Shape) o = makeOutline(shape, gp_Trsf(), col, width, false, mode);
+    ctx->Display(o, mode, -1, false);
+    ctx->SetZLayer(o, layer);
+    ctx->SetDisplayPriority(o, prio);
+    prev.extras.push_back(o);
+  };
+  if (pc.glowOn) extra(ViewerPalette::withAlpha(pc.glow, palette_.glowAlpha), pc.edgeWidth + palette_.glowWidth, kPrioGlow);
+  if (pc.haloOn) extra(pc.halo, pc.edgeWidth + 2.0 * palette_.haloWidth, kPrioHalo);
+
   Handle(AIS_Shape) s = new AIS_Shape(shape);
-  const Quantity_Color col(style.color[0], style.color[1], style.color[2], Quantity_TOC_sRGB);
-  s->SetColor(col);
-  s->SetWidth(style.lineWidth);
+  const Quantity_Color edge = qcol(pc.edge);
+  s->SetColor(edge);
+  s->SetWidth(pc.edgeWidth);
   Handle(Prs3d_Drawer) dr = s->Attributes();
-  setLineStyle(dr, style.dashed);
+  setLineStyle(dr, pc.dashed);
   int mode = AIS_WireFrame;
   if (style.shaded) {
     mode = AIS_Shaded;
-    if (style.color[3] < 0.999f) s->SetTransparency(1.0 - style.color[3]);
+    s->SetColor(qcol(pc.fill));
+    if (pc.fill[3] < 0.999f) s->SetTransparency(1.0 - pc.fill[3]);
     dr->SetFaceBoundaryDraw(true);
-    dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(col, Aspect_TOL_SOLID, 1.0));
+    dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(edge, pc.dashed ? Aspect_TOL_DASH : Aspect_TOL_SOLID, pc.edgeWidth));
   }
-  d_->ctx()->Display(s, mode, -1, false);
-  d_->ctx()->SetZLayer(s, style.onTop ? Graphic3d_ZLayerId_Topmost : Graphic3d_ZLayerId_Top);
+  ctx->Display(s, mode, -1, false);
+  ctx->SetZLayer(s, layer);
+  ctx->SetDisplayPriority(s, kPrioMain);
+  prev.obj = s;
   const PreviewHandle h = d_->nextPreview++;
-  d_->previews[h] = {s, style};
+  d_->previews[h] = std::move(prev);
   requestRedraw();
   return h;
 }
 
 namespace {
-Handle(PrimitivePrs) makePrimitive(PrimitivePrs::Kind kind, const std::vector<core::Vec3>& pts, const PreviewStyle& style) {
-  Handle(PrimitivePrs) p = new PrimitivePrs(kind, rgba(style), style.lineWidth, style.dashed, style.pointSize);
+Handle(PrimitivePrs) makePrimitive(PrimitivePrs::Kind kind, const std::vector<core::Vec3>& pts, const PreviewStyle& style,
+                                   const ViewerPalette& pal) {
+  const ViewerPalette::PreviewColors pc = pal.preview(style);
+  ViewerPalette::Rgba col = pc.edge;
+  if (style.role == core::ColorRole::None) col[3] = style.color[3];
+  Handle(PrimitivePrs) p = new PrimitivePrs(kind, qrgba(col), style.lineWidth, style.dashed, style.pointSize);
+  // the halo rule for accent strokes (live, cut, new body, sketch rubber band)
+  const bool halo = style.role == core::ColorRole::Live || style.role == core::ColorRole::Cut ||
+                    style.role == core::ColorRole::NewBody || style.role == core::ColorRole::SketchFree;
+  if (halo) p->setHalo(qrgba(style.role == core::ColorRole::Live ? pc.halo : pal.halo), static_cast<float>(pal.haloWidth));
   p->setPoints(toPnts(pts));
   return p;
 }
@@ -1833,33 +2102,33 @@ Handle(PrimitivePrs) makePrimitive(PrimitivePrs::Kind kind, const std::vector<co
 
 PreviewHandle ViewerWidget::showPreviewLines(const std::vector<core::Vec3>& pts, const PreviewStyle& style) {
   if (!d_->ready()) return null_.showPreviewLines(pts, style);
-  Handle(PrimitivePrs) p = makePrimitive(PrimitivePrs::Kind::Segments, pts, style);
+  Handle(PrimitivePrs) p = makePrimitive(PrimitivePrs::Kind::Segments, pts, style, palette_);
   d_->ctx()->Display(p, 0, -1, false);
   d_->ctx()->SetZLayer(p, style.onTop ? Graphic3d_ZLayerId_Topmost : Graphic3d_ZLayerId_Top);
   const PreviewHandle h = d_->nextPreview++;
-  d_->previews[h] = {p, style};
+  d_->previews[h] = {p, style, {}};
   requestRedraw();
   return h;
 }
 
 PreviewHandle ViewerWidget::showPreviewPolyline(const std::vector<core::Vec3>& pts, const PreviewStyle& style) {
   if (!d_->ready()) return null_.showPreviewPolyline(pts, style);
-  Handle(PrimitivePrs) p = makePrimitive(PrimitivePrs::Kind::Polyline, pts, style);
+  Handle(PrimitivePrs) p = makePrimitive(PrimitivePrs::Kind::Polyline, pts, style, palette_);
   d_->ctx()->Display(p, 0, -1, false);
   d_->ctx()->SetZLayer(p, style.onTop ? Graphic3d_ZLayerId_Topmost : Graphic3d_ZLayerId_Top);
   const PreviewHandle h = d_->nextPreview++;
-  d_->previews[h] = {p, style};
+  d_->previews[h] = {p, style, {}};
   requestRedraw();
   return h;
 }
 
 PreviewHandle ViewerWidget::showPreviewPoints(const std::vector<core::Vec3>& pts, const PreviewStyle& style) {
   if (!d_->ready()) return null_.showPreviewPoints(pts, style);
-  Handle(PrimitivePrs) p = makePrimitive(PrimitivePrs::Kind::Points, pts, style);
+  Handle(PrimitivePrs) p = makePrimitive(PrimitivePrs::Kind::Points, pts, style, palette_);
   d_->ctx()->Display(p, 0, -1, false);
   d_->ctx()->SetZLayer(p, style.onTop ? Graphic3d_ZLayerId_Topmost : Graphic3d_ZLayerId_Top);
   const PreviewHandle h = d_->nextPreview++;
-  d_->previews[h] = {p, style};
+  d_->previews[h] = {p, style, {}};
   requestRedraw();
   return h;
 }
@@ -1870,13 +2139,14 @@ PreviewHandle ViewerWidget::showPreviewText(const core::Vec3& at, const std::str
   t->SetText(TCollection_ExtendedString(text.c_str(), true));
   t->SetPosition(at.toPnt());
   t->SetHeight(style.textHeight);
-  t->SetColor(Quantity_Color(style.color[0], style.color[1], style.color[2], Quantity_TOC_sRGB));
+  const ViewerPalette::Rgba col = style.role == core::ColorRole::Dimension ? palette_.dimText : palette_.preview(style).edge;
+  t->SetColor(qcol(col));
   t->SetZoomable(false);
   t->SetFont(viewerFont());
   d_->ctx()->Display(t, 0, -1, false);
   d_->ctx()->SetZLayer(t, Graphic3d_ZLayerId_Topmost);
   const PreviewHandle h = d_->nextPreview++;
-  d_->previews[h] = {t, style};
+  d_->previews[h] = {t, style, {}};
   requestRedraw();
   return h;
 }
@@ -1891,6 +2161,11 @@ void ViewerWidget::updatePreviewShape(PreviewHandle h, const TopoDS_Shape& shape
   if (s.IsNull()) return;
   s->SetShape(shape);
   d_->ctx()->Redisplay(s, false);
+  for (const Handle(AIS_InteractiveObject)& e : it->second.extras)
+    if (Handle(AIS_Shape) es = Handle(AIS_Shape)::DownCast(e); !es.IsNull()) {
+      es->SetShape(shape);
+      d_->ctx()->Redisplay(es, false);
+    }
   requestRedraw();
 }
 
@@ -1918,6 +2193,7 @@ void ViewerWidget::removePreview(PreviewHandle h) {
   const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
   if (ctx->HasDetected() && ctx->DetectedInteractive() == it->second.obj) ctx->ClearDetected(false);
   ctx->Remove(it->second.obj, false);
+  for (const Handle(AIS_InteractiveObject)& e : it->second.extras) ctx->Remove(e, false);
   d_->previews.erase(it);
   requestRedraw();
 }
@@ -1929,6 +2205,7 @@ void ViewerWidget::clearPreviews() {
     for (auto& [h, p] : d_->previews) {
       if (ctx->HasDetected() && ctx->DetectedInteractive() == p.obj) ctx->ClearDetected(false);
       ctx->Remove(p.obj, false);
+      for (const Handle(AIS_InteractiveObject)& e : p.extras) ctx->Remove(e, false);
     }
   }
   d_->previews.clear();
@@ -2033,12 +2310,30 @@ void ViewerWidget::syncManipulatorPrs() {
     obj.pixelSize = ps;
     const core::ManipulatorHandle hl = manipulators_.highlightFor(id);
     std::vector<core::ManipulatorGlyph> glyphs = m->glyphs(ps, hl);
+    // token colours (5.3 drag handle): gold handles with an ink outline, axis colours for the
+    // triad, live.bright + a glow shell on the hovered / dragged handle, neutral guides
+    const core::ManipulatorKind kind = m->spec().kind;
+    for (core::ManipulatorGlyph& g : glyphs) {
+      const bool guide = (g.shape == core::ManipulatorGlyph::Shape::Segments || g.shape == core::ManipulatorGlyph::Shape::Polyline) && g.dashed;
+      g.color = palette_.manipulatorColor(kind, g.handle, hl != core::ManipulatorHandle::None && g.handle == hl, guide);
+    }
+    ManipulatorPrs::Style st;
+    st.outline = palette_.manipOutline;
+    st.glow = ViewerPalette::withAlpha(palette_.manipBright, palette_.glowAlpha);
+    st.diamond = hl == core::ManipulatorHandle::MoveZ ? palette_.manipBright : palette_.manipHandle;
+    const double px = ps / kGizmoScale;  // world size of one screen pixel at the gizmo
+    st.outlineWidth = kind == core::ManipulatorKind::Triad ? 0.0 : 1.2 * px;
+    st.glowWidth = palette_.glowWidth * px;
+    st.glowHandle = hl;
+    st.baseDiamond = kind == core::ManipulatorKind::Linear;
     if (obj.prs.IsNull()) {
       obj.prs = new ManipulatorPrs();
+      obj.prs->setStyle(st);
       obj.prs->setGlyphs(std::move(glyphs));
       ctx->Display(obj.prs, 0, -1, false);
       ctx->SetZLayer(obj.prs, Graphic3d_ZLayerId_Topmost);
     } else {
+      obj.prs->setStyle(st);
       obj.prs->setGlyphs(std::move(glyphs));
       ctx->Redisplay(obj.prs, false);
     }
@@ -2053,17 +2348,20 @@ void ViewerWidget::syncManipulatorPrs() {
     const gp_Pnt at = m->handlePoint(hl, ps).Translated(gp_Vec(upDirection()) * (14.0 * ps));
     if (obj.label.IsNull()) {
       obj.label = new AIS_TextLabel();
+      // value chip: surface.input with primary text (was a light-yellow box in both themes)
       obj.label->SetHeight(13.0);
-      obj.label->SetColor(hexq("#1A1A1A"));
+      obj.label->SetColor(qcol(palette_.labelText));
       obj.label->SetZoomable(false);
       obj.label->SetFont(viewerFont());
       obj.label->SetDisplayType(Aspect_TODT_SUBTITLE);
-      obj.label->SetColorSubTitle(hexq("#FFF4C2"));
+      obj.label->SetColorSubTitle(qcol(palette_.labelBg));
       obj.label->SetText(TCollection_ExtendedString(text.c_str(), true));
       obj.label->SetPosition(at);
       ctx->Display(obj.label, 0, -1, false);
       ctx->SetZLayer(obj.label, Graphic3d_ZLayerId_Topmost);
     } else {
+      obj.label->SetColor(qcol(palette_.labelText));
+      obj.label->SetColorSubTitle(qcol(palette_.labelBg));
       obj.label->SetText(TCollection_ExtendedString(text.c_str(), true));
       obj.label->SetPosition(at);
       ctx->Redisplay(obj.label, false);

@@ -7,6 +7,8 @@
 #include <QEvent>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QStyle>
+#include <QVBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -17,14 +19,17 @@
 namespace fabricad::sketch {
 
 namespace {
-constexpr const char* kFrameStyle =
-    "QFrame#fcValueBox { background: rgba(255,255,255,235); border: 1px solid %1; border-radius: 3px; }"
-    "QLabel { color: #6B7079; font-size: 8pt; border: none; background: transparent; }"
-    "QLineEdit { border: none; background: transparent; color: %2; font-size: 9pt; min-width: 64px; }";
-constexpr const char* kAccent = "#0696D7";
-constexpr const char* kIdle = "#B9BEC6";
-constexpr const char* kError = "#D93025";
-constexpr const char* kLocked = "#2B2E33";
+/// Re-apply the theme QSS after a dynamic property changed.
+void repolish(QWidget* w) {
+  if (!w) return;
+  w->style()->unpolish(w);
+  w->style()->polish(w);
+  for (QWidget* c : w->findChildren<QWidget*>()) {
+    c->style()->unpolish(c);
+    c->style()->polish(c);
+  }
+  w->update();
+}
 }  // namespace
 
 ValueInputOverlay::ValueInputOverlay(ValueInputModel& model, core::IViewerContext* viewer, QWidget* parent)
@@ -64,20 +69,33 @@ void ValueInputOverlay::ensureBoxes() {
   while (static_cast<int>(boxes_.size()) < n) {
     Box b;
     b.fieldIndex = static_cast<int>(boxes_.size());
+    // value box (docs/plans/ui-redesign.md 5.3): a caption tag above the value field, styled by
+    // the theme QSS through objectNames and the dynamic properties state (idle | active |
+    // error) and locked; no inline colours
     auto* frame = new QFrame(parent_);
     frame->setObjectName("fcValueBox");
     frame->setAttribute(Qt::WA_StyledBackground, true);
     frame->setFocusPolicy(Qt::NoFocus);
-    auto* lay = new QHBoxLayout(frame);
-    lay->setContentsMargins(6, 2, 6, 2);
-    lay->setSpacing(4);
+    frame->setProperty("state", "idle");
+    frame->setProperty("locked", false);
+    auto* col = new QVBoxLayout(frame);
+    col->setContentsMargins(0, 0, 0, 0);
+    col->setSpacing(0);
     b.label = new QLabel(frame);
-    b.edit = new QLineEdit(frame);
+    b.label->setObjectName("fcValueTag");
+    col->addWidget(b.label, 0, Qt::AlignLeft);
+    auto* field = new QFrame(frame);
+    field->setObjectName("fcValueField");
+    field->setAttribute(Qt::WA_StyledBackground, true);
+    col->addWidget(field);
+    auto* lay = new QHBoxLayout(field);
+    lay->setContentsMargins(6, 3, 6, 3);
+    lay->setSpacing(4);
+    b.edit = new QLineEdit(field);
     b.edit->setFocusPolicy(Qt::ClickFocus);
     b.edit->setFrame(false);
-    b.lock = new QLabel(QString::fromUtf8("\xF0\x9F\x94\x92"), frame);  // lock mark
+    b.lock = new QLabel(QString::fromUtf8("\xF0\x9F\x94\x92"), field);  // lock mark
     b.lock->hide();
-    lay->addWidget(b.label);
     lay->addWidget(b.edit);
     lay->addWidget(b.lock);
     b.frame = frame;
@@ -96,9 +114,12 @@ void ValueInputOverlay::ensureBoxes() {
 
 void ValueInputOverlay::applyStyle(Box& b, const ValueField& f, bool active) {
   if (!b.frame) return;
-  const char* border = !f.valid ? kError : (active ? kAccent : kIdle);
-  QString text = QString::fromLatin1(kFrameStyle).arg(border).arg(f.locked ? kLocked : "#2B2E33");
-  b.frame->setStyleSheet(text);
+  const char* state = !f.valid ? "error" : (active ? "active" : "idle");
+  if (b.frame->property("state").toString() != QLatin1String(state) || b.frame->property("locked").toBool() != f.locked) {
+    b.frame->setProperty("state", state);
+    b.frame->setProperty("locked", f.locked);
+    repolish(b.frame);
+  }
   b.lock->setVisible(f.locked);
   b.edit->setToolTip(f.valid ? QString() : QString::fromStdString(f.error));
 }
@@ -110,7 +131,8 @@ void ValueInputOverlay::sync() {
   for (Box& b : boxes_) {
     if (b.fieldIndex >= model_.fieldCount() || !b.frame) continue;
     const ValueField& f = model_.field(b.fieldIndex);
-    b.label->setText(QString::fromStdString(f.label));
+    b.label->setText(QString::fromStdString(f.label).toUpper());
+    b.label->setVisible(!f.label.empty());
     QString t = QString::fromStdString(model_.displayText(b.fieldIndex));
     if (b.edit->text() != t) {
       b.edit->setText(t);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "viewer/SceneModel.h"
 
+#include "core/Body.h"
 #include "core/Document.h"
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
@@ -14,6 +15,7 @@
 #include <TopoDS.hxx>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 
 namespace fabricad::viewer {
@@ -73,6 +75,7 @@ const char* sceneStyleName(SceneStyle s) {
     case SceneStyle::OriginPlane: return "origin-plane";
     case SceneStyle::OriginAxis: return "origin-axis";
     case SceneStyle::OriginPoint: return "origin-point";
+    case SceneStyle::ProfileShade: return "profile-shade";
   }
   return "?";
 }
@@ -91,29 +94,34 @@ std::optional<SceneStyle> sketchStyleFromDisplayKey(const std::string& key) {
   return std::nullopt;
 }
 
-std::array<float, 4> styleColor(SceneStyle s) {
-  auto c = [](unsigned rgb, float a = 1.0f) -> std::array<float, 4> {
-    return {((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, a};
-  };
+std::array<float, 4> styleColor(SceneStyle s, const ViewerPalette& p) {
   switch (s) {
-    case SceneStyle::Body: return c(0xB9BDC3);
-    case SceneStyle::SketchFree: return c(0x1E6FD9);
-    case SceneStyle::SketchDefined: return c(0x000000);
-    case SceneStyle::SketchConstruction: return c(0xE58A00);
-    case SceneStyle::SketchFixed: return c(0x2E9E2E);
-    case SceneStyle::SketchProjected: return c(0x9B30D9);
-    case SceneStyle::SketchConflict: return c(0xE02020);
-    case SceneStyle::SketchPoints: return c(0x1E6FD9);
-    case SceneStyle::Profile: return c(0xFFC98A, 0.4f);
-    case SceneStyle::ConstructionPlane: return c(0xF5A623, 0.25f);
-    case SceneStyle::ConstructionAxis: return c(0xF5A623);
-    case SceneStyle::ConstructionPoint: return c(0xF5A623);
-    case SceneStyle::Joint: return c(0x202020);
-    case SceneStyle::OriginPlane: return c(0xF5A623, 0.18f);
-    case SceneStyle::OriginAxis: return c(0x6B7079);
-    case SceneStyle::OriginPoint: return c(0xD93025);
+    case SceneStyle::Body: return p.bodyDefault;
+    case SceneStyle::SketchFree: return p.skFree;
+    case SceneStyle::SketchDefined: return p.skConstrained;
+    case SceneStyle::SketchConstruction: return p.skConstruction;
+    case SceneStyle::SketchFixed: return p.skFixed;
+    case SceneStyle::SketchProjected: return p.skProjected;
+    case SceneStyle::SketchConflict: return p.skConflict;
+    case SceneStyle::SketchPoints: return p.skFree;
+    case SceneStyle::Profile: return p.profilePick;
+    case SceneStyle::ProfileShade: return p.profileFill;
+    case SceneStyle::ConstructionPlane: return p.constructionFill;
+    case SceneStyle::ConstructionAxis: return p.construction;
+    case SceneStyle::ConstructionPoint: return p.construction;
+    case SceneStyle::Joint: return p.joint;
+    case SceneStyle::OriginPlane: return p.originFill;
+    case SceneStyle::OriginAxis: return p.originEdge;
+    case SceneStyle::OriginPoint: return p.originPoint;
   }
-  return c(0x808080);
+  return p.wire;
+}
+
+std::array<float, 4> bodyColor(const std::array<float, 4>& c, const ViewerPalette& pal) {
+  static const std::array<float, 4> kDocDefault = core::Body().color;
+  for (int i = 0; i < 4; ++i)
+    if (std::abs(c[static_cast<size_t>(i)] - kDocDefault[static_cast<size_t>(i)]) > 1e-4f) return c;
+  return pal.bodyDefault;
 }
 
 std::vector<int> probeCurveIds(const core::IProfileSource& src, int maxId, int maxGap) {
@@ -159,7 +167,7 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
     it.ref = ShapeRef::body(id);
     it.shape = doc.bodyShape(id);
     it.placement = doc.worldPlacement(b->component);
-    it.color = b->color;
+    it.color = bodyColor(b->color, opt.palette);
     it.ghosted = !isComponentActive(opt, b->component);
     it.geomHash = hashOf(it.shape, it.style);
     items.push_back(std::move(it));
@@ -182,7 +190,7 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
       it.ref = ShapeRef::component(c->id);
       it.shape = doc.bodyShape(bid);
       it.placement = doc.worldPlacement(c->id);
-      it.color = b->color;
+      it.color = bodyColor(b->color, opt.palette);
       it.ghosted = !isComponentActive(opt, c->id);
       it.geomHash = hashOf(it.shape, it.style);
       items.push_back(std::move(it));
@@ -208,7 +216,7 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
         it.style = *st;
         it.ref = ShapeRef::sketch(f.id());
         it.shape = shape;
-        it.color = styleColor(*st);
+        it.color = styleColor(*st, opt.palette);
         it.geomHash = hashOf(shape, *st);
         items.push_back(std::move(it));
       }
@@ -218,7 +226,7 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
         it.style = SceneStyle::SketchFree;
         it.ref = ShapeRef::sketch(f.id());
         it.shape = f.outputShape();
-        it.color = styleColor(it.style);
+        it.color = styleColor(it.style, opt.palette);
         it.geomHash = hashOf(it.shape, it.style);
         items.push_back(std::move(it));
       }
@@ -248,13 +256,15 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
                                                         : SceneStyle::ConstructionPlane;
       it.ref = ShapeRef::feature(f.id(), kind);
     }
-    it.color = styleColor(it.style);
+    it.color = styleColor(it.style, opt.palette);
     it.geomHash = hashOf(it.shape, it.style);
     items.push_back(std::move(it));
   }
 
-  // --- profiles (only while a tool picks them) -----------------------------------------
-  if (opt.showProfiles) {
+  // --- profiles: pickable while a tool picks them, else a light tint of the closed regions of
+  // visible, finished sketches (SK-12: Fusion shades them after Finish Sketch) ----------------
+  if (opt.showProfiles || opt.shadeProfiles) {
+    const SceneStyle profileStyle = opt.showProfiles ? SceneStyle::Profile : SceneStyle::ProfileShade;
     for (ObjectId sid : liveSketches) {
       const Feature* f = doc.feature(sid);
       const core::IProfileSource* src = f ? f->profileSource() : nullptr;
@@ -274,12 +284,15 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
           it.style = SceneStyle::Profile;
           it.ref = p.ref;
           it.shape = face;
-          it.color = styleColor(SceneStyle::Profile);
           it.geomHash = hashOf(face, it.style);
           pc.items.push_back(std::move(it));
         }
       }
-      items.insert(items.end(), pc.items.begin(), pc.items.end());
+      for (SceneItem it : pc.items) {
+        it.style = profileStyle;
+        it.color = styleColor(profileStyle, opt.palette);
+        items.push_back(std::move(it));
+      }
     }
   }
   for (auto it = profiles_.begin(); it != profiles_.end();)
@@ -298,7 +311,7 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
       gp_Pnt c = ax.Location().Translated(gp_Vec(ax.XDirection()) * h + gp_Vec(ax.YDirection()) * h);
       gp_Ax3 shifted(c, ax.Direction(), ax.XDirection());
       it.shape = core::planeFace(shifted, h * 0.9);
-      it.color = styleColor(it.style);
+      it.color = styleColor(it.style, opt.palette);
       it.geomHash = combine(hashOf(it.shape, it.style), static_cast<std::size_t>(h * 1000));
       items.push_back(std::move(it));
     }
@@ -311,8 +324,8 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
       it.style = SceneStyle::OriginAxis;
       it.ref = ShapeRef::originAxis(name);
       it.shape = BRepBuilderAPI_MakeEdge(ax.Location(), ax.Location().Translated(gp_Vec(ax.Direction()) * opt.originSize * 2.2)).Edge();
-      auto col = std::string(name) == "X" ? 0xD93025u : std::string(name) == "Y" ? 0x2E9E2Eu : 0x1E6FD9u;
-      it.color = {((col >> 16) & 0xFF) / 255.0f, ((col >> 8) & 0xFF) / 255.0f, (col & 0xFF) / 255.0f, 1.0f};
+      const int axisIndex = name[0] - 'X';
+      it.color = ViewerPalette::withAlpha(opt.palette.axis[static_cast<size_t>(axisIndex)], opt.palette.originAxisAlpha);
       it.geomHash = combine(static_cast<std::size_t>(it.style), static_cast<std::size_t>(opt.originSize * 1000) + name[0]);
       items.push_back(std::move(it));
     }
@@ -321,7 +334,7 @@ std::vector<SceneItem> SceneModel::collect(const Document& doc, const SceneOptio
     it.style = SceneStyle::OriginPoint;
     it.ref = ShapeRef::originPoint();
     it.shape = BRepBuilderAPI_MakeVertex(gp_Pnt(0, 0, 0)).Vertex();
-    it.color = styleColor(it.style);
+    it.color = styleColor(it.style, opt.palette);
     it.geomHash = static_cast<std::size_t>(it.style) * 7919u;
     items.push_back(std::move(it));
   }

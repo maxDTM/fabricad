@@ -134,6 +134,92 @@ ViewOrientation standardViewOrientation(core::StandardView view) {
 
 ViewOrientation planeViewOrientation(const gp_Ax3& plane) { return {plane.Direction(), plane.YDirection()}; }
 
+// ---- orientation dial ----------------------------------------------------------------------
+
+namespace {
+constexpr double kDeg = M_PI / 180.0;
+}
+
+AzEl azimuthElevation(const gp_Dir& toEye) {
+  AzEl r;
+  r.el = std::asin(std::clamp(toEye.Z(), -1.0, 1.0)) / kDeg;
+  const double h = std::hypot(toEye.X(), toEye.Y());
+  if (h > 1e-9) {
+    r.az = std::atan2(toEye.Y(), toEye.X()) / kDeg;
+    if (r.az < 0) r.az += 360.0;
+    if (r.az >= 360.0 - 1e-9) r.az = 0.0;
+  }
+  return r;
+}
+
+ViewOrientation azElOrientation(double azDeg, double elDeg) {
+  elDeg = std::clamp(elDeg, -90.0, 90.0);
+  const double a = azDeg * kDeg, e = elDeg * kDeg;
+  const gp_Dir toEye(std::cos(e) * std::cos(a), std::cos(e) * std::sin(a), std::sin(e));
+  gp_Vec up(0, 0, 1);
+  up -= gp_Vec(toEye) * up.Dot(gp_Vec(toEye));
+  if (up.Magnitude() < 1e-6) {
+    // straight down (up): up points away from the azimuth direction (toward it from below)
+    const double s = elDeg > 0 ? -1.0 : 1.0;
+    up = gp_Vec(s * std::cos(a), s * std::sin(a), 0.0);
+  }
+  return {toEye, gp_Dir(up)};
+}
+
+void projectAxis(const gp_Dir& axis, const gp_Dir& toEye, const gp_Dir& up, double& x, double& y, double* depth) {
+  // camera basis: right = up x toEye (view direction is -toEye)
+  const gp_Vec right = gp_Vec(up).Crossed(gp_Vec(toEye));
+  x = gp_Vec(axis).Dot(right);
+  y = gp_Vec(axis).Dot(gp_Vec(up));
+  if (depth) *depth = gp_Vec(axis).Dot(gp_Vec(toEye));
+}
+
+core::StandardView axisView(int axis, bool positive) {
+  using V = core::StandardView;
+  switch (axis) {
+    case 0: return positive ? V::Right : V::Left;
+    case 1: return positive ? V::Back : V::Front;
+    default: return positive ? V::Top : V::Bottom;
+  }
+}
+
+std::optional<core::StandardView> currentStandardView(const gp_Dir& toEye, const gp_Dir& up, double tolDeg) {
+  using V = core::StandardView;
+  for (V v : {V::Iso, V::Top, V::Front, V::Right, V::Back, V::Left, V::Bottom}) {
+    const ViewOrientation o = standardViewOrientation(v);
+    if (toEye.Angle(o.toEye) <= tolDeg * kDeg && up.Angle(o.up) <= tolDeg * kDeg) return v;
+  }
+  return std::nullopt;
+}
+
+gp_Dir isoCornerNear(double screenAngleDeg, const gp_Dir& toEye, const gp_Dir& up) {
+  const double want = screenAngleDeg * kDeg;
+  gp_Dir best(1, -1, 1);
+  double bestD = 1e9;
+  for (int i = 0; i < 8; ++i) {
+    const gp_Dir c((i & 1) ? 1 : -1, (i & 2) ? 1 : -1, (i & 4) ? 1 : -1);
+    double x = 0, y = 0, depth = 0;
+    projectAxis(c, toEye, up, x, y, &depth);
+    if (std::hypot(x, y) < 1e-6) continue;  // a corner straight at (or away from) the eye
+    double d = std::abs(std::remainder(std::atan2(y, x) - want, 2 * M_PI));
+    d -= depth * 1e-3;  // ties (a corner straight at the eye): prefer the nearer corner
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+double scaleBarLength(double unitsPerPixel, double maxPixels) {
+  if (!(unitsPerPixel > 0) || !(maxPixels > 0) || !std::isfinite(unitsPerPixel)) return 0.0;
+  const double maxLen = unitsPerPixel * maxPixels;
+  double p = std::pow(10.0, std::floor(std::log10(maxLen)));
+  for (double m : {5.0, 2.0, 1.0})
+    if (m * p <= maxLen * (1 + 1e-9)) return m * p;
+  return p / 2.0;
+}
+
 ShapeKindMask priorityMask(SelectionPriority p) {
   const ShapeKindMask nonBrep = core::kAllKinds & ~core::kBrepKinds;
   switch (p) {
@@ -143,6 +229,7 @@ ShapeKindMask priorityMask(SelectionPriority p) {
     case SelectionPriority::Edge: return nonBrep | ShapeKind::Edge;
     case SelectionPriority::Vertex: return nonBrep | ShapeKind::Vertex;
     case SelectionPriority::Component: return nonBrep | ShapeKind::Body;
+    case SelectionPriority::Sketch: return nonBrep;
   }
   return core::kAllKinds;
 }

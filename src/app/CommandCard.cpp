@@ -614,10 +614,8 @@ void CommandCard::buildLayout(OverlayLayout& l, const QSize& size, Placement p) 
   o.free = free_;
   o.cardBleed = kBleed;
   l.setOptions(o);
-  if (auto* v = qobject_cast<const viewer::ViewerWidget*>(viewport_)) {
-    const QRect cube = v->viewCubeRect();
-    if (!cube.isEmpty()) l.add({OverlayLayout::Slot::Orientation, {}, cube});
-  }
+  // the viewer's own overlays (orientation widget, breadcrumb + filter row, readout, scale bar)
+  if (auto* v = qobject_cast<const viewer::ViewerWidget*>(viewport_)) v->addOverlayRegions(l);
   if (regions_) regions_(l);
   if (p != Placement::Sidebar && !size.isEmpty()) l.add({OverlayLayout::Slot::Card, size});
   l.compute();

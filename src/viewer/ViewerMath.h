@@ -14,6 +14,7 @@
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,34 @@ ViewOrientation planeViewOrientation(const gp_Ax3& plane);
 /// `tolDeg`). The ViewCube shows its face-step arrows only then.
 bool isFaceOnView(const gp_Dir& viewDir, const gp_Dir& up, double tolDeg = 1.0);
 
+// --- orientation dial (docs/plans/ui-redesign.md 7.2) -------------------------------------
+/// Azimuth and elevation of a view, in degrees. Z is up; azimuth is measured from +X toward +Y
+/// (0..360), elevation from the XY plane (-90..90). `toEye` points from the scene to the eye.
+struct AzEl {
+  double az = 0.0;
+  double el = 0.0;
+};
+AzEl azimuthElevation(const gp_Dir& toEye);
+/// The view for an azimuth / elevation: eye direction and an up vector (Z projected; looking
+/// straight down or up, up points away from the azimuth, so TOP from the front keeps +Y up).
+ViewOrientation azElOrientation(double azDeg, double elDeg);
+/// Screen position (x right, y up; unit length = the axis seen face-on) of a world direction
+/// for a camera looking along -toEye with `up`. Returns the depth toward the eye in `depth`.
+void projectAxis(const gp_Dir& axis, const gp_Dir& toEye, const gp_Dir& up, double& x, double& y, double* depth = nullptr);
+/// The standard view looking along a world axis from its positive (`positive`) or negative
+/// side: +X Right, -X Left, +Y Back, -Y Front, +Z Top, -Z Bottom.
+core::StandardView axisView(int axis, bool positive);
+/// The standard view the camera shows now (within `tolDeg`), if any. Iso counts as the
+/// front-right-top iso of standardViewOrientation().
+std::optional<core::StandardView> currentStandardView(const gp_Dir& toEye, const gp_Dir& up, double tolDeg = 1.0);
+/// The iso corner (+-1, +-1, +-1) whose screen direction is nearest the screen angle
+/// `screenAngleDeg` (0 = right, counter-clockwise; the nearer corner wins a tie): a click on a
+/// hex vertex of the dial.
+gp_Dir isoCornerNear(double screenAngleDeg, const gp_Dir& toEye, const gp_Dir& up);
+/// Scale bar: the largest 1-2-5 x 10^n length (in display units) that fits in `maxPixels` at
+/// `unitsPerPixel`. 0 when the input is not usable.
+double scaleBarLength(double unitsPerPixel, double maxPixels);
+
 // --- fit ---------------------------------------------------------------------------------
 /// Adjust a camera fitted to the whole widget so the fitted content fills only the part not
 /// covered by overlays: `insetTop`/`insetBottom` pixels of a `height`-pixel view. The scale
@@ -64,7 +93,7 @@ double originPlaneHalfSize(double diagonal);
 
 // --- selection -------------------------------------------------------------------------
 /// User "selection priority" from the SELECT menu (combined with the tool filter).
-enum class SelectionPriority { Default, Body, Face, Edge, Vertex, Component };
+enum class SelectionPriority { Default, Body, Face, Edge, Vertex, Component, Sketch };  ///< Sketch: profiles and curves only
 /// Kinds allowed by a priority (Default = all).
 core::ShapeKindMask priorityMask(SelectionPriority p);
 /// B-rep selection modes to activate on body presentations for an effective filter.

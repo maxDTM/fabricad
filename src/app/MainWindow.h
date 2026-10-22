@@ -268,6 +268,10 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost {
   void updateCardDockAvailability();
   /// Live row of the FEATURES list: the feature being edited or the command creating one.
   void updateLiveRow();
+  /// Viewport breadcrumb: document > component and the live chip (phase 4).
+  void updateBreadcrumb();
+  /// ui/orientation (hex dial or ViewCube) on a tab's viewer.
+  void applyViewportSettings(DocumentTab* tab);
   void ensureTimelineHeight();
   void applyResponsiveChrome();
   void buildFileMenu(QMenu* menu);

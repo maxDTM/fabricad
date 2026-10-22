@@ -378,9 +378,11 @@ class TestMainWindow : public QObject {
     QVERIFY(d->isVisible());
     QVERIFY(d->parentWidget());
     // docked to the viewport's right edge (ux.md; SK-05), below the ViewCube when there is room
-    QVERIFY(d->x() > d->parentWidget()->width() / 2 || d->parentWidget()->width() < 2 * d->width());
+    // (phase 4: left of the orientation dial and the view-tool column, as in the v6 mockup)
+    QVERIFY(d->geometry().center().x() > d->parentWidget()->width() / 2 || d->parentWidget()->width() < 2 * d->width());
     QVERIFY(d->geometry().right() <= d->parentWidget()->width());
-    QVERIFY(d->parentWidget()->width() - 1 - d->geometry().right() <= 16);
+    if (auto* v = qobject_cast<viewer::ViewerWidget*>(d->parentWidget()))
+      QVERIFY(!d->geometry().adjusted(8, 8, -8, -8).intersects(v->orientationRect()));
     const int h0 = d->height();
     d->setMessage("A long prompt that certainly wraps onto more than one line in the fixed-width command dialog");
     const int h1 = d->height();

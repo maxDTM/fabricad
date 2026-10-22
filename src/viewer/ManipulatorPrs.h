@@ -10,6 +10,7 @@
 
 #include <AIS_InteractiveObject.hxx>
 
+#include <array>
 #include <vector>
 
 namespace fabricad::viewer {
@@ -20,6 +21,20 @@ class ManipulatorPrs : public AIS_InteractiveObject {
   ManipulatorPrs();
 
   void setGlyphs(std::vector<core::ManipulatorGlyph> glyphs) { myGlyphs = std::move(glyphs); }
+
+  /// Two-tone look (docs/plans/ui-redesign.md 5.3 drag handle): a dark ink outline around the
+  /// shaded handles (an inverted hull `outlineWidth` world units thick), a faint glow shell around
+  /// the hovered / dragged handle, and a diamond at the base of a distance arrow.
+  struct Style {
+    std::array<float, 4> outline{};
+    std::array<float, 4> glow{};
+    std::array<float, 4> diamond{};
+    double outlineWidth = 0.0;  ///< world units (about 1 px)
+    double glowWidth = 0.0;     ///< world units (about 6 px)
+    core::ManipulatorHandle glowHandle = core::ManipulatorHandle::None;
+    bool baseDiamond = false;
+  };
+  void setStyle(const Style& s) { myStyle = s; }
   const std::vector<core::ManipulatorGlyph>& glyphs() const { return myGlyphs; }
 
   bool AcceptDisplayMode(const Standard_Integer theMode) const override { return theMode == 0; }
@@ -31,6 +46,7 @@ class ManipulatorPrs : public AIS_InteractiveObject {
 
  private:
   std::vector<core::ManipulatorGlyph> myGlyphs;
+  Style myStyle;
 };
 
 }  // namespace fabricad::viewer

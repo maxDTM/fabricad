@@ -21,6 +21,12 @@ class PrimitivePrs : public AIS_InteractiveObject {
   PrimitivePrs(Kind kind, const Quantity_ColorRGBA& color, float width, bool dashed, float pointSize);
 
   void setPoints(std::vector<gp_Pnt> pts) { myPoints = std::move(pts); }
+  /// Halo rule (docs/plans/ui-redesign.md 4.5): draw lines over a wider stroke in `color` first
+  /// (`extra` px on each side). No halo when `extra` <= 0.
+  void setHalo(const Quantity_ColorRGBA& color, float extra) {
+    myHaloColor = color;
+    myHaloExtra = extra;
+  }
   const std::vector<gp_Pnt>& points() const { return myPoints; }
   Kind kind() const { return myKind; }
 
@@ -38,6 +44,8 @@ class PrimitivePrs : public AIS_InteractiveObject {
   bool myDashed;
   float myPointSize;
   std::vector<gp_Pnt> myPoints;
+  Quantity_ColorRGBA myHaloColor;
+  float myHaloExtra = 0.0f;
 };
 
 }  // namespace fabricad::viewer

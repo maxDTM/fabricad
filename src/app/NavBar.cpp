@@ -8,7 +8,7 @@
 
 #include <QActionGroup>
 #include <QEvent>
-#include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QMenu>
 #include <QSettings>
 #include <QToolButton>
@@ -20,11 +20,12 @@ using viewer::NavPreset;
 
 NavBar::NavBar(viewer::ViewerWidget& viewer, core::ToolManager& manager)
     : QFrame(viewer.overlayParent()), viewer_(viewer), manager_(manager) {
-  setObjectName("NavBar");
+  setObjectName("NavBar");  // kept for tests and the tutorial; the widget is the view-tool column
+  setProperty("overlay", "ViewToolColumn");
   setAttribute(Qt::WA_StyledBackground);
-  auto* h = new QHBoxLayout(this);
-  h->setContentsMargins(4, 2, 4, 2);
-  h->setSpacing(1);
+  auto* h = new QVBoxLayout(this);
+  h->setContentsMargins(2, 2, 2, 2);
+  h->setSpacing(4);
   orbit_ = button("orbit", "Orbit (Shift + middle mouse)");
   pan_ = button("pan", "Pan (middle mouse)");
   zoom_ = button("zoom", "Zoom (mouse wheel)");
@@ -43,17 +44,17 @@ NavBar::NavBar(viewer::ViewerWidget& viewer, core::ToolManager& manager)
   mode(orbit_, NavAction::Orbit);
   mode(pan_, NavAction::Pan);
   mode(zoom_, NavAction::Zoom);
-  h->addWidget(orbit_);
-  h->addWidget(pan_);
-  h->addWidget(zoom_);
   QToolButton* fit = button("fit", "Fit (F6)");
   connect(fit, &QToolButton::clicked, this, [this] { viewer_.fitAll(true); });
   h->addWidget(fit);
+  h->addWidget(orbit_);
+  h->addWidget(pan_);
+  h->addWidget(zoom_);
   QToolButton* look = button("look-at", "Look At selected face/plane (Ctrl+8)");
   connect(look, &QToolButton::clicked, this, [this] { runTool("view.look-at"); });
   h->addWidget(look);
   auto* sep = new QFrame(this);
-  sep->setFrameShape(QFrame::VLine);
+  sep->setFrameShape(QFrame::HLine);
   sep->setObjectName("NavBarSeparator");  // coloured by the theme QSS
   h->addWidget(sep);
   auto menuButton = [&](const char* icon, const QString& tip, QMenu* menu) {
@@ -81,6 +82,7 @@ QToolButton* NavBar::button(const char* icon, const QString& tip) {
   auto* b = new QToolButton(this);
   b->setIcon(resourceIcon(icon));
   b->setIconSize(QSize(18, 18));
+  b->setFixedSize(32, 32);
   b->setToolTip(tip);
   b->setAutoRaise(true);
   b->setFocusPolicy(Qt::NoFocus);
@@ -226,10 +228,14 @@ void NavBar::refresh() {
 }
 
 void NavBar::reposition() {
+  // the view-tool column (5.3): right edge, below the orientation widget (OverlayLayout slot 2)
   QWidget* p = parentWidget();
   if (!p) return;
   adjustSize();
-  move((p->width() - width()) / 2, p->height() - height() - 8);
+  constexpr int kMargin = 16, kGap = 8;
+  const QRect orient = viewer_.orientationRect();
+  const int top = orient.isEmpty() ? kMargin : orient.bottom() + 1 + kGap;
+  move(p->width() - kMargin - width(), top);
   raise();
 }
 

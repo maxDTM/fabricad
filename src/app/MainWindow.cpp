@@ -44,6 +44,7 @@
 #include "sketch/SketchSession.h"
 #include "viewer/OverlayHost.h"
 #include "viewer/ViewerWidget.h"
+#include "viewer/ViewportOverlays.h"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -191,9 +192,11 @@ void MainWindow::applyUiSetting(const QString& key) {
   } else if (key == "ui/cardPlacement" || key == "ui/cardFreePos") {
     for (const auto& t : tabs_)
       if (t->dialog()) applyCardSettings(t->dialog());
+  } else if (key == "ui/orientation") {
+    for (const auto& t : tabs_) applyViewportSettings(t.get());
+    layoutOverlays();
   }
-  // ui/toolbarArea, quickToolbar, orientation are stored now and applied by phase 4 (the
-  // toolbar stays at the top)
+  // ui/toolbarArea and quickToolbar are stored; the toolbar stays at the top for now
 }
 
 void MainWindow::applySidebarSide() {
@@ -248,6 +251,42 @@ void MainWindow::updateLiveRow() {
   }
   featureList_->setLiveFeature(live);
   featureList_->setPendingLive(pending);
+  updateBreadcrumb();
+}
+
+void MainWindow::applyViewportSettings(DocumentTab* tab) {
+  if (!tab || !tab->viewer()) return;
+  const bool cube = UiSettings::instance().string("ui/orientation") == "viewCube";
+  tab->viewer()->setOrientationWidget(cube ? viewer::OrientationWidget::ViewCube : viewer::OrientationWidget::HexDial);
+  if (NavBar* nb = tab->navBar()) nb->reposition();
+}
+
+void MainWindow::updateBreadcrumb() {
+  // viewport breadcrumb (5.3): document > active component, then the gold chip of the live
+  // operation: EDITING <feature> while a feature or sketch is edited, else the command name
+  if (!viewer_ || !document_) return;
+  viewer::Breadcrumb* bc = viewer_->breadcrumb();
+  if (!bc) return;
+  QStringList crumbs{core::qs(document_->name())};
+  if (const core::Component* c = document_->component(document_->activeComponent()); c && !c->isRoot())
+    crumbs << core::qs(c->name);
+  else if (const auto bodies = document_->liveBodies(true); bodies.size() == 1)
+    if (const core::Body* b = document_->body(bodies.front())) crumbs << core::qs(b->name);
+  bc->setCrumbs(crumbs);
+  QString caption, name;
+  if (manager_ && manager_->isActive() && !isIdleTool()) {
+    core::ObjectId live = editingFeature_;
+    if (sketch::SketchSession* s = sketch::SketchSession::current(); live == core::kInvalidId && s && s->manager() == manager_)
+      live = s->sketchId();
+    if (const core::Feature* f = live != core::kInvalidId ? document_->feature(live) : nullptr) {
+      caption = "EDITING";
+      name = core::qs(f->name());
+    } else if (const core::ITool* t = manager_->activeTool(); t && !t->info().hidden) {
+      caption = core::qs(t->info().name);
+    }
+  }
+  bc->setLiveChip(caption, name);
+  viewer_->layoutOverlayWidgets();
 }
 
 void MainWindow::applyCardSettings(CommandCard* card) {
@@ -1230,9 +1269,10 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     dlg->setSlotAllowed(false);  // only the active design tab docks (syncActivePointers)
     dlg->setSlotHost(cardSlotHost_);
     dlg->setOverlayRegions([tab](viewer::OverlayLayout& l) {
+      // the view-tool column (right edge, below the orientation widget)
       if (NavBar* nb = tab->navBar(); nb && nb->isVisible()) {
         viewer::OverlayLayout::Item it;
-        it.slot = viewer::OverlayLayout::Slot::NavBar;
+        it.slot = viewer::OverlayLayout::Slot::ViewTools;
         it.fixed = nb->geometry();
         l.add(it);
       }
@@ -1256,9 +1296,17 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
   });
   connect(d, &core::Document::nameChanged, this, [this, tab, tabText] {
     tabText();
-    if (tab == active_) updateTitle();
+    if (tab == active_) {
+      updateTitle();
+      updateBreadcrumb();
+    }
   });
-  connect(d, &core::Document::unitsChanged, this, whenActive([this] { updateTitle(); }));
+  connect(d, &core::Document::unitsChanged, this, whenActive([this] {
+            updateTitle();
+            if (viewer_) viewer_->update();  // readout and scale bar units
+            if (viewer_ && viewer_->scaleBar()) viewer_->scaleBar()->refresh();
+          }));
+  connect(d, &core::Document::activeComponentChanged, this, whenActive([this](core::ObjectId) { updateBreadcrumb(); }));
   connect(d, &core::Document::recomputeStarted, this, whenActive([this] {
             if (recomputeStartMs_ < 0) recomputeStartMs_ = QDateTime::currentMSecsSinceEpoch();
           }));
@@ -1394,6 +1442,15 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
               else showMarkingMenu(press);
             });
     connect(viewer, &viewer::ViewerWidget::viewCubeMenuRequested, this, &MainWindow::viewCubeMenu);
+    // phase 4 overlays: the card, palette and view-tool column follow the viewer's overlays
+    connect(viewer, &viewer::ViewerWidget::overlayGeometryChanged, this, [this, tab] {
+      if (NavBar* nb = tab->navBar()) nb->reposition();
+      if (tab == active_) {
+        if (dialog_ && dialog_->isVisible() && !dialog_->isDocked()) dialog_->reposition();
+        layoutOverlays();
+      }
+    });
+    applyViewportSettings(tab);
     connect(viewer, &viewer::ViewerWidget::entityDoubleClicked, this, [this](const ShapeRef& r) {
       if (core::hasKind(core::ShapeKind::SketchCurve | core::ShapeKind::SketchPoint | core::ShapeKind::Profile |
                             core::ShapeKind::Sketch,
@@ -1489,8 +1546,8 @@ void MainWindow::layoutOverlays() {
     it.fixed = r;
     l.add(it);
   };
-  if (const QRect cube = viewer_->viewCubeRect(); !cube.isEmpty()) fixed(OverlayLayout::Slot::Orientation, cube);
-  if (navBar_ && navBar_->isVisible()) fixed(OverlayLayout::Slot::NavBar, navBar_->geometry());
+  viewer_->addOverlayRegions(l);  // orientation widget, breadcrumb + filter row, readout, scale bar
+  if (navBar_ && navBar_->isVisible()) fixed(OverlayLayout::Slot::ViewTools, navBar_->geometry());
   const bool cardFloats = dialog_ && dialog_->isVisible() && !dialog_->isDocked() && dialog_->parentWidget() == viewer_;
   if (cardFloats) fixed(OverlayLayout::Slot::Card, dialog_->geometry());
   if (palette_ && palette_->isVisible()) {
@@ -1511,9 +1568,7 @@ void MainWindow::layoutOverlays() {
     }
   }
   // Fit / Home keep the model clear of the overlays (the viewer uses top and bottom today)
-  QMargins m = l.insets();
-  m.setBottom(std::max(m.bottom(), 56));
-  viewer_->setViewportInsets(m);
+  viewer_->setViewportInsets(l.insets());
   viewer::OverlayHost::of(viewer_)->publish(l);
 }
 

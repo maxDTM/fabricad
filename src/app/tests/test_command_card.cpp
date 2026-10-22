@@ -185,7 +185,15 @@ class TestCommandCard : public QObject {
     QCOMPARE(c->width(), app::CommandCard::kCardWidth + 16);
     QCOMPARE(c->parentWidget(), vp());
     QVERIFY(c->geometry().right() <= vp()->width() - 1);
-    QVERIFY(vp()->width() - 1 - c->geometry().right() <= 16);
+    QVERIFY(c->geometry().center().x() > vp()->width() / 2);
+    // phase 4: it keeps clear of the orientation widget and the view-tool column (6.3)
+    {
+      const QRect visible = c->geometry().adjusted(8, 8, -8, -8);
+      auto* v = qobject_cast<viewer::ViewerWidget*>(vp());
+      QVERIFY(v);
+      QVERIFY(!visible.intersects(v->orientationRect()));
+      if (QWidget* col = vp()->findChild<QWidget*>("NavBar"); col && col->isVisible()) QVERIFY(!visible.intersects(col->geometry()));
+    }
     QCOMPARE(c->effectivePlacement(), CardPlacement::FloatRight);
     // the close button cancels
     QTest::mouseClick(c->findChild<QToolButton*>("CardClose"), Qt::LeftButton);

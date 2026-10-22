@@ -193,6 +193,61 @@ class ViewerMathTest : public QObject {
     QCOMPARE(navPresetFromName("garbage"), NavPreset::Fusion);
   }
 
+  void azimuthElevationAndDial() {
+    // 7.2: Z up, azimuth from +X toward +Y, elevation from the XY plane
+    AzEl ae = azimuthElevation(gp_Dir(1, -1, 1));  // the iso (front-right-top)
+    QVERIFY(std::abs(ae.az - 315.0) < 1e-9);
+    QVERIFY(std::abs(ae.el - 35.2643896828) < 1e-6);
+    ae = azimuthElevation(gp_Dir(0, -1, 0));  // front
+    QVERIFY(std::abs(ae.az - 270.0) < 1e-9);
+    QVERIFY(std::abs(ae.el) < 1e-9);
+    ae = azimuthElevation(gp_Dir(0, 0, 1));  // top: azimuth undefined -> 0
+    QVERIFY(std::abs(ae.el - 90.0) < 1e-9);
+    // round trip, and up stays Z-ish
+    for (double az : {0.0, 45.0, 135.0, 270.0, 315.0})
+      for (double el : {-60.0, 0.0, 35.0, 75.0}) {
+        const ViewOrientation o = azElOrientation(az, el);
+        const AzEl back = azimuthElevation(o.toEye);
+        QVERIFY(std::abs(std::remainder(back.az - az, 360.0)) < 1e-6);
+        QVERIFY(std::abs(back.el - el) < 1e-6);
+        QVERIFY(o.up.Z() > 0);
+        QVERIFY(std::abs(o.up.Dot(o.toEye)) < 1e-9);
+      }
+    // straight down from the front: TOP with +Y up
+    ViewOrientation top = azElOrientation(270.0, 90.0);
+    QVERIFY(top.toEye.IsEqual(gp_Dir(0, 0, 1), 1e-9));
+    QVERIFY(top.up.IsEqual(gp_Dir(0, 1, 0), 1e-9));
+    // dial projection: in the front view X points right, Z up, Y into the screen
+    double x = 0, y = 0, depth = 0;
+    projectAxis(gp_Dir(1, 0, 0), gp_Dir(0, -1, 0), gp_Dir(0, 0, 1), x, y, &depth);
+    QVERIFY(std::abs(x - 1) < 1e-9 && std::abs(y) < 1e-9);
+    projectAxis(gp_Dir(0, 0, 1), gp_Dir(0, -1, 0), gp_Dir(0, 0, 1), x, y, &depth);
+    QVERIFY(std::abs(y - 1) < 1e-9);
+    projectAxis(gp_Dir(0, 1, 0), gp_Dir(0, -1, 0), gp_Dir(0, 0, 1), x, y, &depth);
+    QVERIFY(depth < -0.99);
+    // tips -> standard views
+    QCOMPARE(axisView(0, true), core::StandardView::Right);
+    QCOMPARE(axisView(1, false), core::StandardView::Front);
+    QCOMPARE(axisView(2, true), core::StandardView::Top);
+    QCOMPARE(currentStandardView(gp_Dir(0, -1, 0), gp_Dir(0, 0, 1)), std::optional(core::StandardView::Front));
+    QVERIFY(!currentStandardView(gp_Dir(0.1, -1, 0), gp_Dir(0, 0, 1)).has_value());
+    const ViewOrientation iso = standardViewOrientation(core::StandardView::Iso);
+    QCOMPARE(currentStandardView(iso.toEye, iso.up), std::optional(core::StandardView::Iso));
+    // a hex vertex at the upper right of the front view: the front-right-top corner
+    QVERIFY(isoCornerNear(30.0, gp_Dir(0, -1, 0), gp_Dir(0, 0, 1)).IsEqual(gp_Dir(1, -1, 1), 1e-9));
+    QVERIFY(isoCornerNear(210.0, gp_Dir(0, -1, 0), gp_Dir(0, 0, 1)).IsEqual(gp_Dir(-1, -1, -1), 1e-9));
+  }
+
+  void scaleBarSteps() {
+    QCOMPARE(scaleBarLength(1.0, 140), 100.0);
+    QCOMPARE(scaleBarLength(0.5, 140), 50.0);
+    QCOMPARE(scaleBarLength(0.25, 140), 20.0);
+    QCOMPARE(scaleBarLength(0.003, 140), 0.2);
+    QVERIFY(std::abs(scaleBarLength(0.0007, 140) - 0.05) < 1e-12);
+    QCOMPARE(scaleBarLength(0.0, 140), 0.0);
+    QCOMPARE(scaleBarLength(1.0, 0), 0.0);
+  }
+
   void colours() {
     Rgb c = hexColor("#0B6CFF");
     QVERIFY(std::abs(c.r - 11 / 255.0) < 1e-12);

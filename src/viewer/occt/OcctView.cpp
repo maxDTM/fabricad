@@ -67,7 +67,6 @@ OcctView::OcctView(OcctViewListener* listener, QWidget* parent) : QOpenGLWidget(
 
   // create viewer
   myViewer = new V3d_Viewer(aDriver);
-  myViewer->SetDefaultBackgroundColor(Quantity_NOC_WHITE);
   myViewer->SetDefaultLights();
   myViewer->SetLightOn();
 

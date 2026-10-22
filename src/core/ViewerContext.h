@@ -44,6 +44,21 @@ enum class DisplayMode { Shaded, ShadedEdges, Wireframe, HiddenLine };
 enum class ProjectionMode { Orthographic, Perspective };
 enum class CursorShape { Arrow, Cross, Pick, Hand, Busy, Forbidden };
 
+/// What a preview item means (docs/plans/ui-redesign.md 2.3, 4.5). The viewer resolves the role
+/// through its theme palette (ViewerPalette); the RGBA `color` stays as the fallback for
+/// headless tests and for previews without a role. A preset whose colour a tool changes keeps its
+/// role only for the operation roles (Live, Cut, NewBody); SketchFree, Inference and Dimension
+/// fall back to the tool's colour when it differs from the preset's.
+enum class ColorRole : std::uint8_t {
+  None,        ///< use `color` as given
+  Live,        ///< live operation preview (extrude/revolve join, intersect): gold two-tone + halo
+  Cut,         ///< cut preview: error hue, dashed edge
+  NewBody,     ///< new-body preview: info hue
+  SketchFree,  ///< rubber-band / under-constrained sketch curve
+  Inference,   ///< guide lines and glyphs (neutral)
+  Dimension,   ///< dimension lines and text
+};
+
 /// Appearance of a preview item.
 struct PreviewStyle {
   std::array<float, 4> color{1.0f, 0.6f, 0.2f, 0.5f};  ///< RGBA 0..1 (alpha = opacity)
@@ -53,12 +68,13 @@ struct PreviewStyle {
   float pointSize = 5.0f;  ///< points
   float textHeight = 12.0f;  ///< text, in pixels
   bool onTop = false;      ///< draw over everything (glyphs, dimensions)
+  ColorRole role = ColorRole::None;
 
-  static PreviewStyle join() { return {{0.4f, 0.8f, 0.4f, 0.5f}}; }
-  static PreviewStyle cut() { return {{0.88f, 0.25f, 0.25f, 0.5f}}; }
-  static PreviewStyle newBody() { return {{0.35f, 0.6f, 1.0f, 0.5f}}; }
-  static PreviewStyle sketchLine() { PreviewStyle s{{0.12f, 0.44f, 0.85f, 1.0f}}; s.shaded = false; s.lineWidth = 2.0f; s.onTop = true; return s; }
-  static PreviewStyle inference() { PreviewStyle s{{0.4f, 0.4f, 0.4f, 1.0f}}; s.dashed = true; s.onTop = true; return s; }
+  static PreviewStyle join() { PreviewStyle s{{0.4f, 0.8f, 0.4f, 0.5f}}; s.role = ColorRole::Live; return s; }
+  static PreviewStyle cut() { PreviewStyle s{{0.88f, 0.25f, 0.25f, 0.5f}}; s.role = ColorRole::Cut; return s; }
+  static PreviewStyle newBody() { PreviewStyle s{{0.35f, 0.6f, 1.0f, 0.5f}}; s.role = ColorRole::NewBody; return s; }
+  static PreviewStyle sketchLine() { PreviewStyle s{{0.12f, 0.44f, 0.85f, 1.0f}}; s.shaded = false; s.lineWidth = 2.0f; s.onTop = true; s.role = ColorRole::SketchFree; return s; }
+  static PreviewStyle inference() { PreviewStyle s{{0.4f, 0.4f, 0.4f, 1.0f}}; s.dashed = true; s.onTop = true; s.role = ColorRole::Inference; return s; }
 };
 
 using PreviewHandle = int;

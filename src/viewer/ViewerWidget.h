@@ -29,12 +29,14 @@
 #include <QRect>
 #include <QWidget>
 
+#include <array>
 #include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
 class QPainter;
+class QResizeEvent;
 
 namespace fabricad::core {
 class Document;
@@ -44,6 +46,15 @@ class ToolManager;
 namespace fabricad::viewer {
 
 class ViewerListener;
+class OrientationDial;
+class Breadcrumb;
+class SelectionFilterBar;
+class CoordReadout;
+class ScaleBar;
+class OverlayLayout;
+
+/// ui/orientation (docs/plans/ui-redesign.md 6.1 #5, 7.2).
+enum class OrientationWidget { HexDial, ViewCube };
 
 class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   Q_OBJECT
@@ -75,9 +86,40 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void rollBy(double deg, bool animate = true);
   /// Zoom about the view centre: factor > 1 magnifies (ZOOM command).
   void zoomBy(double factor, bool animate = true);
-  /// Screen area of the ViewCube and its overlay controls, in logical px (empty before GL is ready).
-  /// Docked panels (Sketch Palette, command dialogs) stay below it.
-  QRect viewCubeRect() const;
+  /// The orientation widget: the hex dial (default) or the classic AIS_ViewCube, switched live.
+  void setOrientationWidget(OrientationWidget w);
+  OrientationWidget orientationWidget() const { return orientation_; }
+  /// Screen area of the orientation widget in logical px: the dial (plate, AZ/EL readout, view
+  /// buttons) or the ViewCube with its overlay controls and the readout/buttons below it.
+  /// Docked panels (Sketch Palette, command card) stay clear of it.
+  QRect orientationRect() const;
+  /// Same as orientationRect() (older name, kept for callers).
+  QRect viewCubeRect() const { return orientationRect(); }
+  /// Camera from an azimuth / elevation (degrees; Z up, azimuth from +X toward +Y), keeping the
+  /// view centre and distance (orientation dial).
+  void setViewAzEl(double azDeg, double elDeg, bool animate = true);
+  /// The camera's centre (scale bar, dial).
+  gp_Pnt viewCenter() const;
+  /// Kinds the current tool and the document filter allow, before the user's priority.
+  fabricad::core::ShapeKindMask availableKinds() const;
+  /// Open the orientation context menu (Home, Set Current as Home, projection): both widgets
+  /// share the ViewCube menu (viewCubeMenuRequested).
+  void showOrientationMenu(QPoint globalPos) { emit viewCubeMenuRequested(globalPos); }
+
+  // --- viewport overlays (docs/plans/ui-redesign.md 5.3, 6.3) ----------------------------------
+  OrientationDial* orientationDial() const { return dial_; }
+  Breadcrumb* breadcrumb() const { return breadcrumb_; }
+  SelectionFilterBar* selectionFilterBar() const { return filterBar_; }
+  CoordReadout* coordReadout() const { return readout_; }
+  ScaleBar* scaleBar() const { return scaleBar_; }
+  /// Show or hide the breadcrumb / filter row, the coordinate readout and the scale bar (the
+  /// orientation widget always shows).
+  void setOverlaysVisible(bool topBar, bool readout, bool scaleBar);
+  /// Re-place the overlay widgets (top-left row, top-right orientation, bottom readouts).
+  void layoutOverlayWidgets();
+  /// Report the viewer's own overlays to an OverlayLayout as fixed regions (orientation widget,
+  /// breadcrumb + filter row, coordinate readout, scale bar).
+  void addOverlayRegions(OverlayLayout& layout) const;
   /// Screen areas covered by overlays (the nav bar at the bottom): Fit/Home keep the model
   /// clear of them. Default: 56 px at the bottom.
   void setViewportInsets(QMargins m);
@@ -188,9 +230,14 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void viewInitFailed(const QString& reason);
   /// Camera projection or display mode changed (nav bar refreshes checks).
   void displaySettingsChanged();
+  /// The camera moved (orbit, pan, zoom, animation frame); the dial and the scale bar follow.
+  void cameraChanged();
+  /// Overlay widgets moved or changed size (the app re-runs its OverlayLayout).
+  void overlayGeometryChanged();
 
  protected:
   void paintEvent(QPaintEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
 
  private:
   friend class ViewerListener;
@@ -219,6 +266,9 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void onGlFailed(const QString& why);
   void beforeRedraw();
   void paintOverlay(QPainter& p);
+  void checkCameraChanged();
+  void updateCursorReadout(const core::ViewerMouseEvent& ev);
+  void applyCubeStyle();
 
   core::ViewerMouseEvent buildEvent(QMouseEvent* e, core::MouseButton button, bool withPick);
   bool detect(int x, int y, core::ShapeKindMask kinds, core::ShapeRef& out, gp_Pnt* hit, bool* onCube = nullptr);
@@ -296,6 +346,16 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   const void* cubeHoverOwner_ = nullptr;  ///< detected ViewCube part (hover redraws on change)
   CubeCtl hoverCtl_ = CubeCtl::None;
   QMargins insets_{0, 0, 0, 56};
+
+  OrientationWidget orientation_ = OrientationWidget::HexDial;
+  OrientationDial* dial_ = nullptr;
+  Breadcrumb* breadcrumb_ = nullptr;
+  SelectionFilterBar* filterBar_ = nullptr;
+  CoordReadout* readout_ = nullptr;
+  ScaleBar* scaleBar_ = nullptr;
+  bool topBarShown_ = true, readoutShown_ = true, scaleBarShown_ = true;
+  std::array<double, 10> lastCamera_{};
+  std::array<QRect, 5> lastOverlayRects_{};  ///< eye, up, scale, aspect: cameraChanged() detection
 };
 
 /// Call once before QApplication is constructed: forces the xcb platform when unset

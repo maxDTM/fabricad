@@ -237,8 +237,12 @@ class ValueInputTest : public QObject {
     QCOMPARE(overlay.editAt(0)->text(), QString("30"));
     m.keyPress(Qt::Key_Tab, 0, "\t");
     QVERIFY(m.isLocked("length"));
-    QVERIFY(overlay.frameAt(0)->styleSheet().contains("#B9BEC6") || overlay.frameAt(0)->styleSheet().contains("B9BEC6"));
-    QVERIFY(overlay.frameAt(1)->styleSheet().contains("0696D7"));  // active accent
+    // styled by the theme QSS through properties (no inline colours): idle + locked, active
+    QCOMPARE(overlay.frameAt(0)->property("state").toString(), QString("idle"));
+    QVERIFY(overlay.frameAt(0)->property("locked").toBool());
+    QCOMPARE(overlay.frameAt(1)->property("state").toString(), QString("active"));
+    QVERIFY(overlay.frameAt(0)->styleSheet().isEmpty());
+    QVERIFY(overlay.frameAt(0)->findChild<QFrame*>("fcValueField"));
     // editing the widget directly pushes text into the model
     overlay.editAt(1)->setText("45");
     emit overlay.editAt(1)->textEdited("45");

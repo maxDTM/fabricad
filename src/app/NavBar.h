@@ -1,5 +1,7 @@
-// FabriCAD app: navigation bar overlay at the bottom centre of the viewport (ux.md 5.2).
-//   [Orbit][Pan][Zoom] [Fit][Look At] | [Display v] [Grid v] [Views v] [Nav v]
+// FabriCAD app: the view-tool column at the right edge of the viewport, below the orientation
+// widget (docs/plans/ui-redesign.md 5.3; it replaced the bottom nav bar of ux.md 5.2 and keeps
+// its objectName #NavBar):
+//   [Fit] [Orbit] [Pan] [Zoom] | [Look At] [Display v] [Grid v] [Views v] [Nav v]
 // Orbit/Pan/Zoom are sticky modes (LMB drags navigate until Esc or toggled off); the menus
 // cover visual style, projection, object visibility, grid/snap, named views, navigation
 // preset and reverse zoom. Preferences (preset, reverse zoom) persist in QSettings.

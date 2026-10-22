@@ -5,13 +5,10 @@
 # The theme work is done when only drawing paper/ink, export colours, OcctQtTools helpers and
 # third-party code remain.
 #
-# --- ui (this owner), migrates in redesign phase 4 (ViewerPalette, OCCT colours, previews, manipulators)
-src/viewer/ViewerWidget.cpp               13  ui       phase 4: triedron, lights (white), material, sketch-edge/feature-edge/label colours -> ViewerPalette
-src/viewer/SceneModel.h                    1  ui       phase 4: default body colour -> body.default via ViewerPalette
-src/viewer/occt/OcctView.cpp               1  ui       phase 4: OCCT helper default -> ViewerPalette (or allow-list as OcctQtTools-like helper)
+# --- ui (this owner): src/viewer has no colour literals since redesign phase 4 (ViewerPalette)
 #
 # --- core: ColorRole request (section 9, docs/integration-notes/ui.md 2026-10-22)
-src/core/ViewerContext.h                   6  core     PreviewStyle presets join/cut/newBody/sketchLine -> core::ColorRole (RGBA kept as headless fallback)
+src/core/ViewerContext.h                   6  core     PreviewStyle preset RGBA: the headless fallback; the presets carry core::ColorRole (phase 4) and the viewer draws the role
 src/core/Manipulator.cpp                   8  core     manipulator colours -> ColorRole (manip.handle, axis.*)
 src/core/Manipulator.h                     2  core     manipulator defaults -> ColorRole
 src/core/Materials.cpp                    26  core     document material library (body appearance data, not UI chrome): stays; review in phase 4
@@ -21,7 +18,6 @@ src/core/Body.h                            1  core     default body colour (docu
 # --- sketch: replace colors:: constants with roles, value box QSS hooks (request)
 src/sketch/SketchSession.h                11  sketch   colors:: constants -> ColorRole (sk.free, sk.constrained, sk.construction, sk.projected, ...)
 src/sketch/SketchSession.cpp               1  sketch   -> ColorRole
-src/sketch/ValueInputOverlay.cpp           8  sketch   inline QSS -> objectName #fcValueBox + tag property; tokens in app.qss.tmpl
 src/sketch/tools/SketchToolBase.cpp        4  sketch   preview colours -> ColorRole
 #
 # --- part: PropertyPanel styling through QSS properties (request)
