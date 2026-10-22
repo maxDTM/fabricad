@@ -375,6 +375,50 @@ class DocumentTest : public QObject {
     QCOMPARE(doc.indexOf(record->id()), 1);
   }
 
+  void modifiedFollowsUndoCleanState() {
+    // DOC-09: undo/redo back to the saved step clears the modified flag; leaving it sets it
+    QTemporaryDir dir;
+    Document doc;
+    UndoStack& undo = doc.undoStack();
+    undo.push(std::make_unique<AddFeatureCommand>(doc, std::make_unique<BoxFeature>()));
+    QVERIFY(doc.isModified());
+    QVERIFY(doc.save(dir.filePath("a.fcad").toStdString()));
+    QVERIFY(!doc.isModified());
+    const ObjectId boxId = doc.featureAt(0)->id();
+    undo.push(std::make_unique<ModifyFeatureCommand>(doc, boxId, [](Feature& f) { f.prop("dx").setDouble(5.0); }));
+    QVERIFY(doc.isModified());
+    undo.undo();
+    QVERIFY(!doc.isModified());  // back at the saved step
+    undo.redo();
+    QVERIFY(doc.isModified());
+    undo.undo();
+    undo.undo();
+    QVERIFY(doc.isModified());  // before the saved step
+    undo.redo();
+    QVERIFY(!doc.isModified());
+    // a change outside the stack: no undo gets back to the saved state
+    doc.setName("Renamed");
+    QVERIFY(doc.isModified());
+    QVERIFY(!undo.isClean());
+    undo.undo();
+    undo.redo();
+    QVERIFY(doc.isModified());
+    // a merge into the saved step leaves it
+    UndoStack s;
+    struct Merging : UndoCommand {
+      void redo() override {}
+      void undo() override {}
+      int mergeId() const override { return 7; }
+      bool mergeWith(const UndoCommand&) override { return true; }
+    };
+    s.push(std::make_unique<Merging>());
+    s.setClean();
+    QSignalSpy cleanSpy(&s, &UndoStack::cleanChanged);
+    s.push(std::make_unique<Merging>());
+    QVERIFY(!s.isClean());
+    QCOMPARE(cleanSpy.count(), 1);
+  }
+
   void moveFeature() {
     Document doc;
     Feature* b1 = doc.addFeature(std::make_unique<BoxFeature>());

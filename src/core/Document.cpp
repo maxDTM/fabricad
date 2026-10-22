@@ -29,6 +29,8 @@ namespace fabricad::core {
 Document::Document(QObject* parent)
     : QObject(parent), undo_(std::make_unique<UndoStack>()), selection_(std::make_unique<SelectionModel>()) {
   resetToEmpty();
+  // undo / redo back to the saved step is unmodified again; leaving it is modified (DOC-09)
+  connect(undo_.get(), &UndoStack::cleanChanged, this, [this](bool clean) { setModified(!clean); });
 }
 
 Document::~Document() = default;
@@ -74,6 +76,12 @@ void Document::setName(std::string n) {
 }
 
 void Document::setModified(bool m) {
+  // a change made outside an undo step cannot be undone back to the saved state (DOC-09)
+  // and an explicit "unmodified" (after a save) makes the current step the saved one
+  if (!undo_->isExecuting()) {
+    if (m) undo_->resetClean();
+    else undo_->setClean();
+  }
   if (m == modified_) return;
   modified_ = m;
   emit modifiedChanged(m);

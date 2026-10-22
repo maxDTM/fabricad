@@ -16,7 +16,10 @@ UndoStack::~UndoStack() = default;
 
 void UndoStack::push(std::unique_ptr<UndoCommand> cmd) {
   if (!cmd) return;
-  cmd->redo();
+  {
+    const Busy busy(*this);
+    cmd->redo();
+  }
   if (inMacro()) {
     macros_.back()->add(std::move(cmd));
     return;
@@ -27,6 +30,11 @@ void UndoStack::push(std::unique_ptr<UndoCommand> cmd) {
   // try merge
   if (!commands_.empty() && cmd->mergeId() >= 0 && commands_.back()->mergeId() == cmd->mergeId() &&
       commands_.back()->mergeWith(*cmd)) {
+    // the merged step is no longer the one that was saved (DOC-09)
+    if (cleanIndex_ == index_) {
+      cleanIndex_ = -1;
+      emit cleanChanged(false);
+    }
     emit changed();
     return;
   }
@@ -40,13 +48,19 @@ void UndoStack::push(std::unique_ptr<UndoCommand> cmd) {
 
 void UndoStack::undo() {
   if (!canUndo()) return;
-  commands_[static_cast<size_t>(index_ - 1)]->undo();
+  {
+    const Busy busy(*this);
+    commands_[static_cast<size_t>(index_ - 1)]->undo();
+  }
   setIndex(index_ - 1);
 }
 
 void UndoStack::redo() {
   if (!canRedo()) return;
-  commands_[static_cast<size_t>(index_)]->redo();
+  {
+    const Busy busy(*this);
+    commands_[static_cast<size_t>(index_)]->redo();
+  }
   setIndex(index_ + 1);
 }
 
@@ -90,6 +104,12 @@ void UndoStack::setClean() {
   bool was = isClean();
   cleanIndex_ = index_;
   if (!was) emit cleanChanged(true);
+}
+
+void UndoStack::resetClean() {
+  const bool was = isClean();
+  cleanIndex_ = -1;
+  if (was) emit cleanChanged(false);
 }
 
 void UndoStack::setIndex(int i) {
