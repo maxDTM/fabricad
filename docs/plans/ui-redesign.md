@@ -569,6 +569,14 @@ Double-clicking the header returns the card to the chosen placement. The positio
 | OCCT | line widths and text heights × `devicePixelRatioF()`. The dial and other Qt overlays are separate widgets, so OCCT does not scale them. Check `OcctView` resize at fractional dpr. |
 | Glow and shadows | rendered at device resolution and cached per dpr. Invalidate on `screenChanged`. |
 | Test matrix | `QT_SCALE_FACTOR` = 1, 1.25, 1.5 and 2 in the offscreen `test_layout_text` and in one uitest pass at 1.5. |
+| Helpers | `theme/Hairline.h`: `hairlineFrame`, `hairlineV/H`, `snapInside` fill whole device pixels inside the logical rect (ctest `theme_tokens` checks 1 device px at dpr 1–2 with fractional origins). |
+
+HiDPI pass (phase 5, offscreen grabs at 1, 1.25, 1.5 and 2, both themes): icons are rendered at device size
+and sharp at every scale; title-bar tabs, status cells, the dial and the drawing sheet are clean. Fixed: the
+segmented control lost its top and left frame edges at 1.25 (widget origin half-way into a device pixel), now
+drawn with the hairline helpers. Open (card files, other owner): the card's `live.base` hairline is 2 device px
+at 1.5 (a 1 px `fillRect`), and the card border is a `QPen` 1 px (2 device px at 2×); both should move to
+`hairlineFrame`/`hairlineH`.
 
 ---
 
@@ -626,6 +634,13 @@ Changes (in phase 5):
   - samples token colours at the listed points (ΔE00 ≤ 3);
   - runs a per-region perceptual diff (ImageMagick `compare -metric SSIM`), reported, not gating;
   - writes a side-by-side HTML report.
+
+**Done (phase 5, `ui/p5tools`)**: `ui.sh start <N> [bin] [WxH] [scale]`, `prefs`, `reset`, `geom`, `compare`,
+`cvd`; per-display `XDG_CONFIG_HOME`/`XDG_DATA_HOME`; `compare.py` (layout from the app's
+`FABRICAD_GEOMETRY_DUMP`, dominant-colour ΔE00, block SSIM, HTML report; stdlib only); `cvd.py` (the
+`colormath.py` Machado matrices); `readme-shots.sh`; ctest `uitest_tools`. Usage in `tools/uitest/README.md`.
+A rootful Xwayland display may be tiled by the compositor, so exact-size compares use the offscreen grab or
+`FABRICAD_SCREENSHOT` + `FABRICAD_WINDOW_SIZE`.
 
 ---
 

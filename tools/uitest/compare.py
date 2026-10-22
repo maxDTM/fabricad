@@ -7,6 +7,7 @@ Regions are the <rect data-region="ID" x= y= width= height=> boxes in the mockup
 "data-regions"). For every region:
   layout  with --geometry (FABRICAD_GEOMETRY_DUMP from the app, or `ui.sh geom`): the widget box for the
           region must match the mockup box within --tol px on every edge (gating: exit 1 on a miss).
+          The command card's widget carries an 8 px bleed for its shadow; --inset ID=PX sets such insets.
   colour  dominant colour of the region in the shot vs the mockup PNG, as CIEDE2000 (reported; > 3 flagged).
           <circle data-sample="token.name" cx= cy=> points in the SVG, if any, are sampled too.
   ssim    mean SSIM of the luminance over 8x8 blocks (reported, never gating).
@@ -32,6 +33,9 @@ sys.path.insert(0, os.path.join(HERE, "..", "theme"))
 
 import colormath  # noqa: E402
 import pngio  # noqa: E402
+
+# Widgets whose visible box is inset from the widget rect (CardFrame::kBleed: shadow and brackets).
+INSETS = {"CommandDialog": 8}
 
 RECT_RX = re.compile(r"<rect\b[^>]*\bdata-region=\"([^\"]+)\"[^>]*>")
 SAMPLE_RX = re.compile(r"<circle\b[^>]*\bdata-sample=\"([^\"]+)\"[^>]*>")
@@ -159,6 +163,8 @@ def main(argv=None):
     ap.add_argument("--only", help="comma-separated region ids")
     ap.add_argument("--no-ssim", action="store_true", help="skip SSIM (faster)")
     ap.add_argument("--json", help="write the results as JSON here")
+    ap.add_argument("--inset", action="append", default=[], metavar="ID=PX",
+                    help="visible box = widget rect inset by PX (default CommandDialog=8, the card's bleed)")
     a = ap.parse_args(argv)
 
     with open(a.mockup, encoding="utf-8") as f:
@@ -191,6 +197,10 @@ def main(argv=None):
             print("warning: window %sx%s differs from the mockup %gx%g: run at FABRICAD_WINDOW_SIZE=%dx%d"
                   % (win.get("w"), win.get("h"), svg_w, svg_h, svg_w, svg_h), file=sys.stderr)
 
+    insets = dict(INSETS)
+    for kv in a.inset:
+        k, _, v = kv.partition("=")
+        insets[k] = float(v or 0)
     if a.report:
         os.makedirs(a.report, exist_ok=True)
     results, layout_fail = [], 0
@@ -201,6 +211,8 @@ def main(argv=None):
             if w is None:
                 res["layout"] = "missing"
             else:
+                i = insets.get(r["id"], 0)
+                w = dict(w, x=w["x"] + i, y=w["y"] + i, w=w["w"] - 2 * i, h=w["h"] - 2 * i)
                 d = [w["x"] - r["x"], w["y"] - r["y"], (w["x"] + w["w"]) - (r["x"] + r["w"]),
                      (w["y"] + w["h"]) - (r["y"] + r["h"])]
                 res["widget"] = [w["x"], w["y"], w["w"], w["h"]]

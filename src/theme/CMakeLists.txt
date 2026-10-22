@@ -23,5 +23,8 @@ if(FABRICAD_BUILD_TESTS)
     add_test(NAME theme_color_lint
       COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tools/theme/audit_colors.py" --lint --root "${CMAKE_SOURCE_DIR}")
     set_tests_properties(theme_color_lint PROPERTIES TIMEOUT 60 LABELS "theme;lint")
+    # uitest_tools: tools/uitest PNG I/O, CVD simulation and mockup compare (stdlib only)
+    add_test(NAME uitest_tools COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tools/uitest/selftest.py")
+    set_tests_properties(uitest_tools PROPERTIES TIMEOUT 120 LABELS "theme;tools")
   endif()
 endif()

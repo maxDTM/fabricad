@@ -10,6 +10,7 @@ the X11 runs, `rsvg-convert` only when a mockup PNG is missing.
 | `compare.py` | screenshot vs token mockup, region by region (layout boxes, colour, SSIM, HTML report) |
 | `cvd.py` | protanopia / deuteranopia / tritanopia simulation of a PNG (Machado 2009, as the `theme_tokens` ctest) |
 | `pngio.py` | the stdlib PNG reader and writer both scripts use |
+| `selftest.py` | ctest `uitest_tools`: PNG round trip, CVD vs `colormath.py`, compare.py on the mockup itself |
 | `card-shots.sh` | offscreen grabs of the command card in every placement and theme |
 | `readme-shots.sh` | regenerates `docs/screenshots/fabricad-*.png` (dark, and `-light`) on a private display |
 
@@ -33,8 +34,11 @@ ui.sh reset 91                                            # forget :91's setting
 ui.sh stop 91
 ```
 
-* `start <N> [bin|-] [WxH] [scale]`: `-` (or nothing) uses `$UI_BIN` or the main checkout's build. A display
-  that is already running keeps its size; `stop` it first to change the size.
+* `start <N> [bin|-] [WxH] [scale]`: `-` (or nothing) uses `$UI_BIN` or the main checkout's build, `$UI_ARGS`
+  is appended to its command line. A display that is already running keeps its size; `stop` it first to
+  change the size. The compositor may tile the rootful Xwayland window, and the display then follows the
+  tile (`start` prints a note). For exact-size checks use the offscreen grab below, or `FABRICAD_SCREENSHOT`
+  with `FABRICAD_WINDOW_SIZE` (the app grabs its own window, 3D view included; see `readme-shots.sh`).
 * Each display gets `XDG_CONFIG_HOME=$UI_LOGDIR/cfg-N` and `XDG_DATA_HOME=$UI_LOGDIR/data-N`
   (`UI_LOGDIR` defaults to `/tmp/fabricad-uitest`), so tests never read or change the user's settings,
   recent files or autosaves.
