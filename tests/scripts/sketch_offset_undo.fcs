@@ -1,0 +1,23 @@
+# FabriCAD command script: UX-24 / UX-30 regression. An outward offset of a slot (lines + arcs)
+# creates real curves on the clicked side, and Ctrl+Z (UNDO) after it removes only the offset:
+# the sketch stays open ("CHECK dof" needs an open sketch).
+# Run from an empty directory: fabricad --script tests/scripts/sketch_offset_undo.fcs --offscreen
+
+SKETCH XY
+SLOT
+PICK 50,50 nosnap
+PICK 80,50 nosnap
+PICK 55,55 nosnap
+CANCEL
+CHECK dof == 5
+OFFSET
+# pick the top line (not at its midpoint, which picks the point), then click 15 mm above it
+PICK 60,55 nosnap
+PICK 60,70 nosnap
+CHECK dof == 15
+INFO sketch:Sketch1
+UNDO
+CHECK dof == 5
+CHECK sketches == 1
+FINISH
+CHECK sketches == 1

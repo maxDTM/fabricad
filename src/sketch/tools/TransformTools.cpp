@@ -646,13 +646,21 @@ class ChamferTool : public SketchTool {
     if (!sk || !session() || picks_.size() < 2) return;
     session()->beginEdit();
     auto ch = chamfer(*sk, picks_[0].first, picks_[0].second, picks_[1].first, picks_[1].second, d1_, d2_);
+    SolveResult solved;
+    if (ch) solved = sk->solve();
     if (!ch) {
       session()->cancelEdit();
       ctx.showMessage("Cannot chamfer these lines with that distance", true);
+    } else if (!solved.ok()) {
+      sk->takeDemotedDimensions();
+      sk->takeModifyNotes();
+      session()->cancelEdit();
+      ctx.showMessage("Chamfer cancelled: the sketch constraints cannot hold it (" + solved.message + ")", true);
     } else {
       session()->commitEdit("Chamfer");
       for (const std::string& n : sk->takeDemotedDimensions())
         ctx.showMessage(n + " is now a driven dimension (its corner was chamfered)");
+      for (const std::string& n : sk->takeModifyNotes()) ctx.showMessage("Chamfer: " + n);
     }
     picks_.clear();
     clearTemp();

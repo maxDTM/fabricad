@@ -276,10 +276,8 @@ class E2ETest : public QObject {
     QCOMPARE(sk1->sketch().geometryCount(), 5);
     QVERIFY(sk1->sketch().dimensionByName("d3") && !sk1->sketch().dimensionByName("d3")->driven);
     QVERIFY(near(sk1->sketch().dimensionByName("d3")->value, 12.0, 1e-9));
-    // fix the lower-left corner: only the circle centre (2 DOF) is left free
-    QVERIFY(mgr.run("sketch.constraint.fix"));
-    r.click(0, 0);
-    r.key(Qt::Key_Escape);
+    // the lower-left corner was drawn on the origin and is pinned there (UX-29): only the circle
+    // centre (2 DOF) is left free
     QVERIFY2(sk1->sketch().dofs() == 2, qPrintable(QString("dofs after fix: %1").arg(sk1->sketch().dofs())));
     // dimensions: circle centre position (horizontal + vertical)
     QVERIFY(mgr.run("sketch.dimension"));

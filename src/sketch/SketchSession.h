@@ -14,6 +14,7 @@
 #include <QObject>
 
 #include <optional>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -130,6 +131,9 @@ class SketchSession : public QObject {
  signals:
   void changed();
 
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
+
  private:
   SketchSession(core::ToolContext& ctx, core::ObjectId sketchId);
   void enter();
@@ -162,11 +166,14 @@ class SketchSession : public QObject {
   bool showConstraints_ = true;
   bool showDimensions_ = true;
   bool showPoints_ = true;
-  bool showProfiles_ = false;
+  bool showProfiles_ = true;  // Fusion shows profiles by default (UX-26)
   std::set<int> selectedConstraints_;
+  std::map<int, Pt2> textPos_;  ///< where each dimension's text was drawn (beside its line), for picking
   std::set<core::PreviewHandle> handles_;
   std::vector<QMetaObject::Connection> connections_;
   bool rendering_ = false;
+  double renderedPixelSize_ = 0;  ///< pixel size (mm) of the last render, to re-render after a zoom
+  bool zoomCheckPending_ = false;
   bool ending_ = false;
 };
 

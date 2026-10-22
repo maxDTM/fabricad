@@ -237,7 +237,7 @@ class ToolsTest : public QObject {
     QCOMPARE(r.countType(ConstraintType::Horizontal), 2);
     QCOMPARE(r.countType(ConstraintType::Vertical), 2);
     QVERIFY(r.mgr.isActive());  // tool stays active after closing the loop
-    QCOMPARE(r.sk().dofs(), 4);
+    QCOMPARE(r.sk().dofs(), 2);  // the first corner is pinned to the origin (UX-29)
     QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
     QCOMPARE(r.doc.undoStack().count(), 5);  // create + 4 lines
     // every segment is one undo step
@@ -254,6 +254,66 @@ class ToolsTest : public QObject {
     const auto& named = r.sketchFeature()->namedShapes();
     QVERIFY(named.count("display:free"));
     QVERIFY(named.count("display:points"));
+  }
+
+  /// UX-23: a point snapped to another shape's tracking line adds no (hidden) constraint, so
+  /// changing a dimension on one shape leaves the other where it is.
+  void alignmentAddsNoHiddenConstraint() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.line"));
+    r.click(0, 0);
+    r.click(0.2, 20);  // vertical line A
+    r.key(Qt::Key_Escape);
+    r.click(30, 5);
+    r.click(50, 20.5);  // B's end snaps to A's end height (tracking line), no H/V direction
+    r.key(Qt::Key_Escape);
+    QCOMPARE(r.sk().geometryCount(), 2);
+    const int a = 1, b = 2;
+    QVERIFY(near(r.sk().geometry(b)->end(), {50, 20}));  // the snapped position stays
+    for (const auto& c : r.sk().constraints())
+      QVERIFY2(!(c.references(a) && c.references(b)), "no constraint ties the two shapes together");
+    // dimension A's length and change it: B does not move
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a, PointPos::Start}});
+    int dim = r.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {a}, .value = 20});
+    QVERIFY(r.sk().solve().ok());
+    r.sk().constraint(dim)->value = 30;
+    QVERIFY(r.sk().solve().ok());
+    QVERIFY(near(r.sk().geometry(a)->end(), {0, 30}));
+    QVERIFY(near(r.sk().geometry(b)->end(), {50, 20}));
+    QVERIFY(near(r.sk().geometry(b)->start(), {30, 5}));
+  }
+
+  /// UX-29: a line started on the sketch origin is pinned there (shown as a coincident dot).
+  void lineFromOriginIsPinned() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.line"));
+    r.click(0.3, 0.2);  // within the snap tolerance of the origin marker
+    r.click(20, 0.3);   // horizontal
+    r.key(Qt::Key_Escape);
+    QCOMPARE(r.sk().geometryCount(), 1);
+    QVERIFY(near(r.sk().geometry(1)->start(), {0, 0}));
+    int fixes = 0;
+    for (const auto& c : r.sk().constraints())
+      if (isOriginFix(c) && !c.internal && c.a == GeoRef{1, PointPos::Start}) ++fixes;
+    QCOMPARE(fixes, 1);
+    QCOMPARE(r.countType(ConstraintType::Horizontal), 1);
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {1}, .value = 25});
+    QVERIFY(r.sk().solve().ok());
+    QCOMPARE(r.sk().dofs(), 0);
+    QVERIFY(near(r.sk().geometry(1)->end(), {25, 0}));
+    // typed 0,0 pins the start as well
+    QVERIFY(r.mgr.runCommandLine("0,0"));
+    QVERIFY(r.mgr.runCommandLine("@0,30"));
+    QCOMPARE(r.sk().geometryCount(), 2);
+    // the existing point at the origin wins over the origin itself: coincident, not a second Fix
+    QVERIFY(r.sk().findConstraint(ConstraintType::Coincident, {2, PointPos::Start}, {1, PointPos::Start}) ||
+            r.sk().findConstraint(ConstraintType::Coincident, {1, PointPos::Start}, {2, PointPos::Start}));
+    QVERIFY(r.sk().solve().ok());
+    QCOMPARE(r.sk().dofs(), 0);  // the typed @0,30 dimensioned the second line
   }
 
   void lineTypedInputAndTangentArc() {
@@ -303,9 +363,9 @@ class ToolsTest : public QObject {
     QCOMPARE(r.sk().geometryCount(), 4);
     QCOMPARE(r.countType(ConstraintType::Horizontal), 2);
     QCOMPARE(r.countType(ConstraintType::Vertical), 2);
-    // the typed size became driving width / height dimensions: only the position is free
+    // the typed size became driving width / height dimensions
     QCOMPARE(r.countType(ConstraintType::Distance), 2);
-    QCOMPARE(r.sk().dofs(), 2);
+    QCOMPARE(r.sk().dofs(), 0);  // the first corner sits on the origin (UX-29)
     QCOMPARE(r.sketchFeature()->profiles().size(), size_t(1));
     QVERIFY(near(r.sketchFeature()->profiles()[0].area, 600.0, 1e-6));
 
@@ -446,7 +506,7 @@ class ToolsTest : public QObject {
     QCOMPARE(d2->type, ConstraintType::Angle);
     QVERIFY(near(d2->value, 30.0));
     QVERIFY(!d2->driven);
-    QCOMPARE(r.sk().dofs(), 2);  // only the start point is free
+    QCOMPARE(r.sk().dofs(), 0);  // the start point is pinned to the origin (UX-29)
     // boxes are reset for the next segment; the angle is now relative to the previous line
     QVERIFY(!tool->values().hasUserInput());
     r.move(60, 40);
@@ -459,7 +519,7 @@ class ToolsTest : public QObject {
     QCOMPARE(r.countType(ConstraintType::Angle), 1);
     QVERIFY(near(r.sk().geometry(2)->length(), 20.0, 1e-6));
     QVERIFY(near(r.sk().dimensionByName("d3")->value, 20.0));
-    QCOMPARE(r.sk().dofs(), 2);
+    QCOMPARE(r.sk().dofs(), 0);
     SolveResult res = r.sk().solve();
     QVERIFY2(res.ok(), res.message.c_str());
     // Esc with typed text clears the box instead of ending the chain
@@ -513,7 +573,7 @@ class ToolsTest : public QObject {
     QVERIFY(near(r.sk().geometry(1)->length(), 30.0, 1e-9));
     QVERIFY(near(r.sk().geometry(2)->length(), 20.0, 1e-9));
     QCOMPARE(r.countType(ConstraintType::Distance), 2);
-    QCOMPARE(r.sk().dofs(), 2);
+    QCOMPARE(r.sk().dofs(), 0);  // first corner on the origin (UX-29)
     QVERIFY(near(r.sketchFeature()->profiles()[0].area, 600.0, 1e-6));
     // typed width only: the height follows the cursor
     r.mgr.run("sketch.rectangle-center");
@@ -701,6 +761,71 @@ class ToolsTest : public QObject {
     QVERIFY(r.doc.undoStack().count() >= 5);
   }
 
+  /// UX-31: the 2-point rectangle makes Width active first and anchors Width / Height on the
+  /// first corner's edges (away from the cursor), so the second click reaches the viewer.
+  void rectangleValueBoxesOrderAndAnchors() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    r.mgr.run("sketch.rectangle");
+    auto* tool = dynamic_cast<SketchTool*>(r.mgr.activeTool());
+    QVERIFY(tool);
+    r.click(10, 10);
+    r.move(40, 30);
+    const ValueInputModel& v = tool->values();
+    QCOMPARE(v.field(v.activeIndex()).id, std::string("width"));
+    const ValueField* w = v.field("width");
+    const ValueField* h = v.field("height");
+    QVERIFY(w && h && w->hasAnchor && h->hasAnchor);
+    Pt2 wa = r.session()->toSketch(w->anchor), ha = r.session()->toSketch(h->anchor);
+    QVERIFY(near(wa.x, 25.0, 1e-6) && wa.y < 10);  // below the bottom edge's middle
+    QVERIFY(near(ha.y, 20.0, 1e-6) && ha.x < 10);  // left of the left edge's middle
+    // the second click commits the rectangle
+    r.click(40, 30);
+    QCOMPARE(r.sk().geometryCount(), 4);
+    // typed: the first box takes the width, Tab moves to the height
+    r.click(100, 0);
+    r.move(130, 20);
+    typeKeys(r, "30");
+    r.key(Qt::Key_Tab);
+    typeKeys(r, "15");
+    r.key(Qt::Key_Return);
+    QCOMPARE(r.sk().geometryCount(), 8);
+    QVERIFY(near(r.sk().geometry(5)->length(), 30.0, 1e-9));
+    QVERIFY(near(r.sk().geometry(6)->length(), 15.0, 1e-9));
+  }
+
+  /// UX-25: typing right after placing a dimension (keys reaching the viewer) sets its value,
+  /// Enter commits; the same for Edit Dimension.
+  void dimensionValueTypedWithKeys() {
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    auto ids = addRectangle(r.sk(), {10, 10}, {40, 30});
+    r.sk().addConstraint(Constraint{.type = ConstraintType::Fix, .a = {ids[0], PointPos::Start}});
+    r.session()->refresh();
+    r.mgr.run("sketch.dimension");
+    r.click(25, 10);  // bottom line
+    r.click(25, 2);   // place below: the value editor opens
+    QVERIFY(r.sk().dimensionByName("d1"));
+    typeKeys(r, "60");
+    r.key(Qt::Key_Return);
+    QVERIFY(near(r.sk().dimensionByName("d1")->value, 60.0));
+    QVERIFY(near(r.sk().geometry(ids[0])->length(), 60.0, 1e-6));
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.dimension"));  // ready for the next one
+    r.key(Qt::Key_Escape);
+    // Edit Dimension: keys + Enter change the value (Backspace edits)
+    QVERIFY(r.mgr.run("sketch.dimension-edit", {"d1"}));
+    typeKeys(r, "455");
+    core::ViewerKeyEvent bs;
+    bs.key = Qt::Key_Backspace;
+    r.mgr.keyPress(bs);
+    r.key(Qt::Key_Return);
+    QVERIFY(near(r.sk().dimensionByName("d1")->value, 45.0));
+    QVERIFY(near(r.sk().geometry(ids[0])->length(), 45.0, 1e-6));
+    QVERIFY(!r.mgr.isActive() || r.mgr.activeToolId() != "sketch.dimension-edit");
+  }
+
   void dimensionToolAndEdit() {
     Rig r;
     r.mgr.run("sketch.create", {"XY"});
@@ -830,6 +955,26 @@ class ToolsTest : public QObject {
     QCOMPARE(r2.sk().geometryCount(), 3);
     QVERIFY(near(r2.sk().geometry(3)->radius(), 2.0));
     QVERIFY(r2.sk().solve().ok());
+
+    // UX-22: a fillet that leaves the sketch unsolvable is rolled back instead of committed
+    Rig r5;
+    r5.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    int m1 = r5.sk().addGeometry(Geometry::makeLine({0, 0}, {10, 0}));
+    int m2 = r5.sk().addGeometry(Geometry::makeLine({10, 0}, {10, 10}));
+    r5.sk().addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {m1, PointPos::End}, .b = {m2, PointPos::Start}});
+    int e = r5.sk().addGeometry(Geometry::makeLine({30, 0}, {40, 0}));
+    r5.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {e}, .value = 10});
+    r5.sk().addConstraint(Constraint{.type = ConstraintType::Distance, .a = {e}, .value = 20});  // conflict
+    r5.session()->refresh();
+    const int undoCount = r5.doc.undoStack().count();
+    r5.mgr.run("sketch.fillet");
+    QVERIFY(r5.mgr.runCommandLine("2"));
+    r5.click(5, 0);
+    r5.click(10, 5);
+    QCOMPARE(r5.sk().geometryCount(), 3);  // no arc
+    QVERIFY(near(r5.sk().geometry(m1)->end(), {10, 0}));
+    QCOMPARE(r5.doc.undoStack().count(), undoCount);
 
     // offset a rectangle chain inward by a typed distance
     Rig r3;
@@ -980,21 +1125,38 @@ class ToolsTest : public QObject {
     size_t n = r.viewer.previews().size();
     QVERIFY(n > 0);
     int texts = 0, polylines = 0;
+    size_t glyphSegs = 0;
+    bool textOffLine = false;
     for (const auto& [h, item] : r.viewer.previews()) {
-      if (item.kind == "text") ++texts;
+      if (item.kind == "text") {
+        ++texts;
+        // UX-28: the label of the bottom line's dimension sits beside the dimension line
+        Pt2 at = r.session()->toSketch(item.points.front());
+        Pt2 label = r.sk().constraint(r.sk().dimensionByName("d1")->id)->labelPos;
+        textOffLine = std::abs(at.y - label.y) > 1e-6;
+      }
       if (item.kind == "polyline") ++polylines;
+      if (item.kind == "lines") glyphSegs += item.points.size() / 2;
     }
     QVERIFY(polylines >= 4);  // geometry
-    QVERIFY(texts >= 5);      // 4 H/V glyphs + dimension label
-    r.mgr.run("sketch.toggle-constraints");
-    QVERIFY(!r.session()->showConstraints());
-    r.mgr.run("sketch.toggle-profiles");
+    QCOMPARE(texts, 1);       // the dimension label; constraint glyphs are line primitives (UX-28)
+    QVERIFY(textOffLine);
+    QVERIFY(glyphSegs >= 4 * 5);  // 4 H/V glyphs: a stroke and a 4-segment frame each
+    // profiles are shown by default (UX-26)
     QVERIFY(r.session()->showProfiles());
-    Rig::pump();
     int shapes = 0;
     for (const auto& [h, item] : r.viewer.previews())
       if (item.kind == "shape") ++shapes;
     QCOMPARE(shapes, 1);  // one profile face
+    r.mgr.run("sketch.toggle-constraints");
+    QVERIFY(!r.session()->showConstraints());
+    r.mgr.run("sketch.toggle-profiles");
+    QVERIFY(!r.session()->showProfiles());
+    Rig::pump();
+    shapes = 0;
+    for (const auto& [h, item] : r.viewer.previews())
+      if (item.kind == "shape") ++shapes;
+    QCOMPARE(shapes, 0);
     QVERIFY(r.session()->statusText().find("DOF") != std::string::npos);
     QVERIFY(r.viewer.visibilityOverrides().count(r.session()->sketchId()));
     r.mgr.run("sketch.finish");

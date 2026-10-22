@@ -868,7 +868,8 @@ std::vector<std::vector<ChainItem>> orderChains(const Sketch& sk, const std::vec
   return runs;
 }
 
-Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
+/// Offset one curve; nullopt when the result degenerates (an arc/circle radius collapses).
+std::optional<Geometry> offsetCurve(const Geometry& g, bool reversed, double d) {
   // d > 0 = to the left of the traversal direction
   Geometry o = g;
   switch (g.type) {
@@ -877,11 +878,16 @@ Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
       o.translate(n * d);
       break;
     }
-    case GeomType::Circle: o.setRadius(std::max(1e-6, g.radius() + d)); break;  // positive = outward
+    case GeomType::Circle: {  // positive = outward
+      double r = g.radius() + d;
+      if (r <= 1e-6) return std::nullopt;
+      o.setRadius(r);
+      break;
+    }
     case GeomType::Arc: {
       // ccw traversal: left = towards centre
       double r = reversed ? g.radius() + d : g.radius() - d;
-      if (r <= 1e-6) r = 1e-6;
+      if (r <= 1e-6) return std::nullopt;
       o.setRadius(r);
       break;
     }
@@ -893,6 +899,50 @@ Geometry offsetCurve(const Geometry& g, bool reversed, double d) {
     case GeomType::Text: break;  // not offsettable exactly; copied unchanged (filtered by offset())
   }
   return o;
+}
+
+/// Signed side of `p` relative to one traversed curve: > 0 = left of the traversal direction.
+double sideOfCurve(const Geometry& g, bool reversed, Pt2 p) {
+  if (g.type == GeomType::Line) return signedDistanceToLine(g.start(), g.direction(), p) * (reversed ? -1 : 1);
+  if (g.type == GeomType::Circle) return p.distance(g.center()) - g.radius();  // circles: outward = positive
+  return (p.distance(g.center()) - g.radius()) * (reversed ? 1 : -1);
+}
+
+/// The run as a polyline in traversal order (for orientation / inside tests of closed loops).
+std::vector<Pt2> runPolyline(const Sketch& sk, const std::vector<ChainItem>& run) {
+  std::vector<Pt2> pts;
+  for (const ChainItem& item : run) {
+    std::vector<Pt2> t = sk.geometry(item.id)->tessellate(32);
+    if (item.reversed) std::reverse(t.begin(), t.end());
+    for (size_t i = pts.empty() ? 0 : 1; i < t.size(); ++i) pts.push_back(t[i]);
+  }
+  return pts;
+}
+
+bool runIsClosed(const Sketch& sk, const std::vector<ChainItem>& run) {
+  if (run.size() < 2) return false;
+  const Geometry* gl = sk.geometry(run.back().id);
+  const Geometry* gf = sk.geometry(run.front().id);
+  if (gl->type == GeomType::Circle || gf->type == GeomType::Circle) return false;
+  Pt2 tail = run.back().reversed ? gl->start() : gl->end();
+  Pt2 head = run.front().reversed ? gf->end() : gf->start();
+  return tail.near(head, 1e-6);
+}
+
+double polygonArea(const std::vector<Pt2>& pts) {
+  double a = 0;
+  for (size_t i = 0; i < pts.size(); ++i) a += pts[i].cross(pts[(i + 1) % pts.size()]);
+  return a / 2;
+}
+
+bool insidePolygon(const std::vector<Pt2>& pts, Pt2 q) {
+  bool in = false;
+  for (size_t i = 0, j = pts.size() - 1; i < pts.size(); j = i++) {
+    const Pt2& a = pts[i];
+    const Pt2& b = pts[j];
+    if ((a.y > q.y) != (b.y > q.y) && q.x < (b.x - a.x) * (q.y - a.y) / (b.y - a.y) + a.x) in = !in;
+  }
+  return in;
 }
 
 }  // namespace
@@ -908,18 +958,37 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
   auto runs = orderChains(*this, curves);
   for (auto& run : runs) {
     double d = distance;
-    if (side) {
-      // sign so that the first curve moves towards `side`
-      const Geometry* g0 = geometry(run.front().id);
-      double s = 0;
-      if (g0->type == GeomType::Line) s = signedDistanceToLine(g0->start(), g0->direction(), *side) * (run.front().reversed ? -1 : 1);
-      else if (g0->type == GeomType::Circle) s = side->distance(g0->center()) - g0->radius();
-      else s = (side->distance(g0->center()) - g0->radius()) * (run.front().reversed ? 1 : -1);
-      if (s < 0) d = -std::abs(distance);
-      else d = std::abs(distance);
+    if (runIsClosed(*this, run)) {
+      // closed loop: inside/outside of the whole loop decides (typed without a side: positive = outward)
+      std::vector<Pt2> poly = runPolyline(*this, run);
+      bool ccw = polygonArea(poly) > 0;  // ccw: left of the traversal = inside
+      bool inward = side ? insidePolygon(poly, *side) : distance < 0;
+      d = (inward == ccw) ? std::abs(distance) : -std::abs(distance);
+    } else if (side) {
+      // open chain / single curve: the run curve nearest the cursor decides, with its own direction
+      const ChainItem* nearest = &run.front();
+      double best = std::numeric_limits<double>::infinity();
+      for (const ChainItem& item : run) {
+        double dist = geometry(item.id)->distanceTo(*side);
+        if (dist < best) {
+          best = dist;
+          nearest = &item;
+        }
+      }
+      double s = sideOfCurve(*geometry(nearest->id), nearest->reversed, *side);
+      d = s < 0 ? -std::abs(distance) : std::abs(distance);
     }
     std::vector<Geometry> offs;
-    for (const ChainItem& item : run) offs.push_back(offsetCurve(*geometry(item.id), item.reversed, d));
+    bool degenerate = false;
+    for (const ChainItem& item : run) {
+      auto o = offsetCurve(*geometry(item.id), item.reversed, d);
+      if (!o) {
+        degenerate = true;
+        break;
+      }
+      offs.push_back(*o);
+    }
+    if (degenerate) continue;  // e.g. an inward offset larger than an arc radius: no geometry
     // trim/extend corners between consecutive offsets
     for (size_t i = 0; i + 1 < run.size(); ++i) {
       Geometry& a = offs[i];
@@ -972,6 +1041,14 @@ std::vector<int> Sketch::offset(const std::vector<int>& ids, double distance, st
         }
       }
     }
+    // an offset larger than the shape collapses or flips trimmed lines: no geometry for this run
+    for (size_t i = 0; i < offs.size(); ++i) {
+      const Geometry& o = offs[i];
+      if (o.type != GeomType::Line) continue;
+      const Geometry* src = geometry(run[i].id);
+      if (o.length() < 1e-9 || (o.end() - o.start()).dot(src->end() - src->start()) <= 0) degenerate = true;
+    }
+    if (degenerate) continue;
     std::vector<int> newIds;
     for (Geometry& o : offs) {
       o.id = -1;
@@ -1145,8 +1222,8 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   auto offsetsOf = [&](const Geometry& g, double r) {
     std::vector<Geometry> v;
     if (g.type == GeomType::Line) {
-      v.push_back(offsetCurve(g, false, r));
-      v.push_back(offsetCurve(g, false, -r));
+      v.push_back(*offsetCurve(g, false, r));
+      v.push_back(*offsetCurve(g, false, -r));
     } else {
       Geometry a = g;
       a.setRadius(g.radius() + r);
@@ -1204,6 +1281,9 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
     return g.center() + (center - g.center()).normalized() * g.radius();
   };
   Pt2 t1 = footOn(*g1), t2 = footOn(*g2);
+  // where the trimmed ends were (the "virtual sharp" when they met at a corner)
+  auto endNear = [](const Geometry& g, Pt2 keepNear, Pt2 cut) { return g.paramOf(keepNear) >= g.paramOf(cut) ? g.start() : g.end(); };
+  const Pt2 old1 = endNear(*g1, near1, t1), old2 = endNear(*g2, near2, t2);
   PointPos moved1 = trimToPoint(*g1, t1, near1);
   PointPos moved2 = trimToPoint(*g2, t2, near2);
   // typed sizes created driving dimensions on the lines: measure to the virtual sharp (Fusion)
@@ -1217,6 +1297,8 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   bool startIsT1 = arc.start().near(t1, 1e-6);
   arc.construction = g1->construction && g2->construction;
   int arcId = addGeometry(arc);
+  g1 = geometry(id1);  // addGeometry may reallocate
+  g2 = geometry(id2);
   GeoRef arcStart{arcId, PointPos::Start}, arcEnd{arcId, PointPos::End};
   GeoRef c1{id1, moved1}, c2{id2, moved2};
   if (g1->type == GeomType::Circle) c1 = {id1, PointPos::None};
@@ -1225,6 +1307,7 @@ std::optional<int> Sketch::fillet(int id1, Pt2 near1, int id2, Pt2 near2, double
   if (moved1 != PointPos::None && moved2 != PointPos::None) {
     if (const Constraint* co = findConstraint(ConstraintType::Coincident, {id1, moved1}, {id2, moved2})) removeConstraint(co->id);
   }
+  preserveTrimmedCorner(id1, moved1, old1, id2, moved2, old2);
   auto tangentTo = [&](const GeoRef& arcPt, const GeoRef& curvePt) {
     if (curvePt.pos == PointPos::None) {
       addConstraint(Constraint{.type = ConstraintType::Tangent, .a = {arcId, PointPos::None}, .b = {curvePt.geo, PointPos::None}, .internal = true});
@@ -1273,8 +1356,10 @@ std::vector<std::string> Sketch::retargetTrimmedDimensions(int lineId, PointPos 
           const Geometry* refLine = (ref.isValid() && ref.pos == PointPos::None) ? geometry(ref.geo) : nullptr;
           if (refLine && refLine->type == GeomType::Line && otherLine && parallel(*refLine, *other)) {
             pt = {otherId, PointPos::None};
-            handled = true;
           }
+          // otherwise it stays on the trimmed end and preserveTrimmedCorner() moves it to the
+          // virtual sharp, where it keeps driving (Fusion measures to the virtual sharp)
+          handled = true;
         } else {
           handled = true;  // references the far end only: unaffected
         }
@@ -1291,8 +1376,8 @@ std::vector<std::string> Sketch::retargetTrimmedDimensions(int lineId, PointPos 
             c.b = {otherId, PointPos::None};
             handled = true;
           }
-        } else if (!(aMoved || bMoved)) {
-          handled = true;
+        } else {
+          handled = true;  // far end only, or anchored at the trimmed end (moved to the virtual sharp)
         }
         break;
       }
@@ -1313,6 +1398,104 @@ std::vector<std::string> Sketch::takeDemotedDimensions() {
   std::vector<std::string> out;
   out.swap(demoted_);
   return out;
+}
+
+std::vector<std::string> Sketch::takeModifyNotes() {
+  std::vector<std::string> out;
+  out.swap(notes_);
+  return out;
+}
+
+int Sketch::preserveTrimmedCorner(int id1, PointPos m1, Pt2 old1, int id2, PointPos m2, Pt2 old2) {
+  struct End {
+    int id;
+    PointPos pos;
+    Pt2 old;
+    bool pinned = false;     // a constraint still references the trimmed end
+    bool lengthDep = false;  // a constraint depends on the (now shorter) line's extent
+    int sharp = -1;
+  };
+  std::vector<End> ends;
+  for (auto [id, pos, old] : {std::tuple{id1, m1, old1}, std::tuple{id2, m2, old2}}) {
+    const Geometry* g = geometry(id);
+    if (!g || pos == PointPos::None || (g->type != GeomType::Line && g->type != GeomType::Arc)) continue;
+    ends.push_back(End{.id = id, .pos = pos, .old = old});
+  }
+  if (ends.empty()) return -1;
+  auto refsEnd = [](const GeoRef& r, const End& e) { return r.geo == e.id && r.pos == e.pos; };
+  for (End& e : ends) {
+    const bool line = geometry(e.id)->type == GeomType::Line;
+    for (const Constraint& c : constraints_) {
+      if (refsEnd(c.a, e) || refsEnd(c.b, e) || refsEnd(c.c, e)) e.pinned = true;
+      if (!line) continue;
+      for (const GeoRef* r : {&c.a, &c.b, &c.c})
+        if (r->geo == e.id && r->pos == PointPos::Mid) e.lengthDep = true;
+      if (c.type == ConstraintType::Equal && ((c.a.geo == e.id && c.a.pos == PointPos::None) || (c.b.geo == e.id && c.b.pos == PointPos::None)))
+        e.lengthDep = true;
+      if (c.type == ConstraintType::Midpoint && c.b.geo == e.id && c.b.pos == PointPos::None) e.lengthDep = true;
+    }
+  }
+  bool needed = false;
+  for (const End& e : ends) needed = needed || e.pinned || e.lengthDep;
+  if (!needed) return -1;
+
+  // the virtual sharp(s): one shared point when the trimmed ends met at a corner
+  auto makeSharp = [&](Pt2 at) {
+    Geometry pt = Geometry::makePoint(at);
+    pt.construction = true;
+    return addGeometry(pt);
+  };
+  if (ends.size() == 2 && ends[0].old.near(ends[1].old, 1e-6)) {
+    int s = makeSharp(ends[0].old);
+    ends[0].sharp = ends[1].sharp = s;
+  } else {
+    for (End& e : ends)
+      if (e.pinned || e.lengthDep) e.sharp = makeSharp(e.old);
+  }
+  // move the pinning constraints onto the sharp; a constraint collapsing onto one point is dropped
+  std::vector<int> drop;
+  for (Constraint& c : constraints_) {
+    bool changed = false;
+    for (GeoRef* r : {&c.a, &c.b, &c.c})
+      for (const End& e : ends)
+        if (e.sharp >= 0 && refsEnd(*r, e)) {
+          *r = GeoRef{e.sharp, PointPos::Center};
+          changed = true;
+        }
+    // a tangency at a shared endpoint cannot hold on a point: keep the connection only
+    if (changed && c.type == ConstraintType::Tangent && c.a.isPoint() && c.b.isPoint()) c.type = ConstraintType::Coincident;
+    if (changed && c.a == c.b && c.a.isValid()) drop.push_back(c.id);
+  }
+  for (int cid : drop) removeConstraint(cid);
+  std::set<int> sharps;
+  for (const End& e : ends)
+    if (e.sharp >= 0 && sharps.insert(e.sharp).second) {
+      for (const End& on : ends)
+        if (on.sharp == e.sharp)
+          addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = {e.sharp, PointPos::Center}, .b = {on.id, PointPos::None}, .internal = true});
+    }
+  // length-dependent constraints: a construction line from the far end to the sharp stands in for
+  // the untrimmed line (same direction, so Mid / Equal / Midpoint keep their meaning)
+  for (const End& e : ends) {
+    if (!e.lengthDep || e.sharp < 0) continue;
+    const Geometry* g = geometry(e.id);
+    const PointPos farEnd = e.pos == PointPos::Start ? PointPos::End : PointPos::Start;
+    Geometry ghost = e.pos == PointPos::Start ? Geometry::makeLine(e.old, g->end()) : Geometry::makeLine(g->start(), e.old);
+    ghost.construction = true;
+    const int gid = addGeometry(ghost);
+    for (Constraint& c : constraints_) {
+      bool lengthUse = (c.type == ConstraintType::Equal) || (c.type == ConstraintType::Midpoint);
+      for (GeoRef* r : {&c.a, &c.b, &c.c}) {
+        if (r->geo != e.id) continue;
+        if (r->pos == PointPos::Mid) r->geo = gid;
+        else if (r->pos == PointPos::None && lengthUse) r->geo = gid;
+      }
+    }
+    addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {gid, farEnd}, .b = {e.id, farEnd}, .internal = true});
+    addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {gid, e.pos}, .b = {e.sharp, PointPos::Center}, .internal = true});
+  }
+  notes_.push_back("the corner's constraints now apply to a construction point at the old corner");
+  return *sharps.begin();
 }
 
 std::optional<int> Sketch::split(int curveId, Pt2 at) {

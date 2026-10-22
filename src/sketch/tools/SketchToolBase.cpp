@@ -433,8 +433,17 @@ void SketchTool::showInference(const InferenceResult& r) {
   const double off = tol(r.point, 12.0);
   for (const auto& [a, b] : r.guides) previewLines({a, b}, guideStyle());
   if (r.onPoint || r.onCurve) previewPoints({r.point}, markerStyle());
-  const char* glyph = inferenceGlyphText(r.glyph);
-  if (glyph && *glyph) previewText(r.point + Pt2{off, off}, glyph, glyphStyle());
+  // the glyph is drawn from line primitives like the constraint glyphs (UX-28)
+  const GlyphShape shape = glyphShapeFor(r.glyph);
+  if (shape == GlyphShape::None) return;
+  const Pt2 at = r.point + Pt2{off, off};
+  const double half = tol(at, 6.0);
+  std::vector<Pt2> segs;
+  for (const Pt2& q : glyphSegments(shape)) segs.push_back(at + q * half);
+  PreviewStyle st = glyphStyle();
+  st.shaded = false;
+  st.lineWidth = 1.0f;
+  previewLines(segs, st);
 }
 
 void SketchTool::showDynamicText(Pt2 near, const std::string& text) {

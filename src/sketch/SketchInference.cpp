@@ -22,6 +22,102 @@ const char* inferenceGlyphText(InferenceGlyph g) {
   return "";
 }
 
+GlyphShape glyphShapeFor(InferenceGlyph g) {
+  switch (g) {
+    case InferenceGlyph::None: return GlyphShape::None;
+    case InferenceGlyph::Coincident: return GlyphShape::Coincident;
+    case InferenceGlyph::Midpoint: return GlyphShape::Midpoint;
+    case InferenceGlyph::Center: return GlyphShape::Center;
+    case InferenceGlyph::OnCurve: return GlyphShape::OnCurve;
+    case InferenceGlyph::Horizontal: return GlyphShape::Horizontal;
+    case InferenceGlyph::Vertical: return GlyphShape::Vertical;
+    case InferenceGlyph::Parallel: return GlyphShape::Parallel;
+    case InferenceGlyph::Perpendicular: return GlyphShape::Perpendicular;
+    case InferenceGlyph::Tangent: return GlyphShape::Tangent;
+  }
+  return GlyphShape::None;
+}
+
+std::vector<Pt2> glyphSegments(GlyphShape g, bool frame) {
+  std::vector<Pt2> s;
+  auto seg = [&](Pt2 a, Pt2 b) {
+    s.push_back(a);
+    s.push_back(b);
+  };
+  auto circle = [&](Pt2 c, double r, double a0 = 0, double a1 = 2 * kPi, int n = 12) {
+    for (int i = 0; i < n; ++i) seg(c + Pt2::polar(r, a0 + (a1 - a0) * i / n), c + Pt2::polar(r, a0 + (a1 - a0) * (i + 1) / n));
+  };
+  auto rect = [&](Pt2 mn, Pt2 mx) {
+    seg(mn, {mx.x, mn.y});
+    seg({mx.x, mn.y}, mx);
+    seg(mx, {mn.x, mx.y});
+    seg({mn.x, mx.y}, mn);
+  };
+  const double k = 0.6;  // icon extent inside the frame
+  switch (g) {
+    case GlyphShape::None: return s;
+    case GlyphShape::Horizontal: seg({-k, 0}, {k, 0}); break;
+    case GlyphShape::Vertical: seg({0, -k}, {0, k}); break;
+    case GlyphShape::Parallel:
+      seg({-k, -k * 0.5}, {k * 0.2, k});
+      seg({-k * 0.2, -k}, {k, k * 0.5});
+      break;
+    case GlyphShape::Perpendicular:
+      seg({-k, -k}, {k, -k});
+      seg({0, -k}, {0, k});
+      break;
+    case GlyphShape::Tangent:
+      circle({0, 0.15}, k * 0.65);
+      seg({-k, 0.15 - k * 0.65}, {k, 0.15 - k * 0.65});
+      break;
+    case GlyphShape::Equal:
+      seg({-k, k * 0.35}, {k, k * 0.35});
+      seg({-k, -k * 0.35}, {k, -k * 0.35});
+      break;
+    case GlyphShape::Concentric:
+      circle({0, 0}, k);
+      circle({0, 0}, k * 0.45, 0, 2 * kPi, 8);
+      break;
+    case GlyphShape::Collinear:
+      seg({-k, -k}, {k, k});
+      seg({-k * 0.25, -k * 0.75}, {-k * 0.75, -k * 0.25});
+      seg({k * 0.75, k * 0.25}, {k * 0.25, k * 0.75});
+      break;
+    case GlyphShape::Midpoint:
+      seg({-k, -k * 0.6}, {k, -k * 0.6});
+      seg({k, -k * 0.6}, {0, k * 0.8});
+      seg({0, k * 0.8}, {-k, -k * 0.6});
+      break;
+    case GlyphShape::Fix:
+      // padlock: body + shackle
+      rect({-k * 0.8, -k}, {k * 0.8, k * 0.1});
+      circle({0, k * 0.1}, k * 0.5, 0, kPi, 6);
+      seg({0, -k * 0.6}, {0, -k * 0.3});
+      break;
+    case GlyphShape::Symmetric:
+      seg({0, -k}, {0, k});
+      seg({-k, k * 0.45}, {-k * 0.35, 0});
+      seg({-k * 0.35, 0}, {-k, -k * 0.45});
+      seg({k, k * 0.45}, {k * 0.35, 0});
+      seg({k * 0.35, 0}, {k, -k * 0.45});
+      break;
+    case GlyphShape::Coincident: rect({-k * 0.5, -k * 0.5}, {k * 0.5, k * 0.5}); break;
+    case GlyphShape::Center:
+      circle({0, 0}, k);
+      seg({-k, 0}, {k, 0});
+      seg({0, -k}, {0, k});
+      break;
+    case GlyphShape::OnCurve:
+      seg({0, k}, {k, 0});
+      seg({k, 0}, {0, -k});
+      seg({0, -k}, {-k, 0});
+      seg({-k, 0}, {0, k});
+      break;
+  }
+  if (frame) rect({-1, -1}, {1, 1});
+  return s;
+}
+
 namespace {
 constexpr double kAngleSnapDeg = 3.0;
 
@@ -37,9 +133,25 @@ InferenceResult infer(const Sketch& sketch, const InferenceInput& in) {
   if (in.suppress) return r;
   const double tol = std::max(in.tolerance, 1e-9);
 
-  // 1. existing points (endpoints, centres, midpoints)
+  // 1. existing points (endpoints, centres, midpoints), then the sketch origin
   if (in.allowPoints) {
-    if (auto hit = sketch.hitPoint(in.cursor, tol, in.exclude)) {
+    auto hit = sketch.hitPoint(in.cursor, tol, in.exclude);
+    const Pt2 origin{0, 0};
+    const double dOrigin = in.cursor.distance(origin);
+    if (dOrigin <= tol && (!hit || dOrigin < hit->point.distance(in.cursor) - 1e-12) && !(in.from && in.from->near(origin, 1e-9))) {
+      r.point = origin;
+      r.onOrigin = true;
+      r.glyph = InferenceGlyph::Coincident;
+      if (in.from && in.allowDirections) {
+        Pt2 d = r.point - *in.from;
+        if (d.length() > tol) {
+          if (std::abs(d.y) < 1e-9) r.horizontal = true;
+          else if (std::abs(d.x) < 1e-9) r.vertical = true;
+        }
+      }
+      return r;
+    }
+    if (hit) {
       r.point = hit->point;
       r.onPoint = hit->ref;
       const Geometry* g = sketch.geometry(hit->ref.geo);
@@ -170,6 +282,9 @@ InferenceResult infer(const Sketch& sketch, const InferenceInput& in) {
 void applyInference(Sketch& sketch, const InferenceResult& r, const GeoRef& newPoint, int newLine) {
   if (r.onPoint && newPoint.isValid()) {
     sketch.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = newPoint, .b = *r.onPoint});
+  } else if (r.onOrigin && newPoint.isValid()) {
+    // the origin is not sketch geometry: pin the point there with a Fix shown as a coincident dot
+    sketch.addConstraint(Constraint{.type = ConstraintType::Fix, .a = newPoint, .name = kOriginFixName});
   } else if (r.onCurve && newPoint.isValid()) {
     sketch.addConstraint(Constraint{.type = ConstraintType::PointOnCurve, .a = newPoint, .b = *r.onCurve});
   }
@@ -181,12 +296,8 @@ void applyInference(Sketch& sketch, const InferenceResult& r, const GeoRef& newP
     else if (r.perpendicularTo && *r.perpendicularTo != newLine)
       sketch.addConstraint(Constraint{.type = ConstraintType::Perpendicular, .a = {newLine}, .b = {*r.perpendicularTo}});
   }
-  if (!r.onPoint && !r.onCurve && newPoint.isValid()) {
-    if (r.alignedXWith && !(newLine >= 0 && r.vertical))
-      sketch.addConstraint(Constraint{.type = ConstraintType::Vertical, .a = newPoint, .b = *r.alignedXWith, .internal = true});
-    if (r.alignedYWith && !(newLine >= 0 && r.horizontal))
-      sketch.addConstraint(Constraint{.type = ConstraintType::Horizontal, .a = newPoint, .b = *r.alignedYWith, .internal = true});
-  }
+  // Tracking-line alignment (alignedXWith / alignedYWith) only snaps the position, like Fusion:
+  // it adds no constraint, so separate shapes are never tied together by hidden H/V constraints.
 }
 
 }  // namespace fabricad::sketch

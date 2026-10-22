@@ -10,7 +10,9 @@
 #include "core/Selection.h"
 #include "core/Units.h"
 
+#include <QApplication>
 #include <QLineEdit>
+#include <QTimer>
 #include <QPointer>
 #include <QtCore/Qt>
 #include <TopExp_Explorer.hxx>
@@ -74,6 +76,52 @@ std::string dimensionEditText(const Constraint& c, const core::UnitSystem& units
   if (!c.expression.empty()) return c.expression;
   if (c.type == ConstraintType::Angle) return core::formatQuantity(core::Quantity::deg(c.value), units, false);
   return core::formatQuantity(core::Quantity::mm(c.value), units, false);
+}
+
+/// Give a dimension value field keyboard focus with its text selected, on the next event-loop
+/// turn (after the dialog is shown). Leaves the focus alone while another text field (the
+/// command line) has it, so a value typed there still goes to the command line.
+void focusValueField(QLineEdit* edit) {
+  QPointer<QLineEdit> guard(edit);
+  QTimer::singleShot(0, edit, [guard] {
+    if (!guard) return;
+    QWidget* f = QApplication::focusWidget();
+    if (f && f != guard && qobject_cast<QLineEdit*>(f)) return;
+    guard->setFocus(Qt::OtherFocusReason);
+    guard->selectAll();
+  });
+}
+
+/// Typing into a dimension value while its field does not have the focus (keys reach the
+/// viewer): printable keys and Backspace go to the field (or to `buffer` when there is no
+/// field, e.g. headless). Returns true when the key was consumed.
+bool forwardValueKey(QLineEdit* edit, std::string& buffer, const ViewerKeyEvent& e) {
+  if (e.modifiers & (core::ModCtrl | core::ModAlt)) return false;
+  if (e.key == Qt::Key_Backspace) {
+    if (edit) {
+      edit->setFocus(Qt::OtherFocusReason);
+      edit->backspace();
+      edit->setModified(true);
+    }
+    if (!buffer.empty()) buffer.pop_back();
+    return true;
+  }
+  if (e.text.empty()) return false;
+  const unsigned char ch = static_cast<unsigned char>(e.text[0]);
+  if (ch < 0x20 || ch == 0x7f) return false;
+  if (edit) {
+    edit->setFocus(Qt::OtherFocusReason);
+    edit->insert(QString::fromStdString(e.text));  // replaces the selected measured value
+    edit->setModified(true);
+  }
+  buffer += e.text;
+  return true;
+}
+
+/// The typed value for Enter: the field text when it was edited, else the forwarded keys.
+std::string typedValue(QLineEdit* edit, const std::string& buffer) {
+  if (edit && edit->isModified()) return trimmed(edit->text().toStdString());
+  return trimmed(buffer);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,13 +210,22 @@ class FilletTool : public SketchTool {
     if (!sk || !session() || picks_.size() < 2) return;
     session()->beginEdit();
     auto arc = sk->fillet(picks_[0].first, picks_[0].second, picks_[1].first, picks_[1].second, radius_);
+    SolveResult solved;
+    if (arc) solved = sk->solve();
     if (!arc) {
       session()->cancelEdit();
       ctx.showMessage("Cannot fillet these curves with that radius", true);
+    } else if (!solved.ok()) {
+      // never commit an over-constrained / collapsed sketch: roll back (UX-22)
+      sk->takeDemotedDimensions();
+      sk->takeModifyNotes();
+      session()->cancelEdit();
+      ctx.showMessage("Fillet cancelled: the sketch constraints cannot hold it (" + solved.message + ")", true);
     } else {
       session()->commitEdit("Fillet");
       for (const std::string& n : sk->takeDemotedDimensions())
         ctx.showMessage(n + " is now a driven dimension (its corner was filleted)");
+      for (const std::string& n : sk->takeModifyNotes()) ctx.showMessage("Fillet: " + n);
     }
     picks_.clear();
     clearTemp();
@@ -850,12 +907,23 @@ class DimensionTool : public SketchTool {
     return true;
   }
 
+  bool keyPress(ToolContext& ctx, const ViewerKeyEvent& e) override {
+    if (phase_ == Phase::Value) {
+      if (e.key == Qt::Key_Return || e.key == Qt::Key_Enter) {
+        accept(ctx);
+        return true;
+      }
+      if (forwardValueKey(edit_, typed_, e)) return true;
+    }
+    return SketchTool::keyPress(ctx, e);
+  }
+
   void accept(ToolContext& ctx) override {
     if (phase_ == Phase::Value) {
-      if (edit_ && edit_->isModified()) {
+      if (std::string text = typedValue(edit_, typed_); !text.empty()) {
         std::string err;
         Sketch* sk = sketch();
-        if (!sk || !applyDimensionText(ctx, *sk, pendingId_, edit_->text().toStdString(), &err)) {
+        if (!sk || !applyDimensionText(ctx, *sk, pendingId_, text, &err)) {
           ctx.showMessage(err, true);
           return;
         }
@@ -899,6 +967,7 @@ class DimensionTool : public SketchTool {
       if (mgr) mgr->runCommandLine(edit->text().toStdString());
     });
     edit_ = edit;
+    focusValueField(edit);
     return edit;
   }
 
@@ -910,6 +979,7 @@ class DimensionTool : public SketchTool {
     phase_ = Phase::Pick;
     pendingId_ = -1;
     edit_ = nullptr;
+    typed_.clear();
   }
 
   std::string prompt() const {
@@ -1087,6 +1157,7 @@ class DimensionTool : public SketchTool {
   int pendingId_ = -1;
   Pt2 cursor_;
   QPointer<QLineEdit> edit_;
+  std::string typed_;  ///< value keys typed while the field had no focus
 };
 
 // ---------------------------------------------------------------------------
@@ -1110,6 +1181,8 @@ class DimensionEditTool : public SketchTool {
   void activate(ToolContext& ctx) override {
     SketchTool::activate(ctx);
     id_ = -1;
+    typed_.clear();
+    edit_ = nullptr;
     Sketch* sk = sketch();
     if (!sk || !session()) {
       ctx.cancel();
@@ -1160,9 +1233,18 @@ class DimensionEditTool : public SketchTool {
     return true;
   }
 
+  bool keyPress(ToolContext& ctx, const ViewerKeyEvent& e) override {
+    if (e.key == Qt::Key_Return || e.key == Qt::Key_Enter) {
+      accept(ctx);
+      return true;
+    }
+    if (forwardValueKey(edit_, typed_, e)) return true;
+    return SketchTool::keyPress(ctx, e);
+  }
+
   void accept(ToolContext& ctx) override {
-    if (edit_ && edit_->isModified()) {
-      commandLineInput(ctx, edit_->text().toStdString());
+    if (std::string text = typedValue(edit_, typed_); !text.empty()) {
+      commandLineInput(ctx, text);
       return;
     }
     ctx.finish();
@@ -1182,12 +1264,14 @@ class DimensionEditTool : public SketchTool {
       if (mgr) mgr->runCommandLine(edit->text().toStdString());
     });
     edit_ = edit;
+    focusValueField(edit);
     return edit;
   }
 
  private:
   int id_ = -1;
   QPointer<QLineEdit> edit_;
+  std::string typed_;  ///< value keys typed while the field had no focus
 };
 
 }  // namespace

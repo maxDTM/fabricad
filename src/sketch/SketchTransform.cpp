@@ -182,12 +182,16 @@ std::optional<int> chamfer(Sketch& sk, int id1, Pt2 near1, int id2, Pt2 near2, d
   auto p2 = cut(*g2, near2, d2, m2);
   if (!p1 || !p2) return std::nullopt;
   if (const Constraint* co = sk.findConstraint(ConstraintType::Coincident, {id1, m1}, {id2, m2})) sk.removeConstraint(co->id);
+  const Pt2 old1 = g1->point(m1), old2 = g2->point(m2);
   if (m1 == PointPos::Start) g1->setStart(*p1);
   else g1->setEnd(*p1);
   if (m2 == PointPos::Start) g2->setStart(*p2);
   else g2->setEnd(*p2);
   sk.retargetTrimmedDimensions(id1, m1, id2);
   sk.retargetTrimmedDimensions(id2, m2, id1);
+  sk.preserveTrimmedCorner(id1, m1, old1, id2, m2, old2);
+  g1 = sk.geometry(id1);  // preserveTrimmedCorner may add geometry
+  g2 = sk.geometry(id2);
   Geometry line = Geometry::makeLine(*p1, *p2);
   line.construction = g1->construction && g2->construction;
   int cid = sk.addGeometry(line);

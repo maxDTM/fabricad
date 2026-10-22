@@ -1300,6 +1300,8 @@ QJsonObject Constraint::toJson() const {
     if (driven) o["driven"] = true;
     if (!name.empty()) o["name"] = qs(name);
     if (hasLabelPos) o["label"] = QJsonArray{labelPos.x, labelPos.y};
+  } else if (!name.empty()) {
+    o["name"] = qs(name);  // e.g. the "origin" Fix
   }
   if (internal) o["internal"] = true;
   return o;
