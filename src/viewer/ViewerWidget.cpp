@@ -1124,6 +1124,9 @@ std::vector<ShapeRef> ViewerWidget::pickAll(int x, int y, ShapeKindMask kinds) {
 // ---------------------------------------------------------------------------------------
 
 core::ViewerMouseEvent ViewerWidget::buildEvent(QMouseEvent* e, core::MouseButton button, bool withPick) {
+  // a click during a camera animation (Look At on entering a sketch, Fit, Home) is projected
+  // with the camera the animation goes to, not with a frame in between (SK-03)
+  if (button != core::MouseButton::None && d_->ready()) d_->view->finishAnimation();
   core::ViewerMouseEvent ev;
   ev.button = button;
   ev.buttons = buttonsOf(e->buttons());
@@ -1775,15 +1778,24 @@ void ViewerWidget::removePreview(PreviewHandle h) {
     null_.removePreview(h);
     return;
   }
-  d_->ctx()->Remove(it->second.obj, false);
+  // a removed preview that is the detected (hovered) object would stay drawn in the immediate
+  // layer until the next mouse move (SK-02)
+  const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+  if (ctx->HasDetected() && ctx->DetectedInteractive() == it->second.obj) ctx->ClearDetected(false);
+  ctx->Remove(it->second.obj, false);
   d_->previews.erase(it);
   requestRedraw();
 }
 
 void ViewerWidget::clearPreviews() {
   null_.clearPreviews();
-  if (d_->ready())
-    for (auto& [h, p] : d_->previews) d_->ctx()->Remove(p.obj, false);
+  if (d_->ready()) {
+    const Handle(AIS_InteractiveContext)& ctx = d_->ctx();
+    for (auto& [h, p] : d_->previews) {
+      if (ctx->HasDetected() && ctx->DetectedInteractive() == p.obj) ctx->ClearDetected(false);
+      ctx->Remove(p.obj, false);
+    }
+  }
   d_->previews.clear();
   requestRedraw();
 }
@@ -2041,14 +2053,30 @@ void ViewerWidget::setStandardView(core::StandardView v, bool animate) {
 void ViewerWidget::fitAll(bool animate) {
   null_.fitAll(animate);
   if (!d_->ready()) return;
-  if (!d_->hasGeometry()) {
+  // the bodies plus, in sketch mode, the sketch: it is hidden from the scene and drawn as
+  // previews (SK-11). Text labels are sized in pixels and do not count.
+  Bnd_Box box = d_->sceneBox();
+  if (inSketchMode()) {
+    for (const auto& [h, p] : d_->previews) {
+      if (p.obj.IsNull()) continue;
+      if (Handle(AIS_TextLabel)::DownCast(p.obj)) continue;
+      if (Handle(AIS_Shape) s = Handle(AIS_Shape)::DownCast(p.obj)) {
+        if (!s->Shape().IsNull()) BRepBndLib::Add(s->Shape(), box);
+        continue;
+      }
+      Bnd_Box b;
+      p.obj->BoundingBox(b);
+      if (!b.IsVoid()) box.Add(b);
+    }
+  }
+  if (box.IsVoid()) {
     Handle(Graphic3d_Camera) cam = d_->cameraCopy();
     cam->SetScale(250.0);
     cam->SetCenter(gp_Pnt(0, 0, 0));
     animateCamera(cam, animate ? 0.25 : 0.0);
     return;
   }
-  animateCamera(d_->fitted(d_->cameraCopy()), animate ? 0.25 : 0.0);
+  animateCamera(d_->fitted(d_->cameraCopy(), &box), animate ? 0.25 : 0.0);
 }
 
 void ViewerWidget::fitShapes(const std::vector<ShapeRef>& refs, bool animate) {

@@ -57,6 +57,8 @@ core::ObjectId createSketch(ToolContext& ctx, const ShapeRef& plane) {
   auto feature = std::make_unique<SketchFeature>();
   feature->prop("plane").setRef(plane);
   feature->setPlane(*resolved);
+  // a face plane keeps the axes seen now on every later recompute (SK-04)
+  if (plane.kind == core::ShapeKind::Face) feature->storePlaneAxes(*resolved);
   core::ObjectId id = core::kInvalidId;
   if (ctx.undo) {
     auto cmd = std::make_unique<core::AddFeatureCommand>(doc, std::move(feature));

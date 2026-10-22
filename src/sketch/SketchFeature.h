@@ -39,6 +39,13 @@ class SketchFeature : public core::Feature, public core::IProfileSource {
   /// Plane after the last recompute (or set explicitly for a fresh sketch before recompute).
   const gp_Ax3& plane() const { return plane_; }
   void setPlane(const gp_Ax3& p) { plane_ = p; }
+  /// Sketch on a face: remember the plane's axes so later recomputes (which may resolve the
+  /// face with another orientation or parametrisation) keep the same normal side and X axis
+  /// (SK-04). Saved as "planeAxes".
+  void storePlaneAxes(const gp_Ax3& p);
+  /// `p` with its normal sign and X direction aligned to the stored axes (stores them if none).
+  gp_Ax3 alignToStoredAxes(const gp_Ax3& p);
+  bool hasStoredPlaneAxes() const { return planeAxes_.has_value(); }
   bool isVisible() const { return flag("visible"); }
   void setVisible(bool v) { prop("visible").setBool(v); }
 
@@ -89,6 +96,11 @@ class SketchFeature : public core::Feature, public core::IProfileSource {
 
   Sketch sketch_;
   gp_Ax3 plane_{gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0)};
+  struct PlaneAxes {
+    gp_Dir normal;
+    gp_Dir x;
+  };
+  std::optional<PlaneAxes> planeAxes_;
   mutable std::vector<ProfileRegion> regions_;
   mutable bool profilesValid_ = false;
 };

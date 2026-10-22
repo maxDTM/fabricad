@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+class QTimer;
+
 namespace fabricad::core {
 class Document;
 class SelectionModel;
@@ -174,6 +176,10 @@ class SketchSession : public QObject {
   bool rendering_ = false;
   double renderedPixelSize_ = 0;  ///< pixel size (mm) of the last render, to re-render after a zoom
   bool zoomCheckPending_ = false;
+  bool redrawPosted_ = false;   ///< a deferred full redraw is queued (SK-02)
+  QTimer* zoomPoll_ = nullptr;  ///< catches camera animations (F6 Fit, ViewCube) the events miss (SK-11)
+  /// Re-render when the pixel size changed since the last render (glyphs keep their size).
+  void checkPixelSize();
   bool ending_ = false;
 };
 
