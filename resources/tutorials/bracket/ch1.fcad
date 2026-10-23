@@ -1,0 +1,275 @@
+{
+    "activeComponent": 1,
+    "bodies": [
+    ],
+    "components": [
+        {
+            "children": [
+            ],
+            "grounded": true,
+            "id": 1,
+            "name": "ch1",
+            "parent": 0,
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0,
+                    1
+                ],
+                "t": [
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "visible": true
+        }
+    ],
+    "extensions": {
+        "ui": {
+            "displayMode": "shaded-edges",
+            "folders": {
+                "Construction": true,
+                "Joints": true,
+                "Sketches": true
+            },
+            "hiddenFeatures": [
+            ],
+            "projection": "orthographic",
+            "showOrigin": false
+        }
+    },
+    "features": [
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "start"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "id": 3,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 5,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 7,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 8,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "c": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "id": 9,
+                    "type": "Symmetric"
+                },
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "c": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "id": 10,
+                    "type": "Symmetric"
+                },
+                {
+                    "a": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "id": 11,
+                    "name": "origin",
+                    "type": "Fix"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 12,
+                    "label": [
+                        0,
+                        -20
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 80
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 13,
+                    "label": [
+                        35,
+                        0
+                    ],
+                    "name": "d2",
+                    "type": "Distance",
+                    "value": 50
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        -40,
+                        -25,
+                        40,
+                        -25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        40,
+                        -25,
+                        40,
+                        25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        40,
+                        25,
+                        -40,
+                        25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        -40,
+                        25,
+                        -40,
+                        -25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "construction": true,
+                    "id": 5,
+                    "p": [
+                        0,
+                        0
+                    ],
+                    "type": "Point"
+                }
+            ],
+            "id": 16,
+            "name": "Sketch1",
+            "nextConstraintId": 14,
+            "nextGeoId": 6,
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "XY",
+                        "owner": 2
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        }
+    ],
+    "format": "fabricad",
+    "name": "ch1",
+    "nextId": 17,
+    "parameters": [
+    ],
+    "rollbackIndex": 1,
+    "units": {
+        "angle": "deg",
+        "length": "mm",
+        "precision": 3
+    },
+    "version": 1
+}

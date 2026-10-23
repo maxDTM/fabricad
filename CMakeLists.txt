@@ -117,6 +117,7 @@ if(FABRICAD_BUILD_TESTS)
   add_subdirectory(tests/e2e)    # owner: integrator (headless end-to-end test)
   add_subdirectory(tests/scripts) # owner: ui agent (command scripts run by the real executable)
   add_subdirectory(tests/chair)   # chair benchmark regression (docs/comparison/CHAIR_SPEC.md)
+  add_subdirectory(tests/tutorial) # headless twin of the guided bracket tour (docs/tutorials/BRACKET_SPEC.md)
 endif()
 
 # Install rules: binary, .desktop, MIME type, hicolor icons, licences (cmake/FabriCADInstall.cmake, packaging/)

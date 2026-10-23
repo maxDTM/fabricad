@@ -12,6 +12,9 @@
 #include "theme/Tokens.h"
 
 #include <QCheckBox>
+#include <QApplication>
+#include <QTimer>
+#include <QPointer>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -262,6 +265,19 @@ void PropertyPanel::clearInvalid(const std::string& name) {
 
 void PropertyPanel::rebuild() {
   rebuilding_ = true;
+  // the focused field (a combo whose pick triggered this rebuild) is about to be retired: hiding
+  // it would hand the focus to the next widget of the window (the title bar's app menu button,
+  // so Enter opened that menu instead of applying the command); give it to the new field instead
+  QString focusName;
+  QWidget* focus = QApplication::focusWidget();
+  // a combo's open list (its own popup window, parented to the combo) counts as that combo
+  if (focus && focus->window() != window() && focus->window()->parentWidget()) focus = focus->window()->parentWidget();
+  // (the card hosts the fields: they need not be children of this panel)
+  for (QWidget* f = focus; f && f->window() == window(); f = f->parentWidget())
+    if (f->objectName().startsWith("prop_")) {
+      focusName = f->objectName();
+      break;
+    }
   retireFormRows(form_);
   refButtons_.clear();
   numericEdits_.clear();
@@ -309,6 +325,49 @@ void PropertyPanel::rebuild() {
     if (active_.empty()) active_ = refButtons_.begin()->first;
   }
   for (auto& [name, btn] : refButtons_) btn->setChecked(name == active_);
+  if (!focusName.isEmpty()) {
+    // after the event loop turn (the new rows are shown then, and a combo's list closes after
+    // the pick, Qt first handing the focus back to the retired combo); the latest field wins
+    pendingFocus_ = focusName;
+    const int gen = ++focusGen_;
+    QPointer<QWidget> win(window());
+    auto refocus = [this, win](bool last) {
+      const QString name = pendingFocus_;
+      if (last) pendingFocus_.clear();
+      if (!win || name.isEmpty()) return;
+      QWidget* f = QApplication::focusWidget();
+      if (f && f->window() != win) return;  // a popup or dialog is up: leave it
+      if (f && f->objectName().startsWith("prop_")) {
+        // there (or the user moved on to another field): done
+        pendingFocus_.clear();
+        return;
+      }
+      // only a fallback focus is taken back: none, or a button the retired field handed it to
+      // (the title bar's app menu, or the card's Cancel, which Enter would then press); a click
+      // into the 3D view or a text field keeps its focus
+      if (f && !qobject_cast<QAbstractButton*>(f)) return;
+      for (QWidget* w : win->findChildren<QWidget*>(name))
+        if (w->isVisible() && w->focusPolicy() != Qt::NoFocus) {
+          w->setFocus(Qt::OtherFocusReason);
+          break;
+        }
+    };
+    // the new rows are shown by their layout a little later: try again every 40 ms meanwhile
+    for (int ms = 0; ms < 600; ms += 40) QTimer::singleShot(ms, this, [refocus] { refocus(false); });
+    // Qt hands the focus to the next widget of the window when the combo's list closes, which can
+    // be later (fade): follow focus changes for a moment and send it back to the new field
+    disconnect(focusWatch_);
+    // (only a focus that comes from outside the window, the closing list or the retired field: a
+    // click into the 3D view in that moment keeps its focus)
+    focusWatch_ = connect(qApp, &QApplication::focusChanged, this, [refocus, win](QWidget* old, QWidget* now) {
+      if (now && !now->objectName().startsWith("prop_") && (!old || old->window() != win)) refocus(false);
+    });
+    QTimer::singleShot(600, this, [this, refocus, gen] {
+      if (gen != focusGen_) return;  // a later rebuild watches now
+      disconnect(focusWatch_);
+      refocus(true);
+    });
+  }
   rebuilding_ = false;
   if (dropped) emit validityChanged();
 }

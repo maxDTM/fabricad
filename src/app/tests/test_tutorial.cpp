@@ -21,6 +21,9 @@
 #include "theme/Tokens.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QFileInfo>
+#include <QDir>
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
@@ -119,6 +122,13 @@ class TestTutorial : public QObject {
     QVERIFY2(c_->loadErrors().isEmpty(), qPrintable(c_->loadErrors().join('\n')));
     QVERIFY(c_->findTour("sample"));
     QCOMPARE(c_->findTour("sample")->stepCount(), 3);
+    // the bracket tour (docs/tutorials/BRACKET_SPEC.md): every chapter checkpoint ships in the qrc
+    const Tour* bracket = c_->findTour("bracket");
+    QVERIFY(bracket);
+    QVERIFY(bracket->stepCount() > 50);
+    QCOMPARE(c_->tours().front().id, QString("bracket"));  // order 10: the first tour listed
+    for (const Chapter& ch : bracket->chapters)
+      if (!ch.checkpoint.isEmpty()) QVERIFY2(QFileInfo::exists(QDir(bracket->baseDir).filePath(ch.checkpoint)), qPrintable(ch.checkpoint));
   }
 
   void parserReportsProblems() {
@@ -161,32 +171,78 @@ class TestTutorial : public QObject {
 
   // ---- lint: every anchor resolves in every layout preset ----------------------------------------
 
+  /// A new tab showing `file` (a tour .fcad, qrc or disk; empty: a new design).
+  bool openTourDoc(const QString& file) {
+    auto doc = std::make_shared<core::Document>();
+    if (!file.isEmpty()) {
+      QFile f(file);
+      if (!f.open(QIODevice::ReadOnly)) return false;
+      std::string err;
+      if (!doc->fromJson(QJsonDocument::fromJson(f.readAll()).object(), &err)) return false;
+      doc->undoStack().clear();
+    }
+    doc->setModified(false);
+    w_->addDesignTab(doc);
+    settle(8);
+    return true;
+  }
+  void closeActiveTab() {
+    cancelTool();
+    w_->document().setModified(false);
+    w_->closeTab(w_->activeTab());
+    settle();
+  }
+  /// The lint context of a step: "tool:<id>" starts the tool, "cmd:a; b" submits command lines.
+  void enterContext(const QString& context) {
+    if (context.startsWith("tool:")) {
+      QVERIFY(w_->runCommand(context.mid(5).toStdString()));
+    } else if (context.startsWith("cmd:")) {
+      for (const QString& line : context.mid(4).split(';', Qt::SkipEmptyParts)) QVERIFY2(w_->submitCommandLine(line.trimmed()), qPrintable(line));
+    }
+    settle(6);
+  }
+
   void everyAnchorResolvesInEveryPreset() {
+    // each step is resolved in the app state it is meant for: its chapter's start file (the
+    // previous chapter's checkpoint), else that chapter's own checkpoint (an anchor on something
+    // the chapter builds, such as the new Hole1 row), each with the step's lint context
     AnchorResolver res(*w_);
     for (const Preset& p : kPresets) {
       resetUi();
       for (const auto& [k, v] : p.keys) QVERIFY2(ui().set(k, v), k);
       settle(8);
       for (const Tour& t : c_->tours())
-        for (const Chapter& ch : t.chapters)
-          for (const Step& s : ch.steps) {
-            cancelTool();
-            if (s.context.startsWith("tool:")) {
-              QVERIFY(w_->runCommand(s.context.mid(5).toStdString()));
-              settle();
-            }
-            const ResolvedAnchor r = res.resolve(s.anchor);
-            const QString where = QString("%1 preset %2 step %3 anchor %4: %5").arg(t.id, p.name, s.id, s.anchor.toString(), r.why);
-            QVERIFY2(r.found, qPrintable(where));
-            // model anchors need the 3D view (no GL offscreen): the entity must exist; widget
-            // anchors must be visible, or reachable through a menu / an expandable row
-            if (!s.anchor.isModel()) {
-              QVERIFY2(r.visible || r.via == "menu" || r.via == "expand", qPrintable(where));
-              QVERIFY2(r.rect.isValid() || s.anchor.isNone(), qPrintable(where));
-            } else {
-              QVERIFY2(!r.refs.empty() || s.anchor.kind == "sketchpoint", qPrintable(where));
-            }
+        for (int ci = 0; ci < static_cast<int>(t.chapters.size()); ++ci) {
+          const Chapter& ch = t.chapters[static_cast<size_t>(ci)];
+          QStringList docs{t.restoreFile(ci)};
+          if (!ch.checkpoint.isEmpty()) {
+            const QString own = QDir(t.baseDir).filePath(ch.checkpoint);
+            if (QFileInfo::exists(own)) docs << own;
           }
+          for (const Step& s : ch.steps) {
+            QString where;
+            bool ok = false;
+            for (const QString& file : docs) {
+              QVERIFY2(openTourDoc(file), qPrintable(t.id + ": cannot open " + file));
+              const int undo0 = w_->document().undoStack().index();
+              enterContext(s.context);
+              const ResolvedAnchor r = res.resolve(s.anchor);
+              where = QString("%1 preset %2 step %3 anchor %4 (on %5): %6")
+                          .arg(t.id, p.name, s.id, s.anchor.toString(), file.isEmpty() ? QString("a new design") : file, r.why);
+              // model anchors need the 3D view (no GL offscreen): the entity must exist; widget
+              // anchors must be visible, or reachable through a menu / an expandable row
+              if (!s.anchor.isModel())
+                ok = r.found && (r.visible || r.via == "menu" || r.via == "expand") && (r.rect.isValid() || s.anchor.isNone());
+              else
+                ok = r.found && (!r.refs.empty() || s.anchor.kind == "sketchpoint");
+              cancelTool();
+              while (w_->document().undoStack().index() > undo0 && w_->document().undoStack().canUndo()) w_->document().undoStack().undo();
+              closeActiveTab();
+              if (ok) break;
+            }
+            QVERIFY2(ok, qPrintable(where));
+          }
+        }
     }
     cancelTool();
     resetUi();
@@ -314,8 +370,8 @@ class TestTutorial : public QObject {
     const auto tours = discoverTours(&errors);
     qunsetenv("FABRICAD_TUTORIAL_PATH");
     QVERIFY2(errors.isEmpty(), qPrintable(errors.join('\n')));
-    QCOMPARE(tours.size(), size_t(2));
-    QCOMPARE(tours.front().id, QString("sample"));  // order 50 before 200
+    QCOMPARE(tours.size(), size_t(3));
+    QCOMPARE(tours.front().id, QString("bracket"));  // order 10, 50, 200
     TutorialEngine& e = c_->engine();
     QVERIFY(e.start(tours.back()));
     QVERIFY(waitFor([&] { return e.step() && e.step()->id == "a2"; }));  // skip_if: Part is active
@@ -379,7 +435,8 @@ class TestTutorial : public QObject {
     QVERIFY(c_->maybeShowWelcome());
     QFrame* card = c_->welcomeCard();
     QVERIFY(card && card->isVisible());
-    QVERIFY(QSettings().value("tutorial/offered").toStringList().contains("sample"));
+    QVERIFY(QSettings().value("tutorial/offered").toStringList().contains("bracket"));  // sample: welcome false
+    QCOMPARE(card->property("tourId").toString(), QString("bracket"));
     QTest::mouseClick(card->findChild<QPushButton*>("TutorialStart"), Qt::LeftButton);
     QVERIFY(c_->engine().running());
     c_->engine().stop();

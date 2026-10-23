@@ -149,6 +149,10 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void setHiddenFeatures(std::set<fabricad::core::ObjectId> ids);
   void setOriginVisible(bool v);
   bool isOriginVisible() const { return sceneOptions_.showOrigin; }
+  /// Half size (mm) of the drawn origin plane squares (they follow the model size).
+  double originPlaneSize() const { return sceneOptions_.originSize; }
+  /// A camera animation (Home, Look At, ViewCube) is still running.
+  bool isAnimating() const;
   /// Folder eyes: "Sketches", "Construction", "Joints".
   void setFolderVisible(const std::string& folder, bool v);
   bool isFolderVisible(const std::string& folder) const;

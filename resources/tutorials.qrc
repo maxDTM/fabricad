@@ -2,5 +2,16 @@
 <!-- Guided tours (docs/plans/tutorial.md): one folder per tour, read by app/tutorial/TutorialDefinition. -->
 <qresource prefix="/">
   <file>tutorials/sample/tutorial.json</file>
+  <file>tutorials/bracket/tutorial.json</file>
+  <file>tutorials/bracket/ch1.fcad</file>
+  <file>tutorials/bracket/ch2.fcad</file>
+  <file>tutorials/bracket/ch3.fcad</file>
+  <file>tutorials/bracket/ch4.fcad</file>
+  <file>tutorials/bracket/ch5.fcad</file>
+  <file>tutorials/bracket/ch6.fcad</file>
+  <file>tutorials/bracket/ch7.fcad</file>
+  <file>tutorials/bracket/ch8.fcad</file>
+  <file>tutorials/bracket/ch9.fcad</file>
+  <file>tutorials/bracket/ch10.fcad</file>
 </qresource>
 </RCC>

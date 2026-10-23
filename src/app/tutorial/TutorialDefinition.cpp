@@ -199,7 +199,8 @@ std::optional<Condition> Condition::parse(const QJsonValue& v, QString* error) {
   } else if (leaf == "camera") {
     if (c.value.toString() != "changed") bad = "needs \"changed\"";
   } else if (leaf == "document") {
-    if (c.value.toString() != "changed" && c.value.toString() != "unchanged") bad = "needs \"changed\" or \"unchanged\"";
+    if (c.value.toString() != "changed" && c.value.toString() != "unchanged" && c.value.toString() != "saved")
+      bad = "needs \"changed\", \"unchanged\" or \"saved\"";
   } else if (leaf == "workspace") {
     static const QStringList ws = {"part", "assembly", "drawing"};
     if (!ws.contains(c.value.toString().toLower())) bad = "needs part, assembly or drawing";
@@ -433,7 +434,8 @@ std::optional<Tour> parseTour(const QByteArray& json, const QString& baseDir, QS
       if (so.value("assert").isString()) s.asserts << so.value("assert").toString();
       for (const QJsonValue& a : so.value("assert").toArray()) s.asserts << a.toString();
       s.context = so.value("context").toString("idle");
-      if (s.context != "idle" && !s.context.startsWith("tool:")) err->append(where + ": context is \"idle\" or \"tool:<id>\"");
+      if (s.context != "idle" && !s.context.startsWith("tool:") && !s.context.startsWith("cmd:"))
+        err->append(where + ": context is \"idle\", \"tool:<id>\" or \"cmd:<command line>[; ...]\"");
       ch.steps.push_back(std::move(s));
     }
     t.chapters.push_back(std::move(ch));

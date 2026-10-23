@@ -1,11 +1,11 @@
 {
-  "$comment": "Sample tour for the tutorial engine (docs/plans/tutorial.md). Three steps; the bracket tour follows the same schema.",
+  "$comment": "Sample tour for the tutorial engine (docs/plans/tutorial.md): three steps, used by the engine tests and the sample GUI run. Help > Tutorials lists it; the first-launch welcome card offers the bracket tour.",
   "id": "sample",
   "title": "Quick tour: your first sketch",
   "description": "Three short steps: move the 3D view, start a sketch and pick the **XY** plane. About a minute. You can leave the tour at any time from Help > Tutorials.",
   "version": 1,
   "order": 50,
-  "welcome": true,
+  "welcome": false,
   "window": [1600, 1000],
   "finish": "That's it: you are sketching on the **XY** plane. Draw something, then click **Finish Sketch** or press [[Ctrl+Enter]].",
   "chapters": [

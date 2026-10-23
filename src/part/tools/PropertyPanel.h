@@ -129,6 +129,9 @@ class PropertyPanel : public QWidget {
   std::map<std::string, QPointer<QLabel>> exprLabels_;  ///< `fx` lines under numeric fields
   std::map<std::string, QHBoxLayout*> trailSlots_;  ///< numeric field rows (trailing actions)
   std::string live_;
+  QString pendingFocus_;  ///< field to focus again after a rebuild retired the focused one
+  QMetaObject::Connection focusWatch_;
+  int focusGen_ = 0;
   bool rebuilding_ = false;
   int delayMs_ = 0;
   QTimer debounce_;

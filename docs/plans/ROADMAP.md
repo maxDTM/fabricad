@@ -64,6 +64,8 @@ drawing issue.
 Open questions answered (tutorial.md §8). Needs steps 1–3 done (anchors on the final UI,
 §6 fixes in). Starts with its phase 0 spike on the new UI. ≈ 14.5–19 agent-days. Gate: `fabricad_tutorial_bracket_default`
 10 runs in a row in the default preset, 3 each in the `alt` and `light` presets; testers report no blocker.
+Status 2026-10-23: part 1 (engine) and part 2 (the full bracket tour, its twin and checkpoints, the GUI runs in all
+three presets) are done (tutorial.md §9); open: Markdown export, off-script GUI scenario, tester rounds.
 
 ## Decisions (confirmed by the user, 2026-10-22)
 

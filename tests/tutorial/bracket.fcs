@@ -1,0 +1,196 @@
+# Headless twin of the guided "bracket" tour (docs/tutorials/BRACKET_SPEC.md, docs/plans/tutorial.md).
+# It builds the same part with the same inputs the tour asks for (clicks become PICKs at the same world
+# points, typed values the same values) and CHECKs every reference number of the spec, so the spec is
+# proven independently of the GUI. Run: fabricad --script tests/tutorial/bracket.fcs --offscreen
+# (ctest fabricad_tutorial_bracket_twin, label tutorial). t = 8 first, 10 after the history edit.
+# The chN.fcad it saves are the shipped chapter checkpoints (copy them into resources/tutorials/bracket/
+# when the tour's model changes; the GUI runner's --update-checkpoints does the same from a real run).
+
+# --- Ch 1: Sketch1 on XY, a centre rectangle 80 x 50 at the origin --------------------------------
+SKETCH XY
+RECC
+PICK 0,0
+80,50
+CHECK dof == 0
+FINISH
+CHECK sketches == 1
+SAVE ch1.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 2: Extrude1, the plate (t = 8) --------------------------------------------------------------
+SELECT profile:@0,0,0
+EXTRUDE 8
+OK
+CHECK feature:Extrude1 status ok
+CHECK body:Body1 volume ~ 32000 0.01%
+CHECK body:Body1 zmax ~ 8 0.01
+SAVE ch2.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 3: Sketch2 on the plate top: project, a closed 4-line chain, Extrude2 (the flange) --------
+SELECT body:Body1/face:top
+SKETCH
+PROJECT
+PICK 0,0,8
+ESC
+LINE
+PICK -40,25,8
+@0,-10
+@80,0
+PICK 40,25,8
+PICK -40,25,8
+ESC
+CHECK dof == 0
+FINISH
+SELECT profile:@0,20,8
+EXTRUDE 40
+OK
+CHECK feature:Extrude2 status ok
+CHECK bodies == 1
+CHECK body:Body1 volume ~ 64000 0.01%
+SAVE ch3.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 4: Fillet1 R10 on the two front vertical edges ------------------------------------------
+SELECT body:Body1/edge:@40,-25,4 body:Body1/edge:@-40,-25,4
+FILLET 10
+OK
+CHECK body:Body1 volume ~ 63656.637 0.01%
+SAVE ch4.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 5: Sketch3 on the plate top, centre-to-centre slot 30 x 8, two dimensions, cut through ---
+SELECT body:Body1/face:top@0,-10,8
+SKETCH
+PROJECT
+PICK 0,0,8
+ESC
+SLOT
+PICK -15,-15,8 nosnap
+30
+8
+ESC
+DIMENSION
+PICK -15,-15
+PICK -8,-25
+PICK -20,-21 nosnap
+10
+DIMENSION
+PICK -15,-15
+PICK -40,-6
+PICK -30,-5 nosnap
+25
+ESC
+CHECK dof == 0
+FINISH
+SELECT profile:@0,-15,8
+EXTRUDE
+operation=Cut
+extentType=All
+flip=true
+OK
+CHECK feature:Extrude3 status ok
+CHECK body:Body1 volume ~ 61334.513 0.01%
+SAVE ch5.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 6: Hole1 (counterbore) on the right fillet's top arc, Mirror1 across YZ -------------------
+HOLE
+INPUT points body:Body1/edge:@37.071,-22.071,8
+holeType=Counterbore
+extentType=All
+diameter=6.6
+cboreDiameter=11
+cboreDepth=4
+OK
+CHECK feature:Hole1 status ok
+CHECK body:Body1 volume ~ 60817.533 0.01%
+SELECT feature:Hole1
+MIRROR
+INPUT mirrorPlane plane:YZ
+OK
+CHECK feature:Mirror1 status ok
+CHECK body:Body1 volume ~ 60300.552 0.01%
+SAVE ch6.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 7: Sketch4 on the flange front face, circle 12 at 10 / 40, cut through ---------------------
+SELECT body:Body1/face:front@0,15,30
+SKETCH
+PROJECT
+PICK 0,15,30
+ESC
+CIRCLE
+PICK 0,15,38 nosnap
+12
+ESC
+DIMENSION
+PICK 0,15,38
+PICK 0,15,48
+PICK 10,15,44 nosnap
+10
+DIMENSION
+PICK 0,15,38
+PICK -40,15,30
+PICK -20,15,34 nosnap
+40
+ESC
+CHECK dof == 0
+FINISH
+SELECT profile:@0,15,38
+EXTRUDE
+operation=Cut
+extentType=All
+flip=true
+OK
+CHECK feature:Extrude4 status ok
+CHECK body:Body1 volume ~ 59169.579 0.01%
+SAVE ch7.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 8: Chamfer1 2 mm on the two long top edges of the flange ---------------------------------
+SELECT body:Body1/edge:@0,15,48 body:Body1/edge:@0,25,48
+CHAMFER 2
+OK
+CHECK body:Body1 volume ~ 58849.579 0.01%
+SAVE ch8.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 9: Sketch5 on YZ: project the side face, one line between the two midpoints, Rib1 6 mm -----
+SKETCH YZ
+PROJECT
+PICK 40,0,4
+ESC
+LINE
+PICK 0,-2,8
+PICK 0,15,26
+ESC
+CHECK dof == 0
+FINISH
+RIB
+PICK 0,7.5,17.5
+thickness=6
+OK
+CHECK feature:Rib1 status ok
+CHECK body:Body1 volume ~ 59704.579 0.01%
+CHECK body:Body1 zmax ~ 48 0.01
+SAVE ch9.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 10: change history: Extrude1 8 -> 10, everything follows ---------------------------------
+EDITFEATURE Extrude1
+10
+OK
+CHECK status ok
+CHECK features == 14
+CHECK body:Body1 volume ~ 66901.359 0.01%
+CHECK body:Body1 xmin ~ -40 0.01
+CHECK body:Body1 xmax ~ 40 0.01
+CHECK body:Body1 ymin ~ -25 0.01
+CHECK body:Body1 ymax ~ 25 0.01
+CHECK body:Body1 zmin ~ 0 0.01
+CHECK body:Body1 zmax ~ 50 0.01
+SAVE ch10.fcad   # chapter checkpoint (resources/tutorials/bracket/)
+
+# --- Ch 12 / 13: save, reopen, STL --------------------------------------------------------------
+SAVE bracket.fcad
+CHECK file bracket.fcad exists
+EXPORTSTL bracket.stl deflection=0.02 angle=10
+CHECK file bracket.stl exists
+CLOSE
+OPEN bracket.fcad
+CHECK features == 14
+CHECK status ok
+CHECK body:Body1 volume ~ 66901.359 0.01%
+CHECK body:Body1 zmax ~ 50 0.01

@@ -6,6 +6,20 @@ All notable changes to FabriCAD are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Guided tour**: "Your first part: a mounting bracket", offered on first launch and in Help > Tutorials:
+  from a first sketch to an STL in 65 steps (sketch on faces, dimensions, extrude, fillet, slot, counterbored
+  holes, mirror, chamfer, rib, a history edit, measure, save and reopen, export), with chapter checkpoints for
+  Restore chapter.
+
+### Fixed
+
+- Dropdown lists of combo boxes show all their items (the last one hid behind a scroll arrow).
+- The command card keeps the keyboard focus after a choice rebuilds it, so Enter applies the command.
+- A cut with Extent All goes into the material by itself, like a Distance cut.
+- A fully dimensioned slot on projected edges no longer reports 30 DOF.
+
 ## [0.1.0] - 2026-10-23
 
 First public release.

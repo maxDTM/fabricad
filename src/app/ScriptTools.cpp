@@ -578,7 +578,8 @@ void registerScriptTools(AppShell& w, core::ToolRegistry& reg) {
           }
         }
         // what the click lands on (honouring the active command's selection filter)
-        std::optional<PickHit> hit = pickAt(*c.document, world, c.selection->filter(), tol, dir);
+        std::optional<PickHit> hit = pickAt(*c.document, world, c.selection->filter(), tol, dir,
+                                               session && session->feature() ? session->feature()->id() : ObjectId(0));
         if (hit) {
           e.hasPick = true;
           e.pick = hit->ref;

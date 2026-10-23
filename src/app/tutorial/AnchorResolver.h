@@ -44,6 +44,9 @@ class AnchorResolver {
   explicit AnchorResolver(MainWindow& w) : w_(w) {}
 
   ResolvedAnchor resolve(const Anchor& a) const;
+  /// Where a target is on screen, without the cover and pick checks (cheap: the bubble placement
+  /// keeps clear of a step's other click targets with it).
+  QRect roughRect(const Anchor& a) const;
 
   /// Case-insensitive compare with '&' mnemonics and a trailing " ▾" / "..." stripped.
   static bool textMatches(const QString& shown, const QString& wanted);
@@ -55,7 +58,8 @@ class AnchorResolver {
   ResolvedAnchor toolAnchor(const QString& id) const;
   ResolvedAnchor groupAnchor(const QString& spec) const;
   ResolvedAnchor menuAnchor(const QString& spec) const;
-  ResolvedAnchor propAnchor(const QString& name) const;
+  ResolvedAnchor propAnchor(const QString& spec) const;
+  ResolvedAnchor propWidget(const QString& name) const;
   ResolvedAnchor valueBoxAnchor(const QString& caption) const;
   ResolvedAnchor browserAnchor(const QString& path) const;
   ResolvedAnchor timelineAnchor(const QString& name) const;

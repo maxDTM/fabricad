@@ -174,10 +174,11 @@ QPushButton#OkButton:disabled { background: @{surface.pressed}; border-color: @{
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit { background: @{input.bg}; color: @{text.primary}; border: 1px solid @{input.border}; border-radius: 1px; padding: 2px 4px; selection-background-color: @{accent.solid}; selection-color: @{accent.onSolid}; }
 QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { background: @{panel.bg}; color: @{text.disabled}; border-color: @{divider}; }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus { border-color: @{input.border.focus}; }
-QComboBox { padding-right: 18px; }
+QComboBox { padding-right: 18px; combobox-popup: 0; }  /* a plain list under the field, sized for its rows */
 QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 16px; border: none; border-left: 1px solid @{divider}; }
 QComboBox::down-arrow { image: url(:/ui/@{theme}/arrow-down.svg); width: 10px; height: 10px; }
 QComboBox QAbstractItemView { background: @{tooltip.bg}; color: @{text.primary}; border: 1px solid @{input.border}; outline: 0; selection-background-color: @{row.selected.bg}; selection-color: @{row.selected.text}; }
+QComboBox QAbstractItemView::item { min-height: 22px; padding: 0 6px; }
 QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 14px; border: none; border-left: 1px solid @{divider}; background: @{panel.header.bg}; }
 QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 14px; border: none; border-left: 1px solid @{divider}; background: @{panel.header.bg}; }
 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(:/ui/@{theme}/arrow-up.svg); width: 8px; height: 8px; }

@@ -764,6 +764,8 @@ void ViewerWidget::rollBy(double deg, bool animate) {
   animateCamera(cam, animate ? 0.2 : 0.0);
 }
 
+bool ViewerWidget::isAnimating() const { return d_->ready() && d_->view->isAnimating(); }
+
 void ViewerWidget::animateCamera(const Handle(Graphic3d_Camera)& target, double seconds) {
   Handle(Graphic3d_Camera) cam = new Graphic3d_Camera();
   cam->Copy(target);  // never animate to (or alias) a stored camera such as Home

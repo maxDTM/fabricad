@@ -18,7 +18,7 @@ checkpoints/, and an ffmpeg x11grab video kept only on failure (decision 11) or 
 
 usage: tutorial_run.py --bin build/bin/fabricad --tour resources/tutorials/sample/tutorial.json
                        [--layout default|alt|light] [--out build/tutorial-out] [--display 77]
-                       [--update-checkpoints]
+                       [--expect-stl bracket.stl --stl-volume V --stl-box x0,x1,y0,y1,z0,z1] [--update-checkpoints]
 SPDX-License-Identifier: LGPL-2.1-or-later
 """
 import argparse
@@ -182,14 +182,62 @@ class Runner:
             raise Failure("target %s not visible: %s" % (json.dumps(target), r.get("why") or r.get("error")))
         return r["point"]
 
+    def settled_point(self, target):
+        """Move onto the target and make sure it is still there: the pointer move itself can start
+        or finish a camera animation (a sketch's Look At), which moves a model target on screen."""
+        x, y = self.locate(target)
+        for _ in range(4):
+            self.move(x, y)
+            time.sleep(0.05)
+            self.idle()
+            # (re-check without the Home fallback: the hovered pointer itself may now cover the
+            # point, a tool's hover label under the cursor; then the point stands)
+            r = self.probe.ask(cmd="locate", anchor="@step" if target == "@anchor" else target)
+            if not r.get("visible"):
+                break
+            nx, ny = r["point"]
+            if abs(nx - x) <= 2 and abs(ny - y) <= 2:
+                break
+            x, y = nx, ny
+        return x, y
+
     def move(self, x, y):
         self.xdo("mousemove", "--sync", str(x), str(y))
         self.last = (x, y)
 
+    def open_way(self, target):
+        """A target inside a closed menu or a collapsed MODEL folder resolves to the menu's button
+        (via "menu") or the folder row (via "expand"): open that first, as a user would, so one
+        `click` works in every layout (a tool is a toolbar button in one preset, a menu item in
+        another)."""
+        anchor = "@step" if target == "@anchor" else target
+        for _ in range(3):
+            r = self.probe.ask(cmd="locate", anchor=anchor)
+            via = r.get("via")
+            if not r.get("visible") or via not in ("menu", "expand"):
+                return
+            px, py = r["point"]
+            self.move(px, py)
+            time.sleep(0.05)
+            seq = self.input_seq()
+            if via == "menu":
+                # a combo opens with a left click; a toolbar button, section caption or title-bar
+                # button with a dropdown opens it with a right click (user decision 2026-10-23: a
+                # left click on a split button runs its tool)
+                self.xdo("click", "1" if "ComboBox" in r.get("widget", "") else "3")
+            else:
+                self.xdo("click", "--repeat", "2", "--delay", "80", "1")
+            self.after_event(seq)
+            self.idle()
+            time.sleep(0.15)  # the popup maps and is placed under its button
+
+    def idle(self, timeout=10.0):
+        self.probe.wait(lambda st: st.get("idle", True), timeout, "the app to be idle (camera animation)")
+
     def click(self, target, button=1, count=1, mods=""):
-        x, y = self.locate(target)
-        self.move(x, y)
-        time.sleep(0.05)
+        if button == 1 and count == 1:
+            self.open_way(target)
+        x, y = self.settled_point(target)
         seq = self.input_seq()
         cmd = []
         for m in filter(None, mods.split("+")):
@@ -229,8 +277,17 @@ class Runner:
         self.after_event(seq)
 
     def act(self, a):
+        self.act1(a)
+        self.idle()
+
+    def act1(self, a):
         verb = next(k for k in a if k in ("click", "dclick", "rclick", "move", "drag", "wheel", "type", "key", "wait", "shot", "assert"))
         v = a[verb]
+        if a.get("if_visible") and isinstance(v, (str, dict)):
+            # an input only some layouts need (scrolling the FEATURES list; the strip has none)
+            anchor = "@step" if v == "@anchor" else v
+            if not self.probe.ask(cmd="locate", anchor=anchor).get("visible"):
+                return
         if verb in ("click", "dclick", "rclick"):
             self.click(v, button=3 if verb == "rclick" else 1, count=2 if verb == "dclick" else 1, mods=a.get("mods", ""))
         elif verb == "move":
@@ -238,7 +295,7 @@ class Runner:
                 x, y = self.last or (0, 0)
                 self.move(x + v.get("dx", 0), y + v.get("dy", 0))
             else:
-                self.move(*self.locate(v))
+                self.settled_point(v)
         elif verb == "drag":
             self.drag(v)
         elif verb == "wheel":
@@ -324,7 +381,24 @@ def run(args):
                                   "-video_size", "%dx%d" % (w, h), "-i", disp, os.path.join(out, "run.mp4")],
                                  env=env, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     log = open(os.path.join(out, "app.log"), "w")
-    app = subprocess.Popen([args.bin], env=env, stdout=log, stderr=subprocess.STDOUT)
+    # the run folder is the app's working directory: file dialogs open there, so the files a tour
+    # saves or exports ("bracket", "bracket.stl") land next to the report
+    cmd = [os.path.abspath(args.bin)]
+    first = None
+    if args.from_chapter:
+        # debugging aid: start the tour at the chapter's first step from its start state (its
+        # "start" file, else the previous chapter's checkpoint); earlier chapters are not replayed
+        ids = [c["id"] for c in tour["chapters"]]
+        if args.from_chapter not in ids:
+            raise SystemExit("tutorial_run: no chapter '%s' (%s)" % (args.from_chapter, ", ".join(ids)))
+        ci = ids.index(args.from_chapter)
+        chap = tour["chapters"][ci]
+        # (Restore chapter: an untitled tab, so Ctrl+S asks for a name as in a full run and never
+        # writes over the shipped checkpoint)
+        first = chap["steps"][0]["id"]
+        env["FABRICAD_TUTORIAL_START"] = "%s:%s:restore" % (tour["id"], first)
+        env.pop("FABRICAD_TUTORIAL_WELCOME", None)
+    app = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, cwd=out)
     transcript = open(os.path.join(out, "probe.txt"), "w")
     probe = Probe(sock, transcript)
     report = {"tour": tour["id"], "layout": args.layout, "size": [w, h], "steps": [], "ok": False}
@@ -337,11 +411,17 @@ def run(args):
                        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         r = Runner(args, env, probe, out)
         # start through real input: the welcome card, else Help > Tutorials > <title>
-        loc = probe.ask(cmd="locate", anchor="TutorialStart")
-        started = False
+        loc = probe.ask(cmd="locate", anchor="TutorialStart") if not first else {}
+        started = bool(first)
+        if first:
+            probe.wait(lambda s: s["tour"].get("step") == first, 15, "the tour to start at " + first)
         if loc.get("visible"):
-            r.click("TutorialStart")
-            started = probe.state()["tour"].get("id") == tour["id"]
+            # the card offers one tour (the probe says which): ours, or "Not now" and the Help menu
+            if probe.state().get("welcome", tour["id"]) == tour["id"]:
+                r.click("TutorialStart")
+                started = probe.state()["tour"].get("id") == tour["id"]
+            else:
+                r.click("TutorialNotNow")
         if not started:
             if probe.state()["tour"].get("id"):
                 raise Failure("another tour started from the welcome card")
@@ -349,7 +429,11 @@ def run(args):
             r.click("menu:Help/Tutorials")
             r.click("menu:Help/Tutorials/" + tour["title"])
         probe.wait(lambda s: s["tour"].get("id") == tour["id"], 10, "tour start")
+        skipping = bool(first)
         for ch, s in steps_of(tour):
+            if skipping and s["id"] != first:
+                continue
+            skipping = False
             st = probe.state()
             cur = st["tour"].get("step")
             if cur != s["id"]:
@@ -377,6 +461,15 @@ def run(args):
             raise Failure("the tour did not finish (still at %s)" % st["tour"].get("step"))
         if root_size(env) != (w, h) and root_size(env) is not None and not got:
             raise Failure("the display size changed during the run: %s" % (root_size(env),))
+        if args.expect_stl:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import stlcheck  # noqa: E402 (tools/uitest/stlcheck.py)
+            b = [float(x) for x in args.stl_box.split(",")]
+            fails, info = stlcheck.check(os.path.join(out, args.expect_stl), args.stl_volume,
+                                         [(b[0], b[1]), (b[2], b[3]), (b[4], b[5])], vol_tol=args.stl_vol_tol)
+            report["stl"] = {"file": args.expect_stl, "volume": info and info["volume"], "fails": fails}
+            if fails:
+                raise Failure("STL checks: " + "; ".join(fails))
         report["ok"] = True
         code = 0
         if args.update_checkpoints:
@@ -431,6 +524,11 @@ def main():
     ap.add_argument("--layout", default="default", choices=sorted(LAYOUTS))
     ap.add_argument("--out", default="build/tutorial-out")
     ap.add_argument("--display", type=int, default=int(os.environ.get("FABRICAD_GUI_DISPLAY", "77")))
+    ap.add_argument("--expect-stl", help="after the tour: this STL (in the run folder) must pass tools/uitest/stlcheck.py")
+    ap.add_argument("--stl-volume", type=float, default=0.0)
+    ap.add_argument("--stl-box", default="0,0,0,0,0,0", help="xmin,xmax,ymin,ymax,zmin,zmax")
+    ap.add_argument("--stl-vol-tol", type=float, default=0.003)
+    ap.add_argument("--from-chapter", help="debugging: start at this chapter from its shipped start file")
     ap.add_argument("--update-checkpoints", action="store_true",
                     help="copy the chapter checkpoints of a passing run into the tour folder")
     sys.exit(run(ap.parse_args()))

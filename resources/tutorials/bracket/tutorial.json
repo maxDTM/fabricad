@@ -1,0 +1,1819 @@
+{
+ "$comment": "The guided bracket tour (docs/plans/tutorial.md, docs/tutorials/BRACKET_SPEC.md). tests/tutorial/bracket.fcs is its headless twin and writes the chN.fcad checkpoints.",
+ "id": "bracket",
+ "title": "Your first part: a mounting bracket",
+ "description": "Build a mounting bracket from a first sketch to an STL for your 3D printer: sketches, constraints, extrude, fillet, holes, mirror, rib, a history edit, measure, save and export. About 20 minutes; leave and resume at any time from Help > Tutorials.",
+ "version": 1,
+ "order": 10,
+ "welcome": true,
+ "window": [
+  1600,
+  1000
+ ],
+ "finish": "Done! **bracket.stl** is ready for your slicer. The whole history stays editable: double-click any feature in the {timeline} to change it.",
+ "chapters": [
+  {
+   "id": "welcome",
+   "title": "Welcome",
+   "steps": [
+    {
+     "id": "0.2",
+     "text": "We'll build a mounting bracket and export it for 3D printing. First the view: **right-drag** orbits, **middle-drag** pans, the **wheel** zooms. A right click without dragging opens the menu. [[Home]] brings the view back. Try it, then click **Next**.",
+     "anchor": "widget:viewport",
+     "until": {
+      "next": true
+     },
+     "do": [
+      {
+       "drag": {
+        "from": "@anchor",
+        "to": {
+         "dx": 120,
+         "dy": 40
+        },
+        "button": "right",
+        "steps": 12
+       }
+      },
+      {
+       "key": "Home"
+      }
+     ],
+     "keys_shown": [
+      "Home"
+     ],
+     "title": "The 3D view"
+    },
+    {
+     "id": "0.3",
+     "text": "Open the workspace menu and choose **Part**.",
+     "anchor": "WorkspaceSwitcher",
+     "until": {
+      "workspace": "part"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "menu:Workspace/Part"
+      }
+     ],
+     "skip_if": {
+      "workspace": "part"
+     }
+    }
+   ]
+  },
+  {
+   "id": "sketch",
+   "title": "First sketch",
+   "checkpoint": "ch1.fcad",
+   "steps": [
+    {
+     "id": "1.1",
+     "text": "Click **Create Sketch**.",
+     "anchor": "tool:sketch.create",
+     "until": {
+      "tool": "sketch.create"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "hint": "It is the first button of the **SKETCH** section of the toolbar."
+    },
+    {
+     "id": "1.2",
+     "text": "Click the **XY** plane, the flat one. The view turns to look straight at it.",
+     "anchor": "model:plane:XY",
+     "until": {
+      "all": [
+       {
+        "sketch": "active"
+       },
+       {
+        "check": "sketch:Sketch1 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "tool:sketch.create",
+     "stable_ms": 300,
+     "hint": "Click inside the flat square, not on an edge."
+    },
+    {
+     "id": "1.3",
+     "text": "**Right-click** **Rectangle** (or click its small arrow) and choose **Center Rectangle**.",
+     "anchor": "tool:sketch.rectangle-center",
+     "until": {
+      "tool": "sketch.rectangle-center"
+     },
+     "do": [
+      {
+       "rclick": "tool:sketch.rectangle"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SKETCH XY",
+     "hint": "A right click on a toolbar button with an arrow opens its menu; a left click runs the button's own tool."
+    },
+    {
+     "id": "1.4",
+     "text": "Click the **origin**, the dot in the middle of the sketch.",
+     "anchor": "sketchpoint:@0,0,0",
+     "until": {
+      "prompt": "corner"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SKETCH XY"
+    },
+    {
+     "id": "1.5",
+     "text": "Type **80**, press [[Tab]], type **50**, press [[Enter]]. The boxes next to the cursor take the width and the height.",
+     "anchor": "sketchpoint:@0,0,0",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch1 geometry >= 4"
+       },
+       {
+        "sketch": "dof == 0"
+       }
+      ]
+     },
+     "do": [
+      {
+       "move": "sketchpoint:@20,12,0"
+      },
+      {
+       "type": "80"
+      },
+      {
+       "key": "Tab"
+      },
+      {
+       "type": "50"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "keys_shown": [
+      "Tab",
+      "Enter"
+     ],
+     "context": "cmd:SKETCH XY",
+     "hint": "Type the numbers, don't click a second corner."
+    },
+    {
+     "id": "1.6",
+     "text": "The rectangle is fully defined: its lines turn white (black in the light theme) and the status bar says **0 DOF**. Click **Finish Sketch**.",
+     "anchor": "FinishSketchButton",
+     "until": {
+      "all": [
+       {
+        "sketch": "none"
+       },
+       {
+        "check": "sketch:Sketch1 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "Escape"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SKETCH XY"
+    }
+   ]
+  },
+  {
+   "id": "extrude",
+   "title": "Extrude",
+   "checkpoint": "ch2.fcad",
+   "steps": [
+    {
+     "id": "2.1",
+     "text": "Press [[Home]] to see the sketch in 3D, then press [[E]] for **Extrude**.",
+     "anchor": "tool:part.extrude",
+     "until": {
+      "tool": "part.extrude"
+     },
+     "do": [
+      {
+       "key": "Home"
+      },
+      {
+       "key": "e"
+      }
+     ],
+     "keys_shown": [
+      "Home",
+      "E"
+     ]
+    },
+    {
+     "id": "2.2",
+     "text": "Click inside the rectangle to use it as the profile.",
+     "anchor": "model:profile:@0,0,0",
+     "until": {
+      "all": [
+       {
+        "tool": "part.extrude"
+       },
+       {
+        "selection": "profile",
+        "count": 1
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "tool:part.extrude",
+     "hint": "Click inside the shaded rectangle, not on its edge."
+    },
+    {
+     "id": "2.3",
+     "text": "Type **8** and press [[Enter]]. That is the plate thickness.",
+     "anchor": "prop:distance",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Extrude1 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "type": "8"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT profile:@0,0,0; EXTRUDE",
+     "keys_shown": [
+      "8",
+      "Enter"
+     ],
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 32000 0.01%",
+      "body:Body1 zmax ~ 8 0.01"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "flange",
+   "title": "The flange",
+   "checkpoint": "ch3.fcad",
+   "steps": [
+    {
+     "id": "3.1",
+     "text": "Click the **top face** of the plate.",
+     "anchor": "model:body:Body1/face:top",
+     "until": {
+      "selection": "face",
+      "count": 1
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ]
+    },
+    {
+     "id": "3.2",
+     "text": "Click **Create Sketch**: the sketch goes on the selected face.",
+     "anchor": "tool:sketch.create",
+     "until": {
+      "all": [
+       {
+        "sketch": "active"
+       },
+       {
+        "check": "sketch:Sketch2 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "stable_ms": 300
+    },
+    {
+     "id": "3.3",
+     "text": "Press [[P]] (**Project**) and click the top face: its edges come into the sketch as dash-dot lines. Press [[Esc]].",
+     "anchor": "model:body:Body1/face:top",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch2 geometry >= 4"
+       },
+       {
+        "not": {
+         "tool": "sketch.project"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "p"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "keys_shown": [
+      "P",
+      "Esc"
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.4",
+     "text": "Press [[L]] (**Line**) and click the **back-left corner** of the plate.",
+     "anchor": "sketchpoint:@-40,25,8",
+     "until": {
+      "all": [
+       {
+        "tool": "sketch.line"
+       },
+       {
+        "prompt": "next point"
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "l"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "keys_shown": [
+      "L"
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.5",
+     "text": "Move the cursor toward the front, type **10** and press [[Enter]].",
+     "anchor": "sketchpoint:@-40,18,8",
+     "until": {
+      "check": "sketch:Sketch2 geometry >= 5"
+     },
+     "do": [
+      {
+       "move": "@anchor"
+      },
+      {
+       "type": "10"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.6",
+     "text": "Move the cursor to the right, type **80** and press [[Enter]].",
+     "anchor": "sketchpoint:@0,15,8",
+     "until": {
+      "check": "sketch:Sketch2 geometry >= 6"
+     },
+     "do": [
+      {
+       "move": "@anchor"
+      },
+      {
+       "type": "80"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.7",
+     "text": "Click the **back-right corner**: the line snaps to it.",
+     "anchor": "sketchpoint:@40,25,8",
+     "until": {
+      "check": "sketch:Sketch2 geometry >= 7"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.8",
+     "text": "Click the **start point** to close the outline, then press [[Esc]]. The strip is fully defined: **0 DOF**.",
+     "anchor": "sketchpoint:@-40,25,8",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch2 geometry >= 8"
+       },
+       {
+        "sketch": "dof == 0"
+       },
+       {
+        "not": {
+         "tool": "sketch.line"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.9",
+     "text": "Press [[Ctrl+Enter]] to finish the sketch.",
+     "anchor": "FinishSketchButton",
+     "until": {
+      "all": [
+       {
+        "sketch": "none"
+       },
+       {
+        "check": "sketch:Sketch2 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "ctrl+Return"
+      }
+     ],
+     "keys_shown": [
+      "Ctrl+Enter"
+     ],
+     "context": "cmd:SELECT body:Body1/face:top; SKETCH"
+    },
+    {
+     "id": "3.10",
+     "text": "Press [[E]] and click the narrow strip at the back.",
+     "anchor": "model:profile:@0,20,8",
+     "until": {
+      "all": [
+       {
+        "tool": "part.extrude"
+       },
+       {
+        "selection": "profile",
+        "count": 1
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "e"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "keys_shown": [
+      "E"
+     ],
+     "context": "tool:part.extrude"
+    },
+    {
+     "id": "3.11",
+     "text": "Type **40** and press [[Enter]]. The flange joins the plate: one body.",
+     "anchor": "prop:distance",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Extrude2 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "type": "40"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT profile:@0,20,8; EXTRUDE",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 64000 0.01%",
+      "bodies == 1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fillet",
+   "title": "Fillet",
+   "checkpoint": "ch4.fcad",
+   "steps": [
+    {
+     "id": "4.1",
+     "text": "Press [[Home]], then [[F]] (**Fillet**), and click the two **front corner edges** (the short vertical ones).",
+     "anchor": "model:body:Body1/edge:@40,-25,4",
+     "until": {
+      "all": [
+       {
+        "tool": "part.fillet"
+       },
+       {
+        "selection": "edge",
+        "count": 2
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "Home"
+      },
+      {
+       "key": "f"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "model:body:Body1/edge:@-40,-25,4"
+      }
+     ],
+     "keys_shown": [
+      "Home",
+      "F"
+     ],
+     "context": "tool:part.fillet",
+     "hint": "Hover until the edge lights up, then click; the second one is at the front-left."
+    },
+    {
+     "id": "4.2",
+     "text": "Type **10** and press [[Enter]].",
+     "anchor": "prop:radius",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Fillet1 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "type": "10"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/edge:@40,-25,4 body:Body1/edge:@-40,-25,4; FILLET",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 63656.637 0.01%"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "slot",
+   "title": "Slot and cut",
+   "checkpoint": "ch5.fcad",
+   "steps": [
+    {
+     "id": "5.1",
+     "text": "Click the **top face** of the plate again, then **Create Sketch**.",
+     "anchor": "model:body:Body1/face:top@0,-10,8",
+     "until": {
+      "all": [
+       {
+        "sketch": "active"
+       },
+       {
+        "check": "sketch:Sketch3 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "tool:sketch.create"
+      }
+     ],
+     "stable_ms": 300
+    },
+    {
+     "id": "5.2",
+     "text": "Press [[P]], click the top face, press [[Esc]].",
+     "anchor": "model:body:Body1/face:top@0,-10,8",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch3 geometry >= 4"
+       },
+       {
+        "not": {
+         "tool": "sketch.project"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "p"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH"
+    },
+    {
+     "id": "5.3",
+     "text": "Open the **Create** menu of the sketch toolbar (click or right-click its caption) and choose **Center to Center Slot**.",
+     "anchor": "tool:sketch.slot",
+     "until": {
+      "tool": "sketch.slot"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH"
+    },
+    {
+     "id": "5.4",
+     "text": "Click near the **front-left** of the plate for the first arc centre.",
+     "anchor": "sketchpoint:@-15,-15,8",
+     "until": {
+      "prompt": "second slot center"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH",
+     "hint": "Anywhere there is fine: two dimensions place it exactly in a moment."
+    },
+    {
+     "id": "5.5",
+     "text": "Move the cursor to the right, type **30** and press [[Enter]]: the distance between the arc centres.",
+     "anchor": "sketchpoint:@5,-15,8",
+     "until": {
+      "prompt": "slot width"
+     },
+     "do": [
+      {
+       "move": "@anchor"
+      },
+      {
+       "type": "30"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH"
+    },
+    {
+     "id": "5.6",
+     "text": "Type **8** and press [[Enter]] for the width, then [[Esc]].",
+     "anchor": "sketchpoint:@0,-12,8",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch3 geometry >= 11"
+       },
+       {
+        "not": {
+         "tool": "sketch.slot"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "move": "@anchor"
+      },
+      {
+       "type": "8"
+      },
+      {
+       "key": "Return"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "keys_shown": [
+      "8",
+      "Enter",
+      "Esc"
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH"
+    },
+    {
+     "id": "5.7",
+     "text": "Press [[D]] (**Dimension**). Click the **left arc centre**, then the **front edge**, click where the text goes, type **10**, [[Enter]].",
+     "anchor": "sketchpoint:@-15,-15,8",
+     "until": {
+      "sketch": "dof == 1"
+     },
+     "do": [
+      {
+       "key": "d"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "sketchpoint:@-8,-25,8"
+      },
+      {
+       "click": "sketchpoint:@-22,-21,8"
+      },
+      {
+       "type": "10"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "keys_shown": [
+      "D"
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH"
+    },
+    {
+     "id": "5.8",
+     "text": "Now the **left arc centre** and the **left edge**: place the text, type **25**, [[Enter]], then [[Esc]]. **0 DOF**.",
+     "anchor": "sketchpoint:@-15,-15,8",
+     "until": {
+      "all": [
+       {
+        "sketch": "dof == 0"
+       },
+       {
+        "not": {
+         "tool": "sketch.dimension"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "sketchpoint:@-40,-6,8"
+      },
+      {
+       "click": "sketchpoint:@-28,-8,8"
+      },
+      {
+       "type": "25"
+      },
+      {
+       "key": "Return"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:top@0,-10,8; SKETCH"
+    },
+    {
+     "id": "5.9",
+     "text": "[[Ctrl+Enter]] finishes the sketch. Press [[Home]], [[E]] and click **inside the slot**.",
+     "anchor": "model:profile:@0,-15,8",
+     "until": {
+      "all": [
+       {
+        "tool": "part.extrude"
+       },
+       {
+        "selection": "profile",
+        "count": 1
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "ctrl+Return"
+      },
+      {
+       "key": "Home"
+      },
+      {
+       "key": "e"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "keys_shown": [
+      "Ctrl+Enter",
+      "Home",
+      "E"
+     ],
+     "context": "tool:part.extrude"
+    },
+    {
+     "id": "5.10",
+     "text": "Click **Cut**, set **Extent** to **All**, press [[Enter]]. The cut goes down into the plate by itself.",
+     "anchor": "prop:operation/Cut",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Extrude3 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "prop:extentType/All"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT profile:@0,-15,8; EXTRUDE",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 61334.513 0.01%"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "holes",
+   "title": "Holes and mirror",
+   "checkpoint": "ch6.fcad",
+   "steps": [
+    {
+     "id": "6.1",
+     "text": "Press [[H]] (**Hole**) and click the **curved top edge** of the right corner: the hole goes to its centre.",
+     "anchor": "model:body:Body1/edge:@37.071,-22.071,8",
+     "until": {
+      "all": [
+       {
+        "tool": "part.hole"
+       },
+       {
+        "selection": "edge",
+        "count": 1
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "h"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "keys_shown": [
+      "H"
+     ],
+     "context": "tool:part.hole",
+     "hint": "Hover the rounded corner's top rim until the edge (not the face) lights up."
+    },
+    {
+     "id": "6.2",
+     "text": "Choose **Counterbore**, set **Extent** to **All** and the counterbore depth to **4** (Ø 6.6 and Ø 11 are already right). [[Enter]].",
+     "anchor": "prop:holeType/Counterbore",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Hole1 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "prop:extentType/All"
+      },
+      {
+       "click": "prop:cboreDepth"
+      },
+      {
+       "key": "ctrl+a"
+      },
+      {
+       "type": "4"
+      },
+      {
+       "key": "Tab"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:HOLE; INPUT points body:Body1/edge:@37.071,-22.071,8",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 60817.533 0.01%"
+     ]
+    },
+    {
+     "id": "6.3",
+     "text": "Click **Hole1** in the {timeline}.",
+     "anchor": "timeline:Hole1",
+     "until": {
+      "selection": "feature",
+      "count": 1
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ]
+    },
+    {
+     "id": "6.4",
+     "text": "Click **Mirror** (in the **Modify** section).",
+     "anchor": "tool:part.mirror",
+     "until": {
+      "tool": "part.mirror"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "cmd:SELECT feature:Hole1"
+    },
+    {
+     "id": "6.5",
+     "text": "Click the **Mirror Plane** field, then the **YZ** plane in the view (the one through the middle of the part). [[Enter]].",
+     "anchor": "prop:mirrorPlane",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Mirror1 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "model:plane:YZ"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT feature:Hole1; MIRROR",
+     "stable_ms": 200,
+     "hint": "You can also pick **YZ Plane** under **Origin** in the MODEL panel.",
+     "assert": [
+      "body:Body1 volume ~ 60300.552 0.01%"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "flangehole",
+   "title": "Flange hole",
+   "checkpoint": "ch7.fcad",
+   "steps": [
+    {
+     "id": "7.1",
+     "text": "Press [[Home]] and click the flange's **front face**, then **Create Sketch**.",
+     "anchor": "model:body:Body1/face:front@0,15,30",
+     "until": {
+      "all": [
+       {
+        "sketch": "active"
+       },
+       {
+        "check": "sketch:Sketch4 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "Home"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "tool:sketch.create"
+      }
+     ],
+     "stable_ms": 300
+    },
+    {
+     "id": "7.2",
+     "text": "Press [[P]], click the face, press [[Esc]].",
+     "anchor": "model:body:Body1/face:front@0,15,30",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch4 geometry >= 4"
+       },
+       {
+        "not": {
+         "tool": "sketch.project"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "p"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:front@0,15,30; SKETCH"
+    },
+    {
+     "id": "7.3",
+     "text": "Press [[C]] (**Circle**), click near the middle of the flange, type **12**, [[Enter]], [[Esc]].",
+     "anchor": "sketchpoint:@0,15,38",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch4 geometry >= 5"
+       },
+       {
+        "not": {
+         "tool": "sketch.circle"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "c"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "type": "12"
+      },
+      {
+       "key": "Return"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "keys_shown": [
+      "C"
+     ],
+     "context": "cmd:SELECT body:Body1/face:front@0,15,30; SKETCH"
+    },
+    {
+     "id": "7.4",
+     "text": "[[D]]: click the circle's **centre**, then the **top edge**, place the text, type **10**, [[Enter]].",
+     "anchor": "sketchpoint:@0,15,38",
+     "until": {
+      "sketch": "dof == 1"
+     },
+     "do": [
+      {
+       "key": "d"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "sketchpoint:@8,15,48"
+      },
+      {
+       "click": "sketchpoint:@10,15,44"
+      },
+      {
+       "type": "10"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:front@0,15,30; SKETCH"
+    },
+    {
+     "id": "7.5",
+     "text": "The **centre** and the **left edge**: type **40**, [[Enter]], [[Esc]]. **0 DOF**.",
+     "anchor": "sketchpoint:@0,15,38",
+     "until": {
+      "all": [
+       {
+        "sketch": "dof == 0"
+       },
+       {
+        "not": {
+         "tool": "sketch.dimension"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "sketchpoint:@-40,15,30"
+      },
+      {
+       "click": "sketchpoint:@-20,15,34"
+      },
+      {
+       "type": "40"
+      },
+      {
+       "key": "Return"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/face:front@0,15,30; SKETCH"
+    },
+    {
+     "id": "7.6",
+     "text": "[[Ctrl+Enter]], [[Home]], [[E]] and click **inside the circle**.",
+     "anchor": "model:profile:@0,15,38",
+     "until": {
+      "all": [
+       {
+        "tool": "part.extrude"
+       },
+       {
+        "selection": "profile",
+        "count": 1
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "ctrl+Return"
+      },
+      {
+       "key": "Home"
+      },
+      {
+       "key": "e"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "tool:part.extrude"
+    },
+    {
+     "id": "7.7",
+     "text": "**Cut**, **Extent: All**, [[Enter]].",
+     "anchor": "prop:operation/Cut",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Extrude4 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "prop:extentType/All"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT profile:@0,15,38; EXTRUDE",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 59169.579 0.01%"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "chamfer",
+   "title": "Chamfer",
+   "checkpoint": "ch8.fcad",
+   "steps": [
+    {
+     "id": "8.1",
+     "text": "Press [[Home]], click **Chamfer** and click the two **long top edges** of the flange.",
+     "anchor": "model:body:Body1/edge:@0,15,48",
+     "until": {
+      "all": [
+       {
+        "tool": "part.chamfer"
+       },
+       {
+        "selection": "edge",
+        "count": 2
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "Home"
+      },
+      {
+       "click": "tool:part.chamfer"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "model:body:Body1/edge:@0,25,48"
+      }
+     ],
+     "context": "tool:part.chamfer"
+    },
+    {
+     "id": "8.2",
+     "text": "Type **2** and press [[Enter]].",
+     "anchor": "prop:distance",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Chamfer1 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "type": "2"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:SELECT body:Body1/edge:@0,15,48 body:Body1/edge:@0,25,48; CHAMFER",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 58849.579 0.01%"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "rib",
+   "title": "Rib",
+   "checkpoint": "ch9.fcad",
+   "steps": [
+    {
+     "id": "9.1",
+     "text": "Click **Create Sketch**, then the **YZ** plane (the one through the middle).",
+     "anchor": "model:plane:YZ",
+     "until": {
+      "all": [
+       {
+        "sketch": "active"
+       },
+       {
+        "check": "sketch:Sketch5 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "tool:sketch.create"
+      },
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "tool:sketch.create",
+     "stable_ms": 300,
+     "hint": "You can also pick **YZ Plane** under **Origin** in the MODEL panel."
+    },
+    {
+     "id": "9.2",
+     "text": "Press [[P]] and click the part's **right side face**, then [[Esc]]: its L-shaped outline comes into the sketch.",
+     "anchor": "model:body:Body1/face:right",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch5 geometry >= 6"
+       },
+       {
+        "not": {
+         "tool": "sketch.project"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "p"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SKETCH YZ"
+    },
+    {
+     "id": "9.3",
+     "text": "Press [[L]]. Click the **middle** of the plate's top line (a midpoint marker shows), then the **middle** of the flange line. [[Esc]] twice.",
+     "anchor": "sketchpoint:@0,0,8",
+     "until": {
+      "all": [
+       {
+        "check": "sketch:Sketch5 geometry >= 9"
+       },
+       {
+        "sketch": "dof == 0"
+       },
+       {
+        "not": {
+         "tool": "sketch.line"
+        }
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "l"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "sketchpoint:@0,15,27"
+      },
+      {
+       "key": "Escape"
+      },
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:SKETCH YZ"
+    },
+    {
+     "id": "9.4",
+     "text": "[[Ctrl+Enter]] finishes the sketch, [[Home]] shows the whole part.",
+     "anchor": "FinishSketchButton",
+     "until": {
+      "all": [
+       {
+        "sketch": "none"
+       },
+       {
+        "check": "sketch:Sketch5 exists"
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "ctrl+Return"
+      },
+      {
+       "key": "Home"
+      }
+     ],
+     "context": "cmd:SKETCH YZ"
+    },
+    {
+     "id": "9.5",
+     "text": "Open the **Create** menu of the toolbar and choose **Rib**.",
+     "anchor": "tool:part.rib",
+     "until": {
+      "tool": "part.rib"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ]
+    },
+    {
+     "id": "9.6",
+     "text": "Click the **line** you just drew.",
+     "anchor": "model:curve:@0,7.5,17.5",
+     "until": {
+      "all": [
+       {
+        "tool": "part.rib"
+       },
+       {
+        "selection": "any",
+        "count": 1
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "context": "tool:part.rib"
+    },
+    {
+     "id": "9.7",
+     "text": "Type **6** (the rib thickness) and press [[Enter]].",
+     "anchor": "prop:thickness",
+     "until": {
+      "all": [
+       {
+        "check": "feature:Rib1 status ok"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "type": "6"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:RIB; INPUT curves curve:@0,7.5,17.5",
+     "stable_ms": 200,
+     "assert": [
+      "body:Body1 volume ~ 59704.579 0.01%"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "history",
+   "title": "Edit the history",
+   "checkpoint": "ch10.fcad",
+   "steps": [
+    {
+     "id": "10.1",
+     "text": "Every feature stays editable. Double-click **Extrude1** in the {timeline} (scroll up if it is out of sight).",
+     "anchor": "timeline:Extrude1",
+     "until": {
+      "all": [
+       {
+        "tool": "part.extrude"
+       },
+       {
+        "prompt": "Editing"
+       }
+      ]
+     },
+     "do": [
+      {
+       "wheel": "widget:FeatureList",
+       "clicks": 8,
+       "if_visible": true
+      },
+      {
+       "dclick": "@anchor"
+      }
+     ],
+     "timeout_ms": 30000
+    },
+    {
+     "id": "10.2",
+     "text": "Change **8** to **10** and press [[Enter]]. Watch the flange, the holes and the rib follow.",
+     "anchor": "prop:distance",
+     "until": {
+      "all": [
+       {
+        "check": "body:Body1 zmax ~ 50 0.01"
+       },
+       {
+        "tool": "none"
+       }
+      ]
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "key": "ctrl+a"
+      },
+      {
+       "type": "10"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "cmd:EDITFEATURE Extrude1",
+     "stable_ms": 300,
+     "assert": [
+      "body:Body1 volume ~ 66901.359 0.01%",
+      "status ok",
+      "features == 14"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "measure",
+   "title": "Measure",
+   "steps": [
+    {
+     "id": "11.1",
+     "text": "Press [[Home]], then [[I]] (**Measure**), and click the **top rims** of the two counterbores.",
+     "anchor": "model:body:Body1/edge:@35.5,-15,10",
+     "until": {
+      "all": [
+       {
+        "tool": "inspect.measure"
+       },
+       {
+        "selection": "edge",
+        "count": 2
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "Home"
+      },
+      {
+       "key": "i"
+      },
+      {
+       "click": "@anchor"
+      },
+      {
+       "click": "model:body:Body1/edge:@-24.5,-15,10"
+      }
+     ],
+     "keys_shown": [
+      "Home",
+      "I"
+     ],
+     "context": "tool:inspect.measure"
+    },
+    {
+     "id": "11.2",
+     "text": "The table shows the **centre distance: 60 mm**. Press [[Esc]] to close Measure.",
+     "anchor": "measureTable",
+     "until": {
+      "tool": "none"
+     },
+     "do": [
+      {
+       "key": "Escape"
+      }
+     ],
+     "context": "cmd:MEASURE"
+    }
+   ]
+  },
+  {
+   "id": "save",
+   "title": "Save and reopen",
+   "steps": [
+    {
+     "id": "12.1",
+     "text": "Press [[Ctrl+S]], type the name **bracket** and press [[Enter]].",
+     "anchor": "none",
+     "until": {
+      "document": "saved"
+     },
+     "do": [
+      {
+       "key": "ctrl+s"
+      },
+      {
+       "wait": {
+        "dialog": "modal"
+       }
+      },
+      {
+       "type": "bracket"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "keys_shown": [
+      "Ctrl+S"
+     ],
+     "timeout_ms": 30000,
+     "assert": [
+      "file bracket.fcad exists"
+     ]
+    },
+    {
+     "id": "12.2",
+     "text": "Close the tab with its **×**.",
+     "anchor": "tabclose:current",
+     "until": {
+      "check": "features == 0"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ]
+    },
+    {
+     "id": "12.3",
+     "text": "Press [[Ctrl+O]] and open **bracket.fcad**.",
+     "anchor": "none",
+     "until": {
+      "all": [
+       {
+        "document": "saved"
+       },
+       {
+        "check": "features == 14"
+       }
+      ]
+     },
+     "do": [
+      {
+       "key": "ctrl+o"
+      },
+      {
+       "wait": {
+        "dialog": "modal"
+       }
+      },
+      {
+       "type": "bracket.fcad"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "keys_shown": [
+      "Ctrl+O"
+     ],
+     "timeout_ms": 30000,
+     "stable_ms": 300,
+     "assert": [
+      "status ok",
+      "body:Body1 volume ~ 66901.359 0.01%",
+      "body:Body1 zmax ~ 50 0.01"
+     ]
+    },
+    {
+     "id": "12.4",
+     "text": "Power users: [[Ctrl+9]] opens the **cmd>** line, and `LIST features` prints the whole history as text. Click **Next**.",
+     "anchor": "none",
+     "until": {
+      "next": true
+     },
+     "do": []
+    }
+   ]
+  },
+  {
+   "id": "export",
+   "title": "Export STL",
+   "steps": [
+    {
+     "id": "13.1",
+     "text": "Open **Export STL**: it is in the **Tools** menu at the end of the toolbar (under **More** when the window is narrow).",
+     "anchor": "tool:part.export-stl",
+     "until": {
+      "tool": "part.export-stl"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ]
+    },
+    {
+     "id": "13.2",
+     "text": "File: **bracket.stl**. Linear deflection **0.02**, angular **10**, format **Binary**. Press [[Enter]].",
+     "anchor": "stl_path",
+     "until": {
+      "not": {
+       "tool": "part.export-stl"
+      }
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      },
+      {
+       "type": "bracket.stl"
+      },
+      {
+       "click": "stl_linear"
+      },
+      {
+       "key": "ctrl+a"
+      },
+      {
+       "type": "0.02"
+      },
+      {
+       "click": "stl_angular"
+      },
+      {
+       "key": "ctrl+a"
+      },
+      {
+       "type": "10"
+      },
+      {
+       "key": "Return"
+      }
+     ],
+     "context": "tool:part.export-stl",
+     "timeout_ms": 30000,
+     "assert": [
+      "file bracket.stl exists"
+     ]
+    }
+   ]
+  }
+ ]
+}

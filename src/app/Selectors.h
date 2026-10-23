@@ -56,14 +56,15 @@ TopoDS_Shape worldBodyShape(const core::Document& doc, core::ObjectId bodyId);
 /// screen). `kinds` is the active selection filter; the usual viewer priority applies: profiles
 /// of visible sketches, then vertices, edges, faces of visible bodies, then construction
 /// geometry, then whole bodies/components when nothing finer is allowed. With `rayDir` the
-/// first face hit along the ray (through `p`) is used instead of the nearest entity.
+/// first face hit along the ray (through `p`) is used instead of the nearest entity. With
+/// `onlySketch` (an open sketch) sketch entities of every other sketch come last (the viewer picks the open sketch first).
 struct PickHit {
   core::ShapeRef ref;
   core::Vec3 point;      ///< hit point (world)
   double distance = 0;   ///< distance from `p` (0 for ray hits)
 };
 std::optional<PickHit> pickAt(const core::Document& doc, const core::Vec3& p, core::ShapeKindMask kinds, double tolerance,
-                              const std::optional<core::Vec3>& rayDir = std::nullopt);
+                              const std::optional<core::Vec3>& rayDir = std::nullopt, core::ObjectId onlySketch = 0);
 
 /// One-line (or few-line) description of an entity for INFO / the log.
 std::string describeRef(const core::Document& doc, const core::ShapeRef& ref);

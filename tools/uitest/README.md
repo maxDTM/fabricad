@@ -74,6 +74,24 @@ the app (`inputSeq`) and for the tour to advance, runs the `assert` CHECKs and t
 with `FABRICAD_UITEST_VIDEO=1`). `--update-checkpoints` copies a passing run's chapter checkpoints into the
 tour folder.
 
+The bracket tour (`ctest -L gui`: `fabricad_tutorial_bracket_{default,alt,light}`):
+
+```sh
+FABRICAD_GUI=1 FABRICAD_GUI_ALLOW_DESKTOP=1 tools/uitest/tutorial_run.py --bin build/bin/fabricad \
+    --tour resources/tutorials/bracket/tutorial.json --display 97 [--layout alt] \
+    --expect-stl bracket.stl --stl-volume 66901.359 --stl-box=-40,40,-25,25,0,50 [--from-chapter slot]
+```
+
+* The app runs in the run folder, so the tour's Ctrl+S / Ctrl+O / Export STL files (`bracket.fcad`, `bracket.stl`)
+  land there; `--expect-stl` then checks the STL with `stlcheck.py` (watertight, one shell, volume, box).
+* A target inside a closed dropdown or a collapsed MODEL folder is opened first, as a user would: a right click on a
+  toolbar button or section caption (a left click would run the button's tool), a left click on a combo, a double
+  click on a folder. After every action the runner waits for the probe's `idle` (no camera animation).
+* An action with `"if_visible": true` is skipped when its target is not on screen (the FEATURES scroll that the
+  strip layout does not need).
+* `--from-chapter <id>` starts at that chapter through Restore chapter (an untitled tab with the shipped start
+  state): quick iteration on one chapter. Without it the whole tour runs from the welcome card.
+
 ## Offscreen grabs (exact size, any scale, no display)
 
 ```sh

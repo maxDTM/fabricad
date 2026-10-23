@@ -1,10 +1,10 @@
 # Plan: interactive "First part" tutorial (in-app guided tour + real-input GUI test)
 
-Status: **engine built** (2026-10-23, roadmap step 4 part 1, see section 9): tour format, loader and validation,
-anchor resolution, conditions, overlay, bubble, welcome card, ghost cursor, shortcuts, recovery, checkpoints,
-Help > Tutorials, the offscreen lint ctest, the TestProbe and the opt-in GUI runner skeleton, with a 3-step sample
-tour. The bracket content (`resources/tutorials/bracket/`) is next. Section 8 questions answered by the user
-(2026-10-22).
+Status: **built** (2026-10-23, roadmap step 4 parts 1 and 2, see section 9): the engine (part 1) and the full
+bracket tour (part 2): `resources/tutorials/bracket/tutorial.json` (14 chapters, 65 steps, chapter checkpoints
+`ch1.fcad` … `ch10.fcad`), its headless twin `tests/tutorial/bracket.fcs`, the spec `docs/tutorials/BRACKET_SPEC.md`
+(the single source for the numbers; it supersedes section 1 where they differ) and the real-input GUI run in all three
+layout presets. Section 8 questions answered by the user (2026-10-22).
 
 Reconciled on 2026-10-22 with the newer `docs/plans/ui-redesign.md` (it wins where they differ) and
 `docs/plans/feature-list-timeline.md`. The tour is built **on the redesigned UI**: no ribbon tab row, a sectioned
@@ -111,6 +111,11 @@ and of the chamfer (t+38).
 - the same volume and box within 1e-6 relative;
 - the same face, edge and vertex counts.
 
+**As built (2026-10-23):** three details changed while building the tour on the real UI, see
+`docs/tutorials/BRACKET_SPEC.md`: Sketch2 needs no Equal (the corner clicks fix it), Sketch3 is a Center to Center
+Slot dimensioned from its left arc centre (10 / 25), and the rib line joins the two projected midpoints (rib
+15 × 19 × 6, totals 59 704.579 at t = 8 and **66 901.359** at t = 10).
+
 This spec goes to `docs/tutorials/BRACKET_SPEC.md`. It is the single source for the numbers, like
 `CHAIR_SPEC.md`. A headless twin `tests/tutorial/bracket.fcs` (script plus `CHECK`s, label `tutorial`) builds the same
 part, which proves the spec independently of the GUI.
@@ -118,6 +123,14 @@ part, which proves the spec independently of the GUI.
 ---
 
 ## 2. Tutorial steps
+
+The table is the design; `resources/tutorials/bracket/tutorial.json` is the reference as built. Differences: the
+profile is clicked after **E** (the card would cover it the other way round only in narrow windows, and the resolver
+finds an uncovered point of the region); Sketch2 has no Equal step; the slot is a Center to Center Slot (5.3–5.8);
+Mirror and the YZ sketch pick the plane in the 3D view (the MODEL tree row may be scrolled out of the panel; the hint
+names the browser alternative); the rib line snaps to two midpoints (9.3); 10.1 scrolls the FEATURES list first
+(an optional input, the strip needs none); a toolbar tool inside a dropdown is opened with a **right click** on its
+button or section caption (user decision 2026-10-23), which the runner does by itself for any `via: "menu"` target.
 
 Columns:
 - **Bubble**: the user-facing text.
@@ -644,6 +657,33 @@ action  {"click"|"dclick"|"rclick": target, "mods"?} {"move": target | {dx, dy}}
         {"shot": name} {"assert": [..]}; target "@anchor" or any anchor
 ```
 
-Not done yet (next parts of step 4): the bracket content and checkpoints, the viewer's "tutorial" highlight style
-and `isAnimating`/frame counter for the probe's `idle`, `closeRect()` on the tab bar, value-box `field`
-properties, the Markdown export, the `alt`/`light` GUI entries and the off-script GUI scenario.
+### Part 2: the bracket tour (2026-10-23)
+
+- **Content**: `resources/tutorials/bracket/tutorial.json` (65 steps; the scratch generator is not kept, edit the
+  JSON), offered by the first-launch welcome card (order 10; the sample tour is listed in Help > Tutorials only).
+  Chapter checkpoints come from the headless twin (`tests/tutorial/bracket.fcs` saves `chN.fcad`); a passing GUI
+  run can refresh them with `--update-checkpoints`.
+- **Lint**: each step's anchor resolves on its chapter's start file, else the chapter's own checkpoint, in the
+  step's `context` (`idle`, `tool:<id>` or new `cmd:<command line>; …`), in all three presets.
+- **GUI runs**: `fabricad_tutorial_bracket_{default,alt,light}` pass end to end (about a minute each at 1900×990,
+  the size the compositor gave the private Xwayland), including the STL check (`tools/uitest/stlcheck.py`, the chair
+  checker's reader and analysis) and the save / close / reopen chapter. Runner additions: targets behind a closed
+  menu or folder are opened first (right click for buttons and captions, left click for combos, double click for
+  MODEL folders), an `idle` wait after every action (no camera animation), the app runs in the run folder (file
+  dialogs save there), `if_visible` on optional inputs, `--from-chapter <id>` (starts there through Restore chapter),
+  `--expect-stl`.
+- **App fixes the run needed** (section 6): combo lists are plain lists sized for their rows (the third item of
+  Extent was hidden behind a scroll arrow); the command card keeps the keyboard focus when a pick rebuilds it (Enter
+  went to the title bar's app menu button, or the card's Cancel); a cut with Extent **All** flips into the material
+  like a Distance cut; a fully dimensioned slot on projected edges showed "30 DOF" (PlaneGCS reports a negative
+  count when it finds redundancy: that is 0 DOF); script `PICK`s in an open sketch prefer that sketch's points over
+  other sketches; the resolver samples origin planes over their drawn square and profiles over their region, counts
+  only the GL surface as uncovered, and pick-checks with the live filter, a few pixels around the sample and by entity
+  identity (a fillet rim edge was clicked as the fillet face); the bubble keeps clear of the step's other click
+  targets; the probe's `idle` waits for camera animations (`ViewerWidget::isAnimating`) and reports the welcome
+  card's tour; STL dialog fields are named `stl_path`, `stl_linear`, `stl_angular`, `stl_format`; new condition
+  `{"document": "saved"}`; `prop:<name>/<Option>` anchors a segmented cell or a combo item.
+
+Not done yet: the viewer's "tutorial" highlight style, a frame counter for `idle`, `closeRect()` on the tab bar
+(`tabclose:` still approximates the glyph, which works), value-box `field` properties, the Markdown export, the
+off-script GUI scenario and the tester rounds (section 7).
