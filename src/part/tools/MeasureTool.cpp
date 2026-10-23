@@ -634,6 +634,23 @@ QWidget* MeasureTool::createDialog(ToolContext& ctx, QWidget* parent) {
     if (ctx_) ctx_->showMessage("Measurement copied", false);
   });
   bottom->addWidget(summaryLabel_, 1);
+  // the full mass properties of the same selection (production-features P1 §2.2)
+  auto* mass = new QPushButton("Mass properties...", w);
+  mass->setObjectName("measureMassProps");
+  mass->setToolTip("Open Mass Properties (inertia, principal axes, report) for the measured bodies / components");
+  QObject::connect(mass, &QPushButton::clicked, this, [this] {
+    if (!ctx_ || !ctx_->manager) return;
+    std::vector<core::ShapeRef> sel;
+    for (const core::ShapeRef& r : picks_)
+      if (r.kind == ShapeKind::Body || r.kind == ShapeKind::Component) sel.push_back(r);
+    core::ToolManager* mgr = ctx_->manager;
+    if (ctx_->selection) {
+      ctx_->selection->clear();
+      for (const core::ShapeRef& r : sel) ctx_->selection->add(r);
+    }
+    mgr->run("part.mass-properties");
+  });
+  bottom->addWidget(mass);
   bottom->addWidget(copy);
   v->addLayout(bottom);
   showResult(ctx);

@@ -397,7 +397,24 @@ void SheetRenderer::addPartsList(DisplayList& out, const PartsList& list) const 
       else if (col == "Part Number") v = row.partNumber;
       else if (col == "Description") v = row.description;
       else if (col == "Material") v = row.material;
-      else if (col == "Mass") {
+      else if (col == "Name") v = row.name;
+      else if (col == "Revision" || col == "Rev") v = row.revision;
+      else if (col == "Vendor") v = row.vendor;
+      else if (col == "Cost" || col == "Cost total") {
+        if (row.cost > 0) {
+          char buf[32];
+          std::snprintf(buf, sizeof buf, "%.2f", col == "Cost" ? row.cost : row.cost * row.quantity);
+          v = buf;
+        }
+        al = HAlign::Right;
+      } else if (col == "Mass total") {
+        if (row.mass > 0) {
+          char buf[32];
+          std::snprintf(buf, sizeof buf, "%.3f kg", row.mass * row.quantity);
+          v = buf;
+        }
+        al = HAlign::Right;
+      } else if (col == "Mass") {
         if (row.mass > 0) {
           char buf[32];
           std::snprintf(buf, sizeof buf, "%.3f kg", row.mass);

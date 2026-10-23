@@ -82,6 +82,9 @@ struct BomRow {
   std::string material;
   double mass = 0;                       ///< kg, 0 = unknown
   std::vector<core::ObjectId> keys;      ///< component ids (or body ids) this row covers
+  std::string name;                      ///< component (or body) name
+  std::string revision, vendor;          ///< Component Properties (production-features P1)
+  double cost = 0;                       ///< unit cost, 0 = unknown
 };
 
 /// Parts list table (bound to the document BOM).
@@ -89,6 +92,8 @@ struct PartsList {
   core::ObjectId id = core::kInvalidId;
   core::ObjectId viewId = core::kInvalidId;  ///< optional: restrict to that view's sources
   Point2 position;                           ///< sheet mm, top-left corner
+  /// Columns shown; any of Item, Qty, Name, Part Number, Description, Material, Mass, Mass total,
+  /// Revision, Vendor, Cost, Cost total (the BOM export's column set).
   std::vector<std::string> columns{"Item", "Qty", "Part Number", "Description", "Material"};
   std::vector<double> columnWidths{12, 12, 45, 60, 30};
   double rowHeight = 7.0;
