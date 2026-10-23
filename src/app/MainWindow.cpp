@@ -260,7 +260,10 @@ void MainWindow::applyQuickToolbar() {
 void MainWindow::applySidebarSide() {
   const Qt::DockWidgetArea area =
       UiSettings::instance().string("ui/sidebarSide") == "right" ? Qt::RightDockWidgetArea : Qt::LeftDockWidgetArea;
-  const int width = browserDock_->width() >= SidebarHost::kMinWidth ? browserDock_->width() : SidebarHost::kDefaultWidth;
+  // before the window is shown the dock reports its 260 px minimum, not a width the user chose
+  // (P5-TOGGLES-1: a right sidebar started at 260 and clipped the docked card)
+  const int width = isVisible() && browserDock_->width() >= SidebarHost::kMinWidth ? browserDock_->width()
+                                                                                    : SidebarHost::kDefaultWidth;
   const bool moved = dockWidgetArea(browserDock_) != area;
   if (moved) {
     const bool wanted = browserDockWanted_;
