@@ -141,6 +141,10 @@ TutorialController::TutorialController(MainWindow& w, QMenu* helpMenu) : QObject
     QString err;
     if (!engine_->restoreChapter(&err)) w_.showMessage(("Cannot restore the chapter: " + err).toStdString(), core::MessageLevel::Error);
   });
+  // the popup kept the keyboard focus after it closed: F after "Undo to step start" did nothing
+  connect(bubble_, &TutorialBubble::menuClosed, this, [this] {
+    if (!QApplication::activeModalWidget() && !QApplication::activePopupWidget()) w_.restoreKeyboardFocus();
+  });
   connect(overlay_, &TutorialOverlay::ghostFinished, this, [this] { overlay_->setSpotlight(last_.visible ? last_.rect : QRect()); });
   connect(&ThemeManager::instance(), &ThemeManager::themeChanged, overlay_, qOverload<>(&QWidget::update));
   if (helpMenu) {

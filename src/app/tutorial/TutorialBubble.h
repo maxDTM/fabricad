@@ -61,6 +61,8 @@ class TutorialBubble : public QFrame {
   void restoreClicked();
   void undoToStartClicked();
   void exitClicked();
+  /// The ⋯ menu closed (an item ran or it was dismissed): the keyboard goes back to the window.
+  void menuClosed();
 
  protected:
   void paintEvent(QPaintEvent* e) override;

@@ -328,9 +328,135 @@ class Runner:
 
 
 def steps_of(tour):
+    for ch, s in _steps(tour):
+        yield ch, s
+
+
+def _steps(tour):
     for ch in tour["chapters"]:
         for s in ch["steps"]:
             yield ch, s
+
+
+def doc_shot(r, probe, s, report_step):
+    """Before the step's input: the bubble pointing at its target, for the Markdown export
+    (tools/tutorial/export_md.py crops it to the bubble and the target)."""
+    r.idle()
+    time.sleep(0.25)  # the bubble follows its anchor on the next tracking tick (100 ms)
+    rects = {}
+    for name, anchor in (("bubble", "TutorialBubble"), ("target", "@step")):
+        loc = probe.ask(cmd="locate", anchor=anchor)
+        if loc.get("visible"):
+            rects[name] = loc["rect"]
+    name = "doc-" + s["id"].replace("/", "_")
+    r.shot(name)
+    report_step["doc"] = dict(rects, png=name + ".png")
+
+
+def play_step(r, probe, s, report, doc_shots=False):
+    """One step through its canonical input; returns the probe state after it completed."""
+    until = s.get("until", {"next": True})
+    if probe.ask(cmd="eval", cond=until).get("value") and "next" not in json.dumps(until):
+        raise Failure("step %s: 'until' is already true before any input" % s["id"])
+    entry = {"id": s["id"]}
+    if doc_shots:
+        doc_shot(r, probe, s, entry)
+    t0 = time.time()
+    for a in s.get("do", []):
+        r.act(a)
+    if "next" in json.dumps(until):
+        r.click("TutorialNext")
+    timeout = s.get("timeout_ms", 20000) / 1000.0
+    nxt = probe.wait(lambda x: x["tour"].get("step") != s["id"], timeout, "step %s to complete" % s["id"])
+    r.asserts(s.get("assert", []))
+    r.shot("step-" + s["id"].replace("/", "_"))
+    entry["ms"] = int((time.time() - t0) * 1000)
+    report["steps"].append(entry)
+    return nxt
+
+
+def offscript(r, probe, tour, report):
+    """The off-script scenario (docs/plans/tutorial.md 5.9, fabricad_tutorial_offscript), from the
+    start of the Fillet chapter: Show me changes nothing; a detour (a rename typed on the command
+    line) gets the off-script hint and Undo to step start takes it back; Back undoes the finished
+    step; Restore chapter opens the chapter's start in a new tab; the chapter then finishes."""
+    steps = {s["id"]: s for _, s in _steps(tour)}
+
+    def at(step_id, what):
+        probe.wait(lambda x: x["tour"].get("step") == step_id, 10, what + " (step %s)" % step_id)
+
+    def doc():
+        return json.dumps(probe.ask(cmd="docjson").get("doc"), sort_keys=True)
+
+    def log(what):
+        report["steps"].append({"id": "offscript", "check": what})
+        print("tutorial_run: offscript: " + what)
+
+    at("4.1", "the Fillet chapter")
+    d0, u0 = doc(), probe.state()["undo"]
+    # 1. Show me: a ghost cursor only; nothing in the document, the tour or the undo stack moves
+    r.click("TutorialShowMe")
+    time.sleep(3.0)
+    r.idle()
+    if doc() != d0 or probe.state()["undo"] != u0:
+        raise Failure("Show me changed the document")
+    at("4.1", "Show me must not advance")
+    r.shot("offscript-1-showme")
+    log("Show me left the document unchanged")
+    # 2. a detour: a rename on the command line is a document change the step does not ask for
+    r.key("ctrl+9")
+    probe.wait(lambda x: x.get("focus") == "CommandLine", 5, "the command line to take the focus")
+    r.type("RENAME Extrude1 Plate")
+    r.key("Return")
+    r.key("Escape")
+    r.asserts(["feature:Plate status ok"])
+    hint = probe.wait(lambda x: "That did" in (x["tour"].get("hint") or ""), 10, "the off-script hint")
+    time.sleep(0.3)  # the bubble repaints with the hint
+    r.shot("offscript-2-hint")
+    log("off-script hint: " + hint["tour"]["hint"])
+    at("4.1", "a detour must not advance")
+    # ... and Undo to step start (the bubble's ⋯ menu, second item) takes it back
+    r.click("TutorialMore")
+    time.sleep(0.2)
+    r.key("Down")
+    r.key("Down")
+    r.key("Return")
+    r.idle()
+    probe.wait(lambda x: x["undo"] == u0 and not x["tour"].get("hint"), 5, "Undo to step start")
+    r.asserts(["feature:Extrude1 status ok"])
+    if doc() != d0:
+        raise Failure("Undo to step start did not restore the document")
+    log("Undo to step start restored the document")
+    # 3. Back: finish the Fillet, then Back undoes it and shows step 4.2 again
+    play_step(r, probe, steps["4.1"], report)
+    play_step(r, probe, steps["4.2"], report)
+    at("5.1", "the Slot chapter")
+    r.asserts(["features == 5", "feature:Fillet1 status ok"])
+    r.click("TutorialBack")
+    at("4.2", "Back")
+    r.idle()
+    r.asserts(["features == 4"])
+    log("Back went to step 4.2 and undid Fillet1")
+    # 4. Restore chapter: confirm, a new tab with the chapter's start, step 4.1
+    r.click("TutorialMore")
+    time.sleep(0.2)
+    r.key("Down")
+    r.key("Return")
+    # the confirmation (QMessageBox, Yes is the default button)
+    probe.wait(lambda x: x["tour"].get("step") == "4.2" and x.get("focus", "").startswith("QPushButton"), 5,
+               "the Restore chapter confirmation")
+    r.key("Return")
+    at("4.1", "Restore chapter")
+    r.idle()
+    r.asserts(["features == 4", "feature:Extrude2 status ok"])
+    r.shot("offscript-4-restored")
+    log("Restore chapter opened the chapter start at step 4.1")
+    # the chapter finishes from there
+    play_step(r, probe, steps["4.1"], report)
+    play_step(r, probe, steps["4.2"], report)
+    at("5.1", "the chapter to finish after Restore")
+    r.asserts(["feature:Fillet1 status ok"])
+    log("the restored chapter finished")
 
 
 def run(args):
@@ -385,6 +511,8 @@ def run(args):
     # saves or exports ("bracket", "bracket.stl") land next to the report
     cmd = [os.path.abspath(args.bin)]
     first = None
+    if args.scenario == "offscript":
+        args.from_chapter = "fillet"
     if args.from_chapter:
         # debugging aid: start the tour at the chapter's first step from its start state (its
         # "start" file, else the previous chapter's checkpoint); earlier chapters are not replayed
@@ -430,7 +558,9 @@ def run(args):
             r.click("menu:Help/Tutorials/" + tour["title"])
         probe.wait(lambda s: s["tour"].get("id") == tour["id"], 10, "tour start")
         skipping = bool(first)
-        for ch, s in steps_of(tour):
+        if args.scenario == "offscript":
+            offscript(r, probe, tour, report)
+        for ch, s in ([] if args.scenario else steps_of(tour)):
             if skipping and s["id"] != first:
                 continue
             skipping = False
@@ -441,23 +571,11 @@ def run(args):
                     report["steps"].append({"id": s["id"], "skipped": True})
                     continue
                 raise Failure("expected step %s, the tour shows %s" % (s["id"], cur))
-            until = s.get("until", {"next": True})
-            if probe.ask(cmd="eval", cond=until).get("value") and "next" not in json.dumps(until):
-                raise Failure("step %s: 'until' is already true before any input" % s["id"])
-            t0 = time.time()
-            for a in s.get("do", []):
-                r.act(a)
-            if "next" in json.dumps(until):
-                r.click("TutorialNext")
-            timeout = s.get("timeout_ms", 20000) / 1000.0
-            nxt = probe.wait(lambda x: x["tour"].get("step") != s["id"], timeout, "step %s to complete" % s["id"])
-            r.asserts(s.get("assert", []))
-            r.shot("step-" + s["id"].replace("/", "_"))
-            report["steps"].append({"id": s["id"], "ms": int((time.time() - t0) * 1000)})
+            nxt = play_step(r, probe, s, report, doc_shots=args.doc_shots)
             if not nxt["tour"].get("id"):
                 break
         st = probe.state()
-        if st["tour"].get("id"):
+        if st["tour"].get("id") and not args.scenario:
             raise Failure("the tour did not finish (still at %s)" % st["tour"].get("step"))
         if root_size(env) != (w, h) and root_size(env) is not None and not got:
             raise Failure("the display size changed during the run: %s" % (root_size(env),))
@@ -529,6 +647,9 @@ def main():
     ap.add_argument("--stl-box", default="0,0,0,0,0,0", help="xmin,xmax,ymin,ymax,zmin,zmax")
     ap.add_argument("--stl-vol-tol", type=float, default=0.003)
     ap.add_argument("--from-chapter", help="debugging: start at this chapter from its shipped start file")
+    ap.add_argument("--scenario", choices=["offscript"], help="instead of the tour: the off-script scenario (bracket tour)")
+    ap.add_argument("--doc-shots", action="store_true",
+                    help="also capture each step before its input (doc-<id>.png, rects in report.json) for the Markdown export")
     ap.add_argument("--update-checkpoints", action="store_true",
                     help="copy the chapter checkpoints of a passing run into the tour folder")
     sys.exit(run(ap.parse_args()))

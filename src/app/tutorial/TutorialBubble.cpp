@@ -118,6 +118,8 @@ TutorialBubble::TutorialBubble(QWidget* window) : QFrame(window), window_(window
   menu->addSeparator();
   menu->addAction("Exit tour", this, &TutorialBubble::exitClicked);
   more_->setMenu(menu);
+  // queued: after the triggered item ran (Restore chapter's question, Undo to step start)
+  connect(menu, &QMenu::aboutToHide, this, &TutorialBubble::menuClosed, Qt::QueuedConnection);
   buttons->addWidget(back_);
   buttons->addWidget(showMe_);
   buttons->addStretch(1);
