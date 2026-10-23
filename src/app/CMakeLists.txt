@@ -54,6 +54,17 @@ if(FABRICAD_BUILD_TESTS)
         --out "${CMAKE_BINARY_DIR}/tutorial-out")
     set_tests_properties(fabricad_tutorial_gui_sample PROPERTIES LABELS "gui;tutorial" RUN_SERIAL TRUE
       SKIP_RETURN_CODE 77 TIMEOUT 900)
+    # the bracket tour end to end (docs/tutorials/BRACKET_SPEC.md): every chapter, then the exported
+    # STL must be watertight, one shell, volume within 0.3 % and box within 0.05 mm of the spec
+    foreach(_layout IN ITEMS default alt light)
+      add_test(NAME fabricad_tutorial_bracket_${_layout}
+        COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tools/uitest/tutorial_run.py"
+          --bin $<TARGET_FILE:fabricad> --tour "${CMAKE_SOURCE_DIR}/resources/tutorials/bracket/tutorial.json"
+          --layout ${_layout} --out "${CMAKE_BINARY_DIR}/tutorial-out"
+          --expect-stl bracket.stl --stl-volume 66901.359 --stl-box=-40,40,-25,25,0,50)
+      set_tests_properties(fabricad_tutorial_bracket_${_layout} PROPERTIES LABELS "gui;tutorial" RUN_SERIAL TRUE
+        SKIP_RETURN_CODE 77 TIMEOUT 1800)
+    endforeach()
   endif()
   # timing checks run as their own entries with the label `timing` (`ctest -LE timing` skips them
   # on a busy machine); the main entries skip them through FABRICAD_SKIP_TIMING

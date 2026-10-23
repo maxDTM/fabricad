@@ -17,11 +17,12 @@
 //     "hint": "...",                       shown after timeout_ms or on a wrong action
 //     "do": [<action>...],                 canonical real input (GUI runner; "show me" path)
 //     "assert": ["body:Body1 volume ~ 32000 0.01%"],   CHECK expressions after the step (runner)
-//     "context": "idle" | "tool:<id>" }    app state the lint test resolves the anchor in
+//     "context": "idle" | "tool:<id>" | "cmd:<line>; <line>" }   app state the lint test resolves the
+//                                          anchor in (on the chapter's start file, else its checkpoint)
 // Conditions: {"tool": id|"none"} {"dialog": "card"|"modal"|"popup"|<objectName>}
 //   {"selection": kind|"any", "count": n, "selector": s} {"valuebox": caption} {"prompt": text}
 //   {"sketch": "active"|"none"|"dof == 0"} {"workspace": "part"|"assembly"|"drawing"}
-//   {"setting": "ui/key", "is": value} {"camera": "changed"} {"document": "changed"|"unchanged"}
+//   {"setting": "ui/key", "is": value} {"camera": "changed"} {"document": "changed"|"unchanged"|"saved"}
 //   {"visible": objectName} {"check": "<CHECK expression>"} {"next": true} {"tour": stepId}
 //   {"all": [...]} {"any": [...]} {"not": <condition>}
 // Actions: {"click"|"dclick"|"rclick": target, "mods": "shift"} {"move": target | {"dx","dy"}}
@@ -92,7 +93,7 @@ struct Step {
   QString hint;
   std::vector<Action> actions;
   QStringList asserts;
-  QString context = "idle";
+  QString context = "idle";  ///< lint only: "idle", "tool:<id>" or "cmd:<command line>; ..."
 };
 
 struct Chapter {

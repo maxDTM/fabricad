@@ -137,6 +137,8 @@ void OcctView::animateTo(const Handle(Graphic3d_Camera)& target, double seconds)
   update();
 }
 
+bool OcctView::isAnimating() const { return !myViewAnimation.IsNull() && !myViewAnimation->IsStopped(); }
+
 bool OcctView::finishAnimation()
 {
   if (myViewAnimation.IsNull() || myViewAnimation->IsStopped() || myView.IsNull())

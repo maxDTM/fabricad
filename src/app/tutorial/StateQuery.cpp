@@ -161,6 +161,12 @@ bool StateQuery::leaf(const Condition& c, const StepBaseline& base, const Engine
   }
   if (t == "camera") return facts.cameraSeq != base.cameraSeq;
   if (t == "document") {
+    if (v == "saved") {
+      // the active design has a file and no unsaved changes (Ctrl+S done, or just opened)
+      const bool saved = w_.hasDocument() && !w_.document().filePath().empty() && !w_.document().isModified();
+      if (!saved && why) *why = "the design has unsaved changes";
+      return saved;
+    }
     const bool changed = base.document != (w_.hasDocument() ? static_cast<const void*>(&w_.document()) : nullptr) ||
                          undoIndex() != base.undoIndex;
     return v == "changed" ? changed : !changed;

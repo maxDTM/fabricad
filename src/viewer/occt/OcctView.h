@@ -67,6 +67,8 @@ class OcctView : public QOpenGLWidget, public AIS_ViewController {
   /// Jump a running camera animation to its end camera (true when one was running): input
   /// must not be projected with a camera that is still moving (SK-03).
   bool finishAnimation();
+  /// A camera animation is running (the tour probe's "idle" waits for its end).
+  bool isAnimating() const;
   /// Request a repaint of the immediate layer and Qt overlay only (the last full frame is
   /// reused): rubber band, overlay controls.
   void updateView() { update(); }

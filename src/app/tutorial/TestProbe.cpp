@@ -70,9 +70,10 @@ QJsonObject TestProbe::state() {
   o["focus"] = f ? (f->objectName().isEmpty() ? QString::fromLatin1(f->metaObject()->className()) : f->objectName()) : QString();
   o["window"] = QJsonArray{w_.x(), w_.y(), w_.width(), w_.height()};
   o["ready"] = w_.isVisible() && (!w_.viewer() || w_.viewer()->isVisible());
-  // idle: the answer is produced from the event loop, so queued events have run. The viewer's
-  // camera-animation and frame-counter hooks (plan 6, item 4) join this once the viewer has them.
-  o["idle"] = true;
+  // idle: the answer is produced from the event loop, so queued events have run; and no camera
+  // animation (Home, Look At on sketch entry) is still moving the view (plan 5.5)
+  o["idle"] = !(w_.viewer() && w_.viewer()->isAnimating());
+  if (QWidget* card = w_.findChild<QWidget*>("TutorialWelcome"); card && card->isVisible()) o["welcome"] = card->property("tourId").toString();
   o["inputSeq"] = static_cast<double>(inputSeq_);
   o["sketchDof"] = q.sketchDof();
   o["undo"] = q.undoIndex();
@@ -115,7 +116,10 @@ QJsonObject TestProbe::answer(const QJsonObject& r) {
             {"rect", QJsonArray{a.rect.x(), a.rect.y(), a.rect.width(), a.rect.height()}},
             {"via", a.via},
             {"why", a.why},
-            {"pickVerified", a.pickVerified}};
+            {"pickVerified", a.pickVerified},
+            // what is under the point: a QComboBox opens with a left click, a toolbar button's
+            // dropdown with a right click (a left click would run its tool)
+            {"widget", a.widget ? QString::fromLatin1(a.widget->metaObject()->className()) : QString()}};
   }
   if (cmd == "eval") {
     QString err;

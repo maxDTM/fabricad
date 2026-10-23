@@ -246,6 +246,7 @@ bool TutorialController::maybeShowWelcome() {
   welcome_ = makeCard(&w_, "TutorialWelcome", "Welcome to FabriCAD", TutorialEngine::expand(text),
                       {{"Start tour", "TutorialStart"}, {"Not now", "TutorialNotNow"}}, &b);
   const QString id = tour->id;
+  welcome_->setProperty("tourId", id);  // the GUI runner reads it through the probe
   connect(b[0], &QPushButton::clicked, this, [this, id] { startTour(id); });
   connect(b[1], &QPushButton::clicked, welcome_, &QObject::deleteLater);
   return true;

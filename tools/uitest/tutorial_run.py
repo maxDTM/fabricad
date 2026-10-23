@@ -18,7 +18,7 @@ checkpoints/, and an ffmpeg x11grab video kept only on failure (decision 11) or 
 
 usage: tutorial_run.py --bin build/bin/fabricad --tour resources/tutorials/sample/tutorial.json
                        [--layout default|alt|light] [--out build/tutorial-out] [--display 77]
-                       [--update-checkpoints]
+                       [--expect-stl bracket.stl --stl-volume V --stl-box x0,x1,y0,y1,z0,z1] [--update-checkpoints]
 SPDX-License-Identifier: LGPL-2.1-or-later
 """
 import argparse
@@ -186,7 +186,38 @@ class Runner:
         self.xdo("mousemove", "--sync", str(x), str(y))
         self.last = (x, y)
 
+    def open_way(self, target):
+        """A target inside a closed menu or a collapsed MODEL folder resolves to the menu's button
+        (via "menu") or the folder row (via "expand"): open that first, as a user would, so one
+        `click` works in every layout (a tool is a toolbar button in one preset, a menu item in
+        another)."""
+        anchor = "@step" if target == "@anchor" else target
+        for _ in range(3):
+            r = self.probe.ask(cmd="locate", anchor=anchor)
+            via = r.get("via")
+            if not r.get("visible") or via not in ("menu", "expand"):
+                return
+            px, py = r["point"]
+            self.move(px, py)
+            time.sleep(0.05)
+            seq = self.input_seq()
+            if via == "menu":
+                # a combo opens with a left click; a toolbar button, section caption or title-bar
+                # button with a dropdown opens it with a right click (user decision 2026-10-23: a
+                # left click on a split button runs its tool)
+                self.xdo("click", "1" if "ComboBox" in r.get("widget", "") else "3")
+            else:
+                self.xdo("click", "--repeat", "2", "--delay", "80", "1")
+            self.after_event(seq)
+            self.idle()
+            time.sleep(0.15)  # the popup maps and is placed under its button
+
+    def idle(self, timeout=10.0):
+        self.probe.wait(lambda st: st.get("idle", True), timeout, "the app to be idle (camera animation)")
+
     def click(self, target, button=1, count=1, mods=""):
+        if button == 1 and count == 1:
+            self.open_way(target)
         x, y = self.locate(target)
         self.move(x, y)
         time.sleep(0.05)
@@ -229,6 +260,10 @@ class Runner:
         self.after_event(seq)
 
     def act(self, a):
+        self.act1(a)
+        self.idle()
+
+    def act1(self, a):
         verb = next(k for k in a if k in ("click", "dclick", "rclick", "move", "drag", "wheel", "type", "key", "wait", "shot", "assert"))
         v = a[verb]
         if verb in ("click", "dclick", "rclick"):
@@ -324,7 +359,9 @@ def run(args):
                                   "-video_size", "%dx%d" % (w, h), "-i", disp, os.path.join(out, "run.mp4")],
                                  env=env, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     log = open(os.path.join(out, "app.log"), "w")
-    app = subprocess.Popen([args.bin], env=env, stdout=log, stderr=subprocess.STDOUT)
+    # the run folder is the app's working directory: file dialogs open there, so the files a tour
+    # saves or exports ("bracket", "bracket.stl") land next to the report
+    app = subprocess.Popen([os.path.abspath(args.bin)], env=env, stdout=log, stderr=subprocess.STDOUT, cwd=out)
     transcript = open(os.path.join(out, "probe.txt"), "w")
     probe = Probe(sock, transcript)
     report = {"tour": tour["id"], "layout": args.layout, "size": [w, h], "steps": [], "ok": False}
@@ -340,8 +377,12 @@ def run(args):
         loc = probe.ask(cmd="locate", anchor="TutorialStart")
         started = False
         if loc.get("visible"):
-            r.click("TutorialStart")
-            started = probe.state()["tour"].get("id") == tour["id"]
+            # the card offers one tour (the probe says which): ours, or "Not now" and the Help menu
+            if probe.state().get("welcome", tour["id"]) == tour["id"]:
+                r.click("TutorialStart")
+                started = probe.state()["tour"].get("id") == tour["id"]
+            else:
+                r.click("TutorialNotNow")
         if not started:
             if probe.state()["tour"].get("id"):
                 raise Failure("another tour started from the welcome card")
@@ -377,6 +418,15 @@ def run(args):
             raise Failure("the tour did not finish (still at %s)" % st["tour"].get("step"))
         if root_size(env) != (w, h) and root_size(env) is not None and not got:
             raise Failure("the display size changed during the run: %s" % (root_size(env),))
+        if args.expect_stl:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import stlcheck  # noqa: E402 (tools/uitest/stlcheck.py)
+            b = [float(x) for x in args.stl_box.split(",")]
+            fails, info = stlcheck.check(os.path.join(out, args.expect_stl), args.stl_volume,
+                                         [(b[0], b[1]), (b[2], b[3]), (b[4], b[5])], vol_tol=args.stl_vol_tol)
+            report["stl"] = {"file": args.expect_stl, "volume": info and info["volume"], "fails": fails}
+            if fails:
+                raise Failure("STL checks: " + "; ".join(fails))
         report["ok"] = True
         code = 0
         if args.update_checkpoints:
@@ -431,6 +481,10 @@ def main():
     ap.add_argument("--layout", default="default", choices=sorted(LAYOUTS))
     ap.add_argument("--out", default="build/tutorial-out")
     ap.add_argument("--display", type=int, default=int(os.environ.get("FABRICAD_GUI_DISPLAY", "77")))
+    ap.add_argument("--expect-stl", help="after the tour: this STL (in the run folder) must pass tools/uitest/stlcheck.py")
+    ap.add_argument("--stl-volume", type=float, default=0.0)
+    ap.add_argument("--stl-box", default="0,0,0,0,0,0", help="xmin,xmax,ymin,ymax,zmin,zmax")
+    ap.add_argument("--stl-vol-tol", type=float, default=0.003)
     ap.add_argument("--update-checkpoints", action="store_true",
                     help="copy the chapter checkpoints of a passing run into the tour folder")
     sys.exit(run(ap.parse_args()))

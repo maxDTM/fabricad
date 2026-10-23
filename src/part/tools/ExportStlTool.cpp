@@ -269,6 +269,7 @@ QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   auto* h = new QHBoxLayout(fileRow);
   h->setContentsMargins(0, 0, 0, 0);
   pathEdit_ = new QLineEdit(QString::fromStdString(path_), fileRow);
+  pathEdit_->setObjectName("stl_path");  // stable names: tours and GUI tests (docs/plans/tutorial.md 6)
   pathEdit_->setPlaceholderText("out.stl (empty: ask on OK)");
   auto* browse = new QPushButton("...", fileRow);
   browse->setFixedWidth(28);
@@ -287,9 +288,11 @@ QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   qualityCombo_->setToolTip("Coarse 0.1 mm / 20 deg, Medium 0.05 mm / 11.5 deg, Fine 0.01 mm / 5 deg");
   form->addRow("Quality", qualityCombo_);
   linearEdit_ = new QLineEdit(QString::number(settings_.linearDeflection), w);
+  linearEdit_->setObjectName("stl_linear");
   linearEdit_->setToolTip("Maximum distance between the mesh and the surface (mm, absolute)");
   form->addRow("Linear deflection (mm)", linearEdit_);
   angularEdit_ = new QLineEdit(QString::number(settings_.angularDeflectionDeg, 'g', 6), w);
+  angularEdit_->setObjectName("stl_angular");
   angularEdit_->setToolTip("Maximum angle between neighbouring facet normals (degrees)");
   form->addRow("Angular deflection (deg)", angularEdit_);
   syncQualityCombo();
@@ -309,6 +312,7 @@ QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   QObject::connect(linearEdit_, &QLineEdit::textEdited, w, edited);
   QObject::connect(angularEdit_, &QLineEdit::textEdited, w, edited);
   formatCombo_ = new QComboBox(w);
+  formatCombo_->setObjectName("stl_format");
   formatCombo_->addItems({"Binary", "ASCII"});
   formatCombo_->setCurrentIndex(settings_.binary ? 0 : 1);
   form->addRow("Format", formatCombo_);
