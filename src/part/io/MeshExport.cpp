@@ -3,6 +3,7 @@
 #include "part/io/MeshExport.h"
 
 #include "part/features/Import.h"
+#include "part/io/InteropLoader.h"
 
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -10,10 +11,7 @@
 #include <Message_ProgressRange.hxx>
 #include <Poly_Triangulation.hxx>
 #include <Quantity_ColorRGBA.hxx>
-#include <RWGltf_CafWriter.hxx>
-#include <RWObj_CafWriter.hxx>
 #include <Standard_Failure.hxx>
-#include <TColStd_IndexedDataMapOfStringString.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <TDataStd_Name.hxx>
 #include <TDocStd_Document.hxx>
@@ -142,30 +140,16 @@ bool exportCaf(const std::vector<MeshItem>& items, const std::string& path, Mesh
     ++stats.objects;
   }
   shapes->UpdateAssemblies();
-  TColStd_IndexedDataMapOfStringString info;
-  if (!opt.title.empty()) info.Add("Title", opt.title.c_str());
-  if (!opt.designer.empty()) info.Add("Author", opt.designer.c_str());
-  info.Add("Generator", "FabriCAD");
-  bool ok = false;
-  if (format == MeshFormat::Obj) {
-    RWObj_CafWriter w(path.c_str());
-    w.ChangeCoordinateSystemConverter().SetInputLengthUnit(0.001);
-    w.ChangeCoordinateSystemConverter().SetOutputLengthUnit(0.001);
-    if (opt.yUp) {
-      w.ChangeCoordinateSystemConverter().SetInputCoordinateSystem(RWMesh_CoordinateSystem_Zup);
-      w.ChangeCoordinateSystemConverter().SetOutputCoordinateSystem(RWMesh_CoordinateSystem_Yup);
-    }
-    ok = w.Perform(doc, info, Message_ProgressRange());
-  } else {
-    RWGltf_CafWriter w(path.c_str(), format == MeshFormat::Glb);
-    // glTF: metres, Y up; FabriCAD: millimetres, Z up
-    w.ChangeCoordinateSystemConverter().SetInputLengthUnit(0.001);
-    w.ChangeCoordinateSystemConverter().SetInputCoordinateSystem(RWMesh_CoordinateSystem_Zup);
-    w.SetNodeNameFormat(RWMesh_NameFormat_InstanceOrProduct);
-    w.SetMeshNameFormat(RWMesh_NameFormat_Product);
-    ok = w.Perform(doc, info, Message_ProgressRange());
+  std::string loadErr;
+  const InteropApi* api = interopApi(&loadErr);
+  if (!api) {
+    if (error) *error = loadErr;
+    return false;
   }
-  if (!ok && error) *error = "could not write " + path;
+  char err[512] = {0};
+  const int fmt = format == MeshFormat::Obj ? 0 : format == MeshFormat::Gltf ? 1 : 2;
+  const bool ok = api->writeCaf(doc.get(), path.c_str(), fmt, opt.yUp, opt.title.c_str(), opt.designer.c_str(), err, sizeof err);
+  if (!ok && error) *error = err[0] ? err : "could not write " + path;
   return ok;
 }
 
