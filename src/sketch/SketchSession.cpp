@@ -626,6 +626,7 @@ std::string SketchSession::dimensionText(const Constraint& c) const {
     if (c.type == ConstraintType::Radius || c.type == ConstraintType::MajorRadius || c.type == ConstraintType::MinorRadius)
       s = "R" + s;
     else if (c.type == ConstraintType::Diameter) s = "⌀" + s;
+    else if (c.type == ConstraintType::ArcLength) s = "⌒" + s;  // ISO 129-1 arc length symbol
   }
   if (!c.expression.empty()) s = "fx " + s;
   if (c.driven) s = "(" + s + ")";
@@ -698,6 +699,68 @@ void SketchSession::drawDimension(const Constraint& c) {
       Pt2 foot = f.center + axis * (label - f.center).dot(axis);
       seg(foot, label);
       textShift = axis.perp() * (axis.perp().y >= 0 ? textGap : -textGap);
+      break;
+    }
+    case ConstraintType::ArcLength: {
+      // dimension arc concentric with the measured arc through the label, extension lines
+      // along the radii (ISO 129-1)
+      if (ga->type != GeomType::Arc) break;
+      const Pt2 cen = ga->center();
+      double r = label.distance(cen);
+      if (r < 1e-9) r = ga->radius() * 1.2;
+      const double a0 = ga->startAngle(), sw = ga->sweep();
+      std::vector<Vec3> arcPts;
+      const int n = 24;
+      for (int i = 0; i <= n; ++i) arcPts.push_back(toWorld(cen + Pt2::polar(r, a0 + sw * i / n)));
+      addPolyline(arcPts, ls);
+      const double ext = r > ga->radius() ? tick : -tick;
+      seg(cen + Pt2::polar(ga->radius(), a0), cen + Pt2::polar(r + ext, a0));
+      seg(cen + Pt2::polar(ga->radius(), a0 + sw), cen + Pt2::polar(r + ext, a0 + sw));
+      arrow(cen + Pt2::polar(r, a0), Pt2::polar(1, a0 - kPi / 2));
+      arrow(cen + Pt2::polar(r, a0 + sw), Pt2::polar(1, a0 + sw + kPi / 2));
+      const Pt2 radial = (label - cen).length() > 1e-9 ? (label - cen).normalized() : Pt2{0, 1};
+      textShift = radial * textGap;
+      break;
+    }
+    case ConstraintType::PointCurveDistance:
+    case ConstraintType::CurveCurveDistance: {
+      // along the line of centres: point (or circle a) to the nearest point of circle b
+      if (!gb || !gb->isCircular()) break;
+      std::optional<Pt2> p0;
+      Pt2 cb = gb->center();
+      if (c.type == ConstraintType::PointCurveDistance) p0 = sk->pointOf(c.a);
+      else if (ga->isCircular()) p0 = ga->center();
+      if (!p0) break;
+      Pt2 dir = cb - *p0;
+      if (dir.length() < 1e-9) dir = {1, 0};
+      dir = dir.normalized();
+      Pt2 pa = *p0, pb = cb - dir * gb->radius();
+      if (c.type == ConstraintType::CurveCurveDistance) {
+        const double d = ga->center().distance(cb);
+        if (d >= ga->radius() && d >= gb->radius()) pa = *p0 + dir * ga->radius();
+        else {  // inside: the wall-to-wall gap on the far side
+          const bool aBig = ga->radius() >= gb->radius();
+          pa = (aBig ? ga->center() : cb) - dir * (aBig ? -ga->radius() : -gb->radius());
+          pb = (aBig ? cb : ga->center()) - dir * (aBig ? -gb->radius() : -ga->radius());
+        }
+      } else if (pa.distance(cb) < gb->radius()) {
+        // inside: to the nearest wall along the radius through the point
+        pb = cb + (pa - cb).normalized() * gb->radius();
+        if ((pa - cb).length() < 1e-9) pb = cb + Pt2{gb->radius(), 0};
+      }
+      Pt2 m = (pb - pa);
+      Pt2 md = m.length() > 1e-9 ? m.normalized() : dir;
+      Pt2 nrm = md.perp();
+      const double offset = (label - pa).dot(nrm);
+      const Pt2 a2 = pa + nrm * offset, b2 = pb + nrm * offset;
+      if (std::abs(offset) > 1e-9) {
+        seg(pa, a2 + nrm * (offset >= 0 ? tick : -tick));
+        seg(pb, b2 + nrm * (offset >= 0 ? tick : -tick));
+      }
+      seg(a2, b2);
+      arrow(a2, a2 - b2);
+      arrow(b2, b2 - a2);
+      textShift = nrm * (offset >= 0 ? textGap : -textGap);
       break;
     }
     case ConstraintType::Angle: {

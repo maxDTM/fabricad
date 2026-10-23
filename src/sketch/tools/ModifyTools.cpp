@@ -22,6 +22,7 @@
 #include <TopoDS.hxx>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <format>
 #include <memory>
@@ -969,6 +970,8 @@ struct DimCandidate {
 
 class DimensionTool : public SketchTool {
  public:
+  /// The Arc Length entry of the dimension dropdown: the same tool, an arc measures its length.
+  DimensionTool(ToolInfo info, bool arcLength) : SketchTool(std::move(info)), arcLengthMode_(arcLength) {}
   DimensionTool()
       : SketchTool(ToolInfo{.id = "sketch.dimension",
                             .name = "Sketch Dimension",
@@ -1028,6 +1031,7 @@ class DimensionTool : public SketchTool {
     auto c = cursor(e);
     Sketch* sk = sketch();
     if (!c || !sk || !session()) return true;
+    if (picks_.empty()) alt_ = (e.modifiers & core::ModAlt) != 0;  // Alt + arc: arc length (P1 §2.1)
     if (phase_ == Phase::Value) finishValue(ctx);
     auto hit = sk->hit(*c, tol(*c));
     if (hit && hit->ref.pos == PointPos::Mid) hit = sk->hitCurve(*c, tol(*c));  // mid of a curve = the curve
@@ -1149,8 +1153,11 @@ class DimensionTool : public SketchTool {
 
  private:
   enum class Phase { Pick, Place, Value };
+  bool arcLengthMode_ = false;
+  bool alt_ = false;
 
   void reset() {
+    alt_ = false;
     picks_.clear();
     phase_ = Phase::Pick;
     pendingId_ = -1;
@@ -1230,7 +1237,7 @@ class DimensionTool : public SketchTool {
       if (g->type == GeomType::Line) c.type = ConstraintType::Distance;
       else if (g->type == GeomType::Circle) c.type = ConstraintType::Diameter;
       else if (g->isElliptical()) c.type = ellipseRadiusFor(*g, label);
-      else if (g->type == GeomType::Arc) c.type = ConstraintType::Radius;
+      else if (g->type == GeomType::Arc) c.type = arcLengthMode_ || alt_ ? ConstraintType::ArcLength : ConstraintType::Radius;
       else return c;  // splines / text: no single-entity dimension
       c.ok = true;
       return c;
@@ -1240,7 +1247,32 @@ class DimensionTool : public SketchTool {
     const Geometry* g2 = sk->geometry(r2.geo);
     if (!g1 || !g2) return c;
     auto p1 = asPoint(r1), p2 = asPoint(r2);
-    // circles/arcs paired with anything act through their centre
+    // a point and a circle/arc picked on its curve: shortest distance point to curve; two
+    // circles/arcs picked on their curves (not concentric): the gap between them (P1 §2.1)
+    if (p1 && !p2 && g2->isCircular()) {
+      c = DimCandidate{};
+      c.a = *p1;
+      c.b = {r2.geo};
+      c.type = ConstraintType::PointCurveDistance;
+      c.ok = true;
+      return c;
+    }
+    if (p2 && !p1 && g1->isCircular()) {
+      c.a = *p2;
+      c.b = {r1.geo};
+      c.type = ConstraintType::PointCurveDistance;
+      c.ok = true;
+      return c;
+    }
+    if (!p1 && !p2 && g1->isCircular() && g2->isCircular() && r1.geo != r2.geo &&
+        g1->center().distance(g2->center()) > 1e-6) {
+      c.a = {r1.geo};
+      c.b = {r2.geo};
+      c.type = ConstraintType::CurveCurveDistance;
+      c.ok = true;
+      return c;
+    }
+    // circles/arcs paired with anything else act through their centre
     if (!p1 && (g1->isCircular() || g1->isElliptical())) p1 = GeoRef{r1.geo, PointPos::Center};
     if (!p2 && (g2->isCircular() || g2->isElliptical())) p2 = GeoRef{r2.geo, PointPos::Center};
     if (p1 && p2) {
@@ -1503,6 +1535,40 @@ void registerModifyTools(core::ToolRegistry& reg) {
                      .order = 15}));
   reg.registerTool(std::make_unique<ConstructionTool>());
   reg.registerTool(std::make_unique<DimensionTool>());
+  reg.registerTool(std::make_unique<DimensionTool>(
+      ToolInfo{.id = "sketch.arc-length",
+               .name = "Arc Length",
+               .tooltip = "Arc length dimension: pick an arc, place the text, then type the length (Alt + Sketch Dimension on an arc does the same)",
+               .icon = "sketch-arc-length",
+               .aliases = {"ARCLENGTH", "SKARCLEN"},
+               .tab = "SKETCH",
+               .group = "CREATE",
+               .order = 17,
+               .promoted = false},
+      true));
+  {
+    // "Typed values create dimensions": session toggle over the preference sketch/typedDimensions
+    ToolInfo i{.id = "sketch.typed-dimensions",
+               .name = "Typed Values Create Dimensions",
+               .tooltip = "Typed coordinates, lengths, angles and sizes become driving dimensions (TYPEDDIMS on|off)",
+               .icon = "sketch-dimension",
+               .aliases = {"TYPEDDIMS", "TYPEDDIMENSIONS"},
+               .tab = "SKETCH",
+               .group = "CONSTRAINTS",
+               .order = 90,
+               .promoted = false,
+               .repeatable = false,
+               .hidden = true,
+               .keepsActiveTool = true};
+    i.checked = [] { return typedDimensionsEnabled(); };
+    reg.registerTool(std::make_unique<core::LambdaTool>(i, [](ToolContext& c) {
+      std::string a = c.args.empty() ? std::string("toggle") : c.args.front();
+      for (char& ch : a) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+      const bool on = a == "on" || a == "true" || a == "1" ? true : a == "off" || a == "false" || a == "0" ? false : !typedDimensionsEnabled();
+      setTypedDimensionsOverride(on);
+      c.showMessage(std::string("Typed values create dimensions: ") + (on ? "on" : "off"));
+    }));
+  }
   reg.registerTool(std::make_unique<DimensionEditTool>());
 }
 

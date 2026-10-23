@@ -11,6 +11,8 @@
 #include "viewer/ViewerWidget.h"
 
 #include <QButtonGroup>
+#include "sketch/tools/SketchToolBase.h"
+
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QPainter>
@@ -190,6 +192,16 @@ PreferencesDialog::PreferencesDialog(core::Document& doc, viewer::ViewerWidget* 
   pcurves->setChecked(part::stepPcurvesDefault());
   connect(pcurves, &QCheckBox::toggled, this, [](bool on) { part::setStepPcurvesDefault(on); });
   gf->addRow(pcurves);
+  // production-features P1 §2.1: typed sketch values become driving dimensions
+  auto* typedDims = new QCheckBox("Typed sketch values create dimensions", general);
+  typedDims->setObjectName("pref_typedDimensions");
+  typedDims->setToolTip("Typed coordinates, lengths, angles and sizes become driving dimensions (driven when redundant)");
+  typedDims->setChecked(UiSettings::instance().flag("sketch/typedDimensions"));
+  connect(typedDims, &QCheckBox::toggled, this, [](bool on) {
+    UiSettings::instance().set("sketch/typedDimensions", on);
+    sketch::setTypedDimensionsOverride(std::nullopt);  // the preference applies again
+  });
+  gf->addRow(typedDims);
   tabs_->addTab(general, "General");
 
   auto* document = new QWidget(tabs_);

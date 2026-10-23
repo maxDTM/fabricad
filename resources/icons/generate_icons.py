@@ -335,6 +335,9 @@ I["sketch-fillet"] = (P("M5 20 V5 H20", s=GREY, da=DASH) + P("M5 20 V13 A8 8 0 0
 I["sketch-construction"] = (P("M4 19 L20 5", s=CO, da="3 2.5") + C(7, 7, 3.5, s=CO, da="2 2") + dot(4, 19, CO) +
                             dot(20, 5, CO))
 I["sketch-dimension"] = dimension(SK, SK)
+# arc length (production-features P1): an arc with a concentric dimension arc and radial extensions
+I["sketch-arc-length"] = (P("M5 20 A11 11 0 0 1 16 9", s=SK) + P("M3 13.5 A15 15 0 0 1 10 6.2", s=SK) +
+                          P("M5 20 L2.6 13 M16 9 L10.4 5.9", s=GREY))
 I["sketch-dimension-edit"] = (P("M3 17 H15", s=SK) + P("M3 17 V6 M15 17 V6", s=GREY) + P("M3.5 9.5 H14.5", s=SK) +
                               arrow_head(3.5, 9.5, "left", SK, 2) + arrow_head(14.5, 9.5, "right", SK, 2) +
                               pencil(13, 22))

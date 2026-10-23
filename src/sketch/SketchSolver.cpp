@@ -11,6 +11,7 @@
 #include <cmath>
 #include <deque>
 #include <map>
+#include <optional>
 #include <tuple>
 
 namespace fabricad::sketch {
@@ -682,6 +683,31 @@ class Builder {
           sys_.addConstraintInternalAlignmentPoint2Ellipse(e, p, GCS::EllipsePositiveMajorX, 0);
           sys_.addConstraintInternalAlignmentPoint2Ellipse(e, p, GCS::EllipsePositiveMajorY, 0);
           sys_.addConstraintP2PDistance(e.center, p, value(std::abs(c.value)), tag);
+          break;
+        }
+        case ConstraintType::PointCurveDistance: {
+          // FreeCAD semantics: point to the circle, the inside/outside side kept by PlaneGCS
+          auto pa = point(c.a);
+          if (!pa || !sb || !sb->geo->isCircular()) break;
+          double* d = value(std::abs(c.value));
+          if (sb->geo->type == GeomType::Circle) sys_.addConstraintP2CDistance(*pa, sb->circle, d, tag);
+          else sys_.addConstraintP2CDistance(*pa, sb->arc, d, tag);
+          break;
+        }
+        case ConstraintType::CurveCurveDistance: {
+          if (!sb || !sa->geo->isCircular() || !sb->geo->isCircular()) break;
+          GCS::Circle& ca = sa->geo->type == GeomType::Circle ? static_cast<GCS::Circle&>(sa->circle) : sa->arc;
+          GCS::Circle& cb = sb->geo->type == GeomType::Circle ? static_cast<GCS::Circle&>(sb->circle) : sb->arc;
+          const double r1 = sa->geo->radius(), r2 = sb->geo->radius();
+          const double dc = sa->geo->center().distance(sb->geo->center());
+          std::optional<bool> c1Bigger;
+          if (!(dc >= r1 && dc >= r2)) c1Bigger = r1 >= r2;  // inside: keep which one is outer
+          sys_.addConstraintC2CDistance(ca, cb, value(std::abs(c.value)), c1Bigger, tag);
+          break;
+        }
+        case ConstraintType::ArcLength: {
+          if (sa->geo->type != GeomType::Arc) break;
+          sys_.addConstraintArcLength(sa->arc, value(std::abs(c.value)), tag);
           break;
         }
         case ConstraintType::Angle: {

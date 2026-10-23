@@ -260,6 +260,7 @@
   <file>icons/dark/settings.svg</file>
   <file>icons/dark/sketch-arc-3point.svg</file>
   <file>icons/dark/sketch-arc-center.svg</file>
+  <file>icons/dark/sketch-arc-length.svg</file>
   <file>icons/dark/sketch-arc-tangent.svg</file>
   <file>icons/dark/sketch-break.svg</file>
   <file>icons/dark/sketch-chamfer.svg</file>
@@ -592,6 +593,7 @@
   <file>icons/light/settings.svg</file>
   <file>icons/light/sketch-arc-3point.svg</file>
   <file>icons/light/sketch-arc-center.svg</file>
+  <file>icons/light/sketch-arc-length.svg</file>
   <file>icons/light/sketch-arc-tangent.svg</file>
   <file>icons/light/sketch-break.svg</file>
   <file>icons/light/sketch-chamfer.svg</file>

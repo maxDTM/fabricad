@@ -253,6 +253,21 @@ std::optional<double> Sketch::measure(const Constraint& c) const {
     case ConstraintType::Diameter: return ga->isCircular() ? std::optional<double>(2 * ga->radius()) : std::nullopt;
     case ConstraintType::MajorRadius: return ga->isElliptical() ? std::optional<double>(ga->majorRadius()) : std::nullopt;
     case ConstraintType::MinorRadius: return ga->isElliptical() ? std::optional<double>(ga->minorRadius()) : std::nullopt;
+    case ConstraintType::PointCurveDistance: {
+      auto pa = pointOf(c.a);
+      if (!pa || !gb || !gb->isCircular()) return std::nullopt;
+      return std::abs(pa->distance(gb->center()) - gb->radius());
+    }
+    case ConstraintType::CurveCurveDistance: {
+      if (!gb || !ga->isCircular() || !gb->isCircular()) return std::nullopt;
+      const double d = ga->center().distance(gb->center());
+      const double r1 = ga->radius(), r2 = gb->radius();
+      // same cases as PlaneGCS ConstraintC2CDistance: outside -> gap, inside -> wall to wall
+      if (d >= r1 && d >= r2) return d - r1 - r2;
+      return std::max(r1, r2) - std::min(r1, r2) - d;
+    }
+    case ConstraintType::ArcLength:
+      return ga->type == GeomType::Arc ? std::optional<double>(ga->radius() * ga->sweep()) : std::nullopt;
     case ConstraintType::Angle: {
       if (ga->type == GeomType::Arc && !gb) return ga->sweep() * 180.0 / kPi;  // arc sweep
       if (ga->type != GeomType::Line) return std::nullopt;
@@ -280,6 +295,20 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
       bool major = c.type == ConstraintType::MajorRadius;
       Pt2 axis = major ? f.major : f.major.perp();
       return f.center + axis * ((major ? f.a : f.b) * 0.6) + axis.perp() * off;
+    }
+    case ConstraintType::ArcLength:
+      if (ga->type == GeomType::Arc) return ga->center() + Pt2::polar(ga->radius() * 1.25 + off, ga->startAngle() + ga->sweep() / 2);
+      return ga->midpoint();
+    case ConstraintType::PointCurveDistance:
+    case ConstraintType::CurveCurveDistance: {
+      const Geometry* gb = c.b.isValid() ? geometry(c.b.geo) : nullptr;
+      std::optional<Pt2> pa = c.type == ConstraintType::PointCurveDistance ? pointOf(c.a)
+                              : ga->isCircular()                            ? std::optional<Pt2>(ga->center())
+                                                                            : std::nullopt;
+      if (!pa || !gb) return ga->midpoint();
+      Pt2 d = gb->center() - *pa;
+      Pt2 n = d.length() > 1e-9 ? d.normalized().perp() : Pt2{0, 1};
+      return (*pa + gb->center()) * 0.5 + n * off;
     }
     case ConstraintType::Angle: {
       const Geometry* gb = c.b.isValid() ? geometry(c.b.geo) : nullptr;

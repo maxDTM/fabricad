@@ -333,7 +333,7 @@ class TestAppLogic : public QObject {
     QSettings().setValue("ui/toolbarArea", "diagonal");  // garbage in the file reads as the default
     QCOMPARE(ui.string("ui/toolbarArea"), QString("top"));
     for (const auto& k : app::UiSettings::keys()) {
-      QVERIFY2(k.key.startsWith("ui/"), qPrintable(k.key));
+      QVERIFY2(k.key.startsWith("ui/") || k.key == "sketch/typedDimensions", qPrintable(k.key));
       ui.reset(k.key);
       QCOMPARE(ui.value(k.key), k.defaultValue);
     }

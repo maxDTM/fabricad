@@ -218,6 +218,9 @@ enum class ConstraintType {
   Angle,          ///< a=line,b=line (degrees) | a=line (angle to +X)
   MajorRadius,    ///< a=ellipse/elliptical arc: semi-major axis
   MinorRadius,    ///< a=ellipse/elliptical arc: semi-minor axis
+  PointCurveDistance,  ///< a=point, b=circle/arc: shortest distance |dist(p, centre) - r|
+  CurveCurveDistance,  ///< a,b=circle/arc (not concentric): gap |c1c2| - r1 - r2 (or r_big - r_small - |c1c2| inside)
+  ArcLength,           ///< a=arc: length along the arc (r * sweep)
 };
 
 /// Which sketch-origin reference a helper geometry stands for (Sketch::originHelper()).
