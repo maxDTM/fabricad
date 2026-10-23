@@ -595,3 +595,55 @@ saved step.
 | 12 | More tours | **Design Help > Tutorials for multiple tours now; build only the bracket tour.** |
 
 Also confirmed: bubble body text is shown **as typed** (mixed case); bubble titles and buttons follow the caps rule. Workspace selector shortcuts are Alt+1/2/3, so the tour shortcuts above do not collide.
+
+---
+
+## 9. Engine as built (2026-10-23, roadmap step 4 part 1)
+
+Code in `src/app/tutorial/` (GLOBbed into `fabricad_app_lib`); the shell touches are three lines in `MainWindow.cpp`
+(`HelpButton` / `HelpMenu` objectNames, `TutorialController::install`) and one call in `main.cpp` (welcome card).
+
+| File | Role |
+|---|---|
+| `TutorialDefinition` | strict-JSON parser + validation (unknown keys, anchor kinds, condition types, actions, duplicate ids, placeholders; `validateTour` checks tool ids against the registry); `discoverTours()` reads `:/tutorials/*/tutorial.json` (`resources/tutorials.qrc`) and `FABRICAD_TUTORIAL_PATH` folders, sorted by `order` (multiple tours, decision 12) |
+| `StateQuery` | conditions from app state; `check` leaves call the script runner's `evaluateCheck()` (one evaluator for CHECK and tours; no refactor of the script code was needed) |
+| `AnchorResolver` | every anchor kind of section 3 to global geometry; model anchors sample face UV / edge points, project, drop covered points (`widgetAt`) and prefer points the viewer's own `pick` confirms; a tool inside a closed caption menu resolves to the caption with `via: "menu"`, a row in a collapsed MODEL folder with `via: "expand"`; `tab:TOOLS`/`SURFACE` resolve to the MORE section; `tabclose:` approximates the close glyph until the tab bar has `closeRect()` |
+| `TutorialEngine` | step state machine: polled every 100 ms, `stable_ms`, `skip_if`, timeout hint, off-script hint (an undo command that did not finish the step, after 4 s), Back (undo to the previous step's index), Undo to step start, Restore chapter (decision 9: new tab from `start` or the previous chapter's `checkpoint`), checkpoints written to `FABRICAD_TUTORIAL_CHECKPOINT_DIR` at each chapter end, position in QSettings `tutorial/<id>/step`, `done` |
+| `TutorialOverlay` | child of the MainWindow, mouse-transparent, re-raised on ChildAdded/ZOrderChange: light dim (token `tutorial.dim`, 30 %, Help > Tutorials > "Dim around the target"), even-odd cut-out, pulsing 2 px `accent.focus` ring, bubble notch, ghost cursor with click ripples and typed-text keycaps |
+| `TutorialBubble` | coach mark: chapter title + "STEP n / N" (caps), progress strip, body **as typed** (`**bold**`, `[[Key]]` keycaps), keycap row, hint line, BACK · SHOW ME · SKIP/NEXT/FINISH · ⋯ (Restore chapter, Undo to step start, Exit tour); `NoFocus` everywhere; floats as an opaque frameless tool window beside an open popup or modal dialog |
+| `TutorialController` | one per window: Help > Tutorials (every tour, resume, start over, exit, dim), welcome card (first tour with `welcome: true` not yet in `tutorial/offered`; never for scripts, offscreen, `FABRICAD_NO_TUTORIAL=1`, `FABRICAD_SCREENSHOT`), finish card, F7 / Alt+Left / Alt+Right (app event filter; Esc untouched), bubble placement avoiding the command card and the orientation control, a11y announcements |
+| `TestProbe` | `FABRICAD_TEST_PROBE=<socket>`: read-only JSON lines `ping state locate eval check docjson` |
+
+Tests: `fabricad_app_test_tutorial` (label `tutorial`, the plan's `fabricad_tutorial_lint`) loads and validates every
+tour file and resolves every anchor in the `default`, `alt` and `light` presets (model anchors: the entity must
+exist; offscreen has no GL), and runs the sample tour headless (manual and condition steps, skip_if, Back with undo,
+Esc never exits, shortcuts, show me sends nothing, Restore chapter opens a tab, checkpoint, welcome once, Help menu,
+probe). `fabricad_tutorial_gui_sample` (labels `gui;tutorial`) runs `tools/uitest/tutorial_run.py` on the sample
+tour; it exits 77 (skipped) unless `FABRICAD_GUI=1`.
+
+Developer aids: `FABRICAD_TUTORIAL_START=<tour>[:<step>]` starts a tour at launch (offscreen screenshots),
+`FABRICAD_TUTORIAL_WELCOME=1` forces the welcome card. `ui.sh start` sets `FABRICAD_NO_TUTORIAL=1` unless exported.
+
+### Step schema (as implemented; `TutorialDefinition.h` is the reference)
+
+```
+tour    { id, title, description, version, order, welcome, window: [w, h], finish, chapters: [chapter] }
+chapter { id, title, start?: "chN.fcad", checkpoint?: "chN.fcad", steps: [step] }
+step    { id, text, title?, anchor?, keys_shown?: [..], until? (default {"next": true}), skip_if?,
+          stable_ms? (150), timeout_ms? (20000), hint?, do?: [action], assert?: ["CHECK expr"],
+          context?: "idle" | "tool:<id>" (the lint resolves the anchor in that state) }
+anchor  "kind:target" | {"kind": "target"} | "ObjectName" (widget); kinds widget tool group menu prop valuebox
+        browser timeline tab tabclose model sketchpoint none; widget "viewport" = the active 3D view
+condition {"tool": id|"none"} {"dialog": "card"|"modal"|"popup"|objectName} {"selection": kind|"any",
+        "count"?, "selector"?} {"valuebox": caption|"any"} {"prompt": text} {"sketch": "active"|"none"|"dof == n"}
+        {"workspace": part|assembly|drawing} {"setting": "ui/key", "is": v} {"camera": "changed"}
+        {"document": "changed"|"unchanged"} {"visible": objectName} {"check": "CHECK expr"} {"next": true}
+        {"tour": stepId} {"all": [..]} {"any": [..]} {"not": c}
+action  {"click"|"dclick"|"rclick": target, "mods"?} {"move": target | {dx, dy}} {"drag": {from, to, button,
+        mods?, steps?}} {"wheel": target, "clicks"} {"type": text} {"key": chord} {"wait": condition}
+        {"shot": name} {"assert": [..]}; target "@anchor" or any anchor
+```
+
+Not done yet (next parts of step 4): the bracket content and checkpoints, the viewer's "tutorial" highlight style
+and `isAnimating`/frame counter for the probe's `idle`, `closeRect()` on the tab bar, value-box `field`
+properties, the Markdown export, the `alt`/`light` GUI entries and the off-script GUI scenario.

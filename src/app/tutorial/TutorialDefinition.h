@@ -138,8 +138,8 @@ std::optional<Tour> loadTour(const QString& path, QStringList* errors);
 QStringList validateTour(const Tour& tour, const std::function<bool(const QString&)>& toolExists);
 
 /// Every tour: ":/tutorials/*/tutorial.json" plus "<dir>/*/tutorial.json" for each folder on
-/// FABRICAD_TUTORIAL_PATH (':'-separated). Sorted by order, then title. Broken files are skipped
-/// and reported in `errors`.
+/// FABRICAD_TUTORIAL_PATH (':'-separated; a folder there overrides the built-in tour with the same id).
+/// Sorted by order, then title. Broken files are skipped and reported in `errors`.
 std::vector<Tour> discoverTours(QStringList* errors = nullptr);
 /// The tour files discoverTours() reads (lint test).
 QStringList tourFiles();

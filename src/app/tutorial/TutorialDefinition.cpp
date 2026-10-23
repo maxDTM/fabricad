@@ -493,12 +493,14 @@ QStringList tourFiles() {
 
 std::vector<Tour> discoverTours(QStringList* errors) {
   std::vector<Tour> out;
-  std::set<QString> ids;
   for (const QString& f : tourFiles()) {
     auto t = loadTour(f, errors);
     if (!t) continue;
-    if (!ids.insert(t->id).second) {
-      if (errors) errors->append(f + ": tour id '" + t->id + "' is used twice (skipped)");
+    auto same = std::find_if(out.begin(), out.end(), [&](const Tour& x) { return x.id == t->id; });
+    if (same != out.end()) {
+      // a folder on FABRICAD_TUTORIAL_PATH overrides the built-in copy (edit a tour without a rebuild)
+      if (same->baseDir.startsWith(':') && !t->baseDir.startsWith(':')) *same = std::move(*t);
+      else if (errors) errors->append(f + ": tour id '" + t->id + "' is used twice (skipped)");
       continue;
     }
     out.push_back(std::move(*t));

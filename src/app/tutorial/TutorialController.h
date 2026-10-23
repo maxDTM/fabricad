@@ -85,6 +85,7 @@ class TutorialController : public QObject {
   QTimer* track_ = nullptr;
   AnchorResolver resolver_;
   ResolvedAnchor last_;
+  QString lastVia_;
   quint64 lastCameraSeq_ = ~0ull;
   qint64 lastModelResolveMs_ = 0;
 };

@@ -213,6 +213,16 @@ class TestTutorial : public QObject {
     r = res.resolve(*Anchor::parse(QJsonValue("tab:TOOLS"), nullptr));
     QVERIFY2(r.found, qPrintable(r.why));  // folds into MORE
     QVERIFY(AnchorResolver::textMatches("&Extrude ▾", "extrude"));
+    // a FEATURES row by feature name (case-insensitive)
+    QVERIFY(w_->runCommand("sketch.create", {"XY"}));
+    cancelTool();
+    settle(8);
+    r = res.resolve(*Anchor::parse(QJsonValue("timeline:sketch1"), nullptr));
+    QVERIFY2(r.found && r.visible, qPrintable(r.why));
+    QCOMPARE(r.widget->objectName(), QString("FeatureList"));
+    QVERIFY(r.rect.height() > 0 && r.rect.height() <= 40);
+    QVERIFY(w_->runCommand("app.undo"));
+    settle();
   }
 
   // ---- engine --------------------------------------------------------------------------------------

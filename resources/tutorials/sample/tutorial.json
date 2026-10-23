@@ -20,7 +20,7 @@
           "keys_shown": ["Home"],
           "until": {"next": true},
           "do": [
-            {"drag": {"from": "@anchor", "to": {"dx": 140, "dy": 50}, "button": "right", "steps": 12}},
+            {"drag": {"from": "@anchor", "to": {"dx": 140, "dy": 50}, "button": "middle", "steps": 12}},
             {"key": "Home"}
           ]
         }

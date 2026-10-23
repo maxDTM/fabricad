@@ -101,6 +101,13 @@ def start_backend(args, env):
         return os.environ["FABRICAD_GL_DISPLAY"], None
     n = args.display
     size = "%dx%d" % (args.width, args.height)
+    for _ in range(50):  # a server of a previous run may still be shutting down
+        if not os.path.exists("/tmp/.X%d-lock" % n):
+            break
+        time.sleep(0.1)
+    if os.path.exists("/tmp/.X%d-lock" % n):
+        print("tutorial_run: display :%d is in use (pick another with --display)" % n)
+        return None, None
     if have("Xvfb"):
         p = subprocess.Popen(["Xvfb", ":%d" % n, "-screen", "0", size + "x24", "+extension", "GLX", "-nolisten", "tcp"],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -112,12 +119,22 @@ def start_backend(args, env):
         return None, None
     disp = ":%d" % n
     for _ in range(100):
-        if subprocess.run(["xdotool", "getdisplaygeometry"], env=dict(env, DISPLAY=disp),
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+        if root_size(dict(env, DISPLAY=disp)):
             return disp, p
         time.sleep(0.1)
     p.terminate()
     return None, None
+
+
+def root_size(env):
+    r = subprocess.run(["xdotool", "getdisplaygeometry"], env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if r.returncode != 0:
+        return None
+    try:
+        w, h = r.stdout.split()
+        return int(w), int(h)
+    except ValueError:
+        return None
 
 
 def write_prefs(cfg, layout):
@@ -285,6 +302,13 @@ def run(args):
         print("tutorial_run: skipped (no private X backend: Xvfb, FABRICAD_GL_DISPLAY or FABRICAD_GUI_ALLOW_DESKTOP=1)")
         shutil.rmtree(tmp, ignore_errors=True)
         return SKIP
+    # a rootful Xwayland window may be tiled by the compositor: the display follows the tile. The
+    # runner never touches the compositor; it runs at the size it got and records it.
+    time.sleep(0.5)
+    got = root_size(dict(env, DISPLAY=disp))
+    if got and (got[0] < w or got[1] < h):
+        print("tutorial_run: note: display %s is %dx%d, not %dx%d (tiled); running at that size" % (disp, got[0], got[1], w, h))
+        w, h = got
     tour_dir = os.path.dirname(os.path.abspath(args.tour))
     env.update({
         "DISPLAY": disp, "XDG_CONFIG_HOME": cfg, "XDG_DATA_HOME": data, "QT_QPA_PLATFORM": "xcb",
@@ -303,7 +327,7 @@ def run(args):
     app = subprocess.Popen([args.bin], env=env, stdout=log, stderr=subprocess.STDOUT)
     transcript = open(os.path.join(out, "probe.txt"), "w")
     probe = Probe(sock, transcript)
-    report = {"tour": tour["id"], "layout": args.layout, "steps": [], "ok": False}
+    report = {"tour": tour["id"], "layout": args.layout, "size": [w, h], "steps": [], "ok": False}
     code = 1
     try:
         probe.connect()
@@ -351,6 +375,8 @@ def run(args):
         st = probe.state()
         if st["tour"].get("id"):
             raise Failure("the tour did not finish (still at %s)" % st["tour"].get("step"))
+        if root_size(env) != (w, h) and root_size(env) is not None and not got:
+            raise Failure("the display size changed during the run: %s" % (root_size(env),))
         report["ok"] = True
         code = 0
         if args.update_checkpoints:
@@ -387,6 +413,10 @@ def run(args):
                     pass
         if xserver:
             xserver.terminate()
+            try:
+                xserver.wait(10)  # the next run may reuse the display number
+            except subprocess.TimeoutExpired:
+                xserver.kill()
         with open(os.path.join(out, "report.json"), "w") as f:
             json.dump(report, f, indent=1)
         shutil.rmtree(tmp, ignore_errors=True)

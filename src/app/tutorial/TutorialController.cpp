@@ -32,7 +32,7 @@ namespace fabricad::app::tutorial {
 
 namespace {
 
-constexpr int kTrackMs = 60;
+constexpr int kTrackMs = 100;
 constexpr int kModelTrackMs = 250;
 constexpr int kGap = 14;  ///< bubble to anchor
 
@@ -296,6 +296,7 @@ void TutorialController::onStep() {
   overlay_->stopGhost();
   bubble_->setContent(c);
   lastCameraSeq_ = ~0ull;
+  lastVia_.clear();
   track();
   // screen readers: announce the new step
   QAccessibleAnnouncementEvent ev(bubble_, c.chapter + ". " + bubble_->plainText());
@@ -326,6 +327,17 @@ void TutorialController::track() {
   overlay_->setSuppressDim(cover != nullptr);
   bubble_->setFloating(cover != nullptr);
   if (!overlay_->ghostRunning()) overlay_->setSpotlight(last_.visible && !s->anchor.isNone() ? last_.rect : QRect());
+  // how to reach a target that is not directly visible (unless the engine shows its own hint)
+  if (last_.via != lastVia_) {
+    lastVia_ = last_.via;
+    if (engine_->hint().isEmpty()) {
+      const QString& v = last_.via;
+      bubble_->setHint(v == "menu" ? QString("It is in this menu: open it first.")
+                       : v == "expand" ? QString("Expand this row first.")
+                       : (v == "offscreen" || v == "occluded") ? QString("Can't see it? Orbit, or press [[Home]].")
+                                                               : QString());
+    }
+  }
   placeBubble(last_);
 }
 

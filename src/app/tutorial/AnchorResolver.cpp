@@ -96,8 +96,6 @@ ResolvedAnchor fromAction(QMenu* m, QAction* a) {
   return r;
 }
 
-QString lowerName(const std::string& s) { return core::qs(s).toLower(); }
-
 }  // namespace
 
 bool AnchorResolver::textMatches(const QString& shown, const QString& wanted) {

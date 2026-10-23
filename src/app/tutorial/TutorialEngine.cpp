@@ -169,13 +169,8 @@ void TutorialEngine::complete() {
 void TutorialEngine::next() {
   const Step* s = step();
   if (!s) return;
-  facts_.nextPressed = true;
-  // a manual step completes through its condition (it may combine next with other facts)
-  if (s->until.needsNext() && query_.eval(s->until, base_, facts_)) {
-    complete();
-    return;
-  }
-  complete();  // SKIP
+  facts_.nextPressed = true;  // NEXT of a manual step, SKIP of any other: both move on
+  complete();
 }
 
 bool TutorialEngine::undoToStepStart() {
