@@ -260,6 +260,12 @@ class DrawingCanvas : public QGraphicsView {
   int pickPixels_ = 6;
   bool rebuildPending_ = false;
   bool fitPending_ = true;
+  /// Zoom and pan per sheet, restored when switching back (DRW2-VIEWS-ANNOT-15).
+  struct SheetViewState {
+    QTransform transform;
+    QPointF center;
+  };
+  std::map<core::ObjectId, SheetViewState> sheetViews_;
   bool mirroring_ = false;
   Point2 lastCursor_;
   std::vector<QMetaObject::Connection> modelConnections_;

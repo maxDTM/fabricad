@@ -175,6 +175,9 @@ class PartsListTool : public DrawingToolBase {
   void canvasPreview(const DrawingCanvas& c, DisplayList& out) override;
   /// Default position: above the title block, right-aligned with the frame.
   static Point2 defaultPosition(const Sheet& sheet, const PartsList& list);
+  /// Enter's position: above the title block when that is clear of views and tables, else the
+  /// nearest clear spot up the right (then left) frame edge (DRW2-VIEWS-ANNOT-7, DRW2-ASM-OUTPUT-3).
+  static Point2 clearPosition(const Sheet& sheet, const PartsList& list);
   /// Clamp a requested top-left corner into the frame; a list that would overlap the title block
   /// snaps to its top-right corner (defaultPosition).
   static Point2 snapPosition(const Sheet& sheet, const PartsList& list, const Point2& pos);

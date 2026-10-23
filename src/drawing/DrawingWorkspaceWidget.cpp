@@ -268,6 +268,9 @@ void DrawingWorkspaceWidget::onSheetTabChanged(int index) {
   if (src == tabs_) id = tabs_->tabData(index).toULongLong();
   else if (QListWidgetItem* item = sheetList_->item(index)) id = item->data(Qt::UserRole).toULongLong();
   if (id == 0 || id == canvas_->sheetId()) return;
+  // a drawing command belongs to the sheet it started on: switching sheets ends it
+  // (DRW2-VIEWS-ANNOT-15: Projected View then asked for a parent view on the other sheet)
+  if (manager_ && manager_->isActive() && manager_->activeToolId().rfind("drawing.", 0) == 0) manager_->cancel();
   setActiveSheet(static_cast<ObjectId>(id));
 }
 

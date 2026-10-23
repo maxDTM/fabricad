@@ -11,6 +11,7 @@
 #include "drawing/tools/CalloutTools.h"
 #include "drawing/tools/ViewTools.h"
 
+#include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QString>
@@ -147,9 +148,18 @@ void ExportTool::activate(core::ToolContext& ctx) {
     }
     QString filter = QStringLiteral("%1 files (*%2)").arg(formatName(format_), formatSuffix(format_));
     QString suggested = QString::fromStdString(suggestedExportName(ctx)) + formatSuffix(format_);
+    // DRW2-ASM-OUTPUT-8: start in the last export folder, else the document's folder, else
+    // home; never the process working directory (a quick Enter wrote into the source tree)
+    static QString lastDir;
+    QString dir = lastDir;
+    if (dir.isEmpty() && ctx.document && !ctx.document->filePath().empty())
+      dir = QFileInfo(QString::fromStdString(ctx.document->filePath())).absolutePath();
+    if (dir.isEmpty() || !QFileInfo(dir).isDir()) dir = QDir::homePath();
+    suggested = QDir(dir).filePath(suggested);
     QString chosen = QFileDialog::getSaveFileName(parent, tr("Output %1").arg(formatName(format_)), suggested, filter);
     if (chosen.isEmpty()) return;
     if (QFileInfo(chosen).suffix().isEmpty()) chosen += formatSuffix(format_);
+    lastDir = QFileInfo(chosen).absolutePath();
     path = chosen.toStdString();
   }
   std::string error;

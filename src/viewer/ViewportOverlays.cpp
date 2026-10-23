@@ -174,7 +174,7 @@ OrientationDial::Hit OrientationDial::hitTest(const QPointF& p) const {
 }
 
 QString OrientationDial::readoutText() const {
-  const AzEl ae = azimuthElevation(viewer_.viewDirection());
+  const AzEl ae = azimuthElevation(viewer_.viewDirection(), viewer_.upDirection());
   int az = static_cast<int>(std::lround(ae.az)) % 360;
   if (az < 0) az += 360;
   return QStringLiteral("AZ %1°  EL %2°").arg(az, 3, 10, QLatin1Char('0')).arg(static_cast<int>(std::lround(ae.el)));
@@ -247,7 +247,7 @@ void OrientationDial::paintPlate(QPainter& p) {
   }
   // gold azimuth mark on the ring (diamond pointing inward)
   {
-    const AzEl ae = azimuthElevation(v.viewDirection());
+    const AzEl ae = azimuthElevation(v.viewDirection(), v.upDirection());
     const double a = ae.az * kDegRad;
     const QPointF dir(std::cos(a), -std::sin(a)), n(-dir.y(), dir.x());
     const QPointF tip = c + dir * (tr + 1.0);
@@ -351,7 +351,7 @@ void OrientationDial::mousePressEvent(QMouseEvent* e) {
   press_ = hitTest(e->position());
   pressPos_ = lastPos_ = e->position();
   dragging_ = false;
-  const AzEl ae = azimuthElevation(viewer_.viewDirection());
+  const AzEl ae = azimuthElevation(viewer_.viewDirection(), viewer_.upDirection());
   dragAz0_ = ae.az;
   dragEl0_ = ae.el;
   const QPointF d = e->position() - plateCenter();
@@ -402,7 +402,7 @@ void OrientationDial::wheelEvent(QWheelEvent* e) {
   if (!plate_) return QWidget::wheelEvent(e);
   const int steps = e->angleDelta().y() / 120;
   if (steps == 0) return;
-  const AzEl ae = azimuthElevation(viewer_.viewDirection());
+  const AzEl ae = azimuthElevation(viewer_.viewDirection(), viewer_.upDirection());
   const double el = std::clamp(std::round(ae.el / 15.0) * 15.0 + 15.0 * steps, -90.0, 90.0);
   viewer_.setViewAzEl(ae.az, el, true);
   e->accept();
@@ -412,7 +412,7 @@ void OrientationDial::keyPressEvent(QKeyEvent* e) {
   // P5-KEYBOARD-8: exact 15 degree steps of the AZ / EL readout (an orbit about the screen axes
   // drifted: Right twice from AZ 315 gave 350); the other angle stays as it is. No animation, so a
   // held or repeated key steps from where the last one ended.
-  const AzEl ae = azimuthElevation(viewer_.viewDirection());
+  const AzEl ae = azimuthElevation(viewer_.viewDirection(), viewer_.upDirection());
   const auto step = [](double v, int dir) { return std::round(v / 15.0) * 15.0 + 15.0 * dir; };
   switch (e->key()) {
     case Qt::Key_Left: viewer_.setViewAzEl(std::fmod(step(ae.az, -1) + 360.0, 360.0), ae.el, false); break;

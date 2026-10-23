@@ -186,6 +186,7 @@ void DisplayListItem::paint(QPainter* p, const QStyleOptionGraphicsItem* opt, QW
   }
   if (busy_ || !error_.empty()) {
     QFont f(QString::fromStdString(font_));
+    f.setCapitalization(QFont::MixedCase);
     f.setPointSizeF(1.0);
     p->setFont(f);
     p->save();
@@ -297,12 +298,21 @@ void DrawingCanvas::onSheetChanged(ObjectId id) {
 
 void DrawingCanvas::setSheet(ObjectId sheetId) {
   if (sheetId == sheetId_) return;
+  if (sheetId_ != core::kInvalidId && !fitPending_)
+    sheetViews_[sheetId_] = {transform(), mapToScene(viewport()->rect().center())};
   sheetId_ = sheetId;
   selection_.clear();
   hover_ = core::kInvalidId;
   if (model_ && model_->sheet(sheetId)) model_->setActiveSheet(sheetId);
   rebuild();
   zoomToFit();
+  // the zoom and pan this sheet had last time (zoomToFit set its scene rect)
+  if (auto it = sheetViews_.find(sheetId); it != sheetViews_.end() && !fitPending_) {
+    setTransform(it->second.transform);
+    centerOn(it->second.center);
+    emit zoomChanged(zoom());
+  }
+  viewport()->update();  // no strip of the previous sheet left behind
   mirrorSelection();
   emit selectionChanged();
 }
@@ -1028,7 +1038,20 @@ void DrawingCanvas::handleDoubleClick(const Point2& sheet, int modifiers) {
     case HitKind::Note: requestTool("drawing.text", {"--edit", id}); break;
     case HitKind::Dimension: requestTool("drawing.edit-dimension", {id}); break;
     case HitKind::PartsList: requestTool("drawing.parts-list", {"--edit", id}); break;
-    case HitKind::Callout: requestTool("drawing.edit-callout", {id}); break;
+    case HitKind::Callout: {
+      // a double-click on a revision row edits that row, not the last one (DRW2-ASM-OUTPUT-4)
+      Sheet* sh = this->sheet();
+      const RevisionTable* t = sh ? sh->callouts.revisionTable(h.id) : nullptr;
+      if (t && t->rowHeight > 0) {
+        const int r = static_cast<int>(std::floor((sheet.y - t->position.y) / t->rowHeight)) - 1;
+        if (r >= 0 && r < static_cast<int>(t->rows.size())) {
+          requestTool("drawing.edit-callout", {id, "--row=" + std::to_string(r + 1)});
+          break;
+        }
+      }
+      requestTool("drawing.edit-callout", {id});
+      break;
+    }
     case HitKind::None: requestTool("drawing.edit-sheet"); break;
     default: break;
   }

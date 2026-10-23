@@ -199,7 +199,7 @@ void DimensionTool::activate(core::ToolContext& ctx) {
 QWidget* DimensionTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   typeCombo_ = new QComboBox(w);
   typeCombo_->addItem(tr("Auto"), -1);
   for (DimensionType d : {DimensionType::Linear, DimensionType::Horizontal, DimensionType::Vertical, DimensionType::Aligned,
@@ -459,7 +459,7 @@ QWidget* EditDimensionTool::createDialog(core::ToolContext& ctx, QWidget* parent
   const Dimension* d = s ? s->dimension(dimId_) : nullptr;
   if (!d) return nullptr;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   QString measured = QString::fromStdString(formatDimensionText(Dimension{*d}, m->document().units()));
   form->addRow(tr("Measured"), new QLabel(measured, w));
   typeCombo_ = new QComboBox(w);
@@ -509,7 +509,19 @@ QWidget* EditDimensionTool::createDialog(core::ToolContext& ctx, QWidget* parent
   connect(tolCombo_, &QComboBox::currentIndexChanged, this, [apply](int) { apply(); });
   connect(upperEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
   connect(lowerEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
-  connect(fitEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
+  // DRW2-VIEWS-ANNOT-4: typing a fit while Tolerance is None selects the Fit mode (the combo
+  // would otherwise put None back on every apply, and the fit was silently ignored)
+  connect(fitEdit_, &QLineEdit::textChanged, this, [this, apply](const QString& t) {
+    if (tolCombo_ && !t.trimmed().isEmpty() &&
+        static_cast<ToleranceMode>(tolCombo_->currentData().toInt()) == ToleranceMode::None) {
+      const int i = tolCombo_->findData(static_cast<int>(ToleranceMode::Fit));
+      if (i >= 0) {
+        tolCombo_->setCurrentIndex(i);  // applies through currentIndexChanged
+        return;
+      }
+    }
+    apply();
+  });
   connect(typeCombo_, &QComboBox::currentIndexChanged, this, [apply](int) { apply(); });
   connect(textEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
   connect(prefixEdit_, &QLineEdit::textChanged, this, [apply](const QString&) { apply(); });
@@ -838,7 +850,7 @@ void TextTool::activate(core::ToolContext& ctx) {
 QWidget* TextTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   textEdit_ = new QPlainTextEdit(QString::fromStdString(text_), w);
   textEdit_->setPlaceholderText(tr("Note text (multi-line)"));
   textEdit_->setMinimumHeight(60);
@@ -1007,6 +1019,40 @@ Point2 PartsListTool::defaultPosition(const Sheet& sheet, const PartsList& list)
   return {f.max.x - list.width(), bottom - list.height()};
 }
 
+Point2 PartsListTool::clearPosition(const Sheet& sheet, const PartsList& list) {
+  const Point2 def = defaultPosition(sheet, list);
+  const double w = list.width(), h = list.height();
+  std::vector<BBox2> taken;
+  for (const auto& v : sheet.views) taken.push_back(v.layoutBBox().expanded(2.0));
+  for (const auto& t : sheet.callouts.revisionTables) {
+    BBox2 b;
+    b.add(t.position);
+    b.add(t.position + Point2{t.width(), t.height()});
+    taken.push_back(b.expanded(1.0));
+  }
+  for (const auto& pl : sheet.partsLists) {
+    BBox2 b;
+    b.add(pl.position);
+    b.add(pl.position + Point2{pl.width(), pl.height()});
+    taken.push_back(b.expanded(1.0));
+  }
+  const BBox2 f = sheet.frameRect();
+  const BBox2 tb = sheet.titleBlockRect();
+  auto clear = [&](const Point2& p) {
+    if (p.x < f.min.x - 1e-6 || p.y < f.min.y - 1e-6 || p.x + w > f.max.x + 1e-6 || p.y + h > f.max.y + 1e-6) return false;
+    if (sheet.titleBlock.visible && p.x < tb.max.x && tb.min.x < p.x + w && p.y < tb.max.y && tb.min.y < p.y + h) return false;
+    for (const BBox2& b : taken)
+      if (p.x < b.max.x && b.min.x < p.x + w && p.y < b.max.y && b.min.y < p.y + h) return false;
+    return true;
+  };
+  if (clear(def)) return def;
+  const double bottom = def.y;
+  for (double x : {f.max.x - w, f.min.x})
+    for (double y = bottom; y >= f.min.y - 1e-6; y -= 2.5)
+      if (clear({x, y})) return {x, y};
+  return def;  // a full sheet: keep the standard spot
+}
+
 Point2 PartsListTool::snapPosition(const Sheet& sheet, const PartsList& list, const Point2& pos) {
   BBox2 f = sheet.frameRect();
   const double w = list.width(), h = list.height();
@@ -1108,7 +1154,12 @@ void PartsListTool::accept(core::ToolContext& ctx) {
     return;
   }
   PartsList tmp = preview_;
-  commit(ctx, defaultPosition(*s, tmp));
+  for (const auto& pl : s->partsLists)
+    if (pl.viewId == viewId_) {
+      ctx.showMessage("This sheet already has a parts list for this view; the new one is placed clear of it", true);
+      break;
+    }
+  commit(ctx, clearPosition(*s, tmp));
 }
 
 // ---------------------------------------------------------------------------------------

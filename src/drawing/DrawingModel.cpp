@@ -8,6 +8,7 @@
 #include "part/Naming.h"
 
 #include <QCoreApplication>
+#include <QDate>
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QTimer>
@@ -141,6 +142,10 @@ Sheet& DrawingModel::addSheet(const SheetFormat& format, ProjectionStandard stan
   if (const Sheet* from = sheet(activeSheet_) ? sheet(activeSheet_) : (sheets_.empty() ? nullptr : &sheets_.front()))
     for (const auto& [k, v] : from->titleBlock.fields)
       if (!TitleBlock::isSheetField(k)) s.titleBlock.fields[k] = v;
+  // the drawing date is stored when the sheet is made, so a re-plot on another day does not
+  // change a released drawing (DRW2-ASM-OUTPUT-6); Edit Title Block can change it
+  if (s.titleBlock.field("Date").empty())
+    s.titleBlock.fields["Date"] = QDate::currentDate().toString(Qt::ISODate).toStdString();
   sheets_.push_back(std::move(s));
   Sheet& ref = sheets_.back();
   if (activeSheet_ == core::kInvalidId) activeSheet_ = ref.id;

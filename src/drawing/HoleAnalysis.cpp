@@ -362,7 +362,9 @@ std::vector<RichLine> holeCalloutLines(const HoleInfo& info, const HoleCallout& 
     }
     return l;
   };
-  if (c.thread && !thread.empty()) {
+  // a tapped plain hole reads thread first, then the tap drill (DRW2-VIEWS-ANNOT-13), whether
+  // the callout asked for the thread or the hole feature carries it
+  if (!thread.empty() && (c.thread || info.type == HoleInfo::Simple)) {
     lines.push_back(threadLine(countText));
     if (!info.through) lines.push_back(drillLine(""));
   } else {

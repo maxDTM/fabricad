@@ -151,7 +151,7 @@ void NewDrawingTool::activate(core::ToolContext& ctx) {
 QWidget* NewDrawingTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   standardCombo_ = new QComboBox(w);
   fillStandardCombo(standardCombo_, standard_);
   form->addRow(tr("Standard"), standardCombo_);
@@ -315,7 +315,7 @@ bool BaseViewTool::commandLineInput(core::ToolContext& ctx, const std::string& t
 QWidget* BaseViewTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   std::string src = sources_.empty() ? "All visible bodies" : std::to_string(sources_.size()) + " selected";
   form->addRow(tr("Design"), new QLabel(QString::fromStdString(src), w));
   orientationCombo_ = addOrientationCombo(form, orientation_);
@@ -1192,7 +1192,7 @@ QWidget* EditViewTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   const DrawingView* v = m ? m->view(viewId_) : nullptr;
   if (!v) return nullptr;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   labelEdit_ = new QLineEdit(QString::fromStdString(v->type == ViewType::Section ? v->section.label
                                                     : v->type == ViewType::Detail ? v->detail.label : v->label), w);
   form->addRow(tr("Label"), labelEdit_);
@@ -1219,7 +1219,7 @@ QWidget* EditViewTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     radiusSpin_->setValue(v->detail.radius);
     form->addRow(tr("Radius"), radiusSpin_);
   }
-  exactCheck_ = new QCheckBox(tr("Exact hidden-line removal (slower)"), w);
+  exactCheck_ = new QCheckBox(tr("Exact hidden lines (slow)"), w);
   exactCheck_->setChecked(v->exact);
   form->addRow(QString(), exactCheck_);
 
@@ -1313,7 +1313,7 @@ void EditViewTool::cancel(core::ToolContext& ctx) {
 
 EditSheetTool::EditSheetTool()
     : DrawingToolBase(drawingToolInfo("drawing.edit-sheet", "Edit Sheet", "Sheet name, size, standard and scale",
-                                      "MODIFY", 20, false, {}, {"EDITSHEET", "SHEETSETTINGS"})) {}
+                                      "MODIFY", 20, true, {}, {"EDITSHEET", "SHEETSETTINGS"})) {}
 
 void EditSheetTool::activate(core::ToolContext& ctx) {
   ctx_ = &ctx;
@@ -1411,7 +1411,7 @@ QWidget* EditSheetTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   const Sheet* s = m ? m->sheet(sheetId_) : nullptr;
   if (!s) return nullptr;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   nameEdit_ = new QLineEdit(QString::fromStdString(s->name), w);
   form->addRow(tr("Name"), nameEdit_);
   formatCombo_ = new QComboBox(w);
@@ -1523,12 +1523,12 @@ QWidget* EditTitleBlockTool::createDialog(core::ToolContext& ctx, QWidget* paren
   if (!s) return nullptr;
   auto values = titleBlockValues(*m, *s);
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   edits_.clear();
   for (const auto& name : TitleBlock::fieldNames()) {
     auto* e = new QLineEdit(QString::fromStdString(s->titleBlock.field(name)), w);
     e->setPlaceholderText(QString::fromStdString(values[name]));
-    form->addRow(QString::fromStdString(name), e);
+    form->addRow(spacedName(name), e);  // "Part Number", not PARTNUMBER (DRW2-ASM-OUTPUT-9)
     edits_[name] = e;
     connect(e, &QLineEdit::editingFinished, this, [this]() { applyDialog(); });
   }

@@ -74,6 +74,9 @@ bool exportPdf(DrawingModel& model, const std::string& path, const ExportOptions
   // document title = the title block's Title (DRW-ASM-OUTPUT-10), falling back to the file name
   writer.setTitle(QString::fromStdString(documentTitle(model, *sheets.front())));
   writer.setCreator("FabriCAD");
+  // Author = the title block's Drawn By (DRW2-ASM-OUTPUT-9)
+  if (auto v = titleBlockValues(model, *sheets.front()); !v["DrawnBy"].empty())
+    writer.setAuthor(QString::fromStdString(v["DrawnBy"]));
   auto pageLayout = [&](const Sheet& s) {
     QPageSize size(QSizeF(s.format.width, s.format.height), QPageSize::Millimeter, QString(), QPageSize::ExactMatch);
     return QPageLayout(size, QPageLayout::Portrait, QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter);

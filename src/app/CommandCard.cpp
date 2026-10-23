@@ -406,6 +406,7 @@ void CommandCard::adoptBody(QWidget* body) {
   body_ = body;
   body->installEventFilter(this);
   upgradeForms();
+  orderFooterFocus();
   body->show();
 }
 
@@ -633,9 +634,26 @@ bool CommandCard::focusInput(bool last) {
   return true;
 }
 
+void CommandCard::orderFooterFocus() {
+  if (!body_ || !cancel_ || !ok_) return;
+  QWidget* last = nullptr;
+  for (QWidget* w = body_->nextInFocusChain(); w && w != body_; w = w->nextInFocusChain()) {
+    if (!body_->isAncestorOf(w)) break;
+    if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy()) last = w;
+  }
+  if (!last) {
+    for (QWidget* w : body_->findChildren<QWidget*>())
+      if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy()) last = w;
+  }
+  if (!last) return;
+  QWidget::setTabOrder(last, cancel_);
+  QWidget::setTabOrder(cancel_, ok_);
+}
+
 void CommandCard::syncControls() {
   if (!body_) return;
   upgradeForms();
+  orderFooterFocus();
   for (SegmentedControl* s : body_->findChildren<SegmentedControl*>()) s->sync();
   const auto before = steps_->steps();
   updateSteps();

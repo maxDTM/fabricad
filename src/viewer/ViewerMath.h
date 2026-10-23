@@ -61,6 +61,9 @@ struct AzEl {
   double el = 0.0;
 };
 AzEl azimuthElevation(const gp_Dir& toEye);
+/// As above; looking straight down or up the azimuth comes from the camera up direction (the
+/// inverse of azElOrientation's choice), so TOP + Right reads AZ 015, not AZ 000 (P5R-KBD-6).
+AzEl azimuthElevation(const gp_Dir& toEye, const gp_Dir& up);
 /// The view for an azimuth / elevation: eye direction and an up vector (Z projected; looking
 /// straight down or up, up points away from the azimuth, so TOP from the front keeps +Y up).
 ViewOrientation azElOrientation(double azDeg, double elDeg);
