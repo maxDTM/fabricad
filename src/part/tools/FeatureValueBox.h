@@ -39,6 +39,8 @@ class FeatureValueBox {
 
  private:
   void applyTyped(core::ToolContext& ctx);
+  /// The stepper: `steps` display units up (+) or down (-) from the current value.
+  void step(core::ToolContext& ctx, int steps);
 
   FeatureTool& tool_;
   std::string prop_;

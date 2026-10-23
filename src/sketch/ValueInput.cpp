@@ -142,6 +142,14 @@ void ValueInputModel::setMeasured(const std::string& id, double value) {
   notify();
 }
 
+void ValueInputModel::setPresentation(const std::string& id, const std::string& unit, bool stepper) {
+  ValueField* f = fieldPtr(id);
+  if (!f || (f->unit == unit && f->stepper == stepper)) return;
+  f->unit = unit;
+  f->stepper = stepper;
+  notify();
+}
+
 void ValueInputModel::setAnchor(const std::string& id, const core::Vec3& world) {
   ValueField* f = fieldPtr(id);
   if (!f) return;

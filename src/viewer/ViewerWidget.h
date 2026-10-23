@@ -178,6 +178,7 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void updatePreviewLines(core::PreviewHandle h, const std::vector<core::Vec3>& pts) override;
   void removePreview(core::PreviewHandle h) override;
   void clearPreviews() override;
+  const std::vector<core::ShapeRef>& highlightedRefs() const { return highlighted_; }
   void setHighlighted(const std::vector<core::ShapeRef>& refs) override;
   void setSelectionFilter(core::ShapeKindMask kinds) override;
   core::ShapeKindMask selectionFilter() const override { return toolFilter_; }
@@ -241,6 +242,9 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void cameraChanged();
   /// Overlay widgets moved or changed size (the app re-runs its OverlayLayout).
   void overlayGeometryChanged();
+  /// The active command's picked references changed (setHighlighted): the SELECTION panel
+  /// lists them while the selection itself is empty (P5-MOCKUP-6).
+  void highlightedChanged();
 
  protected:
   void paintEvent(QPaintEvent* event) override;

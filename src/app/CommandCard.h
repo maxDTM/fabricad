@@ -88,6 +88,10 @@ class CommandCard : public QFrame {
   StepIndicator* stepIndicator() const { return steps_; }
   /// Re-derive the steps and re-read segmented controls after the tool changed its body's state.
   void syncControls();
+  /// Keyboard entry into the card (Tab / Shift+Tab from the viewport, P5-KEYBOARD-2): focus the
+  /// first input of the body, or with `last` the last control (Apply, else Cancel). False when
+  /// nothing in the card takes the focus.
+  bool focusInput(bool last);
 
   // ---- placement (6.1, 6.4)
   void setPlacement(Placement requested, const viewer::FreePos& free = {});

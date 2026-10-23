@@ -8,6 +8,7 @@
 #include "app/StepIndicator.h"
 #include "app/ThemeManager.h"
 #include "app/TitleBar.h"
+#include "theme/StatusGlyph.h"
 #include "theme/Tokens.h"
 #include "viewer/OverlayHost.h"
 #include "viewer/ViewerWidget.h"
@@ -512,6 +513,7 @@ void CommandCard::setAcceptEnabled(bool enabled) {
 
 void CommandCard::setMessage(const QString& text, bool error) {
   message_->setText(text);
+  theme::setStatusGlyph(message_, error && !text.isEmpty() ? theme::StatusLevel::Error : theme::StatusLevel::None);
   message_->setVisible(!text.isEmpty());
   message_->setProperty("error", error);
   message_->style()->unpolish(message_);
@@ -602,6 +604,33 @@ void CommandCard::focusStep(int index) {
   }
   w->setFocus(Qt::MouseFocusReason);
   if (auto* e = qobject_cast<QLineEdit*>(w)) e->selectAll();
+}
+
+bool CommandCard::focusInput(bool last) {
+  if (!isVisible()) return false;
+  std::vector<QWidget*> chain;
+  auto takes = [this](QWidget* w) {
+    return w && w != this && isAncestorOf(w) && w->isVisibleTo(this) && w->isEnabled() &&
+           (w->focusPolicy() & Qt::TabFocus) && !w->focusProxy();
+  };
+  // the Qt focus chain order inside the card (body rows top to bottom, then the footer)
+  for (QWidget* w = nextInFocusChain(); w && w != this; w = w->nextInFocusChain())
+    if (takes(w)) chain.push_back(w);
+  if (chain.empty()) return false;
+  QWidget* target = nullptr;
+  if (last) {
+    target = ok_ && takes(ok_) ? static_cast<QWidget*>(ok_) : chain.back();
+  } else {
+    for (QWidget* w : chain)
+      if (body_ && body_->isAncestorOf(w)) {
+        target = w;
+        break;
+      }
+    if (!target) target = chain.front();
+  }
+  target->setFocus(last ? Qt::BacktabFocusReason : Qt::TabFocusReason);
+  if (auto* e = qobject_cast<QLineEdit*>(target)) e->selectAll();
+  return true;
 }
 
 void CommandCard::syncControls() {

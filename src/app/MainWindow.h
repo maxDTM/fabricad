@@ -346,6 +346,7 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost, public A
   void storeCardPlacement(int placement, const QString& freePos);
   QString workspaceCaption() const;
   bool isCanvasFocus(QWidget* focus) const;
+  bool isChromeControl(QWidget* focus) const;
   bool isIdleTool() const;
 
   fabricad::core::ToolRegistry registry_;

@@ -1,8 +1,9 @@
-# fabricad_theme. OWNER: ui agent. Design tokens (generated ThemeTokens.inc), colour math and the
-# QSS template renderer (docs/plans/ui-redesign.md section 2). Depends on QtGui only, so both
+# fabricad_theme. OWNER: ui agent. Design tokens (generated ThemeTokens.inc), colour math, the status
+# glyphs (StatusGlyph: needs QtWidgets for the QLabel helper) and the
+# QSS template renderer (docs/plans/ui-redesign.md section 2). Depends on QtGui and QtWidgets, so both
 # fabricad_viewer and the app can link it.
 fabricad_add_module(fabricad_theme)
-target_link_libraries(fabricad_theme PUBLIC Qt6::Gui)
+target_link_libraries(fabricad_theme PUBLIC Qt6::Gui Qt6::Widgets)
 
 if(FABRICAD_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter QUIET)

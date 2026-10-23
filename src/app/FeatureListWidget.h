@@ -39,6 +39,10 @@ class TimelineActions;
 class FeatureListWidget : public QAbstractScrollArea {
   Q_OBJECT
  public:
+  /// A command is running (P5-KEYBOARD-4/9): arrows only move the keyboard cursor and Space
+  /// picks the current row for the command (as a click does) instead of suppressing it.
+  void setPickMode(bool on) { pickMode_ = on; }
+  bool pickMode() const { return pickMode_; }
   static constexpr int kRowH = 28;
   static constexpr int kBarH = 16;
   static constexpr int kInsertH = 44;
@@ -171,6 +175,7 @@ class FeatureListWidget : public QAbstractScrollArea {
   QPointer<QLineEdit> editor_;
   core::ObjectId editing_ = core::kInvalidId;
   bool tipShown_ = false;
+  bool pickMode_ = false;
 };
 
 }  // namespace fabricad::app

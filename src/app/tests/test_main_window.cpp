@@ -34,6 +34,7 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <STEPControl_Writer.hxx>
 
+#include <QApplication>
 #include <QElapsedTimer>
 #include <QLockFile>
 #include <QSysInfo>
@@ -90,7 +91,7 @@ class DialogTool : public core::ToolBase {
   bool keyPress(core::ToolContext&, const core::ViewerKeyEvent& e) override {
     if (e.key == Qt::Key_Tab) {
       ++tabs;
-      return true;
+      return consumeTab;
     }
     return false;
   }
@@ -102,6 +103,7 @@ class DialogTool : public core::ToolBase {
     return w;
   }
   int activated = 0, accepted = 0, cancelled = 0, dialogs = 0, tabs = 0;
+  bool consumeTab = true;  ///< false: like Extrude's one-field value box, Tab is not the tool's
   std::vector<std::string> lastArgs;
 };
 
@@ -571,6 +573,24 @@ class TestMainWindow : public QObject {
     QVERIFY(field);
     QVERIFY(!key(Qt::Key_E, 0, field));
     QVERIFY(!key(Qt::Key_Escape, 0, field));
+    w_->toolManager().cancel();
+  }
+
+  void tabWalksIntoTheCard() {
+    // P5-KEYBOARD-2: a Tab the tool does not use moves the keyboard into the card's fields
+    QVERIFY(w_->runCommand("test.dialog"));
+    settle();
+    tool_->consumeTab = false;
+    w_->viewer()->setFocus();
+    QVERIFY(key(Qt::Key_Tab));
+    QLineEdit* field = w_->commandDialog()->body()->findChild<QLineEdit*>("dialogField");
+    QVERIFY(field);
+    QCOMPARE(QApplication::focusWidget(), static_cast<QWidget*>(field));
+    // Shift+Tab from the canvas lands on the last control (Apply)
+    w_->viewer()->setFocus();
+    QVERIFY(key(Qt::Key_Backtab, Qt::ShiftModifier));
+    QCOMPARE(QApplication::focusWidget(), static_cast<QWidget*>(w_->commandDialog()->okButton()));
+    tool_->consumeTab = true;
     w_->toolManager().cancel();
   }
 

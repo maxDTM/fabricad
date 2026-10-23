@@ -115,7 +115,7 @@ QToolButton* QuickToolbar::makeButton(const QString& objectName) {
   b->setIconSize(QSize(20, 20));
   b->setToolButtonStyle(Qt::ToolButtonIconOnly);
   b->setAutoRaise(true);
-  b->setFocusPolicy(Qt::NoFocus);
+  b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
   return b;
 }
 

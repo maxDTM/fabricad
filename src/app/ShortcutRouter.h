@@ -27,6 +27,10 @@ struct KeyContext {
   bool canvasFocus = false;  ///< viewport / browser / timeline (or nothing) has focus
   bool textInput = false;    ///< a line edit / spin box / text edit has focus
   bool toolActive = false;
+  /// A focused chrome control (tool button, panel header, tab bar, view button): letter
+  /// shortcuts, S and Esc still work as on the canvas (P5-KEYBOARD-7), but the keys that operate
+  /// the control itself (Space, Enter, arrows, Tab) stay with it. Implies canvasFocus.
+  bool widgetKeys = false;
 };
 
 struct KeyRoute {
@@ -35,6 +39,7 @@ struct KeyRoute {
   std::string sequence;      ///< portable key sequence text ("Ctrl+Shift+S", "E", "Shift+J", "Del")
 };
 
+/// Ctrl+K opens the command search from anywhere except a text field (5.1 search box keycap).
 /// `key` is a Qt::Key, `modifiers` Qt::KeyboardModifiers bits.
 KeyRoute routeKey(int key, int modifiers, const KeyContext& ctx);
 /// Portable text for a key + modifiers ("Ctrl+Z").

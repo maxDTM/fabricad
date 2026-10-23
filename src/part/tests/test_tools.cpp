@@ -101,8 +101,9 @@ class ToolsTest : public QObject {
     QVERIFY(tool->isValid());
     QVERIFY(!rig.viewer.previews().empty());  // live preview shown
     QVERIFY(rig.host.acceptEnabled());
-    // the prompt follows the picks (p1-check 4): the preselected profile is reported
-    QCOMPARE(rig.host.prompt().rfind("Profiles: 1 selected", 0), size_t(0));
+    // the prompt follows the picks (p1-check 4, P5-MOCKUP-2): with the profile picked it asks for
+    // the distance (drag the handle or type it)
+    QVERIFY2(rig.host.prompt().find("type a distance") != std::string::npos, rig.host.prompt().c_str());
     // typed value on the command line goes to the distance
     QVERIFY(rig.manager.runCommandLine("25"));
     QVERIFY(near(tool->feature()->length("distance"), 25));
@@ -303,7 +304,7 @@ class ToolsTest : public QObject {
     // selection input buttons: profiles is active
     auto* profiles = panel->findChild<QPushButton*>("prop_profiles");
     QVERIFY(profiles);
-    QCOMPARE(profiles->text(), QString("1 selected"));
+    QCOMPARE(profiles->text(), QString("1 profile"));  // selection chip (5.4)
     QVERIFY(profiles->isChecked());
     auto* targets = panel->findChild<QPushButton*>("prop_targets");
     QVERIFY(targets);
