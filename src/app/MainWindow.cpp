@@ -957,6 +957,9 @@ void MainWindow::activateTab(DocumentTab* tab) {
   sidebar_->setActive(tab->isDesign() ? &tab->document() : nullptr, tab->featureList(), tab->browser());
   if (SelectionPanel* sp = sidebar_->selectionPanel())
     sp->setPicked(tab->viewer() ? tab->viewer()->highlightedRefs() : std::vector<ShapeRef>{});
+  // the keyboard starts on the canvas: with tool buttons in the Tab order (P5-KEYBOARD-5) the
+  // window would otherwise give its first focus to the logo button (and show its focus ring)
+  if (viewer_ && (!focusWidget() || isChromeControl(focusWidget()))) viewer_->setFocus(Qt::OtherFocusReason);
   updateTimelineDock();
   updateCardDockAvailability();
   if (tab->isDesign() && glEnabled_ && isVisible()) tab->initializeViewer();

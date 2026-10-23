@@ -485,6 +485,7 @@ void PropertyPanel::addRow(core::Property& p) {
       // chip + sub-label (5.4): "■ 1 PROFILE ×  Sketch3"
       auto* src = new QLabel(refSource(p), row);
       src->setObjectName("SelectionSource");
+      src->setProperty("textStyle", "value");  // names as typed (decision 3)
       src->setVisible(!src->text().isEmpty());
       h->addWidget(btn, 1);
       h->addWidget(clear);

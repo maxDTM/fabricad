@@ -136,7 +136,8 @@ QLabel#CardContext, QLabel#CardDocName { color: @{text.tertiary}; }
 #CardBody QLabel#SegmentedLabel { color: @{text.secondary}; }
 #CardBody QLineEdit, #CardBody QComboBox, #CardBody QSpinBox, #CardBody QDoubleSpinBox { min-height: 24px; background: @{surface.input}; border: 1px solid @{border.control}; padding: 1px 6px; }
 #CardBody QLineEdit:focus { border: 2px solid @{live.base}; padding: 0 5px; }
-#CardBody QComboBox:focus, #CardBody QSpinBox:focus, #CardBody QDoubleSpinBox:focus { border-color: @{accent.focus}; }
+#CardBody QSpinBox:focus, #CardBody QDoubleSpinBox:focus { border: 2px solid @{accent.focus}; padding: 0 5px; }
+#CardBody QComboBox:focus { border: 2px solid @{accent.focus}; padding: 0 27px 0 5px; }
 #CardBody QComboBox { padding-right: 28px; }
 #CardBody QComboBox::drop-down { width: 24px; border-left: 1px solid @{border.control}; }
 QPushButton[selectionInput="true"] { background: @{surface.input}; border: 1px solid @{border.control}; border-radius: 1px; color: @{text.primary}; text-align: left; padding: 5px 8px; }
@@ -327,3 +328,4 @@ QToolButton#prop_flip_toggle { min-width: 24px; max-width: 24px; min-height: 24p
 QToolButton#prop_flip_toggle:hover { color: @{accent.text}; }
 QToolButton#prop_flip_toggle:checked { background: @{accent.selFill}; border-color: @{accent.indicator}; color: @{text.primary}; }
 QToolButton#prop_flip_toggle:focus { border: 2px solid @{accent.focus}; }
+#CardBody QToolButton:focus { border: 2px solid @{accent.focus}; }

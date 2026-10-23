@@ -186,6 +186,7 @@ void ValueInputOverlay::ensureBoxes() {
     b.lock->hide();
     b.unit = new QLabel(field);
     b.unit->setObjectName("fcValueUnit");
+    b.unit->setProperty("textStyle", "value");  // "mm", not "MM" (units keep their case)
     b.unit->hide();
     // ▴▾ stepper, 14 px wide (5.3)
     auto* steps = new QWidget(field);
