@@ -6,6 +6,8 @@
 
 #include "part/features/Import.h"
 
+#include <QFile>
+
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -38,6 +40,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   (void)part::ImportFeature::readFile(path, out, &error);
   std::string error2;
   if (std::string(FUZZ_IMPORT_EXT) == ".step") (void)part::ImportFeature::readStepAssembly(path, &error2);
-  if (std::getenv("FABRICAD_FUZZ_TRACE")) std::fprintf(stderr, "FUZZ_RESULT [%s] [%s]\n", error.c_str(), error2.c_str());
+  if (std::getenv("FABRICAD_FUZZ_TRACE")) {
+    std::fprintf(stderr, "FUZZ_RESULT [%s] [%s]\n", error.c_str(), error2.c_str());
+    if (const char* keep = std::getenv("FABRICAD_FUZZ_KEEP")) {  // keep every input, numbered
+      static int n = 0;
+      QFile::copy(QString::fromStdString(path), QString("%1/%2" FUZZ_IMPORT_EXT).arg(keep).arg(n++, 5, 10, QChar('0')));
+    }
+  }
   return 0;
 }

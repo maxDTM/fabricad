@@ -16,6 +16,7 @@
 #include "part/PartUtils.h"
 
 #include <QDateTime>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -30,7 +31,11 @@
 #include <STEPCAFControl_Reader.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
+#include <Interface_Check.hxx>
+#include <Interface_CheckIterator.hxx>
+#include <XSControl_WorkSession.hxx>
 #include <OSD.hxx>
+#include <OSD_Exception.hxx>
 #include <OSD_Signal.hxx>
 #include <Standard_ErrorHandler.hxx>
 #include <Standard_Failure.hxx>
@@ -54,6 +59,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstring>
 #include <cmath>
 #include <format>
 #include <functional>
@@ -81,6 +88,13 @@ class ScopedOcctSignals {
     if (depth()++ > 0 || qEnvironmentVariable("FABRICAD_OCCT_SIGNALS") == "0") return;
     active_ = true;
     pthread_sigmask(SIG_SETMASK, nullptr, &oldMask_);
+    // an alternate stack, so that a stack overflow (a STEP edge that refers to itself recurses in
+    // StepShape_OrientedEdge::EdgeStart until the stack is gone) can be handled too
+    static thread_local std::vector<char> altStack(256 * 1024);
+    stack_t ss = {};
+    ss.ss_sp = altStack.data();
+    ss.ss_size = altStack.size();
+    hasOldStack_ = sigaltstack(&ss, &oldStack_) == 0;
     for (int s = 1; s < kSignals; ++s) saved_[s] = sigaction(s, nullptr, &old_[s]) == 0;
     OSD::SetSignal(OSD_SignalMode_Set, false);
     for (int s = 1; s < kSignals; ++s) {
@@ -105,6 +119,7 @@ class ScopedOcctSignals {
     if (!active_) return;
     for (int s = 1; s < kSignals; ++s)
       if (saved_[s]) sigaction(s, &old_[s], nullptr);
+    if (hasOldStack_) sigaltstack(&oldStack_, nullptr);
     pthread_sigmask(SIG_SETMASK, &oldMask_, nullptr);
   }
   ScopedOcctSignals(const ScopedOcctSignals&) = delete;
@@ -143,12 +158,68 @@ class ScopedOcctSignals {
   std::lock_guard<std::recursive_mutex> lock_;
   struct sigaction old_[kSignals] = {};
   sigset_t oldMask_ = {};
+  stack_t oldStack_ = {};
+  bool hasOldStack_ = false;
   bool active_ = false;
   bool saved_[kSignals] = {};
 };
 
+/// ISO 10303-21 instance names (#12 = ...) must be unique. OCCT's parser does not refuse a file
+/// that repeats them, and with such a file StepData_StepReaderData::SetEntityNumbers can loop
+/// forever (seen by fuzzing, depending on what earlier reads left on the heap). Returns the first
+/// name defined twice, 0 when there is none. Deliberately naive: every "#<digits> =" counts as a
+/// definition, also inside a string (a damaged file can leave a quote open, so a string-aware scan
+/// would miss the duplicates; a parameter is never written "#12 =").
+long long stepDuplicateEntity(const std::string& path) {
+  QFile f(QString::fromStdString(path));
+  if (!f.open(QIODevice::ReadOnly)) return 0;
+  const QByteArray data = f.readAll();
+  const char* p = data.constData();
+  const char* const end = p + data.size();
+  std::set<long long> seen;
+  while ((p = static_cast<const char*>(std::memchr(p, '#', static_cast<size_t>(end - p)))) != nullptr) {
+    const char* q = p + 1;
+    long long id = 0;
+    while (q < end && std::isdigit(static_cast<unsigned char>(*q)) && id < (1LL << 50)) id = id * 10 + (*q++ - '0');
+    const bool digits = q > p + 1;
+    while (q < end && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n')) ++q;
+    if (digits && q < end && *q == '=' && !seen.insert(id).second) return id;
+    p = q;
+  }
+  return 0;
+}
+
+/// A STEP file whose parse left structural failures (a reference to a missing entity, a parameter
+/// of the wrong entity type or not an entity at all, a wrong parameter count) is refused before
+/// the transfer: OCCT's translators dereference those entities as null handles (fuzzing,
+/// docs/TESTING.md). Other load messages (an entity type OCCT does not know, ...) are left to
+/// OCCT as before. FABRICAD_STEP_CHECKS=1 prints the failures.
+bool stepLoadFailed(const Handle(XSControl_WorkSession)& ws) {
+  if (ws.IsNull()) return false;
+  static const char* const kStructural[] = {"unresolved", "illegal type", "not an Entity", "Count of Parameters"};
+  const bool print = qEnvironmentVariableIsSet("FABRICAD_STEP_CHECKS");
+  bool failed = false;
+  const Interface_CheckIterator checks = ws->ModelCheckList(false);
+  for (checks.Start(); checks.More(); checks.Next()) {
+    const Handle(Interface_Check)& check = checks.Value();
+    for (int i = 1; i <= check->NbFails(); ++i) {
+      const char* text = check->Fail(i, false)->ToCString();  // the message template
+      if (print) std::fprintf(stderr, "STEP_FAIL %s\n", text);
+      for (const char* k : kStructural)
+        if (std::strstr(text, k)) failed = true;
+    }
+  }
+  return failed;
+}
+
+/// A crash inside the reader that OCCT turned into an exception (SIGSEGV, stack overflow...).
+bool isSignal(const Standard_Failure& e) {
+  return e.IsKind(STANDARD_TYPE(OSD_Signal)) || e.IsKind(STANDARD_TYPE(OSD_Exception)) ||
+         (e.GetMessageString() && std::strstr(e.GetMessageString(), "Signal") != nullptr);
+}
+
 std::string failureText(const Standard_Failure& e) {
-  if (e.IsKind(STANDARD_TYPE(OSD_Signal))) return "the file is damaged (the reader crashed)";
+  if (isSignal(e)) return "the file is damaged (the reader crashed)";
   return e.GetMessageString() && *e.GetMessageString() ? e.GetMessageString() : "OCCT error";
 }
 
@@ -297,8 +368,18 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
     reader.SetNameMode(true);
     reader.SetColorMode(false);
     reader.SetLayerMode(false);
+    if (const long long dup = stepDuplicateEntity(path)) {
+      if (error) *error = std::format("could not read STEP file: the file is damaged (entity #{} is defined twice)", dup);
+      app->Close(xdoc);
+      return nullptr;
+    }
     if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
       if (error) *error = "could not read STEP file";
+      app->Close(xdoc);
+      return nullptr;
+    }
+    if (stepLoadFailed(reader.ChangeReader().WS())) {
+      if (error) *error = "could not read STEP file: the file is damaged (broken entity references)";
       app->Close(xdoc);
       return nullptr;
     }
@@ -333,7 +414,7 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
   } catch (const Standard_Failure& e) {
     if (error) *error = std::format("import failed: {}", failureText(e));
     // after a crash inside the reader the document may be inconsistent: leak it rather than close
-    if (!e.IsKind(STANDARD_TYPE(OSD_Signal)) && !xdoc.IsNull()) app->Close(xdoc);
+    if (!isSignal(e) && !xdoc.IsNull()) app->Close(xdoc);
     return nullptr;
   }
   std::lock_guard lock(mutex);
@@ -501,9 +582,17 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
       return true;
     }
     if (ext == "step" || ext == "stp") {
+      if (const long long dup = stepDuplicateEntity(path)) {
+        if (error) *error = std::format("could not read STEP file: the file is damaged (entity #{} is defined twice)", dup);
+        return false;
+      }
       STEPControl_Reader reader;
       if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
         if (error) *error = "could not read STEP file";
+        return false;
+      }
+      if (stepLoadFailed(reader.WS())) {
+        if (error) *error = "could not read STEP file: the file is damaged (broken entity references)";
         return false;
       }
       reader.TransferRoots();

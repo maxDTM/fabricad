@@ -22,6 +22,11 @@ namespace {
 
 std::vector<std::string> gCorpus;
 
+std::string readAll(const std::filesystem::path& p) {
+  std::ifstream f(p, std::ios::binary);
+  return {std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
+}
+
 void saveCrashCandidate(const std::string& input) {
   std::ofstream("crash-candidate", std::ios::binary) << input;
 }
@@ -65,13 +70,9 @@ int main(int argc, char** argv) {
     else if (a.rfind("-", 0) == 0) continue;  // other libFuzzer flags are ignored
     else if (std::filesystem::is_directory(a)) {
       for (const auto& e : std::filesystem::directory_iterator(a))
-        if (e.is_regular_file()) {
-          std::ifstream f(e.path(), std::ios::binary);
-          gCorpus.emplace_back(std::istreambuf_iterator<char>(f), {});
-        }
+        if (e.is_regular_file()) gCorpus.push_back(readAll(e.path()));
     } else {
-      std::ifstream f(a, std::ios::binary);
-      gCorpus.emplace_back(std::istreambuf_iterator<char>(f), {});
+      gCorpus.push_back(readAll(a));
     }
   }
   LLVMFuzzerInitialize(&argc, &argv);
