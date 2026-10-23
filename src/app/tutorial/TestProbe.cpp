@@ -3,6 +3,7 @@
 
 #include "app/MainWindow.h"
 #include "app/UiSettings.h"
+#include "app/tutorial/TutorialBubble.h"
 #include "app/tutorial/TutorialController.h"
 #include "app/tutorial/TutorialEngine.h"
 #include "core/Document.h"
@@ -101,6 +102,7 @@ QJsonObject TestProbe::state() {
     tour["step"] = e.step() ? e.step()->id : QString();
     tour["waiting"] = e.waitingFor();
     tour["hint"] = e.hint();
+    tour["painted"] = c_.bubble() ? c_.bubble()->paintedStep() : 0;  // 1-based, as index + 1
   }
   o["tour"] = tour;
   QJsonObject ui;
@@ -153,11 +155,19 @@ QJsonObject TestProbe::answer(const QJsonObject& r) {
     const bool ok = c_.engine().query().check(r.value("expr").toString(), &msg);
     return {{"ok", true}, {"value", ok}, {"message", msg}};
   }
+  if (cmd == "grab") {
+    // the window as Qt renders it now (the GL view included): the Markdown export's screenshots.
+    // A screen grab of an occluded private Xwayland display can show a frame several steps old.
+    const QString path = r.value("path").toString();
+    if (path.isEmpty()) return {{"ok", false}, {"error", "grab needs a path"}};
+    const bool ok = w_.grab().save(path, "PNG");
+    return {{"ok", ok}, {"error", ok ? QString() : "cannot write " + path}};
+  }
   if (cmd == "docjson") {
     if (!w_.hasDocument()) return {{"ok", false}, {"error", "no document"}};
     return {{"ok", true}, {"doc", w_.document().toJson()}};
   }
-  return {{"ok", false}, {"error", "unknown command '" + cmd + "' (ping state locate eval check docjson)"}};
+  return {{"ok", false}, {"error", "unknown command '" + cmd + "' (ping state locate eval check grab docjson)"}};
 }
 
 }  // namespace fabricad::app::tutorial

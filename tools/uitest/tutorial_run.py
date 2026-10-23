@@ -342,21 +342,37 @@ def doc_shot(r, probe, s, report_step):
     """Before the step's input: the bubble pointing at its target, for the Markdown export
     (tools/tutorial/export_md.py crops it to the bubble and the target)."""
     r.idle()
-    time.sleep(0.25)  # the bubble follows its anchor on the next tracking tick (100 ms)
+    # the bubble shows this step (it has painted it), and follows its anchor on the next tracking
+    # tick (100 ms)
+    probe.wait(lambda x: x["tour"].get("painted") == x["tour"].get("index", -2) + 1, 5, "the bubble to show step " + s["id"])
+    time.sleep(0.2)
+    # the window as Qt renders it (the probe's grab): a screen grab of an occluded private Xwayland
+    # display can show a frame several steps old; window coordinates are screen coordinates here
+    # (the window sits at 0,0 of its own display)
+    name = "doc-" + s["id"].replace("/", "_")
+    probe.ask(cmd="grab", path=os.path.abspath(os.path.join(r.out, name + ".png")))
     rects = {}
-    for name, anchor in (("bubble", "TutorialBubble"), ("target", "@step")):
+    for key, anchor in (("bubble", "TutorialBubble"), ("target", "@step")):
         loc = probe.ask(cmd="locate", anchor=anchor)
         if loc.get("visible"):
-            rects[name] = loc["rect"]
-    name = "doc-" + s["id"].replace("/", "_")
-    r.shot(name)
+            rects[key] = loc["rect"]
     report_step["doc"] = dict(rects, png=name + ".png")
+
+
+def needs_next(cond):
+    """The condition waits for NEXT ({"next": true}, also inside all/any/not); a "next point"
+    prompt is not that."""
+    if isinstance(cond, dict):
+        return "next" in cond or any(needs_next(v) for v in cond.values())
+    if isinstance(cond, list):
+        return any(needs_next(v) for v in cond)
+    return False
 
 
 def play_step(r, probe, s, report, doc_shots=False):
     """One step through its canonical input; returns the probe state after it completed."""
     until = s.get("until", {"next": True})
-    if probe.ask(cmd="eval", cond=until).get("value") and "next" not in json.dumps(until):
+    if probe.ask(cmd="eval", cond=until).get("value") and not needs_next(until):
         raise Failure("step %s: 'until' is already true before any input" % s["id"])
     entry = {"id": s["id"]}
     if doc_shots:
@@ -364,7 +380,7 @@ def play_step(r, probe, s, report, doc_shots=False):
     t0 = time.time()
     for a in s.get("do", []):
         r.act(a)
-    if "next" in json.dumps(until):
+    if needs_next(until):
         r.click("TutorialNext")
     timeout = s.get("timeout_ms", 20000) / 1000.0
     nxt = probe.wait(lambda x: x["tour"].get("step") != s["id"], timeout, "step %s to complete" % s["id"])
