@@ -54,6 +54,7 @@
   <file>icons/dark/app-wait.svg</file>
   <file>icons/dark/assembly-activate.svg</file>
   <file>icons/dark/assembly-as-built-joint.svg</file>
+  <file>icons/dark/assembly-component-properties.svg</file>
   <file>icons/dark/assembly-components-from-bodies.svg</file>
   <file>icons/dark/assembly-copy.svg</file>
   <file>icons/dark/assembly-delete-component.svg</file>
@@ -219,6 +220,7 @@
   <file>icons/dark/part-import-file.svg</file>
   <file>icons/dark/part-import.svg</file>
   <file>icons/dark/part-loft.svg</file>
+  <file>icons/dark/part-mass-properties.svg</file>
   <file>icons/dark/part-mirror.svg</file>
   <file>icons/dark/part-move.svg</file>
   <file>icons/dark/part-offset-face.svg</file>
@@ -384,6 +386,7 @@
   <file>icons/light/app-wait.svg</file>
   <file>icons/light/assembly-activate.svg</file>
   <file>icons/light/assembly-as-built-joint.svg</file>
+  <file>icons/light/assembly-component-properties.svg</file>
   <file>icons/light/assembly-components-from-bodies.svg</file>
   <file>icons/light/assembly-copy.svg</file>
   <file>icons/light/assembly-delete-component.svg</file>
@@ -549,6 +552,7 @@
   <file>icons/light/part-import-file.svg</file>
   <file>icons/light/part-import.svg</file>
   <file>icons/light/part-loft.svg</file>
+  <file>icons/light/part-mass-properties.svg</file>
   <file>icons/light/part-mirror.svg</file>
   <file>icons/light/part-move.svg</file>
   <file>icons/light/part-offset-face.svg</file>

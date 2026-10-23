@@ -484,6 +484,9 @@ I["assembly-move"] = component(12, 12, 0.5) + four_way(AS, 10, 12, 12, 5.5)
 INSERT_DESIGN = component(12, 15, 0.8) + P("M12 1.5 V8", s=INK) + arrow_head(12, 8, "down", INK, 2.5)
 I["assembly-insert-design"] = INSERT_DESIGN
 I["assembly-export-step"] = export_doc(component(7, 9.5, 0.4) + component(11, 14, 0.4), AS)
+# component properties (production-features P1): a component with a property sheet
+I["assembly-component-properties"] = (component(8.5, 9, 0.6) + R(11, 10, 10, 11, 1, f=WH) +
+                                      P("M13.5 13.5 H18.5 M13.5 16.5 H18.5 M13.5 19 H16.5", s=AS))
 I["assembly-export-bom"] = export_doc(P("M5.5 9 H12.5 M5.5 12.5 H12.5 M5.5 16 H10", s=AS), AS)
 # joint motion types (browser / timeline)
 I["joint-rigid"] = C(12, 12, 8, s=AS, f=WH) + R(9, 9, 6, 6, 1, f=AS, s="none")
@@ -508,6 +511,9 @@ I["inspect-section"] = (R(3, 8, 9, 11, 1, f=BODY) + P("M9 3 L20 6.5 V21 L9 17.5 
                         P("M12 9 L17 10.6 M12 13 L17 14.6", s=IN))
 I["inspect-section-off"] = (R(3, 8, 9, 11, 1, f=BODY) + P("M9 3 L20 6.5 V21 L9 17.5 Z", s=IN, da="2 1.5") +
                             cross(18.5, 18.5, RED, 3))
+# mass properties (production-features P1): a body with the centre-of-gravity symbol
+I["part-mass-properties"] = (cube(10, 12, 0.85) + C(17, 17, 4.5, s=IN, f=WH) + P("M17 12.5 V17 H21.5", s=IN) +
+                             P("M17 17 V21.5 H12.5 A4.5 4.5 0 0 1 17 12.5", s="none", f=IN))
 I["assembly-interference"] = (R(3, 4, 11, 11, 1, s=IN, f=WH) + R(10, 9, 11, 11, 1, s=IN, f=WH) +
                               R(10, 9, 4, 6, f=RED, fo="0.6", s="none") + P("M3 4 H14 V15 H3 Z", s=IN))
 

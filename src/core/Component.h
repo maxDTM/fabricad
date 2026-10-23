@@ -29,6 +29,10 @@ struct Component {
   std::string partNumber;             ///< BOM data
   std::string description;
   std::string material;
+  std::string revision;               ///< "B" (title block ${revision}, BOM column)
+  std::string vendor;                 ///< supplier name (BOM column)
+  double cost = 0.0;                  ///< unit cost in the document currency, 0 = unknown
+  std::string standard;               ///< "ISO 4762" for standard parts (written by fastener insert)
 
   bool isRoot() const { return parent == kInvalidId; }
   bool isOccurrence() const { return definition != kInvalidId; }
