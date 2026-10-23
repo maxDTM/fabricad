@@ -47,6 +47,10 @@ struct ViewerPalette {
   Rgba preFill{};              ///< hovered face tint
   Rgba halo{};                 ///< 1 px halo under accent lines over bodies
   float selWidth = 2.2f, preWidth = 1.5f, haloWidth = 1.0f;  ///< halo: extra px on each side
+  /// Guided tour target (docs/plans/tutorial.md 4): accent.focus, wider than a selection, with the
+  /// same halo; faces get a faint tint of it
+  Rgba tutorial{}, tutorialFill{};
+  float tutorialWidth = 3.0f;
 
   // --- previews by core::ColorRole
   struct PreviewColors {

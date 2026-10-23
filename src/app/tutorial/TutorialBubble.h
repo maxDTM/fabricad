@@ -45,6 +45,9 @@ class TutorialBubble : public QFrame {
   void setHint(const QString& text, bool warning = false);
   QString hint() const;
   QString plainText() const { return plain_; }
+  /// The step number (Content::step) the bubble last painted: the tour probe's `painted`, so a
+  /// screenshot waits for the new step's bubble (0 before the first paint).
+  int paintedStep() const { return paintedStep_; }
 
   /// Child of the main window (false) or a frameless tool window next to a popup (true).
   void setFloating(bool floating);
@@ -61,6 +64,8 @@ class TutorialBubble : public QFrame {
   void restoreClicked();
   void undoToStartClicked();
   void exitClicked();
+  /// The ⋯ menu closed (an item ran or it was dismissed): the keyboard goes back to the window.
+  void menuClosed();
 
  protected:
   void paintEvent(QPaintEvent* e) override;
@@ -84,6 +89,7 @@ class TutorialBubble : public QFrame {
   QString plain_;
   QString markup_;
   bool hintWarning_ = false;
+  int step_ = 0, paintedStep_ = 0;
 };
 
 }  // namespace fabricad::app::tutorial

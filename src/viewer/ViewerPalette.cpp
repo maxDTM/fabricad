@@ -41,6 +41,8 @@ ViewerPalette ViewerPalette::fromTokens(theme::Theme th) {
   p.selFill = c(Tok::SelFill);
   p.preFill = withAlpha(c(Tok::PreEdge), 0.16f);
   p.halo = c(Tok::Halo);
+  p.tutorial = c(Tok::AccentFocus);
+  p.tutorialFill = withAlpha(c(Tok::AccentFocus), 0.22f);
   p.selWidth = light ? 2.5f : 2.2f;
   if (light) {
     // P5-LIGHT-7: the light body rendered about 10 L under the mockup (#AAAEB2 lit top for

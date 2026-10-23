@@ -9,9 +9,12 @@ All notable changes to FabriCAD are listed here. The format follows
 ### Added
 
 - **Guided tour**: "Your first part: a mounting bracket", offered on first launch and in Help > Tutorials:
-  from a first sketch to an STL in 65 steps (sketch on faces, dimensions, extrude, fillet, slot, counterbored
+  from a first sketch to an STL in 66 steps (sketch on faces, dimensions, extrude, fillet, slot, counterbored
   holes, mirror, chamfer, rib, a history edit, measure, save and reopen, export), with chapter checkpoints for
-  Restore chapter.
+  Restore chapter. The target face, edge or plane glows in the view; a printable copy with screenshots is in
+  `docs/tutorials/bracket.md` (generated from a real-input run by `tools/tutorial/export_md.py`).
+- Tutorial tests: an off-script GUI scenario (`fabricad_tutorial_offscript`: Show me, a detour and its hint, Undo
+  to step start, Back, Restore chapter).
 
 ### Fixed
 
@@ -19,6 +22,10 @@ All notable changes to FabriCAD are listed here. The format follows
 - The command card keeps the keyboard focus after a choice rebuilds it, so Enter applies the command.
 - A cut with Extent All goes into the material by itself, like a Distance cut.
 - A fully dimensioned slot on projected edges no longer reports 30 DOF.
+- Tour: the Measure step accepts only the two top rims of the counterbores; the bubble keeps off the FEATURES
+  rows and off the second rim; the Rib chapter asks for Create Sketch before pointing at the YZ plane; the tab's
+  close glyph is located exactly; after the bubble's ⋯ menu the keyboard goes back to the window (a shortcut typed
+  right after Undo to step start did nothing).
 
 ## [0.1.0] - 2026-10-23
 

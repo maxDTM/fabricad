@@ -5,6 +5,7 @@
 // Alt+Right / F7, Esc never exits, Restore chapter in a new tab, checkpoints, welcome card, Help menu.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/MainWindow.h"
+#include "app/TitleBar.h"
 #include "app/ThemeManager.h"
 #include "app/UiSettings.h"
 #include "app/tutorial/AnchorResolver.h"
@@ -16,9 +17,11 @@
 #include "app/tutorial/TutorialOverlay.h"
 #include "core/Document.h"
 #include "core/Json.h"
+#include "core/Selection.h"
 #include "core/Tool.h"
 #include "core/UndoStack.h"
 #include "theme/Tokens.h"
+#include "viewer/ViewerWidget.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -129,6 +132,33 @@ class TestTutorial : public QObject {
     QCOMPARE(c_->tours().front().id, QString("bracket"));  // order 10: the first tour listed
     for (const Chapter& ch : bracket->chapters)
       if (!ch.checkpoint.isEmpty()) QVERIFY2(QFileInfo::exists(QDir(bracket->baseDir).filePath(ch.checkpoint)), qPrintable(ch.checkpoint));
+  }
+
+  // tabclose: anchors the custom-painted close glyph itself (DocumentTabBar::closeRect), and the
+  // viewer's tutorial highlight is display state only (never the selection)
+  void tabCloseAnchorAndTutorialHighlight() {
+    auto* bar = w_->findChild<app::DocumentTabBar*>();
+    QVERIFY(bar);
+    QVERIFY(bar->count() > 0);
+    const QRect cr = bar->closeRect(bar->currentIndex());
+    QVERIFY(!cr.isNull());
+    QVERIFY(bar->tabRect(bar->currentIndex()).contains(cr.center()));
+    QVERIFY(bar->closeRect(-1).isNull());
+    QVERIFY(bar->closeRect(bar->count()).isNull());
+    QString e;
+    auto an = Anchor::parse(QJsonValue("tabclose:current"), &e);
+    QVERIFY2(an, qPrintable(e));
+    const ResolvedAnchor r = AnchorResolver(*w_).resolve(*an);
+    QVERIFY2(r.found && r.visible, qPrintable(r.why));
+    QCOMPARE(r.rect, QRect(bar->mapToGlobal(cr.topLeft()), cr.size()));
+    viewer::ViewerWidget* v = w_->viewer();
+    QVERIFY(v);
+    const std::vector<core::ShapeRef> refs{core::ShapeRef::body(12345)};
+    v->setTutorialHighlight(refs);
+    QCOMPARE(v->tutorialHighlight().size(), size_t(1));
+    QVERIFY(w_->document().selection().items().empty());
+    v->setTutorialHighlight({});
+    QVERIFY(v->tutorialHighlight().empty());
   }
 
   void parserReportsProblems() {

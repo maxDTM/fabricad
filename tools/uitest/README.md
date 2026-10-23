@@ -91,6 +91,13 @@ FABRICAD_GUI=1 FABRICAD_GUI_ALLOW_DESKTOP=1 tools/uitest/tutorial_run.py --bin b
   strip layout does not need).
 * `--from-chapter <id>` starts at that chapter through Restore chapter (an untitled tab with the shipped start
   state): quick iteration on one chapter. Without it the whole tour runs from the welcome card.
+* `--scenario offscript` (ctest `fabricad_tutorial_offscript`) runs the off-script scenario instead of the tour,
+  from the Fillet chapter: Show me changes nothing, a detour typed on the command line gets the hint and
+  ⋯ > Undo to step start, Back undoes a finished step, ⋯ > Restore chapter opens the chapter start in a new tab.
+* `--doc-shots` also grabs each step before its input (`doc-<id>.png`, through the probe's `grab`: a screen grab
+  of an occluded private display can be several steps old) for the Markdown copy:
+  `tools/tutorial/export_md.py --tour resources/tutorials/bracket/tutorial.json --run build/tutorial-out/<run>
+  --out docs/tutorials/bracket.md` (default layout; regenerate it from a passing run after changing the tour).
 
 ## Offscreen grabs (exact size, any scale, no display)
 

@@ -14,6 +14,7 @@
 #pragma once
 
 #include <QJsonObject>
+#include <QElapsedTimer>
 #include <QObject>
 
 class QLocalServer;
@@ -47,6 +48,11 @@ class TestProbe : public QObject {
   TutorialController& c_;
   QLocalServer* server_ = nullptr;
   quint64 inputSeq_ = 0;
+  // a repaint that stays pending this long does not hold `idle` (a GL view the display does not
+  // repaint, e.g. an occluded Xwayland window): the frame it waits for is never coming
+  static constexpr qint64 kStaleFrameMs = 1500;
+  quint64 pendingFrame_ = ~0ull;  ///< frameCount() when a pending repaint was first seen
+  QElapsedTimer pendingFor_;
 };
 
 }  // namespace fabricad::app::tutorial

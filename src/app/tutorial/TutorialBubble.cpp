@@ -118,6 +118,8 @@ TutorialBubble::TutorialBubble(QWidget* window) : QFrame(window), window_(window
   menu->addSeparator();
   menu->addAction("Exit tour", this, &TutorialBubble::exitClicked);
   more_->setMenu(menu);
+  // queued: after the triggered item ran (Restore chapter's question, Undo to step start)
+  connect(menu, &QMenu::aboutToHide, this, &TutorialBubble::menuClosed, Qt::QueuedConnection);
   buttons->addWidget(back_);
   buttons->addWidget(showMe_);
   buttons->addStretch(1);
@@ -173,6 +175,7 @@ void TutorialBubble::setContent(const Content& c) {
   chapter_->setText(c.chapter);
   counter_->setText(c.total > 0 ? QString("Step %1 / %2").arg(c.step).arg(c.total) : QString());
   progress_->setValue(c.step, c.total);
+  step_ = c.step;
   markup_ = c.text;
   plain_ = plain(c.text);
   body_->setText(richText(c.text));
@@ -230,6 +233,7 @@ void TutorialBubble::setFloating(bool floating) {
 }
 
 void TutorialBubble::paintEvent(QPaintEvent* e) {
+  paintedStep_ = step_;
   QPainter p(this);
   p.fillRect(rect(), theme::color(theme::Tok::SurfaceOverlay));
   p.setPen(QPen(theme::color(theme::Tok::BorderDefault), 1));

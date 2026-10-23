@@ -659,7 +659,7 @@ action  {"click"|"dclick"|"rclick": target, "mods"?} {"move": target | {dx, dy}}
 
 ### Part 2: the bracket tour (2026-10-23)
 
-- **Content**: `resources/tutorials/bracket/tutorial.json` (65 steps; the scratch generator is not kept, edit the
+- **Content**: `resources/tutorials/bracket/tutorial.json` (66 steps; the scratch generator is not kept, edit the
   JSON), offered by the first-launch welcome card (order 10; the sample tour is listed in Help > Tutorials only).
   Chapter checkpoints come from the headless twin (`tests/tutorial/bracket.fcs` saves `chN.fcad`); a passing GUI
   run can refresh them with `--update-checkpoints`.
@@ -684,6 +684,34 @@ action  {"click"|"dclick"|"rclick": target, "mods"?} {"move": target | {dx, dy}}
   card's tour; STL dialog fields are named `stl_path`, `stl_linear`, `stl_angular`, `stl_format`; new condition
   `{"document": "saved"}`; `prop:<name>/<Option>` anchors a segmented cell or a combo item.
 
-Not done yet: the viewer's "tutorial" highlight style, a frame counter for `idle`, `closeRect()` on the tab bar
-(`tabclose:` still approximates the glyph, which works), value-box `field` properties, the Markdown export, the
-off-script GUI scenario and the tester rounds (section 7).
+### Part 3: leftovers, export and the off-script scenario (2026-10-23)
+
+- **Tester findings** (`docs/uiux/ui2/tutorial.md`): the bubble scores the FEATURES list / strip / MODEL tree
+  around a row target as costly, so it sits beside the list (UI2-TUTORIAL-7, "Edit the history"); the window's
+  corners are extra candidates, and covering the target or a click target always loses against covering a panel
+  (the second rim in Measure); the Rib chapter has its own "Click Create Sketch" step (9.0) before the YZ plane
+  step, so the anchor is never a plane that is not shown yet (UI2-TUTORIAL-8); the Measure step's `until` needs
+  the two top rims by selector (`body:Body1/edge:@35.5,-15,10`, `@-24.5,-15,10`, z = 10 after the history edit),
+  and selection conditions compare B-rep refs by body, kind and index (a pick carries a hit point, the selector
+  a history name) (UI2-TUTORIAL-9).
+- **App**: `ViewerWidget::setTutorialHighlight` draws the model target in the palette's `tutorial` style
+  (accent.focus, 3 px, halo, faint face tint; display only, never a selection or a pick, drawn under them);
+  `OcctView` counts requested and painted frames and the probe's `idle` also waits for a pending repaint (a
+  repaint that stays pending 1.5 s does not hold it: an occluded display may never paint it);
+  `DocumentTabBar::closeRect()` gives the `tabclose:` anchor the glyph's real rectangle; value boxes carry their
+  field id as the `field` property, and `{"valuebox": "width"}` matches the id or the caption; after the bubble's
+  ⋯ menu closes the view gets the keyboard back (a shortcut right after Undo to step start did nothing).
+- **Probe**: `tour.painted` (the step number the bubble last painted) and `grab` (the window as Qt renders it).
+- **Markdown export**: `tutorial_run.py --doc-shots` grabs each step through the probe before its input (with the
+  bubble and target rectangles in `report.json`); a screen grab of an occluded private Xwayland display can show a
+  frame several steps old. `tools/tutorial/export_md.py --tour … --run <passing run> --out docs/tutorials/bracket.md`
+  writes the chapters and steps (keycaps as `<kbd>`, `{timeline}` as the default layout names) and one cropped,
+  256-colour screenshot per step to `docs/tutorials/bracket/` (wider crops for model targets).
+- **Off-script scenario** `fabricad_tutorial_offscript` (`tutorial_run.py --scenario offscript`, from the Fillet
+  chapter's start): Show me changes neither the document nor the step nor the undo stack; `RENAME Extrude1 Plate`
+  typed on the command line gets "That did **Rename Extrude1**" and ⋯ > Undo to step start takes it back; after
+  the Fillet, Back returns to step 4.2 and undoes it; ⋯ > Restore chapter (confirmed) opens the chapter start in
+  a new tab at step 4.1, and the chapter then finishes.
+- Runner fix: a step waits for NEXT only for a `next` condition (a "next point" prompt made the runner click Skip).
+
+Not done yet: the tester rounds (section 7: T2 off-script by a tester, T3 docs-only from the Markdown copy).

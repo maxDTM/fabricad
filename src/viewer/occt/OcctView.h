@@ -71,13 +71,21 @@ class OcctView : public QOpenGLWidget, public AIS_ViewController {
   bool isAnimating() const;
   /// Request a repaint of the immediate layer and Qt overlay only (the last full frame is
   /// reused): rubber band, overlay controls.
-  void updateView() { update(); }
+  void updateView()
+  {
+    ++myRequestSeq;
+    update();
+  }
+  /// Frames painted so far, and whether a requested repaint has not been painted yet.
+  quint64 frameCount() const { return myFrameCount; }
+  bool framePending() const { return myPaintedSeq < myRequestSeq; }
   /// Request a full repaint: the scene changed (Display/Remove/SetLocation/Redisplay with
   /// update=false never invalidate the view, so updateView() alone would show a stale frame).
   void redrawAll()
   {
     if (!myView.IsNull())
       myView->Invalidate();
+    ++myRequestSeq;
     update();
   }
   /// Fit hook used by the ViewCube animation (null = OCCT default fit).
@@ -108,6 +116,9 @@ class OcctView : public QOpenGLWidget, public AIS_ViewController {
   Handle(AIS_ViewCube) myViewCube;
   QString myGlInfo;
   bool myIsReady = false;
+  quint64 myRequestSeq = 0;  ///< repaints requested through updateView / redrawAll
+  quint64 myPaintedSeq = 0;  ///< myRequestSeq when the last frame started
+  quint64 myFrameCount = 0;
   bool myInitFailed = false;
 };
 

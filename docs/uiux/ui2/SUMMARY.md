@@ -29,8 +29,18 @@ Still open:
 * Real-Wayland dropdown placement: not reproducible on rootful Xwayland, needs the owner's live session
   (`FABRICAD_POPUP_DEBUG=1` logs each placement).
 * UI2-USER-UI-FIXES-4 (info): the sketch origin dot has no hover highlight.
-* UI2-TUTORIAL-7 rest (step 56 bubble over FEATURES rows, step 58 second rim after Home), UI2-TUTORIAL-8 rest
-  (step 49 anchor over empty space), UI2-TUTORIAL-9 validation of the picked rim (only the text changed).
 * UI2-TUTORIAL-11 (info): Save dialog starts in the working directory when no folder was used before (the GUI
   runner relies on it; a default to ~/Documents would write into the real home during runs).
-* Tutorial step 4 rest: Markdown export, off-script GUI scenario, tester rounds.
+* Tutorial step 4 rest: tester rounds (T2 off-script, T3 docs-only from `docs/tutorials/bracket.md`).
+
+## 2026-10-23: tut/finish (tutorial leftovers)
+
+| Id | Fix |
+|---|---|
+| UI2-TUTORIAL-7 (rest) | "Edit the history": the bubble keeps off the FEATURES list / strip / MODEL tree around a row target. Measure: the window corners are extra places, and covering the target or the next click target always loses, so the second rim stays clear. |
+| UI2-TUTORIAL-8 (rest) | Rib: a separate "Click Create Sketch" step before the YZ plane step, so the anchor never points at a plane that is not shown yet. |
+| UI2-TUTORIAL-9 (rest) | Measure completes only with the two top rims (selectors at z = 10); a floor circle keeps the step waiting, with a hint. |
+
+Also: the model target glows in the view (tutorial highlight style), the bubble's ⋯ menu gives the keyboard back,
+the Markdown copy `docs/tutorials/bracket.md` and the `fabricad_tutorial_offscript` GUI scenario
+(`docs/plans/tutorial.md` §9 part 3).

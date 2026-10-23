@@ -65,6 +65,14 @@ if(FABRICAD_BUILD_TESTS)
       set_tests_properties(fabricad_tutorial_bracket_${_layout} PROPERTIES LABELS "gui;tutorial" RUN_SERIAL TRUE
         SKIP_RETURN_CODE 77 TIMEOUT 1800)
     endforeach()
+    # off-script scenario on the bracket tour (docs/plans/tutorial.md 5.9): Show me changes nothing,
+    # a detour gets the hint and Undo to step start, Back undoes a finished step, Restore chapter
+    add_test(NAME fabricad_tutorial_offscript
+      COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tools/uitest/tutorial_run.py"
+        --bin $<TARGET_FILE:fabricad> --tour "${CMAKE_SOURCE_DIR}/resources/tutorials/bracket/tutorial.json"
+        --scenario offscript --out "${CMAKE_BINARY_DIR}/tutorial-out")
+    set_tests_properties(fabricad_tutorial_offscript PROPERTIES LABELS "gui;tutorial" RUN_SERIAL TRUE
+      SKIP_RETURN_CODE 77 TIMEOUT 600)
   endif()
   # timing checks run as their own entries with the label `timing` (`ctest -LE timing` skips them
   # on a busy machine); the main entries skip them through FABRICAD_SKIP_TIMING

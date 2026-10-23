@@ -43,7 +43,8 @@ class StateQuery {
   int sketchDof() const;        ///< -1 when no sketch is being edited
   bool inSketch() const;
   int undoIndex() const;
-  QString focusedValueBox() const;  ///< caption of the focused sketch value box, "" when none
+  /// Caption of the focused sketch value box, "" when none; `field` gets its id ("width").
+  QString focusedValueBox(QString* field = nullptr) const;
 
  private:
   bool leaf(const Condition& c, const StepBaseline& base, const EngineFacts& facts, QString* why) const;

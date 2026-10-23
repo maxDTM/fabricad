@@ -250,6 +250,9 @@ void ValueInputOverlay::sync() {
     if (b.fieldIndex >= model_.fieldCount() || !b.frame) continue;
     const ValueField& f = model_.field(b.fieldIndex);
     b.label->setText(QString::fromStdString(f.label).toUpper());
+    // stable id for the tutorial's `valuebox:` anchors and the GUI runner (docs/plans/tutorial.md 6):
+    // the field id ("width"), never the shown caption
+    b.frame->setProperty("field", QString::fromStdString(f.id.empty() ? f.label : f.id));
     b.label->setVisible(!f.label.empty());
     QString t = QString::fromStdString(model_.displayText(b.fieldIndex));
     if (b.edit->text() != t) {

@@ -1206,7 +1206,7 @@ void ViewerWidget::syncOverlays() {
     return nullptr;
   };
   // Halo rule (4.5): accent lines over shaded bodies get a 1 px halo; faces a light tint
-  enum class Look { Selected, Highlighted, Preselected };
+  enum class Look { Selected, Highlighted, Preselected, Tutorial };
   auto display = [&](const Handle(AIS_InteractiveObject)& o, int mode, Graphic3d_DisplayPriority prio) {
     ctx->Display(o, mode, -1, false);
     ctx->SetZLayer(o, Graphic3d_ZLayerId_Top);
@@ -1230,9 +1230,10 @@ void ViewerWidget::syncOverlays() {
     }
     if (shape.IsNull()) return;
     const bool pre = look == Look::Preselected;
-    const ViewerPalette::Rgba edge = pre ? palette_.preselect : palette_.select;
-    const ViewerPalette::Rgba fill = pre ? palette_.preFill : palette_.selFill;
-    const double width = pre ? palette_.preWidth : palette_.selWidth;
+    const bool tour = look == Look::Tutorial;
+    const ViewerPalette::Rgba edge = tour ? palette_.tutorial : pre ? palette_.preselect : palette_.select;
+    const ViewerPalette::Rgba fill = tour ? palette_.tutorialFill : pre ? palette_.preFill : palette_.selFill;
+    const double width = tour ? palette_.tutorialWidth : pre ? palette_.preWidth : palette_.selWidth;
     const TopAbs_ShapeEnum type = contentType(shape);
     if (type == TopAbs_VERTEX || type == TopAbs_SHAPE) {
       Handle(AIS_Shape) o = new AIS_Shape(shape);
@@ -1264,6 +1265,11 @@ void ViewerWidget::syncOverlays() {
     if (r.kind != ShapeKind::Component) return add(r, look);
     for (ObjectId b : document_->bodiesOf(r.owner)) add(ShapeRef::body(b), look);
   };
+  // the tour's target first: a selection or a command's pick of the same entity draws over it
+  for (const ShapeRef& r : tutorialRefs_)
+    if (!document_->selection().contains(r) &&
+        std::find(highlighted_.begin(), highlighted_.end(), r) == highlighted_.end())
+      addRef(r, Look::Tutorial);
   for (const ShapeRef& r : document_->selection().items()) addRef(r, Look::Selected);
   for (const ShapeRef& r : highlighted_)
     if (!document_->selection().contains(r)) addRef(r, Look::Highlighted);
@@ -2394,6 +2400,15 @@ void ViewerWidget::clearPreviews() {
   d_->previews.clear();
   requestRedraw();
 }
+
+void ViewerWidget::setTutorialHighlight(const std::vector<ShapeRef>& refs) {
+  if (tutorialRefs_ == refs) return;
+  tutorialRefs_ = refs;
+  scheduleOverlaySync();
+}
+
+quint64 ViewerWidget::frameCount() const { return d_->view ? d_->view->frameCount() : 0; }
+bool ViewerWidget::framePending() const { return d_->view && d_->view->isVisible() && d_->view->framePending(); }
 
 void ViewerWidget::setHighlighted(const std::vector<ShapeRef>& refs) {
   null_.setHighlighted(refs);

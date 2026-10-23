@@ -61,6 +61,15 @@ QString DocumentTabBar::plainText(const QString& tabText, bool* modified) {
   return mod ? tabText.left(tabText.size() - 2) : tabText;
 }
 
+QRect DocumentTabBar::closeRect(int index) const {
+  if (index < 0 || index >= count()) return {};
+  if (QWidget* b = tabButton(index, QTabBar::RightSide); b && b->isVisible()) return b->geometry();
+  const QRect tr = tabRect(index);
+  if (!tr.isValid()) return {};
+  const int s = std::min(16, tr.height());
+  return QRect(tr.right() - kSlant - s - 2, tr.center().y() - s / 2, s, s);
+}
+
 QSize DocumentTabBar::tabSizeHint(int index) const {
   bool modified = false;
   const QString text = plainText(tabText(index), &modified);

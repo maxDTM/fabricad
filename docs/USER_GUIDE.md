@@ -58,6 +58,17 @@ after each undoable edit. The copies go to the application data folder
 (`~/.local/share/FabriCAD/FabriCAD/recovery/` on Linux). If FabriCAD crashes, the next start
 offers to recover each document into its own tab. A clean save or close deletes the copy.
 
+**Guided tour.** The first launch offers "Your first part: a mounting bracket", a hands-on tour
+from a first sketch to an STL; **Help > Tutorials** starts or resumes it at any time. A bubble
+says what to do and points at the button, field or row; a face, edge or plane to click glows in
+the view in the focus colour. The tour moves on by itself when the step is done, and all input
+still goes to the app: orbit, zoom and **Home** whenever you like. **Back** (Alt+Left) undoes to
+the previous step, **Show me** (F7) plays the input with a ghost cursor without changing
+anything, **Skip** (Alt+Right) moves on. When something else happened, the bubble says what
+(for example "That did Rename Extrude1"); the **⋯** menu has **Undo to step start**, **Restore
+chapter** (the chapter's start in a new tab, your tab is kept) and **Exit tour**. A printable
+copy with screenshots is in [tutorials/bracket.md](tutorials/bracket.md).
+
 ---
 
 ## 2. The window

@@ -71,6 +71,9 @@ class TutorialController : public QObject {
   void placeBubble(const ResolvedAnchor& r);
   void showFinishCard(const QString& text);
   void raiseOwnWidgets();
+  /// The model target in the viewer's "tutorial" highlight style (plan 4); {} clears it, also on
+  /// a view the tour highlighted before (another tab).
+  void setTargetHighlight(const std::vector<core::ShapeRef>& refs);
 
   MainWindow& w_;
   std::vector<Tour> tours_;
@@ -89,6 +92,7 @@ class TutorialController : public QObject {
   QString lastVia_;
   quint64 lastCameraSeq_ = ~0ull;
   qint64 lastModelResolveMs_ = 0;
+  QPointer<QWidget> highlightView_;  ///< the ViewerWidget showing the tutorial highlight
 };
 
 }  // namespace fabricad::app::tutorial
