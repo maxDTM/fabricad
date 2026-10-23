@@ -13,6 +13,7 @@
 #include "app/ScriptRunner.h"
 #include "core/Tool.h"
 
+#include <QDir>
 #include <QStringList>
 
 using namespace fabricad;
@@ -51,6 +52,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (lines.size() >= 48) break;
   }
   for (const QString& l : lines) (void)app::ScriptRunner::stripComment(l);
+  // relative paths in the script (SAVE a.fcad) land in the private directory
+  struct Cwd {
+    QString old = QDir::currentPath();
+    ~Cwd() { QDir::setCurrent(old); }
+  } cwd;
+  QDir::setCurrent(dir);
   app::HeadlessHost host;
   app::ScriptRunner runner(host);
   app::ScriptRunner::Options o;

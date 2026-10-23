@@ -4,7 +4,8 @@
 // libFuzzer (-fsanitize=fuzzer); otherwise DriverMain.cpp supplies main(): it replays the
 // given corpus files and runs a bounded random mutation loop over them.
 //
-// fuzzEnvironment() makes every run private: offscreen Qt, a fresh temporary working directory,
+// fuzzEnvironment() makes every run private: offscreen Qt, a fresh temporary directory (the
+// working directory is left alone: libFuzzer resolves corpus and artifact paths against it),
 // HOME / XDG dirs inside it and QStandardPaths test mode (no user settings are read or written),
 // FabriCAD log output muted, all modules registered (feature types needed by the loader).
 // SPDX-License-Identifier: LGPL-2.1-or-later

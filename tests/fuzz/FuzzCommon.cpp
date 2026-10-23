@@ -37,7 +37,6 @@ const QString& fuzzEnvironment(bool registerModules) {
   static char* argv[] = {arg0, nullptr};
   static auto* app = new QApplication(argc, argv);
   (void)app;
-  QDir::setCurrent(path);
   qInstallMessageHandler([](QtMsgType, const QMessageLogContext&, const QString&) {});
   core::setLogSink([](core::LogLevel, const std::string&) {});
   core::setBatchMode(true);
