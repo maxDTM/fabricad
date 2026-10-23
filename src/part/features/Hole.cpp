@@ -235,7 +235,7 @@ bool HoleFeature::applyScriptOption(const std::string& nameIn, const std::string
     return false;
   }
   if (name == "size") {
-    if (const IsoThread* iso = findIsoThread(valueIn)) {
+    if (const IsoThread* iso = findIsoThread(valueIn); iso && !iso->isInch()) {
       prop("threadSize").setEnum(iso->designation);
       prop("standard").setEnum(Iso);
       return true;

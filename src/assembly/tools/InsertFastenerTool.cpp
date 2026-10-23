@@ -4,6 +4,7 @@
 #include "assembly/tools/ToolCommon.h"
 #include "core/Json.h"
 #include "core/Selection.h"
+#include "core/ViewerContext.h"
 #include "part/standards/Threads.h"
 
 #include <QCheckBox>

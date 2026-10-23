@@ -4,6 +4,7 @@
 // under 2 s; save / load regenerates the parts; STEP export with the screws reads back.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/Bom.h"
+#include "assembly/ComponentOps.h"
 #include "assembly/FastenerInsert.h"
 #include "assembly/JointFeature.h"
 #include "assembly/StepExport.h"
@@ -154,7 +155,7 @@ class FastenerInsertTest : public QObject {
     const BomRow* br = row(bom, "ISO 4762 M6x10 8.8");
     QVERIFY(br);
     QCOMPARE(br->quantity, 1);
-    QVERIFY(br->mass > 2 && br->mass < 4);  // ~2.9 g
+    QVERIFY2(br->mass > 4.5 && br->mass < 6.5, qPrintable(QString::number(br->mass)));  // ~5.4 g with the shank at d
     // the second, equal hole: the same definition, qty 2
     r = insertFasteners(p.doc, nullptr, {p.wall(60, 20, 3.3)}, InsertOptions{});
     QVERIFY2(r.ok(), r.error.c_str());

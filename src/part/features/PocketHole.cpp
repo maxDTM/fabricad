@@ -210,7 +210,7 @@ void PocketHoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   const gp_Pnt faceCentre = fprops.CentreOfMass();
 
   std::vector<TopoDS_Shape> tools;
-  for (const core::ShapeRef& er : prop("edges").refs()) {
+  for (core::ShapeRef& er : prop("edges").refs()) {
     TopoDS_Shape e = resolveRef(ctx, er);
     if (e.IsNull() || e.ShapeType() != TopAbs_EDGE) continue;
     BRepAdaptor_Curve c(TopoDS::Edge(e));

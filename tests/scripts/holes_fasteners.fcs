@@ -1,0 +1,77 @@
+# FabriCAD command script (production features P2): a plate with four counterbored M6 clearance
+# holes sized for socket head cap screws (ISO 273 normal fit, ISO 4762 head table), four screws
+# inserted into all equal holes, an inch tapped hole, a pocket hole in a 19 mm board, STEP export
+# with the screws and a save.
+# Run from an empty directory: fabricad --script tests/scripts/holes_fasteners.fcs --offscreen
+
+SKETCH XY
+RECT
+0,0
+100,60
+FINISH
+SELECT profile:@50,30,0
+EXTRUDE 10
+OK
+RENAME body:Body1 Plate
+
+HOLE
+INPUT face body:Plate/face:top
+PICK 20,20,10 nosnap
+PICK 80,20,10 nosnap
+PICK 20,40,10 nosnap
+PICK 80,40,10 nosnap
+holeType=Counterbore
+type=clearance
+size=M6
+fit=normal
+fastener=shcs
+extentType=All
+OK
+CHECK status ok
+# 6.6 drill + 11 x 6 counterbore (M6 SHCS): 60000 - 4 * (pi 3.3^2 10 + pi (5.5^2 - 3.3^2) 6)
+CHECK body:Plate volume ~ 57171.81 0.01%
+
+# an ANSI 1/4-20 tapped blind hole (tap drill #7 = 0.201")
+HOLE
+INPUT face body:Plate/face:top
+PICK 50,30,10 nosnap
+standard=ansi
+type=tapped
+size=1/4-20
+depth=8
+OK
+CHECK status ok
+CHECK body:Plate volume ~ 57007.96 0.01%
+
+# screws in every equal counterbored hole: M6 x 10 (grip 4 mm), as-built rigid joints
+SELECT body:Plate/face:cylinder@23.3,20,2
+FASTENER all=yes
+OK
+CHECK status ok
+CHECK components == 4
+CHECK joints == 4
+
+# a pocket hole in a 19 mm board: Kreg 15 deg, exits mid-edge
+SKETCH XY
+RECT
+0,100
+150,180
+FINISH
+SELECT profile:@75,140,0
+EXTRUDE 19
+operation=New Body
+OK
+RENAME body:Body2 Board
+POCKETHOLE
+INPUT face body:Board/face:top
+INPUT edges body:Board/edge:@0,140,19
+jig=kreg15
+count=2
+OK
+CHECK status ok
+CHECK feature:PocketHole1 status ok
+
+EXPORTSTEP plate.step
+CHECK file plate.step size > 10000
+SAVE holes_fasteners.fcad
+CHECK file holes_fasteners.fcad exists

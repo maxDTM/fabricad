@@ -2,6 +2,7 @@
 #include "assembly/FastenerInsert.h"
 
 #include "assembly/AssemblySolver.h"
+#include "assembly/ComponentOps.h"
 #include "assembly/JointFeature.h"
 #include "core/Commands.h"
 #include "core/GeometryRefs.h"
@@ -37,27 +38,38 @@ struct Segment {
   double radius, t0, t1;
 };
 
-bool isAir(const TopoDS_Shape& body, const gp_Pnt& p) {
-  BRepClass3d_SolidClassifier cls(body, p, 1e-6);
+bool isAir(BRepClass3d_SolidClassifier& cls, const gp_Pnt& p) {
+  cls.Perform(p, 1e-6);
   return cls.State() == TopAbs_OUT;
 }
 
-/// Hole analysis in the body's local frame from one cylindrical face of the hole.
-std::optional<HoleSite> analyseLocal(const TopoDS_Shape& body, const TopoDS_Shape& cylFace, const std::optional<gp_Pnt>& pick,
+/// Internal full cylindrical faces of a body (the walls of its holes).
+std::vector<part::ThreadCylinder> holeWalls(const TopoDS_Shape& body) {
+  std::vector<part::ThreadCylinder> out;
+  for (TopExp_Explorer ex(body, TopAbs_FACE); ex.More(); ex.Next()) {
+    BRepAdaptor_Surface a(TopoDS::Face(ex.Current()));
+    if (a.GetType() != GeomAbs_Cylinder) continue;
+    auto c = part::analyseThreadCylinder(body, ex.Current());
+    if (c && c->internal) out.push_back(*c);
+  }
+  return out;
+}
+
+/// Hole analysis in the body's local frame from one wall of the hole (`walls`: holeWalls(body)).
+std::optional<HoleSite> analyseLocal(BRepClass3d_SolidClassifier& body, const std::vector<part::ThreadCylinder>& walls,
+                                     const std::optional<part::ThreadCylinder>& c0, const std::optional<gp_Pnt>& pick,
                                      std::string* error) {
   auto fail = [&](const char* m) -> std::optional<HoleSite> {
     if (error) *error = m;
     return std::nullopt;
   };
-  auto c0 = part::analyseThreadCylinder(body, cylFace);
   if (!c0 || !c0->internal) return fail("pick a hole: a circular edge or the cylindrical wall of a hole");
   const gp_Lin axis(c0->axis);
   const gp_Pnt O = c0->axis.Location();
   const gp_Vec D(c0->axis.Direction());
   std::vector<Segment> segs;
-  for (TopExp_Explorer ex(body, TopAbs_FACE); ex.More(); ex.Next()) {
-    auto c = part::analyseThreadCylinder(body, ex.Current());
-    if (!c || !c->internal) continue;
+  for (const part::ThreadCylinder& cw : walls) {
+    const part::ThreadCylinder* c = &cw;
     if (!c->axis.Direction().IsParallel(c0->axis.Direction(), 1e-6)) continue;
     if (axis.Distance(c->axis.Location()) > 1e-5) continue;
     const gp_Vec cd(c->axis.Direction());
@@ -176,7 +188,8 @@ std::optional<HoleSite> analyseHole(const core::Document& doc, const core::Shape
   }
   std::optional<gp_Pnt> pick;
   if (ref.hasPoint) pick = ref.point.toPnt();
-  auto h = analyseLocal(body, face, pick, error);
+  BRepClass3d_SolidClassifier cls(body);
+  auto h = analyseLocal(cls, holeWalls(body), part::analyseThreadCylinder(body, face), pick, error);
   if (!h) return std::nullopt;
   const core::Body* b = doc.body(ref.owner);
   h->body = ref.owner;
@@ -191,14 +204,15 @@ std::vector<HoleSite> equalHoles(const core::Document& doc, const HoleSite& site
   const TopoDS_Shape& body = doc.bodyShape(site.body);
   const gp_Trsf w = doc.worldPlacement(b->component);
   std::vector<gp_Lin> seen;
-  for (TopExp_Explorer ex(body, TopAbs_FACE); ex.More(); ex.Next()) {
-    auto c = part::analyseThreadCylinder(body, ex.Current());
-    if (!c || !c->internal || std::abs(2 * c->radius - site.diameter) > 1e-6) continue;
-    const gp_Lin l(c->axis);
+  const std::vector<part::ThreadCylinder> walls = holeWalls(body);
+  BRepClass3d_SolidClassifier cls(body);
+  for (const part::ThreadCylinder& c : walls) {
+    if (std::abs(2 * c.radius - site.diameter) > 1e-6) continue;
+    const gp_Lin l(c.axis);
     if (std::any_of(seen.begin(), seen.end(), [&](const gp_Lin& s) { return s.Distance(l.Location()) < 1e-5 && s.Direction().IsParallel(l.Direction(), 1e-6); }))
       continue;
     seen.push_back(l);
-    auto h = analyseLocal(body, ex.Current(), std::nullopt, nullptr);
+    auto h = analyseLocal(cls, walls, c, std::nullopt, nullptr);
     if (!h) continue;
     h->body = site.body;
     h->component = b->component;
