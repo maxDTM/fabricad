@@ -182,6 +182,25 @@ class Runner:
             raise Failure("target %s not visible: %s" % (json.dumps(target), r.get("why") or r.get("error")))
         return r["point"]
 
+    def settled_point(self, target):
+        """Move onto the target and make sure it is still there: the pointer move itself can start
+        or finish a camera animation (a sketch's Look At), which moves a model target on screen."""
+        x, y = self.locate(target)
+        for _ in range(4):
+            self.move(x, y)
+            time.sleep(0.05)
+            self.idle()
+            # (re-check without the Home fallback: the hovered pointer itself may now cover the
+            # point, a tool's hover label under the cursor; then the point stands)
+            r = self.probe.ask(cmd="locate", anchor="@step" if target == "@anchor" else target)
+            if not r.get("visible"):
+                break
+            nx, ny = r["point"]
+            if abs(nx - x) <= 2 and abs(ny - y) <= 2:
+                break
+            x, y = nx, ny
+        return x, y
+
     def move(self, x, y):
         self.xdo("mousemove", "--sync", str(x), str(y))
         self.last = (x, y)
@@ -218,9 +237,7 @@ class Runner:
     def click(self, target, button=1, count=1, mods=""):
         if button == 1 and count == 1:
             self.open_way(target)
-        x, y = self.locate(target)
-        self.move(x, y)
-        time.sleep(0.05)
+        x, y = self.settled_point(target)
         seq = self.input_seq()
         cmd = []
         for m in filter(None, mods.split("+")):
@@ -278,7 +295,7 @@ class Runner:
                 x, y = self.last or (0, 0)
                 self.move(x + v.get("dx", 0), y + v.get("dy", 0))
             else:
-                self.move(*self.locate(v))
+                self.settled_point(v)
         elif verb == "drag":
             self.drag(v)
         elif verb == "wheel":

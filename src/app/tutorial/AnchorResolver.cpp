@@ -587,7 +587,15 @@ ResolvedAnchor AnchorResolver::modelAnchor(const QString& selector, bool sketchP
     // not covered by a viewport overlay (card, dial, ViewCube, palette, value box, ...)
     // (only the view itself or its GL surface counts as free; any other child, such as the
     // floating command card or a value box, covers the point)
-    if (QWidget* top = QApplication::widgetAt(gp); top && top != v && !(v->isAncestorOf(top) && top->inherits("QOpenGLWidget")))
+    // The tour's own bubble does not count: it moves away from the target once it is found (a
+    // target only the bubble covered was "occluded" forever, the bubble parked over it)
+    auto tourOwn = [](QWidget* w) {
+      for (; w; w = w->parentWidget())
+        if (w->objectName() == QLatin1String("TutorialBubble") || w->objectName() == QLatin1String("TutorialOverlay")) return true;
+      return false;
+    };
+    if (QWidget* top = QApplication::widgetAt(gp);
+        top && top != v && !(v->isAncestorOf(top) && top->inherits("QOpenGLWidget")) && !tourOwn(top))
       continue;
     // the viewer's own pick, with the filter a real click uses now (a Hole accepts faces too, so
     // a point on a fillet's rim edge may click the fillet face): the point itself, else the
