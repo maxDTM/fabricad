@@ -52,6 +52,10 @@ QJsonObject Component::toJson() const {
   if (!partNumber.empty()) o["partNumber"] = qs(partNumber);
   if (!description.empty()) o["description"] = qs(description);
   if (!material.empty()) o["material"] = qs(material);
+  if (!revision.empty()) o["revision"] = qs(revision);
+  if (!vendor.empty()) o["vendor"] = qs(vendor);
+  if (cost != 0.0) o["cost"] = cost;
+  if (!standard.empty()) o["standard"] = qs(standard);
   return o;
 }
 
@@ -69,6 +73,10 @@ Component Component::fromJson(const QJsonObject& o) {
   c.partNumber = ss(o["partNumber"].toString());
   c.description = ss(o["description"].toString());
   c.material = ss(o["material"].toString());
+  c.revision = ss(o["revision"].toString());
+  c.vendor = ss(o["vendor"].toString());
+  c.cost = o["cost"].toDouble(0.0);
+  c.standard = ss(o["standard"].toString());
   return c;
 }
 

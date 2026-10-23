@@ -60,6 +60,7 @@ class SketchPalette : public QFrame {
   QCheckBox* points_ = nullptr;
   QCheckBox* dimensions_ = nullptr;
   QCheckBox* constraints_ = nullptr;
+  QCheckBox* typedDims_ = nullptr;  ///< typed values create dimensions (session toggle, P1 §2.1)
   QGridLayout* constraintGrid_ = nullptr;
   QWidget* constraintBox_ = nullptr;
   QWidget* title_ = nullptr;

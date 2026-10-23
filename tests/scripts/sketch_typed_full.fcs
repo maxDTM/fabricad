@@ -1,0 +1,19 @@
+# Typed sketch values create dimensions (docs/plans/production-features.md P1 §2.1): the first
+# sketch of the tutorial bracket and a typed line chain end fully defined without a manual
+# dimension. TYPEDDIMS on makes the run independent of the user's preference.
+TYPEDDIMS on
+SKETCH XY
+RECT
+0,0
+150,100
+CHECK dof 0
+LINE
+200,0
+@60,0
+@0,40
+@-60,0
+200,0
+CHECK dof 0
+FINISH
+CHECK sketches == 1
+CHECK status ok

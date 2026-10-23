@@ -6,6 +6,7 @@
 #include "app/AppState.h"
 #include "app/CommandSearch.h"
 #include "app/MarkingMenuModel.h"
+#include "app/MaterialPicker.h"
 #include "app/PropertyEditor.h"
 #include "assembly/JointFeature.h"
 #include "app/ShortcutRouter.h"
@@ -32,6 +33,7 @@
 #include <QLineEdit>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -333,7 +335,7 @@ class TestAppLogic : public QObject {
     QSettings().setValue("ui/toolbarArea", "diagonal");  // garbage in the file reads as the default
     QCOMPARE(ui.string("ui/toolbarArea"), QString("top"));
     for (const auto& k : app::UiSettings::keys()) {
-      QVERIFY2(k.key.startsWith("ui/"), qPrintable(k.key));
+      QVERIFY2(k.key.startsWith("ui/") || k.key == "sketch/typedDimensions", qPrintable(k.key));
       ui.reset(k.key);
       QCOMPARE(ui.value(k.key), k.defaultValue);
     }
@@ -854,6 +856,42 @@ class TestAppLogic : public QObject {
     QVERIFY(mgr.run("app.edit-properties", {"999999"}));
     QVERIFY(!mgr.isActive());
     QVERIFY(!host.messages().empty());
+  }
+
+  // production-features P1 §2.2: the searchable material picker and the user library
+  void materialPickerFiltersAndUserLibrary() {
+    QTemporaryDir dir;
+    const QByteArray old = qgetenv("XDG_CONFIG_HOME");
+    qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+    const bool testMode = QStandardPaths::isTestModeEnabled();
+    QStandardPaths::setTestModeEnabled(false);
+    core::reloadMaterialLibrary();
+    {
+      app::MaterialPicker p("Steel");
+      QVERIFY(p.visibleNames().contains("Steel"));
+      p.setFilter("6061");
+      QCOMPARE(p.visibleNames(), QStringList{"Aluminum 6061"});
+      p.setFilter("");
+      p.setCategory("Wood");
+      QCOMPARE(p.visibleNames().size(), 4);
+      p.setFilter("astm");  // standard text matches too
+      QVERIFY(p.visibleNames().isEmpty());  // ASTM A36 steel is not a wood
+      p.setCategory("All");
+      QVERIFY(p.visibleNames().contains("Steel"));
+    }
+    core::Material m{"PETG", "Plastic", 1.27};
+    QVERIFY(core::saveUserMaterial(m));
+    QVERIFY(QString::fromStdString(core::userMaterialLibraryPath()).startsWith(dir.path()));
+    core::reloadMaterialLibrary();  // a restart reads the file again
+    {
+      app::MaterialPicker p("");
+      p.setFilter("petg");
+      QCOMPARE(p.visibleNames(), QStringList{"PETG"});
+    }
+    QStandardPaths::setTestModeEnabled(testMode);
+    if (old.isEmpty()) qunsetenv("XDG_CONFIG_HOME");
+    else qputenv("XDG_CONFIG_HOME", old);
+    core::reloadMaterialLibrary();
   }
 
   void materialAndComponentProperties() {

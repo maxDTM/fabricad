@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "drawing/Sheet.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+
 #include "core/Json.h"
 
 #include <QJsonArray>
@@ -69,6 +74,66 @@ const std::vector<std::string>& TitleBlock::fieldNames() {
                                                  "Approved", "Scale",      "Sheet",   "Size",     "Rev",
                                                  "Material", "Mass",       "Company"};
   return names;
+}
+
+const std::vector<std::string>& titleBlockTokens() {
+  static const std::vector<std::string> t = {"${material}", "${mass}",   "${mass:g,1}", "${partNumber}",
+                                             "${revision}", "${description}", "${vendor}", "${title}"};
+  return t;
+}
+
+std::string expandTitleBlockTokens(const std::string& value, const TitleBlockModel& model) {
+  std::string out;
+  size_t pos = 0;
+  while (pos < value.size()) {
+    const size_t open = value.find("${", pos);
+    if (open == std::string::npos) {
+      out += value.substr(pos);
+      break;
+    }
+    const size_t close = value.find('}', open + 2);
+    if (close == std::string::npos) {
+      out += value.substr(pos);
+      break;
+    }
+    out += value.substr(pos, open - pos);
+    const std::string body = value.substr(open + 2, close - open - 2);
+    std::string name = body.substr(0, body.find(':'));
+    std::string key;
+    for (char c : name)
+      if (!std::isspace(static_cast<unsigned char>(c))) key += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (key == "mass" || key == "weight") {
+      std::string unit = "kg";
+      int decimals = 3;
+      if (const size_t colon = body.find(':'); colon != std::string::npos) {
+        std::string spec = body.substr(colon + 1);
+        const size_t comma = spec.find(',');
+        if (comma != std::string::npos) {
+          decimals = std::clamp(std::atoi(spec.c_str() + comma + 1), 0, 9);
+          spec = spec.substr(0, comma);
+        }
+        std::string u;
+        for (char c : spec)
+          if (!std::isspace(static_cast<unsigned char>(c))) u += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (u == "g" || u == "kg" || u == "lb") unit = u;
+      }
+      if (model.massGrams > 0) {
+        const double v = unit == "g" ? model.massGrams : unit == "lb" ? model.massGrams / 453.59237 : model.massGrams / 1000.0;
+        char buf[64];
+        std::snprintf(buf, sizeof buf, "%.*f %s", decimals, v, unit.c_str());
+        out += buf;
+      }
+    } else if (key == "rev") {
+      auto it = model.text.find("revision");
+      if (it != model.text.end()) out += it->second;
+    } else if (auto it = model.text.find(key == "partno" || key == "pn" ? "partnumber" : key); it != model.text.end()) {
+      out += it->second;
+    } else {
+      out += value.substr(open, close - open + 1);  // unknown: verbatim
+    }
+    pos = close + 1;
+  }
+  return out;
 }
 
 bool TitleBlock::isSheetField(const std::string& name) { return name == "Scale" || name == "Sheet" || name == "Size"; }

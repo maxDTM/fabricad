@@ -54,6 +54,7 @@
   <file>icons/dark/app-wait.svg</file>
   <file>icons/dark/assembly-activate.svg</file>
   <file>icons/dark/assembly-as-built-joint.svg</file>
+  <file>icons/dark/assembly-component-properties.svg</file>
   <file>icons/dark/assembly-components-from-bodies.svg</file>
   <file>icons/dark/assembly-copy.svg</file>
   <file>icons/dark/assembly-delete-component.svg</file>
@@ -65,6 +66,7 @@
   <file>icons/dark/assembly-insert-design.svg</file>
   <file>icons/dark/assembly-interference.svg</file>
   <file>icons/dark/assembly-joint.svg</file>
+  <file>icons/dark/assembly-material.svg</file>
   <file>icons/dark/assembly-move.svg</file>
   <file>icons/dark/assembly-new-component.svg</file>
   <file>icons/dark/assembly-paste-new.svg</file>
@@ -219,6 +221,7 @@
   <file>icons/dark/part-import-file.svg</file>
   <file>icons/dark/part-import.svg</file>
   <file>icons/dark/part-loft.svg</file>
+  <file>icons/dark/part-mass-properties.svg</file>
   <file>icons/dark/part-mirror.svg</file>
   <file>icons/dark/part-move.svg</file>
   <file>icons/dark/part-offset-face.svg</file>
@@ -258,6 +261,7 @@
   <file>icons/dark/settings.svg</file>
   <file>icons/dark/sketch-arc-3point.svg</file>
   <file>icons/dark/sketch-arc-center.svg</file>
+  <file>icons/dark/sketch-arc-length.svg</file>
   <file>icons/dark/sketch-arc-tangent.svg</file>
   <file>icons/dark/sketch-break.svg</file>
   <file>icons/dark/sketch-chamfer.svg</file>
@@ -319,6 +323,7 @@
   <file>icons/dark/sketch-toggle-profiles.svg</file>
   <file>icons/dark/sketch-toggle-snap.svg</file>
   <file>icons/dark/sketch-trim.svg</file>
+  <file>icons/dark/sketch-typed-dimensions.svg</file>
   <file>icons/dark/sketch.svg</file>
   <file>icons/dark/timeline-first.svg</file>
   <file>icons/dark/timeline-last.svg</file>
@@ -384,6 +389,7 @@
   <file>icons/light/app-wait.svg</file>
   <file>icons/light/assembly-activate.svg</file>
   <file>icons/light/assembly-as-built-joint.svg</file>
+  <file>icons/light/assembly-component-properties.svg</file>
   <file>icons/light/assembly-components-from-bodies.svg</file>
   <file>icons/light/assembly-copy.svg</file>
   <file>icons/light/assembly-delete-component.svg</file>
@@ -395,6 +401,7 @@
   <file>icons/light/assembly-insert-design.svg</file>
   <file>icons/light/assembly-interference.svg</file>
   <file>icons/light/assembly-joint.svg</file>
+  <file>icons/light/assembly-material.svg</file>
   <file>icons/light/assembly-move.svg</file>
   <file>icons/light/assembly-new-component.svg</file>
   <file>icons/light/assembly-paste-new.svg</file>
@@ -549,6 +556,7 @@
   <file>icons/light/part-import-file.svg</file>
   <file>icons/light/part-import.svg</file>
   <file>icons/light/part-loft.svg</file>
+  <file>icons/light/part-mass-properties.svg</file>
   <file>icons/light/part-mirror.svg</file>
   <file>icons/light/part-move.svg</file>
   <file>icons/light/part-offset-face.svg</file>
@@ -588,6 +596,7 @@
   <file>icons/light/settings.svg</file>
   <file>icons/light/sketch-arc-3point.svg</file>
   <file>icons/light/sketch-arc-center.svg</file>
+  <file>icons/light/sketch-arc-length.svg</file>
   <file>icons/light/sketch-arc-tangent.svg</file>
   <file>icons/light/sketch-break.svg</file>
   <file>icons/light/sketch-chamfer.svg</file>
@@ -649,6 +658,7 @@
   <file>icons/light/sketch-toggle-profiles.svg</file>
   <file>icons/light/sketch-toggle-snap.svg</file>
   <file>icons/light/sketch-trim.svg</file>
+  <file>icons/light/sketch-typed-dimensions.svg</file>
   <file>icons/light/sketch.svg</file>
   <file>icons/light/timeline-first.svg</file>
   <file>icons/light/timeline-last.svg</file>

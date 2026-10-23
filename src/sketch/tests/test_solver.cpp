@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QtTest/QtTest>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace fabricad::sketch;
@@ -16,6 +17,101 @@ using namespace fabricad::sketch::test;
 class SolverTest : public QObject {
   Q_OBJECT
  private slots:
+
+  // production-features P1 §2.1: point-to-curve, curve-to-curve and arc-length dimensions
+  void arcLengthDimension() {
+    Sketch sk;
+    int a = sk.addGeometry(Geometry::makeArc({0, 0}, 10, 0, M_PI / 2));
+    Constraint probe{.type = ConstraintType::ArcLength, .a = {a}};
+    auto m = sk.measure(probe);
+    QVERIFY(m);
+    QVERIFY(std::abs(*m - 15.708) < 5e-4);  // R10 90 deg arc reads 15.708
+    // fix centre, radius and start: the arc length drives the sweep
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a, PointPos::Center}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {a}, .value = 10});
+    sk.addConstraint(Constraint{.type = ConstraintType::Angle, .a = {a}, .value = 0, .driven = true});
+    int len = sk.addConstraint(Constraint{.type = ConstraintType::ArcLength, .a = {a}, .value = 20});
+    SolveResult r = sk.solve();
+    QVERIFY(r.ok());
+    QVERIFY(std::abs(*sk.measure(*sk.constraint(len)) - 20.0) < 1e-6);
+    QVERIFY(std::abs(sk.geometry(a)->sweep() - 2.0) < 1e-6);
+    // redundant with a sweep angle that already fixes it: the solver reports it
+    Sketch sk2;
+    int b = sk2.addGeometry(Geometry::makeArc({0, 0}, 10, 0, M_PI / 2));
+    sk2.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {b}, .value = 10});
+    sk2.addConstraint(Constraint{.type = ConstraintType::Angle, .a = {b}, .value = 90});
+    int red = sk2.addConstraint(Constraint{.type = ConstraintType::ArcLength, .a = {b}, .value = 10 * M_PI / 2});
+    SolveResult r2 = sk2.solve();
+    QVERIFY(std::count(r2.redundant.begin(), r2.redundant.end(), red) > 0 ||
+            std::count(r2.conflicting.begin(), r2.conflicting.end(), red) > 0);
+  }
+
+  void pointToCurveDistance() {
+    Sketch sk;
+    int c = sk.addGeometry(Geometry::makeCircle({0, 0}, 10));
+    int p = sk.addGeometry(Geometry::makePoint({25, 0}));
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {c}});
+    sk.addConstraint(Constraint{.type = ConstraintType::DistanceY, .a = {p, PointPos::Center}, .value = 0});
+    int d = sk.addConstraint(Constraint{.type = ConstraintType::PointCurveDistance, .a = {p, PointPos::Center}, .b = {c}, .value = 5});
+    QVERIFY(std::abs(*sk.measure(*sk.constraint(d)) - 15.0) < 1e-9);  // before solving
+    SolveResult r = sk.solve();
+    QVERIFY(r.ok());
+    QCOMPARE(r.dofs, 0);
+    QVERIFY(near(*sk.pointOf({p, PointPos::Center}), {15, 0}));  // outside stays outside
+    // inside the circle
+    Sketch in;
+    int c2 = in.addGeometry(Geometry::makeArc({0, 0}, 10, 0, M_PI));
+    int p2 = in.addGeometry(Geometry::makePoint({0, 4}));
+    in.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {c2}});
+    in.addConstraint(Constraint{.type = ConstraintType::DistanceX, .a = {p2, PointPos::Center}, .value = 0});
+    in.addConstraint(Constraint{.type = ConstraintType::PointCurveDistance, .a = {p2, PointPos::Center}, .b = {c2}, .value = 3});
+    QVERIFY(in.solve().ok());
+    QVERIFY(near(*in.pointOf({p2, PointPos::Center}), {0, 7}));
+  }
+
+  void curveToCurveDistance() {
+    Sketch sk;
+    int a = sk.addGeometry(Geometry::makeCircle({0, 0}, 10));
+    int b = sk.addGeometry(Geometry::makeCircle({40, 0}, 5));
+    sk.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {a}});
+    sk.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {b}, .value = 5});
+    sk.addConstraint(Constraint{.type = ConstraintType::DistanceY, .a = {b, PointPos::Center}, .value = 0});
+    int d = sk.addConstraint(Constraint{.type = ConstraintType::CurveCurveDistance, .a = {a}, .b = {b}, .value = 8});
+    QVERIFY(std::abs(*sk.measure(*sk.constraint(d)) - 25.0) < 1e-9);
+    SolveResult r = sk.solve();
+    QVERIFY(r.ok());
+    QCOMPARE(r.dofs, 0);
+    QVERIFY(near(sk.geometry(b)->center(), {23, 0}));  // 10 + 8 + 5
+    // a small circle inside a big one: wall-to-wall gap
+    Sketch in;
+    int big = in.addGeometry(Geometry::makeCircle({0, 0}, 20));
+    int small = in.addGeometry(Geometry::makeCircle({5, 0}, 4));
+    in.addConstraint(Constraint{.type = ConstraintType::Fix, .a = {big}});
+    in.addConstraint(Constraint{.type = ConstraintType::Radius, .a = {small}, .value = 4});
+    in.addConstraint(Constraint{.type = ConstraintType::DistanceY, .a = {small, PointPos::Center}, .value = 0});
+    int g = in.addConstraint(Constraint{.type = ConstraintType::CurveCurveDistance, .a = {big}, .b = {small}, .value = 6});
+    QVERIFY(std::abs(*in.measure(*in.constraint(g)) - 11.0) < 1e-9);
+    QVERIFY(in.solve().ok());
+    QVERIFY(near(in.geometry(small)->center(), {10, 0}));  // 20 - 4 - 10 = 6
+  }
+
+  void newDimensionKindsRoundTrip() {
+    for (ConstraintType t : {ConstraintType::PointCurveDistance, ConstraintType::CurveCurveDistance, ConstraintType::ArcLength}) {
+      QVERIFY(isDimensional(t));
+      auto back = constraintTypeFromName(constraintTypeName(t));
+      QVERIFY(back && *back == t);
+    }
+    Sketch sk;
+    int a = sk.addGeometry(Geometry::makeArc({0, 0}, 10, 0, M_PI / 2));
+    int p = sk.addGeometry(Geometry::makePoint({30, 0}));
+    sk.addConstraint(Constraint{.type = ConstraintType::ArcLength, .a = {a}, .value = 15.708});
+    sk.addConstraint(Constraint{.type = ConstraintType::PointCurveDistance, .a = {p, PointPos::Center}, .b = {a}, .value = 20});
+    const Constraint c = sk.constraints().back();
+    const Constraint back = Constraint::fromJson(c.toJson());
+    QCOMPARE(back.type, ConstraintType::PointCurveDistance);
+    QCOMPARE(back.b.geo, a);
+    QCOMPARE(QString(QJsonDocument(c.toJson()).toJson()).contains("PointCurveDistance"), true);
+  }
   void freeLineHasFourDof() {
     Sketch sk;
     int l = sk.addGeometry(Geometry::makeLine({0, 0}, {10, 3}));

@@ -290,6 +290,9 @@ std::vector<BomRow> buildBom(const core::Document& doc, const std::vector<core::
       r.material = b->material;
       r.mass = bodyMassKg(doc, bodyId);
       r.keys = {bodyId};
+      r.name = b->name;
+      r.revision = root.revision;
+      r.vendor = root.vendor;
       rows.push_back(std::move(r));
     }
     return rows;
@@ -318,6 +321,10 @@ std::vector<BomRow> buildBom(const core::Document& doc, const std::vector<core::
           r.quantity = 1;
           r.partNumber = defComp->partNumber.empty() ? defComp->name : defComp->partNumber;
           r.description = defComp->description;
+          r.name = defComp->name;
+          r.revision = defComp->revision;
+          r.vendor = defComp->vendor;
+          r.cost = defComp->cost;
           r.material = defComp->material;
           if (r.material.empty())
             for (core::ObjectId b : bodies)

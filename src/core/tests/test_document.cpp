@@ -1,16 +1,22 @@
 #include "core/Commands.h"
 #include "core/Document.h"
+#include "core/Materials.h"
 #include "core/Selection.h"
 #include "core/ShapeUtils.h"
 #include "core/UndoStack.h"
 #include "support/TestFeatures.h"
 
+#include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
+#include <cmath>
+
 using namespace fabricad::core;
 using namespace fabricad::core::test;
+namespace core = fabricad::core;
 
 namespace {
 /// References another feature directly (like an extrude its sketch); counts its builds.
@@ -25,6 +31,51 @@ class ConsumerFeature : public Feature {
 class DocumentTest : public QObject {
   Q_OBJECT
  private slots:
+
+  // production-features P1 §2.2: material library fields, search and the user library
+  void materialLibraryUserFile() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QByteArray old = qgetenv("XDG_CONFIG_HOME");
+    qputenv("XDG_CONFIG_HOME", dir.path().toUtf8());
+    core::reloadMaterialLibrary();
+    QVERIFY(QString::fromStdString(core::userMaterialLibraryPath()).startsWith(dir.path()));
+    QCOMPARE(core::materialLibrary().size(), core::builtinMaterials().size());
+    const core::Material* al = core::findMaterial("aluminum 6061");
+    QVERIFY(al && al->standard == "EN AW-6061-T6" && al->yieldMPa == 276 && al->source == "builtin");
+    // search: name, category and standard, case-insensitive; category filter
+    QVERIFY(!core::searchMaterials("6061").empty());
+    QVERIFY(!core::searchMaterials("astm a36").empty());
+    QCOMPARE(core::searchMaterials("", "Wood").size(), size_t(4));
+    QVERIFY(core::searchMaterials("steel", "Plastic").empty());
+    // a user material is added, a user entry overrides a built-in by name, both survive a reload
+    core::Material pet{"PETG", "Plastic", 1.27, {0.2f, 0.4f, 0.8f, 1.0f}, "ISO 1043 PETG", 50, 25.0};
+    std::string err;
+    QVERIFY2(core::saveUserMaterial(pet, &err), err.c_str());
+    core::Material steel = *core::findMaterial("Steel");
+    steel.density = 7.80;
+    QVERIFY(core::saveUserMaterial(steel, &err));
+    QVERIFY(QFileInfo::exists(QString::fromStdString(core::userMaterialLibraryPath())));
+    core::reloadMaterialLibrary();  // "restart"
+    const core::Material* p = core::findMaterial("petg");
+    QVERIFY(p && p->source == "user" && std::abs(p->density - 1.27) < 1e-12 && p->costPerKg == 25.0);
+    QVERIFY(std::abs(core::findMaterial("Steel")->density - 7.80) < 1e-12);
+    QCOMPARE(core::materialLibrary().size(), core::builtinMaterials().size() + 1);
+    QVERIFY(core::removeUserMaterial("Steel", &err));
+    QVERIFY(std::abs(core::findMaterial("Steel")->density - 7.85) < 1e-12);
+    QVERIFY(!core::removeUserMaterial("Water", &err));  // built-in
+    // a broken file is ignored
+    {
+      QFile f(QString::fromStdString(core::userMaterialLibraryPath()));
+      QVERIFY(f.open(QIODevice::WriteOnly));
+      f.write("{not json");
+    }
+    core::reloadMaterialLibrary();
+    QCOMPARE(core::materialLibrary().size(), core::builtinMaterials().size());
+    if (old.isEmpty()) qunsetenv("XDG_CONFIG_HOME");
+    else qputenv("XDG_CONFIG_HOME", old);
+    core::reloadMaterialLibrary();
+  }
   void initTestCase() { registerTestFeatures(); }
 
   void addAndRecompute() {

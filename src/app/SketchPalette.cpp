@@ -12,6 +12,8 @@
 #include "sketch/SketchSession.h"
 #include "viewer/ViewerWidget.h"
 
+#include "sketch/tools/SketchToolBase.h"
+
 #include <QCheckBox>
 #include <QGridLayout>
 #include <QLabel>
@@ -77,6 +79,9 @@ SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& ma
   ov->addWidget(head);
   construction_ = option("Construction linetype (X)", "New curves are construction geometry");
   ov->addWidget(construction_);
+  typedDims_ = option("Typed values: dimensions", "Typed coordinates, lengths, angles and sizes become driving dimensions");
+  typedDims_->setObjectName("typedDimensions");
+  ov->addWidget(typedDims_);
   auto* look = new QPushButton(resourceIcon("look-at"), "Look At", opts);
   look->setFocusPolicy(Qt::NoFocus);
   connect(look, &QPushButton::clicked, this, [this] {
@@ -129,6 +134,9 @@ SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& ma
   connect(constraints_, &QCheckBox::toggled, this, apply([](sketch::SketchSession& s, bool on) { s.setShowConstraints(on); }));
   connect(grid_, &QCheckBox::toggled, this, [this](bool on) {
     if (!updating_) viewer_.setGridVisible(on);
+  });
+  connect(typedDims_, &QCheckBox::toggled, this, [this](bool on) {
+    if (!updating_) sketch::setTypedDimensionsOverride(on);
   });
   setCollapsed(false);
   connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] { setCollapsed(collapsed_); });
@@ -238,6 +246,7 @@ void SketchPalette::sync() {
   points_->setChecked(s->showPoints());
   dimensions_->setChecked(s->showDimensions());
   constraints_->setChecked(s->showConstraints());
+  typedDims_->setChecked(sketch::typedDimensionsEnabled());
   grid_->setChecked(viewer_.isGridVisible());
   updating_ = false;
   if (!isVisible()) {

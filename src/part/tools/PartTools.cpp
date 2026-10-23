@@ -19,6 +19,7 @@
 #include "part/features/SweepLoft.h"
 #include "part/tools/ExportStlTool.h"
 #include "part/tools/FeatureTool.h"
+#include "part/tools/MassPropertiesTool.h"
 #include "part/tools/MeasureTool.h"
 #include "part/tools/SectionTool.h"
 #include "core/ViewerContext.h"
@@ -202,6 +203,15 @@ void registerPartTools(core::ModuleContext& ctx) {
           c.showMessage("Section analysis removed");
         },
         [](const core::ToolContext& c) { return c.viewer && c.viewer->sectionPlane().has_value(); }));
+  }
+
+  {
+    // production-features P1: mass properties card (INSPECT)
+    core::ToolInfo i = info("part.mass-properties", "Mass Properties",
+                            "Volume, mass, centre of gravity, inertia and principal axes of bodies or components", SOLID,
+                            "INSPECT", 5, false, "", {"MASSPROPS", "MASSPROPERTIES"});
+    i.repeatable = false;
+    t.registerTool(std::make_unique<MassPropertiesTool>(i));
   }
 
   // CONSTRUCT

@@ -66,6 +66,7 @@ class PointsTool : public SketchTool {
   void activate(ToolContext& ctx) override {
     SketchTool::activate(ctx);
     pts_.clear();
+    typedPts_.clear();
     defineValues(valueFields());
     updateValueVisibility();
     ctx.setPrompt(prompt());
@@ -101,7 +102,9 @@ class PointsTool : public SketchTool {
       case TypedInput::Kind::Pair:
         // "w,h" after the first point fills two boxes; otherwise it is an absolute coordinate
         if (last && values().visibleCount() >= 2 && typedValuesToBoxes(ctx, text)) return true;
+        typedNext_ = Pt2{in.a * f, in.b * f};  // becomes DistanceX/Y to the origin (P1 §2.1)
         addPoint(ctx, inferExact({in.a * f, in.b * f}, last));
+        typedNext_.reset();
         return true;
       case TypedInput::Kind::Relative:
         if (!last) return false;
@@ -179,8 +182,12 @@ class PointsTool : public SketchTool {
   void addPoint(ToolContext& ctx, const InferenceResult& r) {
     if (!pts_.empty() && r.point.distance(pts_.back().point) < kEps) return;
     pts_.push_back(r);
+    if (typedNext_) typedPts_.push_back(r.point);
     if (static_cast<int>(pts_.size()) >= needed_) {
+      const std::vector<int> before = geometryIds();
       create(ctx);
+      dimensionTypedPoints(ctx, typedPts_, before);
+      typedPts_.clear();
       pts_.clear();
       values().resetInput();
     }
@@ -202,6 +209,8 @@ class PointsTool : public SketchTool {
 
   int needed_;
   std::vector<InferenceResult> pts_;
+  std::optional<Pt2> typedNext_;  ///< the point being added was typed as an absolute coordinate
+  std::vector<Pt2> typedPts_;     ///< typed absolute points of the geometry being built
   Pt2 lastCursor_;
   bool hasCursor_ = false;
 };
@@ -321,7 +330,9 @@ class LineTool : public SketchTool {
     const double f = displayFactor();
     switch (in.kind) {
       case TypedInput::Kind::Pair:
+        typedAbs_ = true;  // absolute coordinate: DistanceX/Y to the origin (P1 §2.1)
         addPoint(ctx, inferExact(Pt2{in.a * f, in.b * f}, last_));
+        typedAbs_ = false;
         return true;
       case TypedInput::Kind::Relative: {
         if (!last_) return false;
@@ -440,6 +451,7 @@ class LineTool : public SketchTool {
   }
 
   void resetChain() {
+    typedStart_.reset();
     last_.reset();
     lastRef_.reset();
     lastDir_.reset();
@@ -536,6 +548,7 @@ class LineTool : public SketchTool {
     Pt2 p = r.point;
     if (!last_) {
       last_ = p;
+      typedStart_ = typedAbs_ ? std::optional<Pt2>(p) : std::nullopt;
       startInf_ = coincidenceOnly(r);
       updateBoxes();
       ctx.setPrompt("Specify next point (or type length, Tab, angle)");
@@ -555,6 +568,7 @@ class LineTool : public SketchTool {
       }
     }
     session()->beginEdit();
+    const std::vector<int> before = geometryIds();
     int id = sk->addGeometry(asCreated(Geometry::makeLine(*last_, p)));
     if (lastRef_) sk->addConstraint(Constraint{.type = ConstraintType::Coincident, .a = {id, PointPos::Start}, .b = *lastRef_});
     else applyInference(*sk, startInf_, {id, PointPos::Start}, -1);
@@ -564,6 +578,13 @@ class LineTool : public SketchTool {
     if (pending_.angle) er = coincidenceOnly(er);  // the angle dimension decides the direction
     applyInference(*sk, er, {id, PointPos::End}, id);
     addPendingDims(ctx, id);
+    {
+      std::vector<Pt2> typed;
+      if (typedStart_) typed.push_back(*typedStart_);
+      if (typedAbs_) typed.push_back(p);
+      typedStart_.reset();
+      dimensionTypedPoints(ctx, typed, before);
+    }
     session()->commitEdit("Line");
     values().resetInput();
     const Geometry* g = sk->geometry(id);
@@ -617,6 +638,8 @@ class LineTool : public SketchTool {
   }
 
   std::optional<Pt2> last_;
+  bool typedAbs_ = false;              ///< the point being added was typed as x,y
+  std::optional<Pt2> typedStart_;      ///< typed chain start, dimensioned with the first segment
   std::optional<GeoRef> lastRef_;
   std::optional<Pt2> lastDir_;
   int lastLine_ = -1;

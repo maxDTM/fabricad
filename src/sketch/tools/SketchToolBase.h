@@ -50,6 +50,11 @@ inline std::optional<OriginRef> originRefAt(Pt2 c, double tol) {
 std::optional<Geometry> tangentArc(Pt2 p, Pt2 t, Pt2 q, bool* startIsP);
 
 /// Common behaviour of every tool that runs inside sketch mode.
+/// "Typed values create dimensions" (preference sketch/typedDimensions, default on; the
+/// session override set by the SKETCH palette toggle / the TYPEDDIMS verb wins).
+bool typedDimensionsEnabled();
+void setTypedDimensionsOverride(std::optional<bool> on);
+
 class SketchTool : public core::ToolBase {
  public:
   explicit SketchTool(core::ToolInfo info);
@@ -94,6 +99,17 @@ class SketchTool : public core::ToolBase {
   /// from the typed text). If the sketch rejects it (conflict / redundant) the dimension becomes
   /// driven and a message is shown. Returns the constraint id (-1 when not added).
   int addLockedDimension(core::ToolContext& ctx, const ValueField& f, Constraint c);
+  /// Typed absolute coordinates (production-features P1 §2.1): each point of the geometry the
+  /// tool just created (ids not in `before`) that sits at a typed coordinate gets DistanceX +
+  /// DistanceY to the sketch origin, or a Coincident with the origin at 0,0. Points already
+  /// coincident with other geometry are skipped; a dimension that would over-constrain is kept
+  /// as driven. No-op when typed dimensions are off (typedDimensionsEnabled()).
+  void dimensionTypedPoints(core::ToolContext& ctx, const std::vector<Pt2>& typed, const std::vector<int>& before);
+  /// Add a dimension created from a typed value: driving, or driven when redundant/conflicting
+  /// (without an error message); a redundant geometric constraint is dropped (-1). Returns the id.
+  int addTypedDimension(core::ToolContext& ctx, Constraint c);
+  /// Ids of the current geometries (snapshot before a tool creates new ones).
+  std::vector<int> geometryIds() const;
   /// H/V/parallel/perpendicular constraint for an angle that is a multiple of 90 degrees (so no
   /// redundant Angle dimension is created). `referenceLine` < 0 means the angle is to +X.
   /// Returns true when such a constraint was added instead of an Angle dimension.

@@ -15,6 +15,7 @@
 //   ui/glow, ui/scanlines  bool                      (decision 10; stored)
 //   ui/designFilter   part | assembly                (toolbar filter of Design, decision 2)
 //   ui/commandLine    bool                           (command box visible)
+//   sketch/typedDimensions  bool                     (typed sketch values create dimensions; read by the sketch tools)
 //
 // The keys are read once at start-up (main() applies the theme before the window shows) and
 // afterwards through this object. Tests isolate QSettings (QStandardPaths test mode).

@@ -8,6 +8,7 @@
 #include "core/Units.h"
 #include "sketch/ValueInputOverlay.h"
 
+#include <QSettings>
 #include <QWidget>
 #include <QtCore/Qt>
 
@@ -518,6 +519,96 @@ std::string SketchTool::formatLength(double mm) const {
 std::string SketchTool::formatAngle(double deg) const {
   core::UnitSystem u = document() ? document()->units() : core::UnitSystem{};
   return core::formatQuantity(core::Quantity::deg(deg), u, false) + "°";
+}
+
+namespace {
+std::optional<bool>& typedOverride() {
+  static std::optional<bool> v;
+  return v;
+}
+}  // namespace
+
+bool typedDimensionsEnabled() {
+  if (typedOverride()) return *typedOverride();
+  return QSettings().value("sketch/typedDimensions", true).toBool();
+}
+
+void setTypedDimensionsOverride(std::optional<bool> on) { typedOverride() = on; }
+
+std::vector<int> SketchTool::geometryIds() const {
+  std::vector<int> out;
+  if (const Sketch* sk = sketch())
+    for (const Geometry& g : sk->geometries()) out.push_back(g.id);
+  return out;
+}
+
+int SketchTool::addTypedDimension(core::ToolContext& ctx, Constraint c) {
+  Sketch* sk = sketch();
+  if (!sk) return -1;
+  const int id = sk->addConstraint(c);
+  SolveResult r = sk->solve();
+  const bool bad = !r.ok() || std::count(r.conflicting.begin(), r.conflicting.end(), id) > 0 ||
+                   std::count(r.redundant.begin(), r.redundant.end(), id) > 0;
+  if (bad) {
+    if (!c.isDimensional()) {
+      sk->removeConstraint(id);  // a geometric constraint the sketch already has: nothing to add
+      sk->solve();
+      return -1;
+    }
+    if (Constraint* cc = sk->constraint(id)) cc->driven = true;
+    sk->solve();
+  }
+  return id;
+}
+
+void SketchTool::dimensionTypedPoints(core::ToolContext& ctx, const std::vector<Pt2>& typed, const std::vector<int>& before) {
+  Sketch* sk = sketch();
+  if (!sk || typed.empty() || !typedDimensionsEnabled()) return;
+  const double eps = 1e-6;
+  std::vector<GeoRef> done;
+  for (const Pt2& p : typed) {
+    // the new geometry's point at this coordinate (first one; the others are coincident with it)
+    GeoRef ref;
+    for (const Geometry& g : sk->geometries()) {
+      if (std::find(before.begin(), before.end(), g.id) != before.end() || g.construction) continue;
+      for (PointPos pos : {PointPos::Start, PointPos::End, PointPos::Center}) {
+        auto q = sk->pointOf(GeoRef{g.id, pos});
+        if (q && q->distance(p) < eps) {
+          ref = GeoRef{g.id, pos};
+          break;
+        }
+      }
+      if (ref.isValid()) break;
+    }
+    if (!ref.isValid()) continue;
+    bool seen = false;
+    for (const GeoRef& d : done)
+      if (sk->areCoincident(d, ref)) seen = true;
+    if (seen) continue;
+    done.push_back(ref);
+    // coincident with an existing (older) point: that point already locates it
+    bool attached = false;
+    for (const GeoRef& g : sk->coincidentGroup(ref))
+      if (std::find(before.begin(), before.end(), g.geo) != before.end()) attached = true;
+    if (attached) continue;
+    if (p.length() < eps) {
+      // already pinned (the origin snap fixes it): no helper, no constraint
+      Sketch probe = *sk;
+      const int po = probe.originHelper(OriginRef::Point);
+      const int pid = probe.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = ref, .b = GeoRef{po, PointPos::Center}});
+      const SolveResult pr = probe.solve();
+      if (!pr.ok() || std::count(pr.redundant.begin(), pr.redundant.end(), pid) > 0 ||
+          std::count(pr.conflicting.begin(), pr.conflicting.end(), pid) > 0)
+        continue;
+      const int o = sk->originHelper(OriginRef::Point);
+      Constraint c{.type = ConstraintType::Coincident, .a = ref, .b = GeoRef{o, PointPos::Center}};
+      addTypedDimension(ctx, c);
+      continue;
+    }
+    // the box shows absolute values; DistanceX/Y of a lone point is its signed coordinate
+    addTypedDimension(ctx, Constraint{.type = ConstraintType::DistanceX, .a = ref, .value = p.x});
+    addTypedDimension(ctx, Constraint{.type = ConstraintType::DistanceY, .a = ref, .value = p.y});
+  }
 }
 
 int SketchTool::addCheckedConstraint(core::ToolContext& ctx, Constraint c) {

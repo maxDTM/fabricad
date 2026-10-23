@@ -31,6 +31,7 @@ const std::vector<UiSettings::Key>& UiSettings::keys() {
       {"ui/scanlines", false, {}, 0, 0, false},
       {"ui/designFilter", "part", {"part", "assembly"}, 0, 0, true},
       {"ui/commandLine", true, {}, 0, 0, true},
+      {"sketch/typedDimensions", true, {}, 0, 0, true},  // production-features P1 §2.1
   };
   return k;
 }

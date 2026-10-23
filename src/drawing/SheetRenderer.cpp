@@ -397,7 +397,24 @@ void SheetRenderer::addPartsList(DisplayList& out, const PartsList& list) const 
       else if (col == "Part Number") v = row.partNumber;
       else if (col == "Description") v = row.description;
       else if (col == "Material") v = row.material;
-      else if (col == "Mass") {
+      else if (col == "Name") v = row.name;
+      else if (col == "Revision" || col == "Rev") v = row.revision;
+      else if (col == "Vendor") v = row.vendor;
+      else if (col == "Cost" || col == "Cost total") {
+        if (row.cost > 0) {
+          char buf[32];
+          std::snprintf(buf, sizeof buf, "%.2f", col == "Cost" ? row.cost : row.cost * row.quantity);
+          v = buf;
+        }
+        al = HAlign::Right;
+      } else if (col == "Mass total") {
+        if (row.mass > 0) {
+          char buf[32];
+          std::snprintf(buf, sizeof buf, "%.3f kg", row.mass * row.quantity);
+          v = buf;
+        }
+        al = HAlign::Right;
+      } else if (col == "Mass") {
         if (row.mass > 0) {
           char buf[32];
           std::snprintf(buf, sizeof buf, "%.3f kg", row.mass);
@@ -575,9 +592,11 @@ std::map<std::string, std::string> titleBlockValues(const DrawingModel& model, c
   def("Sheet", std::to_string(std::max(index, 1)) + " / " + std::to_string(std::max(count, 1)));
   const core::Component& root = doc.rootComponent();
   def("PartNumber", root.partNumber);
-  // revision: latest row of the sheet's revision table
+  // revision: latest row of the sheet's revision table, else the root component's revision
+  std::string revision = root.revision;
   for (const auto& t : sheet.callouts.revisionTables)
-    if (!t.rows.empty()) def("Rev", t.rows.back().rev);
+    if (!t.rows.empty()) revision = t.rows.back().rev;
+  def("Rev", revision);
   // material / mass from bodies
   std::string material;
   double mass = 0;
@@ -594,12 +613,24 @@ std::map<std::string, std::string> titleBlockValues(const DrawingModel& model, c
       if (!s.IsNull()) mass += core::volume(s) * 1e-6 * body->density;
     }
   }
+  if (!root.material.empty()) material = root.material, mixed = false;  // the BOM material wins
   def("Material", mixed ? "VARIOUS" : material);
   if (mass > 0) {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%.3f kg", mass);
     def("Mass", buf);
   }
+  // ${token} fields: values from the model, refreshed on every render (production-features P1)
+  TitleBlockModel tm;
+  tm.text["material"] = mixed ? "VARIOUS" : material;
+  tm.text["partnumber"] = root.partNumber;
+  tm.text["revision"] = revision;
+  tm.text["description"] = root.description;
+  tm.text["vendor"] = root.vendor;
+  tm.text["title"] = doc.name();
+  tm.massGrams = mass * 1000.0;
+  for (auto& [k, value] : v)
+    if (value.find("${") != std::string::npos) value = expandTitleBlockTokens(value, tm);
   for (auto it = v.begin(); it != v.end();)
     it = it->second.empty() ? v.erase(it) : std::next(it);
   return v;

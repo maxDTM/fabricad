@@ -23,6 +23,7 @@
 #include <QtTest/QtTest>
 
 #include <cctype>
+#include <cmath>
 #include <format>
 
 using namespace fabricad;
@@ -116,6 +117,105 @@ struct Rig {
 class ToolsTest : public QObject {
   Q_OBJECT
  private slots:
+
+  // production-features P1 §2.1: typed absolute coordinates become dimensions to the origin
+  void typedCoordinatesCreateDimensions() {
+    sketch::setTypedDimensionsOverride(true);
+    {
+      Rig r;
+      r.mgr.run("sketch.create", {"XY"});
+      Rig::pump();
+      QVERIFY(r.mgr.run("sketch.line"));
+      QVERIFY(r.mgr.runCommandLine("50,30"));
+      QVERIFY(r.mgr.runCommandLine("@20<0"));
+      QCOMPARE(r.sk().geometryCount(), 1);
+      QCOMPARE(r.countType(ConstraintType::DistanceX), 1);
+      QCOMPARE(r.countType(ConstraintType::DistanceY), 1);
+      QCOMPARE(r.countType(ConstraintType::Distance), 1);
+      QVERIFY(r.sk().solve().ok());
+      QCOMPARE(r.sk().dofs(), 0);  // start located, length + angle typed
+      for (const Constraint& c : r.sk().constraints())
+        if (c.isDimensional()) QVERIFY2(!c.driven, constraintTypeName(c.type));
+    }
+    {
+      // the tutorial bracket's first sketch: RECT 0,0 then 150,100 -> fully defined
+      Rig r;
+      r.mgr.run("sketch.create", {"XY"});
+      Rig::pump();
+      QVERIFY(r.mgr.run("sketch.rectangle"));
+      QVERIFY(r.mgr.runCommandLine("0,0"));
+      QVERIFY(r.mgr.runCommandLine("150,100"));
+      QCOMPARE(r.sk().geometryCount() >= 4, true);
+      QVERIFY(r.sk().solve().ok());
+      QCOMPARE(r.sk().dofs(), 0);
+    }
+    {
+      // a rectangle typed away from the origin: DistanceX/Y of its first corner + width/height
+      Rig r;
+      r.mgr.run("sketch.create", {"XY"});
+      Rig::pump();
+      QVERIFY(r.mgr.run("sketch.rectangle"));
+      QVERIFY(r.mgr.runCommandLine("10,20"));
+      QVERIFY(r.mgr.runCommandLine("30,40"));
+      QVERIFY(r.sk().solve().ok());
+      QCOMPARE(r.countType(ConstraintType::DistanceX), 1);
+      QCOMPARE(r.countType(ConstraintType::DistanceY), 1);
+      QCOMPARE(r.sk().dofs(), 0);
+      // a third typed point on an existing corner adds nothing (already located)
+      QVERIFY(r.mgr.run("sketch.line"));
+      QVERIFY(r.mgr.runCommandLine("10,20"));
+      QVERIFY(r.mgr.runCommandLine("@0,-15"));
+      QCOMPARE(r.countType(ConstraintType::DistanceX), 1);
+    }
+    {
+      // off: no dimensions from typed coordinates (the length box still dimensions the line)
+      sketch::setTypedDimensionsOverride(false);
+      Rig r;
+      r.mgr.run("sketch.create", {"XY"});
+      Rig::pump();
+      QVERIFY(r.mgr.run("sketch.line"));
+      QVERIFY(r.mgr.runCommandLine("50,30"));
+      QVERIFY(r.mgr.runCommandLine("@20<0"));
+      QCOMPARE(r.countType(ConstraintType::DistanceX), 0);
+      QVERIFY(r.mgr.runCommandLine("TYPEDDIMS on"));
+      QVERIFY(sketch::typedDimensionsEnabled());
+    }
+    sketch::setTypedDimensionsOverride(std::nullopt);
+  }
+
+  // Sketch Dimension: point + circle curve -> PointCurveDistance; Alt on an arc -> ArcLength
+  void dimensionToolNewKinds() {
+    sketch::setTypedDimensionsOverride(false);
+    Rig r;
+    r.mgr.run("sketch.create", {"XY"});
+    Rig::pump();
+    Sketch& sk = r.sk();
+    const int arc = sk.addGeometry(Geometry::makeArc({0, 0}, 10, 0, M_PI / 2));
+    const int pt = sk.addGeometry(Geometry::makePoint({30, 0}));
+    QVERIFY(sk.solve().ok());
+    QVERIFY(r.mgr.run("sketch.arc-length"));
+    r.click(10 * std::cos(M_PI / 4), 10 * std::sin(M_PI / 4));
+    r.click(12, 12);  // place
+    r.mgr.accept();   // keep the measured value
+    const Constraint* len = nullptr;
+    for (const Constraint& c : sk.constraints())
+      if (c.type == ConstraintType::ArcLength) len = &c;
+    QVERIFY(len);
+    QCOMPARE(len->a.geo, arc);
+    QVERIFY(std::abs(len->value - 15.708) < 5e-4);
+    QVERIFY(r.session()->dimensionText(*len).find("15.708") != std::string::npos);
+    r.mgr.cancel();
+    QVERIFY(r.mgr.run("sketch.dimension"));
+    r.click(30, 0);                                                    // the point
+    r.click(10 * std::cos(M_PI / 6), 10 * std::sin(M_PI / 6));         // the arc
+    r.click(20, 8);
+    r.mgr.accept();
+    bool p2c = false;
+    for (const Constraint& c : sk.constraints())
+      if (c.type == ConstraintType::PointCurveDistance && c.a.geo == pt && c.b.geo == arc) p2c = std::abs(c.value - 20) < 1e-6;
+    QVERIFY(p2c);
+    sketch::setTypedDimensionsOverride(std::nullopt);
+  }
   // SK-01: the idle select tool leaves Ctrl+Enter to the Finish Sketch shortcut;
   // SK-10: Ctrl+A selects every sketch entity without ending the active tool
   void ctrlEnterAndSelectAll() {
