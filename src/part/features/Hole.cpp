@@ -12,11 +12,15 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
+#include <BRepAlgoAPI_Cut.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
+#include <gp_Ax2.hxx>
 #include <Standard_Failure.hxx>
 #include <TopoDS.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Lin.hxx>
 
+#include <algorithm>
 #include <cmath>
 #include <format>
 
@@ -90,7 +94,7 @@ double HoleFeature::clearanceDiameter(const IsoThread& t, int fit) {
   return t.nominal * (fit == 0 ? 1.07 : fit == 2 ? 1.2 : 1.1);
 }
 
-TopoDS_Shape HoleFeature::makeProtoHole(const Params& p, std::string* error) {
+TopoDS_Shape HoleFeature::makeProtoHole(const Params& p, std::string* error, std::vector<TopoDS_Shape>* namedFaces) {
   auto fail = [&](const char* msg) {
     if (error) *error = msg;
     return TopoDS_Shape();
@@ -145,6 +149,48 @@ TopoDS_Shape HoleFeature::makeProtoHole(const Params& p, std::string* error) {
     if (!rev.IsDone()) return fail("could not revolve the hole profile");
     TopoDS_Shape s = rev.Shape();
     if (!core::isValidShape(s)) return fail("hole profile produced an invalid solid");
+    const std::vector<TopoDS_Shape> plainFaces = facesOf(s);
+    if (namedFaces) *namedFaces = plainFaces;
+    if (ext > 0 && (p.type == Counterbore || p.type == Countersink)) {
+      // DRW-VIEWS-ANNOT-13: above the placement face only the drill radius cuts; remove the
+      // ring radius..outer x 0..ext (+ margin) from the tool
+      const double outer = std::max(p.cboreDiameter, p.csinkDiameter) / 2.0 + ext * 4.0 + 1.0;
+      TopoDS_Shape big = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), outer, ext + 1.0).Shape();
+      TopoDS_Shape core = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, -1.0), gp_Dir(0, 0, 1)), radius, ext + 3.0).Shape();
+      BRepAlgoAPI_Cut tube(big, core);
+      if (!tube.IsDone()) return fail("could not trim the hole above the face");
+      BRepAlgoAPI_Cut trim(s, tube.Shape());
+      if (!trim.IsDone()) return fail("could not trim the hole above the face");
+      TopoDS_Shape t = trim.Shape();
+      if (!core::isValidShape(t)) return fail("trimmed hole is not valid");
+      if (namedFaces) {
+        // old faces first (their image in the trimmed tool), then the new ones
+        std::vector<TopoDS_Shape> order;
+        const std::vector<TopoDS_Shape> now = facesOf(t);
+        auto present = [&](const TopoDS_Shape& f) {
+          return std::any_of(now.begin(), now.end(), [&](const TopoDS_Shape& g) { return g.IsSame(f); });
+        };
+        auto taken = [&](const TopoDS_Shape& f) {
+          return std::any_of(order.begin(), order.end(), [&](const TopoDS_Shape& g) { return !g.IsNull() && g.IsSame(f); });
+        };
+        for (const TopoDS_Shape& f : plainFaces) {
+          TopoDS_Shape img;
+          if (present(f)) img = f;
+          else
+            for (const TopoDS_Shape& m : trim.Modified(f))
+              if (m.ShapeType() == TopAbs_FACE && present(m) && !taken(m)) {
+                img = m;
+                break;
+              }
+          // a face that vanished keeps its (empty) slot, so the later numbers do not shift
+          order.push_back(!img.IsNull() && !taken(img) ? img : TopoDS_Shape());
+        }
+        for (const TopoDS_Shape& f : now)
+          if (!taken(f)) order.push_back(f);
+        *namedFaces = std::move(order);
+      }
+      return t;
+    }
     return s;
   } catch (const Standard_Failure& e) {
     if (error) *error = e.GetMessageString() ? e.GetMessageString() : "hole construction failed";
@@ -235,11 +281,13 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   if (flag("flip")) axisDir.Reverse();
 
   std::string err;
-  TopoDS_Shape proto = makeProtoHole(p, &err);
+  std::vector<TopoDS_Shape> protoNamed;
+  TopoDS_Shape proto = makeProtoHole(p, &err, &protoNamed);
   if (proto.IsNull()) {
     ctx.setError(err);
     return;
   }
+  const std::vector<TopoDS_Shape> protoFaces = facesOf(proto);
   std::vector<TopoDS_Shape> holes;
   NameMap names;
   const std::string base = name().empty() ? std::string(kType) : name();
@@ -251,9 +299,18 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     t.SetDisplacement(gp_Ax3(), target);  // moves the proto frame (Z up at origin) onto the target frame
     TopoDS_Shape h = copyTransformed(proto, t);
     holes.push_back(h);
-    // name the cylindrical wall(s) of each hole
+    // name the faces of each hole in the proto's naming order (copies keep the face order)
+    const std::vector<TopoDS_Shape> hf = facesOf(h);
     int fi = 0;
-    for (const auto& f : facesOf(h)) names[std::format("{}/H{}/F{}", base, k, ++fi)] = f;
+    for (const TopoDS_Shape& f : protoNamed) {
+      ++fi;
+      if (f.IsNull()) continue;
+      for (size_t i = 0; i < protoFaces.size() && i < hf.size(); ++i)
+        if (protoFaces[i].IsSame(f)) {
+          names[std::format("{}/H{}/F{}", base, k, fi)] = hf[i];
+          break;
+        }
+    }
   }
   TopoDS_Shape tool = holes.size() == 1 ? holes.front() : compoundOf(holes);
   // Fusion: with no explicit "Bodies to cut" a hole cuts the body it was placed on (start face /

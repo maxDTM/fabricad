@@ -199,7 +199,7 @@ class ProjectToSketchTool : public core::ToolBase {
       : ToolBase(ToolInfo{.id = "sketch.project-start",
                           .name = "Project to Sketch",
                           .tooltip = "Project edges, vertices or bodies into a sketch (asks for the sketch plane when no sketch is open)",
-                          .icon = "sketch-project",
+                          .icon = "sketch-project-start",
                           .aliases = {"PROJECTSKETCH"},
                           .tab = "SOLID",
                           .group = "CREATE",

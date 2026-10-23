@@ -347,6 +347,67 @@ class InspectExportTest : public QObject {
     QVERIFY(QString::fromStdString(x->statusMessage()).contains("not perpendicular"));
   }
 
+  void throughAllCounterboreLeavesMaterialAboveAlone() {
+    // DRW-VIEWS-ANNOT-13: a through-all counterbore next to a boss must not notch the boss: the
+    // plate with the boss loses exactly what the plate alone loses
+    auto run = [](bool withBoss) {
+      Rig rig;
+      core::ObjectId plate = rig.box(0, 0, 40, 40, 10);
+      if (withBoss) {
+        TestSketch* bs = addRectSketch(rig.doc, "XY", 20, 0, 30, 10);
+        auto boss = std::make_unique<ExtrudeFeature>();
+        boss->prop("profiles").addRef(bs->rectProfile(0));
+        boss->prop("startOffset").setDouble(10);
+        boss->prop("distance").setDouble(10);
+        boss->prop("operation").setEnum("Join");
+        rig.doc.addFeature(std::move(boss));
+        rig.doc.recompute();
+      }
+      const double before = core::volume(rig.doc.bodyShape(plate));
+      core::ShapeRef top;
+      for (const TopoDS_Shape& f : core::subShapes(rig.doc.bodyShape(plate), TopAbs_FACE)) {
+        auto pl = core::facePlane(f);
+        core::Vec3 mn, mx;
+        if (pl && pl->Direction().IsParallel(gp::DZ(), 1e-9) && std::abs(pl->Location().Z() - 10) < 1e-9 && core::bbox(f, mn, mx) &&
+            mx.x - mn.x > 30)
+          top = core::ShapeRef::subShape(plate, rig.doc.bodyShape(plate), f);
+      }
+      top.point = core::Vec3{15, 5, 10};  // counterbore radius 5.5 reaches x = 20.5, 0.5 mm under the boss
+      top.hasPoint = true;
+      auto ho = std::make_unique<HoleFeature>();
+      ho->prop("points").addRef(top);
+      ho->prop("holeType").setEnum("Counterbore");
+      ho->prop("cboreDiameter").setDouble(11);
+      ho->prop("cboreDepth").setDouble(6);
+      ho->prop("extentType").setEnum("All");
+      core::Feature* hf = rig.doc.addFeature(std::move(ho));
+      rig.doc.recompute();
+      return std::pair<double, bool>{before - core::volume(rig.doc.bodyShape(plate)), hf->status() == core::FeatureStatus::Ok};
+    };
+    const auto [alone, okAlone] = run(false);
+    const auto [boss, okBoss] = run(true);
+    QVERIFY(okAlone && okBoss);
+    QVERIFY(alone > 600);
+    QVERIFY2(near(boss, alone, 1e-9), qPrintable(QString("%1 vs %2").arg(boss).arg(alone)));
+  }
+
+  void editFeatureByName() {
+    // be/drawing observation: EDITFEATURE <name> works without selecting the feature first
+    Rig rig;
+    rig.box(0, 0, 10, 10, 10);
+    QVERIFY(rig.manager.runCommandLine("EDITFEATURE Extrude1"));
+    QCOMPARE(rig.manager.activeToolId(), std::string("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool && tool->isEditing());
+    rig.manager.cancel();
+    QVERIFY(rig.manager.runCommandLine("EDITFEATURE feature:extrude1"));
+    QCOMPARE(rig.manager.activeToolId(), std::string("part.extrude"));
+    rig.manager.cancel();
+    rig.manager.runCommandLine("EDITFEATURE Nope");
+    QVERIFY(!rig.manager.isActive());
+    QVERIFY(rig.hasMessage("no feature 'Nope' to edit"));
+  }
+
   void holePreselectedFaceIsTheStartFace() {
     Rig rig;
     core::ObjectId b = rig.box(0, 0, 20, 20, 10);

@@ -1055,11 +1055,22 @@ void EditFeatureTool::activate(core::ToolContext& ctx) {
   }
   core::ObjectId id = core::kInvalidId;
   if (!ctx.args.empty()) parseId(ctx.args[0], id);
+  if (id == core::kInvalidId && !ctx.args.empty()) {
+    // EDITFEATURE <name> (SCRIPTING.md): the feature's name, also "feature:<name>"
+    std::string name = ctx.args[0];
+    if (name.starts_with("feature:")) name = name.substr(8);
+    auto lower = [](std::string v) {
+      std::transform(v.begin(), v.end(), v.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+      return v;
+    };
+    for (int i = 0; i < ctx.document->featureCount() && id == core::kInvalidId; ++i)
+      if (const core::Feature* f = ctx.document->featureAt(i); f && lower(f->name()) == lower(name)) id = f->id();
+  }
   if (id == core::kInvalidId && ctx.preselection.size() == 1 && ctx.preselection[0].kind == core::ShapeKind::Feature)
     id = ctx.preselection[0].owner;
   const core::Feature* f = ctx.document->feature(id);
   if (!f) {
-    ctx.showMessage("select a feature to edit", true);
+    ctx.showMessage(ctx.args.empty() ? "select a feature to edit" : std::format("no feature '{}' to edit", ctx.args[0]), true);
     ctx.cancel();
     return;
   }

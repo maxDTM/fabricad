@@ -289,6 +289,7 @@
   <file>icons/dark/sketch-polygon-edge.svg</file>
   <file>icons/dark/sketch-polygon-inscribed.svg</file>
   <file>icons/dark/sketch-polygon.svg</file>
+  <file>icons/dark/sketch-project-start.svg</file>
   <file>icons/dark/sketch-project.svg</file>
   <file>icons/dark/sketch-rectangle-3point.svg</file>
   <file>icons/dark/sketch-rectangle-center.svg</file>
@@ -611,6 +612,7 @@
   <file>icons/light/sketch-polygon-edge.svg</file>
   <file>icons/light/sketch-polygon-inscribed.svg</file>
   <file>icons/light/sketch-polygon.svg</file>
+  <file>icons/light/sketch-project-start.svg</file>
   <file>icons/light/sketch-project.svg</file>
   <file>icons/light/sketch-rectangle-3point.svg</file>
   <file>icons/light/sketch-rectangle-center.svg</file>

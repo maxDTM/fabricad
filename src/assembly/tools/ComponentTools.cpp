@@ -283,6 +283,14 @@ std::vector<ObjectId> createComponentsFromSelectedBodies(ToolContext& ctx) {
     created.push_back(createComponent(doc, ctx.undo, spec));
   }
   if (ctx.undo) ctx.undo->endMacro();
+  // the bodies now belong to the new components: select those, so a following New Component
+  // does not take the bodies along again (be/drawing observation "CFB then NEWCOMPONENT")
+  if (ctx.selection) {
+    std::vector<ShapeRef> refs;
+    for (ObjectId c : created)
+      if (c != kInvalidId) refs.push_back(ShapeRef::component(c));
+    ctx.selection->set(refs);
+  }
   ctx.showMessage(std::format("Created {} component(s)", created.size()));
   return created;
 }

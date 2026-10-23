@@ -456,10 +456,33 @@ class DressUpTest : public QObject {
     QVERIFY2(!ext.IsNull(), err.c_str());
     QVERIFY(near(core::volume(ext), M_PI * 3.3 * 3.3 * 11.5, 1e-3));
     p.type = HoleFeature::Counterbore;
-    TopoDS_Shape cbExt = HoleFeature::makeProtoHole(p, &err);
+    std::vector<TopoDS_Shape> named;
+    TopoDS_Shape cbExt = HoleFeature::makeProtoHole(p, &err, &named);
     QVERIFY2(!cbExt.IsNull(), err.c_str());
-    QVERIFY(near(core::volume(cbExt), core::volume(cb) + M_PI * 5.5 * 5.5 * 1.5, 1e-3));
+    // DRW-VIEWS-ANNOT-13: above z = 0 the counterbore tool keeps only the drill radius, so it
+    // cannot notch material above the placement face
+    QVERIFY(near(core::volume(cbExt), core::volume(cb) + M_PI * 3.3 * 3.3 * 1.5, 1e-3));
     QVERIFY(core::bbox(cbExt, mn, mx) && near(mx.z, 1.5, 1e-6) && near(mn.z, -10, 1e-6));
+    QVERIFY(mx.x < 5.6);  // the counterbore radius, below the face only
+    {
+      // naming order: the plain profile's faces keep F1..F5, the trim adds F6, F7
+      std::vector<TopoDS_Shape> plainNamed;
+      HoleFeature::Params q = p;
+      q.topExtension = 0;
+      HoleFeature::makeProtoHole(q, &err, &plainNamed);
+      QCOMPARE(named.size(), plainNamed.size() + 2);
+      for (size_t i = 0; i < plainNamed.size(); ++i) {
+        QVERIFY(!named[i].IsNull());
+        BRepAdaptor_Surface a(TopoDS::Face(named[i])), b(TopoDS::Face(plainNamed[i]));
+        QCOMPARE(a.GetType(), b.GetType());
+        if (a.GetType() == GeomAbs_Cylinder) QVERIFY(near(a.Cylinder().Radius(), b.Cylinder().Radius(), 1e-9));
+      }
+    }
+    p.type = HoleFeature::Countersink;
+    TopoDS_Shape csExt = HoleFeature::makeProtoHole(p, &err);
+    QVERIFY2(!csExt.IsNull(), err.c_str());
+    QVERIFY(core::bbox(csExt, mn, mx) && near(mx.z, 1.5, 1e-6));
+    QVERIFY(near(core::volume(csExt), core::volume(cs) + M_PI * 3.3 * 3.3 * 1.5, 1e-3));
     p.topExtension = 0;
     p.cboreDiameter = 1;  // invalid
     p.type = HoleFeature::Counterbore;
