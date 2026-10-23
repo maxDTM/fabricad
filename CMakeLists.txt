@@ -117,6 +117,7 @@ endif()
 # ---------------------------------------------------------------------------
 add_subdirectory(src/core)       # owner: architect/integrator
 add_subdirectory(src/sketch)     # owner: sketch agent
+add_subdirectory(src/interop)    # P3: IGES / OBJ / glTF plugin, loaded on first use (TKDEIGES TKRWMesh TKDEOBJ TKDEGLTF)
 add_subdirectory(src/part)       # owner: part agent
 add_subdirectory(src/assembly)   # owner: assembly agent
 add_subdirectory(src/drawing)    # owner: drawing agent

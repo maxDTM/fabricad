@@ -191,6 +191,14 @@ void FeatureTool::startWith(core::ToolContext& ctx, std::unique_ptr<PartFeature>
     std::string num = primaryNumeric();
     if (!num.empty()) setNumeric(ctx, num, ctx.args[0]);
     else if (std::string text = working_->primaryText(); !text.empty()) working_->prop(text).setString(ctx.args[0]);
+    // further "name=value" words set properties ("IMPORT a.step sew=on report=a.txt")
+    for (size_t k = 1; k < ctx.args.size(); ++k)
+      if (ctx.args[k].find('=') != std::string::npos) {
+        const std::string& w = ctx.args[k];
+        core::Property* p = working_->property(w.substr(0, w.find('=')));
+        if (p && (p->type() == core::PropertyType::Bool || p->type() == core::PropertyType::String || p->type() == core::PropertyType::Enum))
+          commandLineInput(ctx, w);
+      }
   }
   if (ctx.selection) ctx.selection->clear();
   applyFilter(ctx);
@@ -835,7 +843,7 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
       return true;
     }
     if (p->type() == core::PropertyType::Bool) {
-      p->setBool(value == "1" || value == "true" || value == "yes");
+      p->setBool(value == "1" || value == "true" || value == "yes" || value == "on");
       updatePreview(ctx);
       return true;
     }

@@ -1,6 +1,7 @@
 // FabriCAD assembly: XCAF STEP export implementation.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/StepExport.h"
+#include "part/io/StepIO.h"
 
 #include "assembly/ComponentOps.h"
 #include "core/Log.h"
@@ -12,6 +13,7 @@
 
 #include <Interface_Static.hxx>
 #include <Quantity_ColorRGBA.hxx>
+#include <StepData_StepModel.hxx>
 #include <STEPCAFControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 #include <Standard_Failure.hxx>
@@ -153,7 +155,7 @@ bool exportAssemblyStep(const Document& doc, const std::string& path, const Step
       return false;
     }
     ex.shapes->UpdateAssemblies();
-    Interface_Static::SetCVal("write.step.schema", opt.schema.c_str());
+    part::io::setStepWriterSchema(opt.schema);
     Interface_Static::SetCVal("write.step.unit", "MM");
     part::setStepWriterPcurves(opt.pcurves);
     STEPCAFControl_Writer writer;
@@ -162,6 +164,18 @@ bool exportAssemblyStep(const Document& doc, const std::string& path, const Step
     if (!writer.Transfer(xdoc, STEPControl_AsIs)) {
       if (error) *error = "STEP transfer failed";
       return false;
+    }
+    if (opt.properties) {
+      // part number / description / material per product (matched by the product name)
+      std::map<std::string, part::io::ProductProperties> props;
+      for (const core::Component* cp : doc.components()) {
+        const core::Component& c = *cp;
+        part::io::ProductProperties p{c.partNumber, c.description, c.material, {}};
+        if (p.empty()) continue;
+        const std::string name = c.isRoot() && (c.name.empty() || c.name == "Untitled") ? ex.rootName : c.name;
+        props.emplace(name, p);
+      }
+      part::io::writeProductProperties(writer.ChangeWriter().Model(), props);
     }
     IFSelect_ReturnStatus st = writer.Write(path.c_str());
     if (st != IFSelect_RetDone) {

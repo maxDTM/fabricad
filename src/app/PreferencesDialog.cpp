@@ -1,6 +1,9 @@
 // FabriCAD app: Preferences dialog.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/PreferencesDialog.h"
+#include "drawing/FaceDxf.h"
+#include "part/io/StepIO.h"
+#include "part/tools/ExportMeshTool.h"
 #include "part/features/Import.h"
 
 #include "app/AppActions.h"
@@ -214,6 +217,39 @@ PreferencesDialog::PreferencesDialog(core::Document& doc, viewer::ViewerWidget* 
     connect(holeStd, &QComboBox::currentIndexChanged, this,
             [holeStd](int) { QSettings().setValue("hole/defaultStandard", holeStd->currentData()); });
     gf->addRow("Hole standard (new holes)", holeStd);
+  }
+  {
+    // P3 Export defaults: STEP schema, mesh quality preset (STL / OBJ / glTF / 3MF), face DXF version
+    auto* schema = new QComboBox(general);
+    schema->setObjectName("stepSchema");
+    schema->addItems({"AP203", "AP214", "AP242"});
+    schema->setCurrentText(QString::fromStdString(part::io::stepSchemaDefault()));
+    schema->setToolTip("STEP application protocol; AP242 adds part number / description / material as product properties. EXPORTSTEP schema=... overrides");
+    connect(schema, &QComboBox::currentTextChanged, this, [](const QString& t) { part::io::setStepSchemaDefault(t.toStdString()); });
+    gf->addRow("Export: STEP schema", schema);
+    auto* mesh = new QComboBox(general);
+    mesh->setObjectName("meshPreset");
+    mesh->addItems({"Coarse", "Medium", "Fine", "Custom"});
+    mesh->setCurrentIndex(static_cast<int>(part::stlQualityOf(part::ExportMeshTool::loadDefaults())));
+    mesh->setToolTip("Tessellation of the Export Mesh dialog (STL, OBJ, glTF, 3MF): Coarse 0.1 mm / 20 deg, Medium 0.05 mm / 11.5 deg, Fine 0.01 mm / 5 deg");
+    connect(mesh, &QComboBox::activated, this, [](int i) {
+      if (i > 2) return;
+      part::StlExportSettings s = part::ExportMeshTool::loadDefaults();
+      const part::StlExportSettings p = part::stlPreset(static_cast<part::StlQuality>(i));
+      s.linearDeflection = p.linearDeflection;
+      s.angularDeflectionDeg = p.angularDeflectionDeg;
+      part::ExportMeshTool::saveDefaults(s);
+    });
+    gf->addRow("Export: mesh quality", mesh);
+    auto* dxf = new QComboBox(general);
+    dxf->setObjectName("faceDxfVersion");
+    dxf->addItems({"R2000 (AC1015)", "R12 (AC1009)"});
+    dxf->setCurrentIndex(drawing::faceDxfVersionDefault() == drawing::DxfWriter::Version::R12 ? 1 : 0);
+    dxf->setToolTip("DXF version of Export Face DXF (the sheet DXF export is always R12)");
+    connect(dxf, &QComboBox::activated, this, [](int i) {
+      drawing::setFaceDxfVersionDefault(i == 1 ? drawing::DxfWriter::Version::R12 : drawing::DxfWriter::Version::R2000);
+    });
+    gf->addRow("Export: face DXF version", dxf);
   }
   tabs_->addTab(general, "General");
 

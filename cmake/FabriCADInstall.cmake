@@ -58,6 +58,8 @@ if(FABRICAD_INSTALL_PNG_ICONS)
 endif()
 
 install(TARGETS fabricad RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+# P3: IGES / OBJ / glTF plugin, loaded from <bindir>/../lib/fabricad on first use
+install(TARGETS fabricad_interop LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/fabricad")
 
 install(FILES "${_fc_pkg}/${FABRICAD_APP_ID}.desktop" DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
 install(FILES "${_fc_pkg}/${FABRICAD_APP_ID}.metainfo.xml" DESTINATION "${CMAKE_INSTALL_DATADIR}/metainfo")

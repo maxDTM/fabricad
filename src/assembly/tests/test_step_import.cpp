@@ -17,6 +17,8 @@
 #include "part/features/Import.h"
 #include "support/AssemblyTestHelpers.h"
 
+#include <QApplication>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
@@ -225,5 +227,78 @@ class StepImportTest : public QObject {
   }
 };
 
-QTEST_MAIN(StepImportTest)
+// P3: AP242 product properties of components survive export / import; the NIST CTC-01 AP242
+// sample (tests/fixtures, public domain, NIST MBE PMI project) imports cleanly.
+class StepInteropTest : public QObject {
+  Q_OBJECT
+ private slots:
+  void initTestCase() { core::test::registerTestFeatures(); }
+
+  void ap242ComponentProperties() {
+    QTemporaryDir dir;
+    Document src;
+    src.setName("Asm");
+    TwoBoxes t = makeTwoBoxes(src);
+    core::Component* a = src.component(t.compA);
+    a->partNumber = "FC-2001";
+    a->description = "Base block";
+    a->material = "Steel S235";
+    src.recompute();
+    const std::string path = (dir.path() + "/props.step").toStdString();
+    StepExportOptions o;
+    o.schema = "AP242";
+    std::string err;
+    QVERIFY2(exportAssemblyStep(src, path, o, &err), err.c_str());
+    QFile f(QString::fromStdString(path));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QByteArray text = f.readAll();
+    QVERIFY(text.contains("AP242"));
+    QVERIFY(text.contains("'FC-2001'"));
+    ImportRig rig;
+    QVERIFY(rig.manager.run("part.import-file", {path}));
+    const core::Component* base = findComponent(rig.doc, a->name, core::kRootComponentId, false);
+    QVERIFY(base);
+    QCOMPARE(base->partNumber, std::string("FC-2001"));
+    QCOMPARE(base->description, std::string("Base block"));
+    QCOMPARE(base->material, std::string("Steel S235"));
+    const core::Component* other = findComponent(rig.doc, src.component(t.compB)->name, core::kRootComponentId, false);
+    QVERIFY(other && other->partNumber.empty());
+  }
+
+  void nistCtc01Ap242Fixture() {
+    std::string root = __FILE__;
+    root = root.substr(0, root.rfind("/src/"));
+    const std::string path = root + "/tests/fixtures/nist_ctc_01_asme1_ap242-e1.stp";
+    QVERIFY(QFileInfo::exists(QString::fromStdString(path)));
+    part::ImportFeature::Imported imp;
+    std::string err;
+    QVERIFY2(part::ImportFeature::readFile(path, imp, &err), err.c_str());
+    QVERIFY(!imp.shapes.empty());
+    QVERIFY(imp.report.entities > 1000);
+    QCOMPARE(imp.report.failedFaces, 0);
+    QVERIFY(imp.report.valid);
+    QVERIFY(imp.report.solids >= 1);
+    QVERIFY(imp.report.faces > 50);
+    // names through the assembly reader
+    auto a = part::ImportFeature::readStepAssembly(path, &err);
+    QVERIFY2(a, err.c_str());
+    bool named = !a->topName.empty();
+    for (const auto& [k, p] : a->parts) named = named || !p.name.empty();
+    QVERIFY(named);
+  }
+};
+
+int main(int argc, char** argv) {
+  QApplication app(argc, argv);
+  int rc = 0;
+  {
+    StepImportTest t;
+    rc |= QTest::qExec(&t, argc, argv);
+  }
+  {
+    StepInteropTest t;
+    rc |= QTest::qExec(&t, argc, argv);
+  }
+  return rc;
+}
 #include "test_step_import.moc"

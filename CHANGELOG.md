@@ -13,6 +13,16 @@ All notable changes to FabriCAD are listed here. The format follows
   holes, mirror, chamfer, rib, a history edit, measure, save and reopen, export), with chapter checkpoints for
   Restore chapter. The target face, edge or plane glows in the view; a printable copy with screenshots is in
   `docs/tutorials/bracket.md` (generated from a real-input run by `tools/tutorial/export_md.py`).
+- **Production interop** (production-features.md P3): STEP schema choice AP203 / AP214 / AP242 on both STEP
+  exporters (`schema=`), per-body names and colours on the bodies exporter, part number / description /
+  material (and revision) as STEP product properties, read back into the components on import; a STEP / IGES
+  import report (entities, solids, shells, faces, failed faces, B-rep check) with *Sew faces* / *Fix shape* /
+  *Unify same-domain faces*; IGES import and export (`EXPORTIGES`, BRep or trimmed surfaces); the **Export
+  Mesh** card for STL, OBJ (+ .mtl), glTF / GLB and 3MF (`EXPORTMESH`, `EXPORTOBJ`, `EXPORTGLTF`, `EXPORT3MF`)
+  sharing the STL quality presets; **Export Face DXF** (`EXPORTDXF` in the design workspace): a 1:1 DXF of a
+  planar face, coplanar faces or a sketch with OUTER / INNER / ETCH layers, arcs as polyline bulges, splines or
+  spline-to-arcs, mm or inches, R12 or the new R2000 (AC1015) writer; Preferences > General export defaults.
+  STEP files with AP242 PMI that OCCT types differently (the NIST CTC samples) are no longer refused as damaged.
 - Tutorial tests: an off-script GUI scenario (`fabricad_tutorial_offscript`: Show me, a detour and its hint, Undo
   to step start, Back, Restore chapter).
 - **Typed sketch values create dimensions**: typed `x,y` points get DistanceX/DistanceY to the origin (or a

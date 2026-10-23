@@ -17,6 +17,7 @@ struct StepExportOptions {
   bool names = true;
   bool visibleOnly = true;
   bool pcurves = true;  ///< false: omit edge pcurves (write.surfacecurve.mode 0), smaller file
+  bool properties = true;  ///< part number / description / material as product attributes (P3)
 };
 
 struct StepExportStats {

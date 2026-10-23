@@ -1,6 +1,6 @@
-// FabriCAD part: Export STL command implementation.
+// FabriCAD part: Export Mesh command implementation.
 // SPDX-License-Identifier: LGPL-2.1-or-later
-#include "part/tools/ExportStlTool.h"
+#include "part/tools/ExportMeshTool.h"
 
 #include "core/AppHost.h"
 #include "core/Document.h"
@@ -10,6 +10,7 @@
 
 #include <QComboBox>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -76,13 +77,40 @@ std::optional<StlQuality> parseStlQuality(const std::string& name) {
   return std::nullopt;
 }
 
-ExportStlTool::ExportStlTool(core::ToolInfo info) : ToolBase(std::move(info)) {}
+ExportMeshTool::ExportMeshTool(core::ToolInfo info, std::optional<io::MeshFormat> format)
+    : ToolBase(std::move(info)), fixedFormat_(format) {}
 
-bool ExportStlTool::isEnabled(const core::ToolContext& ctx) const {
+std::string ExportMeshTool::formatLabel() const { return fixedFormat_ ? io::meshFormatName(*fixedFormat_) : "Mesh"; }
+
+std::string ExportMeshTool::fileFilter() const {
+  if (!fixedFormat_) return "Mesh files (*.stl *.obj *.glb *.gltf *.3mf)";
+  switch (*fixedFormat_) {
+    case io::MeshFormat::Stl: return "STL files (*.stl)";
+    case io::MeshFormat::Obj: return "OBJ files (*.obj)";
+    case io::MeshFormat::Gltf:
+    case io::MeshFormat::Glb: return "glTF files (*.glb *.gltf)";
+    case io::MeshFormat::ThreeMf: return "3MF files (*.3mf)";
+  }
+  return {};
+}
+
+std::string ExportMeshTool::defaultSuffix() const {
+  if (!fixedFormat_) return ".stl";
+  switch (*fixedFormat_) {
+    case io::MeshFormat::Stl: return ".stl";
+    case io::MeshFormat::Obj: return ".obj";
+    case io::MeshFormat::Gltf: return ".gltf";
+    case io::MeshFormat::Glb: return ".glb";
+    case io::MeshFormat::ThreeMf: return ".3mf";
+  }
+  return ".stl";
+}
+
+bool ExportMeshTool::isEnabled(const core::ToolContext& ctx) const {
   return ctx.document && !ctx.document->liveBodies().empty();
 }
 
-StlExportSettings ExportStlTool::loadDefaults() {
+StlExportSettings ExportMeshTool::loadDefaults() {
   StlExportSettings s;
   QSettings q;
   s.linearDeflection = q.value("export/stl/linear", s.linearDeflection).toDouble();
@@ -93,14 +121,14 @@ StlExportSettings ExportStlTool::loadDefaults() {
   return s;
 }
 
-void ExportStlTool::saveDefaults(const StlExportSettings& s) {
+void ExportMeshTool::saveDefaults(const StlExportSettings& s) {
   QSettings q;
   q.setValue("export/stl/linear", s.linearDeflection);
   q.setValue("export/stl/angular", s.angularDeflectionDeg);
   q.setValue("export/stl/binary", s.binary);
 }
 
-bool ExportStlTool::applyOption(const std::string& a, StlExportSettings& s) {
+bool ExportMeshTool::applyOption(const std::string& a, StlExportSettings& s) {
   auto value = [&](size_t eq) { return a.substr(eq + 1); };
   const size_t eq = a.find('=');
   std::string key = eq == std::string::npos ? a : a.substr(0, eq);
@@ -136,6 +164,14 @@ bool ExportStlTool::applyOption(const std::string& a, StlExportSettings& s) {
     if (parseDouble(v, d) && d > 0) s.angularDeflectionDeg = d * (rad ? 180.0 / kPi : 1.0);
     return true;
   }
+  if (key == "yup" || key == "y-up") {
+    s.yUp = eq == std::string::npos || value(eq) != "off";
+    return true;
+  }
+  if (key == "zup" || key == "z-up") {
+    s.yUp = false;
+    return true;
+  }
   if (key == "ascii") {
     s.binary = false;
     return true;
@@ -153,7 +189,7 @@ bool ExportStlTool::applyOption(const std::string& a, StlExportSettings& s) {
   return false;
 }
 
-void ExportStlTool::activate(core::ToolContext& ctx) {
+void ExportMeshTool::activate(core::ToolContext& ctx) {
   // Command line / script: the built-in defaults (Medium: 0.05 mm, 0.2 rad, binary) unless options are typed,
   // so "EXPORTSTL a.stl" always means the same mesh. The dialog starts from the last used settings.
   settings_ = ctx.args.empty() ? loadDefaults() : StlExportSettings{};
@@ -171,15 +207,18 @@ void ExportStlTool::activate(core::ToolContext& ctx) {
     return;
   }
   if (!(ctx.host && ctx.host->mainWindow())) {
-    ctx.showMessage("EXPORTSTL needs a file name: EXPORTSTL out.stl [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad] [ascii]", true);
+    const std::string verb = ctx.args.empty() && !info().aliases.empty() ? info().aliases.front() : "EXPORTSTL";
+    ctx.showMessage(std::format("{} needs a file name: {} out{} [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad]{}", verb,
+                                verb, defaultSuffix(), fixedFormat_ == io::MeshFormat::Stl ? " [ascii]" : ""),
+                    true);
     ctx.cancel();
     return;
   }
-  ctx.setPrompt("Export STL: choose the file and the tessellation, then OK");
+  ctx.setPrompt(std::format("Export {}: choose the file and the tessellation, then OK", formatLabel()));
   if (ctx.host) ctx.host->setToolAcceptEnabled(true);
 }
 
-void ExportStlTool::deactivate(core::ToolContext&) {
+void ExportMeshTool::deactivate(core::ToolContext&) {
   qualityCombo_ = nullptr;
   pathEdit_ = nullptr;
   linearEdit_ = nullptr;
@@ -188,7 +227,7 @@ void ExportStlTool::deactivate(core::ToolContext&) {
   bodiesLabel_ = nullptr;
 }
 
-bool ExportStlTool::commandLineInput(core::ToolContext& ctx, const std::string& text) {
+bool ExportMeshTool::commandLineInput(core::ToolContext& ctx, const std::string& text) {
   std::string t = text;
   while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) t.pop_back();
   while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front()))) t.erase(t.begin());
@@ -209,7 +248,7 @@ bool ExportStlTool::commandLineInput(core::ToolContext& ctx, const std::string& 
   return true;
 }
 
-void ExportStlTool::readDialog() {
+void ExportMeshTool::readDialog() {
   if (pathEdit_) path_ = pathEdit_->text().trimmed().toStdString();
   if (linearEdit_) {
     double v;
@@ -225,44 +264,84 @@ void ExportStlTool::readDialog() {
   if (formatCombo_) settings_.binary = formatCombo_->currentIndex() == 0;
 }
 
-void ExportStlTool::accept(core::ToolContext& ctx) {
+void ExportMeshTool::accept(core::ToolContext& ctx) {
   readDialog();
   if (path_.empty()) {
     QWidget* parent = ctx.host ? ctx.host->mainWindow() : nullptr;
     if (!parent) {
-      ctx.showMessage("Export STL: type the file name (or EXPORTSTL out.stl)", true);
+      ctx.showMessage(std::format("Export {}: type the file name", formatLabel()), true);
       return;
     }
-    QString p = QFileDialog::getSaveFileName(parent, "Export STL", QString(), "STL files (*.stl)");
+    QString p = QFileDialog::getSaveFileName(parent, QString::fromStdString("Export " + formatLabel()), QString(),
+                                             QString::fromStdString(fileFilter()));
     if (p.isEmpty()) return;
-    if (!p.contains('.')) p += ".stl";
+    if (!p.contains('.')) p += QString::fromStdString(defaultSuffix());
     path_ = p.toStdString();
   }
   if (exportNow(ctx)) ctx.finish();
 }
 
-void ExportStlTool::syncQualityCombo() {
+void ExportMeshTool::syncQualityCombo() {
   if (qualityCombo_) qualityCombo_->setCurrentIndex(static_cast<int>(stlQualityOf(settings_)));
 }
 
-bool ExportStlTool::exportNow(core::ToolContext& ctx) {
-  std::vector<TopoDS_Shape> shapes;
-  std::vector<std::string> names;
-  if (!collectExportShapes(ctx, shapes, names)) return false;
-  std::string err;
-  if (!exportStl(shapes, path_, settings_.binary, settings_.linearDeflection, settings_.angularDeflectionDeg, &err)) {
-    ctx.showMessage("export failed: " + err, true);
+bool ExportMeshTool::exportNow(core::ToolContext& ctx) {
+  if (QFileInfo(QString::fromStdString(path_)).suffix().isEmpty()) path_ += defaultSuffix();
+  io::MeshFormat format = io::MeshFormat::Stl;
+  if (auto f = io::meshFormatFromPath(path_)) {
+    format = *f;
+    if (fixedFormat_ && *fixedFormat_ != format &&
+        !((*fixedFormat_ == io::MeshFormat::Gltf || *fixedFormat_ == io::MeshFormat::Glb) &&
+          (format == io::MeshFormat::Gltf || format == io::MeshFormat::Glb))) {
+      ctx.showMessage(std::format("export failed: {} is not a {} file name", path_, formatLabel()), true);
+      return false;
+    }
+  } else if (fixedFormat_) {
+    format = *fixedFormat_;
+  } else {
+    ctx.showMessage("export failed: unknown mesh format (use .stl, .obj, .glb, .gltf or .3mf): " + path_, true);
     return false;
   }
+  std::string err;
+  size_t count = 0;
+  if (format == io::MeshFormat::Stl) {
+    std::vector<TopoDS_Shape> shapes;
+    std::vector<std::string> names;
+    if (!collectExportShapes(ctx, shapes, names)) return false;
+    count = shapes.size();
+    if (!exportStl(shapes, path_, settings_.binary, settings_.linearDeflection, settings_.angularDeflectionDeg, &err)) {
+      ctx.showMessage("export failed: " + err, true);
+      return false;
+    }
+  } else {
+    std::vector<io::MeshItem> items;
+    if (!collectExportItems(ctx, items)) return false;
+    count = items.size();
+    io::MeshExportOptions o;
+    o.linearDeflection = settings_.linearDeflection;
+    o.angularDeflectionDeg = settings_.angularDeflectionDeg;
+    o.yUp = settings_.yUp;
+    if (ctx.document) {
+      const std::string fp = ctx.document->filePath();
+      o.title = fp.empty() ? std::string("Untitled") : QFileInfo(QString::fromStdString(fp)).completeBaseName().toStdString();
+    }
+    io::MeshExportStats stats;
+    if (!io::exportMesh(items, path_, format, o, &err, &stats)) {
+      ctx.showMessage("export failed: " + err, true);
+      return false;
+    }
+    ctx.showMessage(std::format("{}: {} object(s), {} triangles", io::meshFormatName(format), stats.objects, stats.triangles));
+  }
   if (ctx.args.empty()) saveDefaults(settings_);  // remembered for the next dialog, not for typed exports
-  ctx.showMessage(std::format("STL mesh ({}): linear deflection {} mm, angular deflection {:.4g} deg ({:.4g} rad), {}",
+  ctx.showMessage(std::format("{} mesh ({}): linear deflection {} mm, angular deflection {:.4g} deg ({:.4g} rad){}", io::meshFormatName(format),
                               stlQualityName(stlQualityOf(settings_)), settings_.linearDeflection, settings_.angularDeflectionDeg,
-                              settings_.angularDeflectionDeg * kPi / 180.0, settings_.binary ? "binary" : "ascii"));
-  ctx.showMessage(std::format("exported {} bod{} to {}", shapes.size(), shapes.size() == 1 ? "y" : "ies", path_));
+                              settings_.angularDeflectionDeg * kPi / 180.0,
+                              format == io::MeshFormat::Stl ? (settings_.binary ? ", binary" : ", ascii") : ""));
+  ctx.showMessage(std::format("exported {} bod{} to {}", count, count == 1 ? "y" : "ies", path_));
   return true;
 }
 
-QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
+QWidget* ExportMeshTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   auto* w = new QWidget(parent);
   auto* form = new QFormLayout(w);
   auto* fileRow = new QWidget(w);
@@ -270,15 +349,17 @@ QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   h->setContentsMargins(0, 0, 0, 0);
   pathEdit_ = new QLineEdit(QString::fromStdString(path_), fileRow);
   pathEdit_->setObjectName("stl_path");  // stable names: tours and GUI tests (docs/plans/tutorial.md 6)
-  pathEdit_->setPlaceholderText("out.stl (empty: ask on OK)");
+  pathEdit_->setPlaceholderText(fixedFormat_ ? QString::fromStdString("out" + defaultSuffix() + " (empty: ask on OK)")
+                                             : QString("out.stl | .obj | .glb | .3mf"));
   auto* browse = new QPushButton("...", fileRow);
   browse->setFixedWidth(28);
   h->addWidget(pathEdit_);
   h->addWidget(browse);
   QObject::connect(browse, &QPushButton::clicked, w, [this, w] {
-    QString p = QFileDialog::getSaveFileName(w, "Export STL", pathEdit_ ? pathEdit_->text() : QString(), "STL files (*.stl)");
+    QString p = QFileDialog::getSaveFileName(w, QString::fromStdString("Export " + formatLabel()), pathEdit_ ? pathEdit_->text() : QString(),
+                                             QString::fromStdString(fileFilter()));
     if (p.isEmpty()) return;
-    if (!p.contains('.')) p += ".stl";
+    if (!p.contains('.')) p += QString::fromStdString(defaultSuffix());
     if (pathEdit_) pathEdit_->setText(p);
   });
   form->addRow("File", fileRow);
@@ -316,6 +397,7 @@ QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   formatCombo_->addItems({"Binary", "ASCII"});
   formatCombo_->setCurrentIndex(settings_.binary ? 0 : 1);
   form->addRow("Format", formatCombo_);
+  if (fixedFormat_ && *fixedFormat_ != io::MeshFormat::Stl) formatCombo_->setEnabled(false);
   size_t n = 0;
   if (ctx.document) {
     if (ctx.selection) n = ctx.selection->itemsOfKind(core::mask(core::ShapeKind::Body)).size();

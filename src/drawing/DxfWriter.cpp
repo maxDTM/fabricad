@@ -1,9 +1,11 @@
-// FabriCAD drawing: DXF R12 writer implementation.
+// FabriCAD drawing: DXF R12 writer implementation (and the R12 / R2000 model-space mode).
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "drawing/DxfWriter.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <format>
 
 namespace fabricad::drawing {
 
@@ -176,6 +178,7 @@ void DxfWriter::addDisplayList(const DisplayList& list) {
 }
 
 std::string DxfWriter::finish() const {
+  if (model_) return finishModel();
   std::string out;
   auto g = [&](int code, const std::string& v) {
     char buf[16];
@@ -225,6 +228,249 @@ std::string DxfWriter::finish() const {
   g(0, "SECTION"); g(2, "ENTITIES");
   out += entities_;
   g(0, "ENDSEC");
+  g(0, "EOF");
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// model space (P3: flat 1:1 DXF of a face or sketch)
+// ---------------------------------------------------------------------------
+
+DxfWriter DxfWriter::model(Version version) {
+  DxfWriter w(0.0);
+  w.model_ = true;
+  w.version_ = version;
+  return w;
+}
+
+void DxfWriter::addLayer(const std::string& name, int color, const std::string& ltype) {
+  for (const auto& l : layers_)
+    if (l.name == name) return;
+  layers_.push_back({name, ltype, color});
+}
+
+std::string DxfWriter::handle() { return std::format("{:X}", nextHandle_++); }
+
+void DxfWriter::extend(double x, double y) {
+  if (!hasExtents_) {
+    minX_ = maxX_ = x;
+    minY_ = maxY_ = y;
+    hasExtents_ = true;
+    return;
+  }
+  minX_ = std::min(minX_, x);
+  minY_ = std::min(minY_, y);
+  maxX_ = std::max(maxX_, x);
+  maxY_ = std::max(maxY_, y);
+}
+
+void DxfWriter::modelEntity(const char* type, const std::string& layer, const char* subclass) {
+  group(0, std::string(type));
+  if (version_ == Version::R2000) {
+    group(5, handle());
+    group(330, std::string("1F"));  // owner: *Model_Space block record
+    group(100, std::string("AcDbEntity"));
+  }
+  group(8, layer);
+  if (version_ == Version::R2000 && subclass) group(100, std::string(subclass));
+}
+
+void DxfWriter::line(const std::string& layer, double x1, double y1, double x2, double y2) {
+  modelEntity("LINE", layer, "AcDbLine");
+  group(10, x1); group(20, y1); group(30, 0.0);
+  group(11, x2); group(21, y2); group(31, 0.0);
+  extend(x1, y1);
+  extend(x2, y2);
+}
+
+void DxfWriter::circle(const std::string& layer, double cx, double cy, double r) {
+  modelEntity("CIRCLE", layer, "AcDbCircle");
+  group(10, cx); group(20, cy); group(30, 0.0);
+  group(40, r);
+  extend(cx - r, cy - r);
+  extend(cx + r, cy + r);
+}
+
+void DxfWriter::arc(const std::string& layer, double cx, double cy, double r, double startDeg, double endDeg) {
+  modelEntity("ARC", layer, "AcDbCircle");
+  group(10, cx); group(20, cy); group(30, 0.0);
+  group(40, r);
+  if (version_ == Version::R2000) group(100, std::string("AcDbArc"));
+  group(50, normalizeAngle(startDeg));
+  group(51, normalizeAngle(endDeg));
+  extend(cx - r, cy - r);  // conservative
+  extend(cx + r, cy + r);
+}
+
+void DxfWriter::lwpolyline(const std::string& layer, const std::vector<PolyVertex>& pts, bool closed) {
+  if (pts.size() < 2) return;
+  for (const auto& p : pts) extend(p.x, p.y);
+  if (version_ == Version::R2000) {
+    modelEntity("LWPOLYLINE", layer, "AcDbPolyline");
+    group(90, static_cast<int>(pts.size()));
+    group(70, closed ? 1 : 0);
+    group(43, 0.0);
+    for (const auto& p : pts) {
+      group(10, p.x);
+      group(20, p.y);
+      if (p.bulge != 0) group(42, p.bulge);
+    }
+    return;
+  }
+  modelEntity("POLYLINE", layer, nullptr);
+  group(66, 1);
+  group(70, closed ? 1 : 0);
+  group(10, 0.0); group(20, 0.0); group(30, 0.0);
+  for (const auto& p : pts) {
+    modelEntity("VERTEX", layer, nullptr);
+    group(10, p.x); group(20, p.y); group(30, 0.0);
+    if (p.bulge != 0) group(42, p.bulge);
+  }
+  modelEntity("SEQEND", layer, nullptr);
+}
+
+void DxfWriter::spline(const std::string& layer, int degree, const std::vector<std::pair<double, double>>& poles,
+                       const std::vector<double>& knots, const std::vector<double>& weights, bool closed,
+                       const std::vector<std::pair<double, double>>& fit) {
+  if (version_ == Version::R12 || poles.size() < 2 || knots.size() != poles.size() + static_cast<size_t>(degree) + 1) {
+    std::vector<PolyVertex> v;
+    for (const auto& [x, y] : fit) v.push_back({x, y, 0});
+    lwpolyline(layer, v, closed);
+    return;
+  }
+  const bool rational = !weights.empty();
+  modelEntity("SPLINE", layer, "AcDbSpline");
+  group(210, 0.0); group(220, 0.0); group(230, 1.0);
+  group(70, 8 | (closed ? 1 : 0) | (rational ? 4 : 0));
+  group(71, degree);
+  group(72, static_cast<int>(knots.size()));
+  group(73, static_cast<int>(poles.size()));
+  group(74, 0);
+  group(42, 1e-10);
+  group(43, 1e-10);
+  for (double k : knots) group(40, k);
+  if (rational)
+    for (double w : weights) group(41, w);
+  for (const auto& [x, y] : poles) {
+    group(10, x); group(20, y); group(30, 0.0);
+    extend(x, y);
+  }
+}
+
+std::string DxfWriter::finishModel() const {
+  std::string out;
+  auto g = [&](int code, const std::string& v) {
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%3d\n", code);
+    out += buf;
+    out += v;
+    out += '\n';
+  };
+  const bool r2k = version_ == Version::R2000;
+  const double x0 = hasExtents_ ? minX_ : 0, y0 = hasExtents_ ? minY_ : 0, x1 = hasExtents_ ? maxX_ : 0, y1 = hasExtents_ ? maxY_ : 0;
+  g(0, "SECTION"); g(2, "HEADER");
+  g(9, "$ACADVER"); g(1, r2k ? "AC1015" : "AC1009");
+  if (r2k) {
+    g(9, "$HANDSEED"); g(5, std::format("{:X}", nextHandle_ + 1));
+    g(9, "$INSUNITS"); g(70, std::to_string(static_cast<int>(units_)));
+    g(9, "$MEASUREMENT"); g(70, units_ == Units::Inches ? "0" : "1");
+  }
+  g(9, "$EXTMIN"); g(10, fmt(x0)); g(20, fmt(y0)); g(30, fmt(0));
+  g(9, "$EXTMAX"); g(10, fmt(x1)); g(20, fmt(y1)); g(30, fmt(0));
+  g(0, "ENDSEC");
+  if (r2k) {
+    g(0, "SECTION"); g(2, "CLASSES"); g(0, "ENDSEC");
+  }
+  g(0, "SECTION"); g(2, "TABLES");
+  auto table = [&](const char* name, const char* h, int count) {
+    g(0, "TABLE"); g(2, name);
+    if (r2k) {
+      g(5, h); g(330, "0"); g(100, "AcDbSymbolTable");
+    }
+    g(70, std::to_string(count));
+  };
+  auto record = [&](const char* type, const std::string& h, const char* owner, const char* sub) {
+    g(0, type);
+    if (r2k) {
+      g(5, h); g(330, owner); g(100, "AcDbSymbolTableRecord"); g(100, sub);
+    }
+  };
+  if (r2k) {
+    table("VPORT", "8", 0); g(0, "ENDTAB");
+  }
+  // line types
+  struct LT {
+    const char* name;
+    const char* desc;
+    std::vector<double> dashes;
+  };
+  const LT lts[] = {{"CONTINUOUS", "Solid line", {}}, {"HIDDEN", "Hidden __ __ __", {3.0, -1.5}}, {"CENTER", "Center ____ _ ____ _", {8.0, -1.5, 1.0, -1.5}}};
+  table("LTYPE", "5", r2k ? 5 : 3);
+  if (r2k) {
+    record("LTYPE", "14", "5", "AcDbLinetypeTableRecord"); g(2, "ByBlock"); g(70, "0"); g(3, ""); g(72, "65"); g(73, "0"); g(40, fmt(0));
+    record("LTYPE", "15", "5", "AcDbLinetypeTableRecord"); g(2, "ByLayer"); g(70, "0"); g(3, ""); g(72, "65"); g(73, "0"); g(40, fmt(0));
+  }
+  int lh = 0x16;
+  for (const LT& lt : lts) {
+    double total = 0;
+    for (double d : lt.dashes) total += std::abs(d);
+    record("LTYPE", std::format("{:X}", lh++), "5", "AcDbLinetypeTableRecord");
+    g(2, lt.name); g(70, "0"); g(3, lt.desc); g(72, "65"); g(73, std::to_string(lt.dashes.size())); g(40, fmt(total));
+    for (double d : lt.dashes) {
+      g(49, fmt(d));
+      if (r2k) g(74, "0");
+    }
+  }
+  g(0, "ENDTAB");
+  table("LAYER", "2", static_cast<int>(layers_.size()) + 1);
+  int layerHandle = 0x30;
+  record("LAYER", std::format("{:X}", layerHandle++), "2", "AcDbLayerTableRecord");
+  g(2, "0"); g(70, "0"); g(62, "7"); g(6, "CONTINUOUS");
+  for (const auto& l : layers_) {
+    record("LAYER", std::format("{:X}", layerHandle++), "2", "AcDbLayerTableRecord");
+    g(2, l.name); g(70, "0"); g(62, std::to_string(l.color)); g(6, l.ltype);
+  }
+  g(0, "ENDTAB");
+  table("STYLE", "3", 1);
+  record("STYLE", "11", "3", "AcDbTextStyleTableRecord");
+  g(2, "STANDARD"); g(70, "0"); g(40, fmt(0)); g(41, fmt(1)); g(50, fmt(0)); g(71, "0"); g(42, fmt(2.5)); g(3, "txt"); g(4, "");
+  g(0, "ENDTAB");
+  if (r2k) {
+    table("VIEW", "6", 0); g(0, "ENDTAB");
+    table("UCS", "7", 0); g(0, "ENDTAB");
+    table("APPID", "9", 1);
+    record("APPID", "12", "9", "AcDbRegAppTableRecord"); g(2, "ACAD"); g(70, "0");
+    g(0, "ENDTAB");
+    table("DIMSTYLE", "A", 0); g(100, "AcDbDimStyleTable"); g(0, "ENDTAB");
+    table("BLOCK_RECORD", "1", 2);
+    record("BLOCK_RECORD", "1F", "1", "AcDbBlockTableRecord"); g(2, "*Model_Space");
+    record("BLOCK_RECORD", "1B", "1", "AcDbBlockTableRecord"); g(2, "*Paper_Space");
+    g(0, "ENDTAB");
+  }
+  g(0, "ENDSEC");
+  g(0, "SECTION"); g(2, "BLOCKS");
+  if (r2k) {
+    auto block = [&](const char* name, const char* begin, const char* end, const char* owner, bool paper) {
+      g(0, "BLOCK"); g(5, begin); g(330, owner); g(100, "AcDbEntity");
+      if (paper) g(67, "1");
+      g(8, "0"); g(100, "AcDbBlockBegin"); g(2, name); g(70, "0"); g(10, fmt(0)); g(20, fmt(0)); g(30, fmt(0)); g(3, name); g(1, "");
+      g(0, "ENDBLK"); g(5, end); g(330, owner); g(100, "AcDbEntity");
+      if (paper) g(67, "1");
+      g(8, "0"); g(100, "AcDbBlockEnd");
+    };
+    block("*Model_Space", "20", "21", "1F", false);
+    block("*Paper_Space", "1C", "1D", "1B", true);
+  }
+  g(0, "ENDSEC");
+  g(0, "SECTION"); g(2, "ENTITIES");
+  out += entities_;
+  g(0, "ENDSEC");
+  if (r2k) {
+    g(0, "SECTION"); g(2, "OBJECTS");
+    g(0, "DICTIONARY"); g(5, "C"); g(330, "0"); g(100, "AcDbDictionary"); g(281, "1"); g(3, "ACAD_GROUP"); g(350, "D");
+    g(0, "DICTIONARY"); g(5, "D"); g(330, "C"); g(100, "AcDbDictionary"); g(281, "1");
+    g(0, "ENDSEC");
+  }
   g(0, "EOF");
   return out;
 }

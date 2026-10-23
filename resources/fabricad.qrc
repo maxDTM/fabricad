@@ -217,6 +217,12 @@
   <file>icons/dark/part-cylinder.svg</file>
   <file>icons/dark/part-draft.svg</file>
   <file>icons/dark/part-edit-feature.svg</file>
+  <file>icons/dark/part-export-3mf.svg</file>
+  <file>icons/dark/part-export-face-dxf.svg</file>
+  <file>icons/dark/part-export-gltf.svg</file>
+  <file>icons/dark/part-export-iges.svg</file>
+  <file>icons/dark/part-export-mesh.svg</file>
+  <file>icons/dark/part-export-obj.svg</file>
   <file>icons/dark/part-export-step.svg</file>
   <file>icons/dark/part-export-stl.svg</file>
   <file>icons/dark/part-extrude.svg</file>
@@ -558,6 +564,12 @@
   <file>icons/light/part-cylinder.svg</file>
   <file>icons/light/part-draft.svg</file>
   <file>icons/light/part-edit-feature.svg</file>
+  <file>icons/light/part-export-3mf.svg</file>
+  <file>icons/light/part-export-face-dxf.svg</file>
+  <file>icons/light/part-export-gltf.svg</file>
+  <file>icons/light/part-export-iges.svg</file>
+  <file>icons/light/part-export-mesh.svg</file>
+  <file>icons/light/part-export-obj.svg</file>
   <file>icons/light/part-export-step.svg</file>
   <file>icons/light/part-export-stl.svg</file>
   <file>icons/light/part-extrude.svg</file>
