@@ -478,6 +478,8 @@ I["inspect-measure"] = (R(2, 8, 20, 8, 1.5, s=IN, f=WH) + P("M6 8 V11 M10 8 V12.
 # section analysis: a body cut by a translucent plane, the cut face hatched
 I["inspect-section"] = (R(3, 8, 9, 11, 1, f=BODY) + P("M9 3 L20 6.5 V21 L9 17.5 Z", s=IN, f=IN, fo="0.25") +
                         P("M12 9 L17 10.6 M12 13 L17 14.6", s=IN))
+I["inspect-section-off"] = (R(3, 8, 9, 11, 1, f=BODY) + P("M9 3 L20 6.5 V21 L9 17.5 Z", s=IN, da="2 1.5") +
+                            cross(18.5, 18.5, RED, 3))
 I["assembly-interference"] = (R(3, 4, 11, 11, 1, s=IN, f=WH) + R(10, 9, 11, 11, 1, s=IN, f=WH) +
                               R(10, 9, 4, 6, f=RED, fo="0.6", s="none") + P("M3 4 H14 V15 H3 Z", s=IN))
 

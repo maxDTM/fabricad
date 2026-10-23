@@ -35,6 +35,7 @@
 #include <TopoDS_Compound.hxx>
 
 #include <algorithm>
+#include <set>
 #include <cctype>
 #include <cmath>
 #include <format>
@@ -395,9 +396,17 @@ void noteCrossComponent(core::RecomputeContext& ctx, const TopoDS_Shape& tool, O
   if (!pf) return;
   const core::Document& doc = ctx.document();
   const std::vector<core::ObjectId> all = ctx.bodies();
+  auto compOf = [&](core::ObjectId id) {
+    const core::Body* b = doc.body(id);
+    return b ? b->component : core::kInvalidId;
+  };
+  std::set<core::ObjectId> comps;
+  for (core::ObjectId id : all) comps.insert(compOf(id));
+  if (comps.size() < 2) return;  // every body in one component: nothing can be "another" one
   const std::vector<core::ObjectId> tree = bodiesInComponentTree(doc, ctx.self().component(), all);
-  if (tree.size() == all.size()) return;  // a root feature (or one component): nothing is outside
   auto inTree = [&](core::ObjectId id) { return std::find(tree.begin(), tree.end(), id) != tree.end(); };
+  std::set<core::ObjectId> partComps;
+  for (core::ObjectId id : parts) partComps.insert(compOf(id));
   auto label = [&](core::ObjectId id) {
     const core::Body* b = doc.body(id);
     const core::Component* c = b ? doc.component(b->component) : nullptr;
@@ -406,11 +415,14 @@ void noteCrossComponent(core::RecomputeContext& ctx, const TopoDS_Shape& tool, O
   const std::string feat = ctx.self().name().empty() ? ctx.self().type() : ctx.self().name();
   const char* verb = op == Operation::Join ? "joins" : op == Operation::Cut ? "cuts" : "intersects";
   const char* past = op == Operation::Join ? "joined" : op == Operation::Cut ? "cut" : "intersected";
+  // an explicit target outside the feature's component tree
   for (core::ObjectId id : parts)
     if (!inTree(id)) pf->addCrossComponentNote(std::format("{} {} {} (another component)", feat, verb, label(id)));
+  // the tool passes through a body of a component that takes no part
   for (core::ObjectId id : all) {
-    if (inTree(id) || std::find(parts.begin(), parts.end(), id) != parts.end()) continue;
-    if (!shapesTouch(ctx.bodyShape(id), tool)) continue;
+    if (std::find(parts.begin(), parts.end(), id) != parts.end()) continue;
+    const bool other = parts.empty() ? !inTree(id) : partComps.count(compOf(id)) == 0;
+    if (!other || !shapesTouch(ctx.bodyShape(id), tool)) continue;
     pf->addCrossComponentNote(std::format("{} touches {} but left it alone (another component); pick it under the "
                                           "operation's bodies to have it {}",
                                           feat, label(id), past));

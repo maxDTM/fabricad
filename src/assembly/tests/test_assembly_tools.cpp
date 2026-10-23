@@ -751,6 +751,14 @@ class AssemblyToolsTest : public QObject {
     QVERIFY(h.doc.component(b.compA)->grounded);
     QVERIFY(h.manager.runCommandLine("GROUND"));
     QVERIFY(h.doc.component(b.compA)->grounded);
+    // NEW-ASM-CORE-2: the toggle reads "Unground" while every selected component is grounded
+    const core::ToolInfo& gi = h.tools.tool("assembly.ground-toggle")->info();
+    QVERIFY(gi.dynamicName);
+    QCOMPARE(gi.dynamicName(h.manager.makeContext()), std::string("Unground"));
+    h.select({ShapeRef::component(b.compA), ShapeRef::component(b.compB)});
+    if (!h.doc.component(b.compB)->grounded) QVERIFY(gi.dynamicName(h.manager.makeContext()).empty());  // "Ground"
+    h.select({});
+    QVERIFY(gi.dynamicName(h.manager.makeContext()).empty());
   }
 
   void groundRigidGroupAndComponentsFromBodies() {

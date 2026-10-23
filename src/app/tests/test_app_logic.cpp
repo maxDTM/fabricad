@@ -471,6 +471,103 @@ class TestAppLogic : public QObject {
     QCOMPARE(m.radial[app::N].label, std::string("Repeat rectangle-2pt"));
   }
 
+  // --- split buttons (P5-MOCKUP-10) ----------------------------------------------------------
+  void toolbarSplitButtons() {
+    core::ToolRegistry reg;
+    addTool(reg, ti("part.fillet", "SOLID", "MODIFY", 20, true));
+    addTool(reg, ti("part.rectangular-pattern", "SOLID", "MODIFY", 42, true));
+    addTool(reg, ti("part.circular-pattern", "SOLID", "MODIFY", 43, true));  // promoted, but a variant
+    addTool(reg, ti("part.mirror", "SOLID", "MODIFY", 44, true));
+    addTool(reg, ti("construct.offset-plane", "SOLID", "CONSTRUCT", 10, true));
+    addTool(reg, ti("construct.plane-at-angle", "SOLID", "CONSTRUCT", 20, true));
+    addTool(reg, ti("construct.midplane", "SOLID", "CONSTRUCT", 30, true));
+    addTool(reg, ti("construct.axis", "SOLID", "CONSTRUCT", 50, true));
+    const auto page = app::buildToolbarSections(reg, core::Workspace::Design);
+    const app::ToolbarSection* modify = nullptr;
+    const app::ToolbarSection* construct = nullptr;
+    for (const auto& s : page) {
+      if (s.name == "MODIFY") modify = &s;
+      if (s.name == "CONSTRUCT") construct = &s;
+    }
+    QVERIFY(modify && construct);
+    auto ids = [](const std::vector<core::ITool*>& v) {
+      std::vector<std::string> out;
+      for (const core::ITool* t : v) out.push_back(t->info().id);
+      return out;
+    };
+    // MODIFY: FILLET PATTERN(v) MIRROR; the circular pattern is in the Pattern arrow menu
+    QCOMPARE(ids(modify->promoted), (std::vector<std::string>{"part.fillet", "part.rectangular-pattern", "part.mirror"}));
+    core::ITool* pattern = reg.tool("part.rectangular-pattern");
+    QVERIFY(modify->variants.count(pattern));
+    QCOMPARE(ids(modify->variants.at(pattern)), (std::vector<std::string>{"part.rectangular-pattern", "part.circular-pattern"}));
+    QCOMPARE(modify->all.size(), size_t(4));  // the caption dropdown still lists every tool
+    // CONSTRUCT: PLANE(v) AXIS, as in mockup v6
+    QCOMPARE(ids(construct->promoted), (std::vector<std::string>{"construct.offset-plane", "construct.axis"}));
+    QCOMPARE(construct->variants.at(reg.tool("construct.offset-plane")).size(), size_t(3));
+    QVERIFY(!construct->variants.count(reg.tool("construct.axis")));
+    // a family with one member present makes no split button
+    core::ToolRegistry lone;
+    addTool(lone, ti("part.rectangular-pattern", "SOLID", "MODIFY", 42, true));
+    for (const auto& s : app::buildToolbarSections(lone, core::Workspace::Design)) QVERIFY(s.variants.empty());
+    // short labels of the new mockup buttons
+    core::ToolInfo pr = ti("sketch.project-start", "SOLID", "CREATE");
+    pr.name = "Project to Sketch";
+    QCOMPARE(app::shortToolLabel(pr), std::string("Project"));
+    core::ToolInfo se = ti("inspect.section", "SOLID", "INSPECT");
+    se.name = "Section Analysis";
+    QCOMPARE(app::shortToolLabel(se), std::string("Section"));
+  }
+
+  void toolbarExtraPlacementsForSurface() {
+    // MORE > SURFACE is Thicken's home; SOLID > CREATE lists it too, Split Face shows in SURFACE
+    core::ToolRegistry reg;
+    addTool(reg, ti("part.extrude", "SOLID", "CREATE", 10, true));
+    addTool(reg, ti("part.thicken", "SURFACE", "CREATE", 90));
+    addTool(reg, ti("part.split-face", "SOLID", "MODIFY", 61));
+    const auto model = app::buildToolbarModel(reg, core::Workspace::Design);
+    auto group = [&](const std::string& tab, const std::string& g) -> const app::ToolbarGroup* {
+      for (const auto& t : model)
+        if (t.name == tab)
+          for (const auto& gr : t.groups)
+            if (gr.name == g) return &gr;
+      return nullptr;
+    };
+    const app::ToolbarGroup* solidCreate = group("SOLID", "CREATE");
+    QVERIFY(solidCreate);
+    QVERIFY(std::find(solidCreate->all.begin(), solidCreate->all.end(), reg.tool("part.thicken")) != solidCreate->all.end());
+    const app::ToolbarGroup* surfCreate = group("SURFACE", "CREATE");
+    QVERIFY(surfCreate && surfCreate->all.front() == reg.tool("part.thicken"));
+    const app::ToolbarGroup* surfModify = group("SURFACE", "MODIFY");
+    QVERIFY2(!surfModify || surfModify->all.front() == reg.tool("part.split-face"), "split face");
+  }
+
+  void searchDropsDisabledFuzzyMatches() {
+    // APP-10: "fil" (prefix) keeps a disabled Fillet listed last; "flt" (fuzzy) drops it
+    core::ToolRegistry reg;
+    core::ToolInfo f = ti("part.fillet", "SOLID", "MODIFY");
+    f.name = "Fillet";
+    reg.registerTool(std::make_unique<core::LambdaTool>(f, [](core::ToolContext&) {}, [](const core::ToolContext&) { return false; }));
+    core::ToolInfo fl = ti("part.flat", "SOLID", "MODIFY");
+    fl.name = "Flatten";
+    addTool(reg, fl);
+    const core::ToolContext ctx;
+    auto rank = [&](const core::ITool* t) { return t->isEnabled(ctx) ? 0 : app::kDisabledRank; };
+    auto r = app::searchCommandIds(reg, "fil", {}, {}, 20, rank);
+    QVERIFY(std::find(r.begin(), r.end(), "part.fillet") != r.end());
+    // "flt" is a fuzzy match of Fillet: listed while it is enabled, dropped while it is disabled
+    r = app::searchCommandIds(reg, "flt", {}, {});
+    QVERIFY(std::find(r.begin(), r.end(), "part.fillet") != r.end());
+    r = app::searchCommandIds(reg, "flt", {}, {}, 20, rank);
+    QVERIFY(std::find(r.begin(), r.end(), "part.fillet") == r.end());
+    QVERIFY(app::isPrefixMatch(f, "FIL"));
+    QVERIFY(app::isPrefixMatch(f, " fillet "));
+    QVERIFY(!app::isPrefixMatch(f, "flt"));
+    core::ToolInfo ed = ti("sketch.dimension-edit", "SKETCH", "CREATE");
+    ed.name = "Edit Dimension";
+    QVERIFY(app::isPrefixMatch(ed, "dim"));  // a word of the name
+    QVERIFY(!app::isPrefixMatch(ed, "pref"));
+  }
+
   // --- command search ----------------------------------------------------------------------
   void searchIds() {
     core::ToolRegistry reg;

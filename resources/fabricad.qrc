@@ -177,6 +177,7 @@
   <file>icons/dark/help.svg</file>
   <file>icons/dark/home.svg</file>
   <file>icons/dark/inspect-measure.svg</file>
+  <file>icons/dark/inspect-section-off.svg</file>
   <file>icons/dark/inspect-section.svg</file>
   <file>icons/dark/joint-ball.svg</file>
   <file>icons/dark/joint-cylindrical.svg</file>
@@ -498,6 +499,7 @@
   <file>icons/light/help.svg</file>
   <file>icons/light/home.svg</file>
   <file>icons/light/inspect-measure.svg</file>
+  <file>icons/light/inspect-section-off.svg</file>
   <file>icons/light/inspect-section.svg</file>
   <file>icons/light/joint-ball.svg</file>
   <file>icons/light/joint-cylindrical.svg</file>

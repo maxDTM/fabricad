@@ -192,7 +192,7 @@ void registerPartTools(core::ModuleContext& ctx) {
   {
     core::ToolInfo i = info("inspect.section-off", "Remove Section", "Turn the section analysis off", SOLID, "INSPECT", 3, false, "",
                             {"SECTIONOFF"});
-    i.icon = "inspect-section";
+    i.icon = "inspect-section-off";
     i.repeatable = false;
     i.keepsActiveTool = true;
     t.registerTool(std::make_unique<core::LambdaTool>(
