@@ -289,18 +289,33 @@ DRAWING / OK           create a drawing of the design: it opens in its own tab (
 BASEVIEW front 1:1 100,150 / OK      orientation, scale, sheet position (mm); hidden, tangent
 PROJECTEDVIEW / OK, SECTIONVIEW, DETAILVIEW, DIMENSION, TEXT, LEADER, PARTSLIST, BALLOON
 EXPORTPDF a.pdf, EXPORTSVG a.svg, EXPORTDXF a.dxf, EXPORTCSV a.csv
-EXPORTSTEP a.step [pcurves=off]      selected bodies (or all) in their component placement; pcurves=off
-                 (or nopcurves) omits the edge pcurves for a smaller file (default: Preferences, on)
-assembly.export-step a.step [pcurves=off]   XCAF assembly: components, occurrences, names, colours
+EXPORTSTEP a.step [schema=ap203|ap214|ap242] [pcurves=off]   selected bodies (or all) in their component
+                 placement, one named product with its colour per body; pcurves=off (or nopcurves) omits
+                 the edge pcurves for a smaller file (defaults: Preferences, AP214 / on). The owning
+                 component's part number / description / material become product properties
+assembly.export-step a.step [schema=...] [pcurves=off]   XCAF assembly: components, occurrences, names,
+                 colours, product properties
+EXPORTIGES a.igs [faces]            IGES 5.3: BRep solids (default) or trimmed surfaces ("faces")
+EXPORTMESH a.<stl|obj|glb|gltf|3mf> [quality=...] the Export Mesh card, format from the extension
+EXPORTOBJ a.obj [yup] [quality=...]  OBJ + a.mtl (body colours); yup turns Z-up into Y-up
+EXPORTGLTF a.glb|a.gltf [quality=...] glTF 2.0, metres, Y up, a node per body under a node per component
+EXPORT3MF a.3mf [quality=...]       3MF: mm, an object per body (name, colour), components kept
+                 (all mesh verbs take the EXPORTSTL quality / deflection= / angle= words)
+EXPORTDXF a.dxf [r12|r2000] [units=mm|in] [arcs=0.01] [noetch]   design workspace, with a planar face,
+                 coplanar faces or a sketch selected: 1:1 DXF, layers OUTER / INNER / ETCH; arcs=
+                 approximates splines by arcs within the tolerance. In the drawing workspace EXPORTDXF
+                 is the sheet export
 EXPORTSTL a.stl [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad] [ascii]
                  selected bodies or all (world placement). Presets: coarse 0.1 mm / 20 deg, medium
                  0.05 mm / 0.2 rad (the default), fine 0.01 mm / 5 deg; deflection= / angle= override a
                  preset. Typed exports always start from medium / binary; every export meshes afresh, so
                  earlier exports or the display mesh never leak into the file. In the GUI, EXPORTSTL
                  without arguments opens the dialog (file, quality, deflections, format)
-IMPORT part.step / OK  (or IMPORT, filePath=part.step, OK): insert a STEP/STL as bodies (string
+IMPORT part.step / OK  (or IMPORT, filePath=part.step, OK): insert a STEP/IGES/STL as bodies (string
                  properties are typed as name=value like the others); IMPORTFILE part.step inserts at once.
                  An assembly STEP becomes components and occurrences (keepStructure=false: flat bodies)
+IMPORT a.step|a.igs [sew=on] [fix=off] [unify=on] [report=a.txt] / OK   healing options (defaults off /
+                 on / off) and the import report written to a file (it is always in the log)
 SAVE a.fcad / SAVEAS a.fcad, OPEN a.fcad (new tab), NEW (new tab), CLOSE
 ```
 

@@ -491,14 +491,19 @@ themes.
 | Task | How |
 |---|---|
 | New, Open, Save, Save As | FabriCAD menu or Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S. Designs are `.fcad` files: plain JSON holding the parametric definition. |
-| Import STEP / STL | FabriCAD menu > Insert / Import, or `IMPORT part.step`. The import is a feature in the history. An assembly STEP becomes components and occurrences unless you turn off *Keep assembly structure*. |
-| Export STEP (bodies) | FabriCAD menu > Export > Export STEP, or `EXPORTSTEP a.step [pcurves=off]` |
-| Export STEP (assembly) | Export STEP (assembly): an XCAF file with components, occurrences, names and colours |
+| Import STEP / IGES / STL | FabriCAD menu > Insert / Import, or `IMPORT part.step` (also `.igs` / `.iges`). The import is a feature in the history. An assembly STEP becomes components and occurrences unless you turn off *Keep assembly structure*; part number, description and material written as STEP product properties (AP242 / AP214) fill the components' BOM fields. |
+| Import options and report | The Import card has *Sew faces* (off), *Fix shape* (on: repairs only shapes that fail the B-rep check, so valid files keep their exact geometry) and *Unify same-domain faces* (off). Every STEP / IGES import writes a report to the log (entities, roots, solids, shells, faces, failed faces, B-rep check, the healing applied); *Write report to* (`report=a.txt`) also saves it. IGES surfaces are always sewn; closed shells become solids, open ones stay surface bodies (the report counts them). |
+| Export STEP (bodies) | FabriCAD menu > Export > Export STEP, or `EXPORTSTEP a.step [schema=ap203\|ap214\|ap242] [pcurves=off]`. Each body is a named product with its colour; with a component part number / description / material those are written as product properties (part number as the product id). |
+| Export STEP (assembly) | Export STEP (assembly): an XCAF file with components, occurrences, names, colours and the components' product properties; same `schema=` option |
+| Export IGES | `EXPORTIGES a.igs` (BRep solids, entities 186 / 514) or `EXPORTIGES a.igs faces` (trimmed surfaces 144 for older CAM) |
 | Export STL | `EXPORTSTL` opens a dialog for the file, quality (coarse / medium / fine), linear and angular deflection, and binary / ASCII. The dialog remembers its last values. |
+| Export Mesh: OBJ, glTF, 3MF | TOOLS > EXPORT > Export Mesh (`EXPORTMESH a.<ext>`: the format comes from the extension), or `EXPORTOBJ a.obj [yup]`, `EXPORTGLTF a.glb\|a.gltf`, `EXPORT3MF a.3mf`. Same card and quality presets as STL. OBJ writes an `.mtl` with the body colours; glTF is binary (`.glb`) or text, in metres and Y up, one node per body under one node per component, PBR base colour from the body colour; 3MF is in millimetres with one object per body (name, colour), components as 3MF components so a slicer keeps the parts separate, and the design name as title. |
+| Export Face DXF (laser, waterjet, router) | Select a planar face, several coplanar faces or a sketch, then TOOLS > EXPORT > Export Face DXF, or `EXPORTDXF a.dxf [r12\|r2000] [units=mm\|in] [arcs=0.01] [noetch]` in the design workspace (in a drawing `EXPORTDXF` is the sheet export). 1:1, seen from outside the face, origin at the lower-left corner of the face (or the sketch origin). Layers `OUTER` (outer contour), `INNER` (holes and cut-outs), `ETCH` (sketch construction lines), `BEND` (reserved). Each contour of lines and arcs is one closed polyline; full circles are circles; free-form edges are splines, or arcs within the tolerance with *Splines as arcs* for controllers without SPLINE. R2000 (default) writes `$INSUNITS` (mm or in; the default follows the document's length unit); R12 has polylines and arcs only. |
 | Drawing output | PDF, SVG, DXF, CSV (see [Drawings](#9-drawings)) |
 
-Preferences > General > *Write pcurves into STEP files* sets the default for STEP export
-(off gives smaller files).
+Preferences > General sets the export defaults: *Write pcurves into STEP files* (off gives
+smaller files), *Export: STEP schema* (AP214), *Export: mesh quality* (the preset of the Export
+Mesh / STL dialog) and *Export: face DXF version* (R2000).
 
 ---
 
@@ -513,6 +518,9 @@ QSettings under `ui/*` in `~/.config/FabriCAD/FabriCAD.conf`.
 | General | Default length / angle unit for new designs | mm, cm, m, in, ft / deg, rad |
 | General | Reverse zoom direction | **off** / on |
 | General | Write pcurves into STEP files | **on** / off |
+| General | Export: STEP schema (`export/step/schema`) | AP203, **AP214**, AP242 |
+| General | Export: mesh quality (`export/stl/*`) | Coarse, **Medium**, Fine |
+| General | Export: face DXF version (`export/dxf/version`) | **R2000**, R12 |
 | Document | Length unit, angle unit, display precision of the active design | can be undone. Plain-number parameters keep their size. |
 | Appearance | Theme (`ui/theme`) | **Dark**, Light, Follow system |
 | Appearance | UI scale (`ui/fontScale`) | 90 – 130 %, **100 %** |

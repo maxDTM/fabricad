@@ -1,0 +1,70 @@
+# FabriCAD command script: one plate exported to every interop format (production-features.md
+# P3): STEP AP203/AP214/AP242, IGES (BRep and trimmed surfaces), STL, OBJ, glTF/GLB, 3MF, the
+# 1:1 DXF of the top face (R2000 and R12) and of the sketch, then the IGES and STEP back in.
+# Run from an empty directory: fabricad --script tests/scripts/export_formats.fcs --offscreen
+
+SKETCH XY
+LINE
+0,0
+@100,0
+@0,50
+0,50
+0,0
+CIRCLE
+10,10
+6.6
+CIRCLE
+90,40
+6.6
+FINISH
+SELECT profile:@50,25,0
+EXTRUDE 6
+OK
+CHECK bodies == 1
+CHECK status ok
+
+SELECT none
+EXPORTSTEP plate_ap242.step schema=ap242
+EXPORTSTEP plate_ap203.step schema=ap203
+EXPORTSTEP plate.step
+EXPORTIGES plate.igs
+EXPORTIGES plate_faces.igs faces
+EXPORTSTL plate.stl
+EXPORTOBJ plate.obj quality=fine
+EXPORTGLTF plate.glb
+EXPORTGLTF plate.gltf
+EXPORT3MF plate.3mf
+EXPORTMESH plate_mesh.3mf quality=coarse
+CHECK file plate_ap242.step size > 1000
+CHECK file plate_ap203.step size > 1000
+CHECK file plate.step exists
+CHECK file plate.igs size > 1000
+CHECK file plate_faces.igs exists
+CHECK file plate.stl exists
+CHECK file plate.obj size > 1000
+CHECK file plate.mtl exists
+CHECK file plate.glb size > 1000
+CHECK file plate.gltf exists
+CHECK file plate.3mf size > 1000
+CHECK file plate_mesh.3mf exists
+
+# 1:1 DXF of the top face, of the sketch
+SELECT body:Body1/face:top
+EXPORTDXF plate_top.dxf
+SELECT body:Body1/face:top
+EXPORTDXF plate_top_r12.dxf r12 units=in
+SELECT sketch:Sketch1
+EXPORTDXF plate_sketch.dxf
+CHECK file plate_top.dxf size > 1000
+CHECK file plate_top_r12.dxf exists
+CHECK file plate_sketch.dxf exists
+
+# back in: IGES with the report, STEP AP242
+IMPORT plate.igs report=plate_igs_report.txt
+OK
+CHECK file plate_igs_report.txt exists
+CHECK bodies == 2
+IMPORT plate_ap242.step unify=on
+OK
+CHECK bodies == 3
+CHECK status ok
