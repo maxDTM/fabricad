@@ -1,0 +1,1233 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="420mm" height="297mm"
+ viewBox="0 0 4200 2970"
+ xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.2" baseProfile="tiny">
+<title>Flange Assy &amp; Pin &lt;&quot;A&quot;&gt; - Sheet2</title>
+<desc>FabriCAD drawing</desc>
+<defs>
+</defs>
+<g fill="none" stroke="black" stroke-width="1" fill-rule="evenodd" stroke-linecap="square" stroke-linejoin="bevel" >
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="20,10 410,10 " />
+<polyline fill="none" vector-effect="none" points="410,10 410,287 " />
+<polyline fill="none" vector-effect="none" points="410,287 20,287 " />
+<polyline fill="none" vector-effect="none" points="20,287 20,10 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="65,10 65,5 " />
+<polyline fill="none" vector-effect="none" points="65,287 65,292 " />
+<polyline fill="none" vector-effect="none" points="115,10 115,5 " />
+<polyline fill="none" vector-effect="none" points="115,287 115,292 " />
+<polyline fill="none" vector-effect="none" points="165,10 165,5 " />
+<polyline fill="none" vector-effect="none" points="165,287 165,292 " />
+<polyline fill="none" vector-effect="none" points="215,10 215,5 " />
+<polyline fill="none" vector-effect="none" points="215,287 215,292 " />
+<polyline fill="none" vector-effect="none" points="265,10 265,5 " />
+<polyline fill="none" vector-effect="none" points="265,287 265,292 " />
+<polyline fill="none" vector-effect="none" points="315,10 315,5 " />
+<polyline fill="none" vector-effect="none" points="315,287 315,292 " />
+<polyline fill="none" vector-effect="none" points="365,10 365,5 " />
+<polyline fill="none" vector-effect="none" points="365,287 365,292 " />
+<polyline fill="none" vector-effect="none" points="20,48.5 15,48.5 " />
+<polyline fill="none" vector-effect="none" points="410,48.5 415,48.5 " />
+<polyline fill="none" vector-effect="none" points="20,98.5 15,98.5 " />
+<polyline fill="none" vector-effect="none" points="410,98.5 415,98.5 " />
+<polyline fill="none" vector-effect="none" points="20,148.5 15,148.5 " />
+<polyline fill="none" vector-effect="none" points="410,148.5 415,148.5 " />
+<polyline fill="none" vector-effect="none" points="20,198.5 15,198.5 " />
+<polyline fill="none" vector-effect="none" points="410,198.5 415,198.5 " />
+<polyline fill="none" vector-effect="none" points="20,248.5 15,248.5 " />
+<polyline fill="none" vector-effect="none" points="410,248.5 415,248.5 " />
+<polyline fill="none" vector-effect="none" points="215,0 215,10 " />
+<polyline fill="none" vector-effect="none" points="215,297 215,287 " />
+<polyline fill="none" vector-effect="none" points="0,148.5 20,148.5 " />
+<polyline fill="none" vector-effect="none" points="420,148.5 410,148.5 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="230,231 410,231 " />
+<polyline fill="none" vector-effect="none" points="230,231 230,287 " />
+<polyline fill="none" vector-effect="none" points="293,231 293,245 " />
+<polyline fill="none" vector-effect="none" points="230,245 410,245 " />
+<polyline fill="none" vector-effect="none" points="275,245 275,259 " />
+<polyline fill="none" vector-effect="none" points="320,245 320,259 " />
+<polyline fill="none" vector-effect="none" points="365,245 365,259 " />
+<polyline fill="none" vector-effect="none" points="230,259 410,259 " />
+<polyline fill="none" vector-effect="none" points="293,259 293,273 " />
+<polyline fill="none" vector-effect="none" points="329,259 329,273 " />
+<polyline fill="none" vector-effect="none" points="356,259 356,273 " />
+<polyline fill="none" vector-effect="none" points="374,259 374,273 " />
+<polyline fill="none" vector-effect="none" points="392,259 392,273 " />
+<polyline fill="none" vector-effect="none" points="230,273 410,273 " />
+<polyline fill="none" vector-effect="none" points="46.8756,96.8578 46.8756,72.8578 " />
+<polyline fill="none" vector-effect="none" points="46.8756,96.8578 52.8756,96.8578 " />
+<polyline fill="none" vector-effect="none" points="52.8756,96.8578 140.876,96.8578 " />
+<polyline fill="none" vector-effect="none" points="140.876,96.8578 146.876,96.8578 " />
+<polyline fill="none" vector-effect="none" points="46.8756,72.8578 52.8756,72.8578 " />
+<polyline fill="none" vector-effect="none" points="52.8756,72.8578 140.876,72.8578 " />
+<polyline fill="none" vector-effect="none" points="140.876,72.8578 146.876,72.8578 " />
+<polyline fill="none" vector-effect="none" points="146.876,96.8578 146.876,72.8578 " />
+<polyline fill="none" vector-effect="none" points="111.876,72.8578 111.876,47.8578 " />
+<polyline fill="none" vector-effect="none" points="81.8756,47.8578 111.876,47.8578 " />
+<polyline fill="none" vector-effect="none" points="102.876,47.8578 102.876,36.8578 " />
+<polyline fill="none" vector-effect="none" points="90.8756,36.8578 102.876,36.8578 " />
+<polyline fill="none" vector-effect="none" points="81.8756,47.8578 81.8756,72.8578 " />
+<polyline fill="none" vector-effect="none" points="90.8756,36.8578 90.8756,47.8578 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-dasharray="3,1.5" stroke-dashoffset="0" stroke-width="0.25" stroke-linecap="butt" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="96.8756,78.8578 99.8756,78.8578 " />
+<polyline fill="none" vector-effect="none" points="99.8756,78.8578 93.8756,78.8578 " />
+<polyline fill="none" vector-effect="none" points="93.8756,78.8578 96.8756,78.8578 " />
+<polyline fill="none" vector-effect="none" points="96.8756,78.8578 102.376,78.8578 " />
+<polyline fill="none" vector-effect="none" points="102.376,78.8578 91.3756,78.8578 " />
+<polyline fill="none" vector-effect="none" points="91.3756,78.8578 96.8756,78.8578 " />
+<polyline fill="none" vector-effect="none" points="65.8756,72.8578 65.8756,92.8578 " />
+<polyline fill="none" vector-effect="none" points="65.8756,92.8578 57.8756,92.8578 " />
+<polyline fill="none" vector-effect="none" points="57.8756,92.8578 65.8756,92.8578 " />
+<polyline fill="none" vector-effect="none" points="135.876,72.8578 135.876,92.8578 " />
+<polyline fill="none" vector-effect="none" points="135.876,92.8578 127.876,92.8578 " />
+<polyline fill="none" vector-effect="none" points="127.876,92.8578 135.876,92.8578 " />
+<polyline fill="none" vector-effect="none" points="96.8756,82.8578 99.3756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="99.3756,82.8578 94.3756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="94.3756,82.8578 96.8756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="102.876,96.8578 102.876,47.8578 " />
+<polyline fill="none" vector-effect="none" points="93.8756,78.8578 93.8756,96.8578 " />
+<polyline fill="none" vector-effect="none" points="99.8756,78.8578 99.8756,96.8578 " />
+<polyline fill="none" vector-effect="none" points="90.8756,47.8578 90.8756,96.8578 " />
+<polyline fill="none" vector-effect="none" points="102.876,47.8578 102.876,96.8578 " />
+<polyline fill="none" vector-effect="none" points="91.3756,72.8578 91.3756,78.8578 " />
+<polyline fill="none" vector-effect="none" points="102.376,72.8578 102.376,78.8578 " />
+<polyline fill="none" vector-effect="none" points="57.8756,92.8578 57.8756,72.8578 " />
+<polyline fill="none" vector-effect="none" points="127.876,92.8578 127.876,72.8578 " />
+<polyline fill="none" vector-effect="none" points="94.3756,72.8578 94.3756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="99.3756,72.8578 99.3756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="96.8756,84.3599 99.3756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="96.8756,84.3599 94.3756,82.8578 " />
+<polyline fill="none" vector-effect="none" points="90.8756,47.8578 90.8756,96.8578 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="46.8756,154.06 46.8756,202.06 " />
+<path vector-effect="none" fill-rule="evenodd" d="M46.8756,154.06 C46.8756,150.746 49.5618,148.06 52.8756,148.06 "/>
+<path vector-effect="none" fill-rule="evenodd" d="M46.8756,202.06 C46.8756,205.374 49.5618,208.06 52.8756,208.06 "/>
+<polyline fill="none" vector-effect="none" points="140.876,148.06 52.8756,148.06 " />
+<polyline fill="none" vector-effect="none" points="52.8756,208.06 140.876,208.06 " />
+<path vector-effect="none" fill-rule="evenodd" d="M140.876,148.06 C144.189,148.06 146.876,150.746 146.876,154.06 "/>
+<path vector-effect="none" fill-rule="evenodd" d="M140.876,208.06 C144.189,208.06 146.876,205.374 146.876,202.06 "/>
+<polyline fill="none" vector-effect="none" points="146.876,202.06 146.876,154.06 " />
+<path vector-effect="none" fill-rule="evenodd" d="M96.8756,203.56 C93.838,203.56 91.3756,201.098 91.3756,198.06 C91.3756,195.721 92.8358,193.723 94.8935,192.928 "/>
+<path vector-effect="none" fill-rule="evenodd" d="M98.8568,192.928 C100.916,193.723 102.376,195.721 102.376,198.06 C102.376,201.098 99.9131,203.56 96.8756,203.56 "/>
+<circle cx="61.8756" cy="178.06" r="4"/>
+<circle cx="131.876" cy="178.06" r="4"/>
+<circle cx="96.8756" cy="156.06" r="2.5"/>
+<circle cx="96.8756" cy="198.06" r="3"/>
+<circle cx="96.8756" cy="178.06" r="15"/>
+<circle cx="96.8756" cy="178.06" r="6"/>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-dasharray="3,1.5" stroke-dashoffset="0" stroke-width="0.25" stroke-linecap="butt" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<path vector-effect="none" fill-rule="evenodd" d="M98.8478,192.924 C98.2356,192.689 97.5706,192.56 96.8756,192.56 C96.1801,192.56 95.5149,192.689 94.9024,192.925 "/>
+<path vector-effect="none" fill-rule="evenodd" d="M94.8935,192.928 C95.509,192.69 96.1771,192.56 96.8756,192.56 C97.5743,192.56 98.2427,192.69 98.8568,192.928 "/>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="210.002,96.8578 258.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="210.002,72.8578 258.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="210.002,96.8578 204.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="258.002,96.8578 264.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="204.002,96.8578 204.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="210.002,72.8578 204.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="264.002,96.8578 264.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="258.002,72.8578 264.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="219.002,47.8578 249.002,47.8578 " />
+<polyline fill="none" vector-effect="none" points="228.002,36.8578 240.002,36.8578 " />
+<polyline fill="none" vector-effect="none" points="219.002,47.8578 219.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="249.002,47.8578 249.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="228.002,36.8578 228.002,47.8578 " />
+<polyline fill="none" vector-effect="none" points="240.002,36.8578 240.002,47.8578 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-dasharray="3,1.5" stroke-dashoffset="0" stroke-width="0.25" stroke-linecap="butt" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="257.002,78.8578 257.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="257.002,78.8578 251.002,78.8578 " />
+<polyline fill="none" vector-effect="none" points="251.002,78.8578 257.002,78.8578 " />
+<polyline fill="none" vector-effect="none" points="240.002,47.8578 240.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="259.502,72.8578 259.502,78.8578 " />
+<polyline fill="none" vector-effect="none" points="259.502,78.8578 248.502,78.8578 " />
+<polyline fill="none" vector-effect="none" points="248.502,78.8578 259.502,78.8578 " />
+<polyline fill="none" vector-effect="none" points="234.002,92.8578 230.002,92.8578 " />
+<polyline fill="none" vector-effect="none" points="230.002,92.8578 238.002,92.8578 " />
+<polyline fill="none" vector-effect="none" points="238.002,92.8578 234.002,92.8578 " />
+<polyline fill="none" vector-effect="none" points="234.002,92.8578 230.002,92.8578 " />
+<polyline fill="none" vector-effect="none" points="230.002,92.8578 238.002,92.8578 " />
+<polyline fill="none" vector-effect="none" points="238.002,92.8578 234.002,92.8578 " />
+<polyline fill="none" vector-effect="none" points="214.502,72.8578 214.502,82.8578 " />
+<polyline fill="none" vector-effect="none" points="214.502,82.8578 209.502,82.8578 " />
+<polyline fill="none" vector-effect="none" points="209.502,82.8578 214.502,82.8578 " />
+<polyline fill="none" vector-effect="none" points="214.502,82.8578 212.002,84.3599 " />
+<polyline fill="none" vector-effect="none" points="251.002,78.8578 251.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="228.002,47.8578 228.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="248.502,72.8578 248.502,78.8578 " />
+<polyline fill="none" vector-effect="none" points="238.002,92.8578 238.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="230.002,92.8578 230.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="238.002,92.8578 238.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="230.002,92.8578 230.002,72.8578 " />
+<polyline fill="none" vector-effect="none" points="209.502,72.8578 209.502,82.8578 " />
+<polyline fill="none" vector-effect="none" points="212.002,84.3599 209.502,82.8578 " />
+<polyline fill="none" vector-effect="none" points="228.002,47.8578 228.002,96.8578 " />
+<polyline fill="none" vector-effect="none" points="240.002,47.8578 240.002,96.8578 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<circle cx="33.4289" cy="50.4844" r="4"/>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.18" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="34.7641,54.255 46.8756,88.4578 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<circle cx="127.576" cy="17.7378" r="4"/>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.18" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="124.18,19.8524 96.8756,36.8578 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polyline fill="none" vector-effect="none" points="251,210 410,210 " />
+<polyline fill="none" vector-effect="none" points="251,217 410,217 " />
+<polyline fill="none" vector-effect="none" points="251,224 410,224 " />
+<polyline fill="none" vector-effect="none" points="251,231 410,231 " />
+<polyline fill="none" vector-effect="none" points="251,210 251,231 " />
+<polyline fill="none" vector-effect="none" points="263,210 263,231 " />
+<polyline fill="none" vector-effect="none" points="275,210 275,231 " />
+<polyline fill="none" vector-effect="none" points="320,210 320,231 " />
+<polyline fill="none" vector-effect="none" points="380,210 380,231 " />
+<polyline fill="none" vector-effect="none" points="410,210 410,231 " />
+<polyline fill="none" vector-effect="none" points="282,10 410,10 " />
+<polyline fill="none" vector-effect="none" points="282,17 410,17 " />
+<polyline fill="none" vector-effect="none" points="282,24 410,24 " />
+<polyline fill="none" vector-effect="none" points="282,31 410,31 " />
+<polyline fill="none" vector-effect="none" points="282,38 410,38 " />
+<polyline fill="none" vector-effect="none" points="282,10 282,38 " />
+<polyline fill="none" vector-effect="none" points="294,10 294,38 " />
+<polyline fill="none" vector-effect="none" points="364,10 364,38 " />
+<polyline fill="none" vector-effect="none" points="388,10 388,38 " />
+<polyline fill="none" vector-effect="none" points="410,10 410,38 " />
+</g>
+
+<g fill="#000000" fill-opacity="1" stroke="none" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+<polygon fill-rule="evenodd" vector-effect="none" points="46.8756,88.4578 45.4028,85.7967 46.3455,85.4629 " />
+<polygon fill-rule="evenodd" vector-effect="none" points="96.8756,36.8578 99.1577,34.8474 99.6864,35.6962 " />
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,425,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,425,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,900,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,900,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,1400,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >3</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,1400,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >3</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,1900,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >4</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,1900,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >4</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,2400,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >5</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,2400,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >5</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,2900,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >6</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,2900,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >6</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,3400,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >7</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,3400,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >7</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,3875,75)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >8</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,3875,2895)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >8</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,175,292.5)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.2031" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >A</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,4125,292.5)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.2031" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >A</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,175,735)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.2969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >B</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,4125,735)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.2969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >B</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,175,1235)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.9063" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >C</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,4125,1235)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.9063" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >C</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,175,1735)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-38.5" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >D</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,4125,1735)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-38.5" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >D</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,175,2235)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.5781" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >E</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,4125,2235)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.5781" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >E</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,175,2677.5)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-28.75" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >F</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.342466,0,0,0.342466,4125,2677.5)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-28.75" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >F</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2310,2318)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Company</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,2615,2396.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-391.484" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Acme Machines</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2940,2318)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Title</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.684932,0,0,0.684932,3515,2396.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-698.266" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Flange Assy &amp; Pin &lt;&quot;A&quot;&gt;</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2310,2458)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Drawn by</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,2525,2536.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-236.344" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >M Drafter</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2760,2458)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Checked</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,2975,2536.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-233.953" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >J Checker</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,3210,2458)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Approved</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3425,2536.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-277.281" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >K Approver</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,3660,2458)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Date</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3875,2536.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-290.516" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2026-10-22</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2310,2598)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Material</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,2615,2676.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-191.203" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Al 6061</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2940,2598)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Mass</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3110,2676.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-156.078" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1.2 kg</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,3300,2598)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Scale</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3425,2676.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-80.4531" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1:1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,3570,2598)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Size</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3650,2676.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-66" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >A3</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,3750,2598)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Sheet</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3830,2676.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-112.234" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2 / 2</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,3930,2598)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Rev</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,4010,2676.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.9063" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >C</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.246575,0,0,0.246575,2310,2738)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="73" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Part number</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,3200,2816.8)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-208.922" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >FC-1000</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,334.289,504.844)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.479452,0,0,0.479452,1275.76,177.378)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2570,2135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-128.5" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Item</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2690,2135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-98.9844" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Qty</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2975,2135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-358.875" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Part Number</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,3500,2135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-323.344" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Description</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,3950,2135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-233.938" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Material</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2570,2205)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2690,2205)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2765,2205)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Plate</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2570,2275)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2690,2275)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-31.7969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >1</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2765,2275)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Pin</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2880,135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-104.984" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Rev</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,3290,135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-323.344" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Description</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,3760,135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-133.031" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Date</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.379121,0,0,0.379121,3990,135)"
+font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-271.547" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="700" font-style="normal" 
+ >Approved</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2880,205)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.2031" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >A</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2955,205)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >First release</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.361426,0,0,0.361426,3760,205)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-290.516" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2026-10-22</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2880,275)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.2969" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >B</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2955,275)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Hole moved</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.361426,0,0,0.361426,3760,275)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-290.516" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2026-10-22</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2880,345)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-34.9063" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >C</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,2955,345)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="0" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >Pin added &amp; hole &lt;12&gt;</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.361426,0,0,0.361426,3760,345)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-290.516" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >2026-10-22</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(0.410959,0,0,0.410959,3990,345)"
+font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+>
+<text fill="#000000" fill-opacity="1" stroke="none" xml:space="preserve" x="-66.1094" y="36.5" font-family="DejaVu Sans" font-size="100" font-weight="400" font-style="normal" 
+ >KA</text>
+</g>
+
+<g fill="none" stroke="#000000" stroke-opacity="1" stroke-width="1" stroke-linecap="square" stroke-linejoin="bevel" transform="matrix(10,0,0,10,0,0)"
+font-family="JetBrains Mono,Noto Sans Mono,DejaVu Sans Mono,monospace" font-size="31.75" font-weight="700" font-style="normal" 
+>
+</g>
+</g>
+</svg>
