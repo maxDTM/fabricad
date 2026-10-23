@@ -1,0 +1,492 @@
+{
+ "b01": {
+  "theme": "dark",
+  "name": "origin-axes",
+  "raw": "gui-dark-sel",
+  "box": [
+   780,
+   200,
+   170,
+   110
+  ],
+  "truth": [
+   "X",
+   "Y"
+  ]
+ },
+ "b02": {
+  "theme": "dark",
+  "name": "err-cell",
+  "raw": "off-dark-skz",
+  "box": [
+   1225,
+   1054,
+   215,
+   26
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b03": {
+  "theme": "light",
+  "name": "dial",
+  "raw": "off-light-live",
+  "box": [
+   1720,
+   120,
+   140,
+   150
+  ],
+  "truth": [
+   "Y",
+   "Z",
+   "X"
+  ]
+ },
+ "b04": {
+  "theme": "dark",
+  "name": "rows-both",
+  "raw": "off-dark-zoo2",
+  "box": [
+   0,
+   176,
+   320,
+   56
+  ],
+  "truth": [
+   "warning",
+   "error"
+  ]
+ },
+ "b05": {
+  "theme": "dark",
+  "name": "dist-tag",
+  "raw": "gui-dark-live",
+  "box": [
+   1005,
+   140,
+   175,
+   62
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b06": {
+  "theme": "dark",
+  "name": "readout",
+  "raw": "off-dark-live",
+  "box": [
+   342,
+   1010,
+   320,
+   28
+  ],
+  "truth": [
+   "X",
+   "Y",
+   "Z"
+  ]
+ },
+ "b07": {
+  "theme": "dark",
+  "name": "dial",
+  "raw": "off-dark-live",
+  "box": [
+   1720,
+   120,
+   140,
+   150
+  ],
+  "truth": [
+   "Y",
+   "Z",
+   "X"
+  ]
+ },
+ "b08": {
+  "theme": "dark",
+  "name": "warn-tree",
+  "raw": "off-dark-zoo2",
+  "box": [
+   40,
+   722,
+   260,
+   30
+  ],
+  "truth": [
+   "warning"
+  ]
+ },
+ "b09": {
+  "theme": "dark",
+  "name": "sel-free",
+  "raw": "gui-dark-sel",
+  "box": [
+   505,
+   150,
+   400,
+   160
+  ],
+  "truth": [
+   "selection",
+   "free"
+  ]
+ },
+ "b10": {
+  "theme": "light",
+  "name": "err-card",
+  "raw": "off-light-zero",
+  "box": [
+   1296,
+   578,
+   340,
+   28
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b11": {
+  "theme": "light",
+  "name": "rows-both",
+  "raw": "off-light-zoo2",
+  "box": [
+   0,
+   176,
+   320,
+   56
+  ],
+  "truth": [
+   "warning",
+   "error"
+  ]
+ },
+ "b12": {
+  "theme": "light",
+  "name": "readout",
+  "raw": "off-light-live",
+  "box": [
+   342,
+   1010,
+   320,
+   28
+  ],
+  "truth": [
+   "X",
+   "Y",
+   "Z"
+  ]
+ },
+ "b13": {
+  "theme": "light",
+  "name": "warn-active",
+  "raw": "gui-light-skz",
+  "box": [
+   0,
+   176,
+   320,
+   28
+  ],
+  "truth": [
+   "warning"
+  ]
+ },
+ "b14": {
+  "theme": "light",
+  "name": "warn-row",
+  "raw": "off-light-zoo2",
+  "box": [
+   0,
+   176,
+   320,
+   28
+  ],
+  "truth": [
+   "warning"
+  ]
+ },
+ "b15": {
+  "theme": "dark",
+  "name": "err-card",
+  "raw": "off-dark-zero",
+  "box": [
+   1296,
+   578,
+   340,
+   28
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b16": {
+  "theme": "light",
+  "name": "err-row",
+  "raw": "off-light-zoo2",
+  "box": [
+   0,
+   204,
+   320,
+   28
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b17": {
+  "theme": "light",
+  "name": "dist-tag",
+  "raw": "gui-light-live",
+  "box": [
+   1005,
+   140,
+   175,
+   62
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b18": {
+  "theme": "dark",
+  "name": "preview",
+  "raw": "gui-dark-live",
+  "box": [
+   740,
+   240,
+   480,
+   250
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b19": {
+  "theme": "dark",
+  "name": "err-status",
+  "raw": "off-dark-zoo2",
+  "box": [
+   545,
+   1054,
+   540,
+   26
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b20": {
+  "theme": "light",
+  "name": "preview",
+  "raw": "gui-light-live",
+  "box": [
+   740,
+   240,
+   480,
+   250
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b21": {
+  "theme": "dark",
+  "name": "warn-active",
+  "raw": "gui-dark-skz",
+  "box": [
+   0,
+   176,
+   320,
+   28
+  ],
+  "truth": [
+   "warning"
+  ]
+ },
+ "b22": {
+  "theme": "light",
+  "name": "sel-free",
+  "raw": "gui-light-sel",
+  "box": [
+   505,
+   150,
+   400,
+   160
+  ],
+  "truth": [
+   "selection",
+   "free"
+  ]
+ },
+ "b23": {
+  "theme": "dark",
+  "name": "warn-row",
+  "raw": "off-dark-zoo2",
+  "box": [
+   0,
+   176,
+   320,
+   28
+  ],
+  "truth": [
+   "warning"
+  ]
+ },
+ "b24": {
+  "theme": "light",
+  "name": "live-row",
+  "raw": "off-light-live",
+  "box": [
+   0,
+   204,
+   320,
+   30
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b25": {
+  "theme": "light",
+  "name": "origin-axes",
+  "raw": "gui-light-sel",
+  "box": [
+   780,
+   200,
+   170,
+   110
+  ],
+  "truth": [
+   "X",
+   "Y"
+  ]
+ },
+ "b26": {
+  "theme": "dark",
+  "name": "live-row",
+  "raw": "off-dark-live",
+  "box": [
+   0,
+   204,
+   320,
+   30
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b27": {
+  "theme": "light",
+  "name": "err-cell",
+  "raw": "off-light-skz",
+  "box": [
+   1225,
+   1054,
+   215,
+   26
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b28": {
+  "theme": "light",
+  "name": "conflict",
+  "raw": "gui-light-skz",
+  "box": [
+   850,
+   330,
+   70,
+   150
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b29": {
+  "theme": "dark",
+  "name": "err-row",
+  "raw": "off-dark-zoo2",
+  "box": [
+   0,
+   204,
+   320,
+   28
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b30": {
+  "theme": "light",
+  "name": "err-status",
+  "raw": "off-light-zoo2",
+  "box": [
+   545,
+   1054,
+   540,
+   26
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b31": {
+  "theme": "dark",
+  "name": "live-chip",
+  "raw": "off-dark-live",
+  "box": [
+   445,
+   122,
+   152,
+   28
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b32": {
+  "theme": "dark",
+  "name": "conflict",
+  "raw": "gui-dark-skz",
+  "box": [
+   850,
+   330,
+   70,
+   150
+  ],
+  "truth": [
+   "error"
+  ]
+ },
+ "b33": {
+  "theme": "light",
+  "name": "live-chip",
+  "raw": "off-light-live",
+  "box": [
+   445,
+   122,
+   152,
+   28
+  ],
+  "truth": [
+   "live"
+  ]
+ },
+ "b34": {
+  "theme": "light",
+  "name": "warn-tree",
+  "raw": "off-light-zoo2",
+  "box": [
+   40,
+   722,
+   260,
+   30
+  ],
+  "truth": [
+   "warning"
+  ]
+ }
+}
