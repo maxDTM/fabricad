@@ -322,8 +322,27 @@ class InspectExportTest : public QObject {
     ImportFeature::Imported out;
     std::string err;
     QVERIFY(!ImportFeature::readFile(bad, out, &err));
-    QVERIFY(!err.empty());
-    (void)ImportFeature::readStepAssembly(bad, &err);
+    QVERIFY2(err.find("damaged") != std::string::npos, err.c_str());  // refused before the transfer
+    err.clear();
+    QVERIFY(!ImportFeature::readStepAssembly(bad, &err));
+    QVERIFY2(err.find("damaged") != std::string::npos, err.c_str());
+    // an instance name defined twice: OCCT's parser could loop forever on such a file
+    {
+      QStringList twice = text.split('\n');
+      for (int i = 0; i < twice.size(); ++i)
+        if (twice[i].startsWith("#5 ")) {
+          twice.insert(i + 1, twice[i]);
+          break;
+        }
+      const std::string dupPath = (dir.path() + "/dup.step").toStdString();
+      QFile d(QString::fromStdString(dupPath));
+      QVERIFY(d.open(QIODevice::WriteOnly));
+      d.write(twice.join('\n').toUtf8());
+      d.close();
+      err.clear();
+      QVERIFY(!ImportFeature::readFile(dupPath, out, &err));
+      QVERIFY2(err.find("#5 is defined twice") != std::string::npos, err.c_str());
+    }
     // the fuzzer's file (a DIRECTION entity cut in half): SIGSEGV in StepToGeom under the XCAF
     // reader (STEP import with structure) before the fix
     const QString data = qEnvironmentVariable("FABRICAD_TEST_DATA");
@@ -333,6 +352,12 @@ class InspectExportTest : public QObject {
       // face, so the result is a partial import or a clean error; what matters is that it returns
       (void)ImportFeature::readFile(crashed, out, &err);
       (void)ImportFeature::readStepAssembly(crashed, &err);
+      // an ORIENTED_EDGE whose edge is itself: endless recursion, stack overflow before the fix
+      const std::string selfRef = (data + "/self-referencing-edge.step").toStdString();
+      err.clear();
+      QVERIFY(!ImportFeature::readFile(selfRef, out, &err));
+      QVERIFY2(!err.empty(), "no error for the self-referencing edge");
+      (void)ImportFeature::readStepAssembly(selfRef, &err);
     }
     QVERIFY(ImportFeature::readFile(good, out, &err));  // the reader still works afterwards
     QCOMPARE(out.shapes.size(), size_t(1));

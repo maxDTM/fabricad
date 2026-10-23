@@ -62,15 +62,24 @@ trusting a libFuzzer crash inside OCCT.
 
 ### Findings of the first campaigns (2026-10-23, about 10-20 min per driver)
 
-* **STEP import crashed the app** (SIGSEGV, reproduced with the release build): an entity cut
-  short or a dangling `DIRECTION` reference makes OCCT's `StepToGeom::MakeDirection` /
-  `MakeVectorWithMagnitude` dereference a null handle. While a STEP/STL reader runs
-  (`ScopedOcctSignals` in `src/part/features/Import.cpp`), a fault on a thread that is inside an
-  OCCT try block goes to OCCT's handler, so `OCC_CATCH_SIGNALS` turns it into a
-  `Standard_Failure` and OCCT's own guarded blocks skip the broken entity; any other fault goes to
-  the previous handler (default, Qt, ASan) as before. Handlers use `SA_NODEFER` (OCCT leaves by
-  longjmp, which would leave SIGSEGV blocked), non-fault signals keep their handlers, and
-  everything is restored afterwards. `FABRICAD_OCCT_SIGNALS=0` turns the guard off for debugging.
+* **STEP import crashed or hung the app** (SIGSEGV reproduced with the release build). Three
+  layers now, all in `src/part/features/Import.cpp`:
+  1. `stepDuplicateEntity`: a file that defines an instance name twice (`#12 = ...` repeated) is
+     refused before OCCT sees it. OCCT's parser accepts such files and
+     `StepData_StepReaderData::SetEntityNumbers` can then loop forever; whether it does depends on
+     what earlier reads left on the heap, so it only showed up in long in-process runs.
+  2. `stepLoadFailed`: after `ReadFile`, structural load failures (unresolved reference, parameter
+     of an illegal type or not an entity, wrong parameter count) refuse the file; the translators
+     would dereference those entities as null handles (`StepToGeom::MakeDirection`,
+     `MakeVectorWithMagnitude`). Other load messages are left to OCCT as before.
+     `FABRICAD_STEP_CHECKS=1` prints them.
+  3. `ScopedOcctSignals`: while a reader runs, a fault on a thread inside an OCCT try block goes to
+     OCCT's handler, so `OCC_CATCH_SIGNALS` turns it into a `Standard_Failure` (or OCCT's own
+     guarded blocks skip the entity); any other fault goes to the previous handler (default, Qt,
+     ASan) as before. It runs on an alternate signal stack (a self-referencing `ORIENTED_EDGE`
+     recursed in `StepShape_OrientedEdge::EdgeStart` until the stack overflowed), uses
+     `SA_NODEFER` (OCCT leaves by longjmp), leaves non-fault signals alone and restores
+     everything afterwards. `FABRICAD_OCCT_SIGNALS=0` turns it off for debugging.
 * **STL import hung** on NaN / infinite / huge vertex coordinates (OCCT loops in
   `Geom_TrimmedCurve::SetTrim`). The mesh is now read with `RWStl` and checked before faces are
   built; a bad file is "could not read STL file: invalid vertex coordinates".
@@ -82,9 +91,6 @@ trusting a libFuzzer crash inside OCCT.
   of ids, ints and enum indices (`1e300`, `-1`, `2.5`), enum indices outside the option list,
   body colours outside 0..1, sketch ids near `INT_MAX` (`id + 1` overflow).
 * The `.fcs` runner survived ~4 000 generated scripts without a finding.
-* **Open:** replaying the accumulated STEP work corpus as a directory (`-runs=0 work seeds`) can
-  hang in OCCT's `StepData_StepReaderData::SetEntityNumbers` on an input that parses in 0.3 s on
-  its own, in a file-by-file replay of the same sequence and in the release app (also after the
-  preceding damaged files). No signal was converted in that run, so it looks like OCCT parser
-  state left behind by earlier damaged inputs; `FABRICAD_FUZZ_TRACE=1` prints the input order and
-  the import results for chasing it. Campaigns use `-ignore_timeouts=1` meanwhile.
+* Chasing a state-dependent finding: `FABRICAD_FUZZ_TRACE=1` makes the import driver print each
+  input's size, hash and result; with `FABRICAD_FUZZ_KEEP=<dir>` it also copies every input in
+  order, so the exact sequence can be replayed (`fuzz_step_import -runs=0 $(ls dir/*)`).
