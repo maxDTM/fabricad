@@ -32,7 +32,7 @@ ui.sh geom 91 /tmp/geo.json                               # widget boxes of the 
 ui.sh compare 91 docs/mockups/custom-ui-extrude-v6-tokens-dark.svg /tmp/cmp   # shot + geom + compare.py
 ui.sh cvd /tmp/shot.png /tmp/shot-deut.png deut           # CVD simulation (prot | deut | trit | all)
 ui.sh reset 91                                            # forget :91's settings and data
-ui.sh stop 91
+ui.sh stop 91                                            # also drops :91's autosaves (KEEP_RECOVERY=1 keeps them)
 ```
 
 * `start <N> [bin|-] [WxH] [scale]`: `-` (or nothing) uses `$UI_BIN` or the main checkout's build, `$UI_ARGS`

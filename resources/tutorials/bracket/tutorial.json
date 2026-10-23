@@ -1638,7 +1638,7 @@
     },
     {
      "id": "11.2",
-     "text": "The table shows the **centre distance: 60 mm**. Press [[Esc]] to close Measure.",
+     "text": "The table shows the **distance** between the two rims: 60 mm from centre to centre when you picked both top rims. Press [[Esc]] to close Measure.",
      "anchor": "measureTable",
      "until": {
       "tool": "none"

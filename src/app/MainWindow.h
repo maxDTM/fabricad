@@ -216,6 +216,8 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost, public A
   void openCommandSearch() override;
   void toggleCommandLine() override;
   void focusCommandLine();
+  /// Activates the window and gives the view the keyboard focus unless a widget of this window has it.
+  void restoreKeyboardFocus();
   void showShortcutsHelp() override;
   void runPseudoCommand(const std::string& cmd);
   /// Run a command from the UI (ribbon, S-box, marking menu, shortcuts). View commands

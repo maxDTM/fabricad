@@ -9,6 +9,7 @@
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QGuiApplication>
 #include <QPainter>
 #include <QPainterPath>
 #include <QTimer>
@@ -52,6 +53,17 @@ void MarkingMenu::popup(const MarkingMenuModel& model, const QPoint& globalCentr
   const int rows = static_cast<int>(model_.overflow.size());
   setFixedSize(size_, size_ + (rows ? rows * kRowH + 8 : 0));
   move(globalCentre - QPoint(size_ / 2, size_ / 2));
+  // X11 without a compositor paints the translucent background black (UI2-USER-UI-FIXES-2):
+  // there the window is shaped to the hub, the slots and the overflow list
+  if (QGuiApplication::platformName() == QLatin1String("xcb")) {
+    QRegion shape(QRect(QPoint(size_ / 2 - 16, size_ / 2 - 16), QSize(33, 33)), QRegion::Ellipse);
+    for (int sl = 0; sl < kSlotCount; ++sl)
+      if (!model_.radial[static_cast<size_t>(sl)].command.empty()) shape += slotRect(sl).adjusted(0, 0, 1, 1);
+    if (rows) shape += rowRect(0).united(rowRect(rows - 1)).adjusted(0, -3, 1, 4);
+    setMask(shape);
+  } else {
+    clearMask();
+  }
   opening_ = true;
   show();
   setFocus();

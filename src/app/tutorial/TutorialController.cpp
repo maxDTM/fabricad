@@ -35,6 +35,7 @@ namespace {
 constexpr int kTrackMs = 100;
 constexpr int kModelTrackMs = 250;
 constexpr int kGap = 14;  ///< bubble to anchor
+constexpr int kHiddenHintMs = 4000;  ///< "Can't see it?" only after this long in the step
 
 /// The welcome / finish card: painted like the bubble (tokens), centred in the window.
 class Card : public QFrame {
@@ -121,7 +122,7 @@ TutorialController::TutorialController(MainWindow& w, QMenu* helpMenu) : QObject
   track_->setInterval(kTrackMs);
   connect(track_, &QTimer::timeout, this, &TutorialController::track);
   connect(engine_, &TutorialEngine::stepChanged, this, [this] { onStep(); });
-  connect(engine_, &TutorialEngine::hintChanged, bubble_, &TutorialBubble::setHint);
+  connect(engine_, &TutorialEngine::hintChanged, bubble_, [this](const QString& h, bool warning) { bubble_->setHint(h, warning); });
   connect(engine_, &TutorialEngine::finished, this, &TutorialController::onFinished);
   connect(bubble_, &TutorialBubble::backClicked, engine_, &TutorialEngine::back);
   connect(bubble_, &TutorialBubble::nextClicked, engine_, &TutorialEngine::next);
@@ -276,7 +277,7 @@ void TutorialController::onFinished(bool completed) {
   last_ = {};
   if (completed) {
     const Tour* t = findTour(currentTour_);
-    showFinishCard(t && !t->finishText.isEmpty() ? t->finishText : QString("Well done. Help > Tutorials has more tours."));
+    showFinishCard(t && !t->finishText.isEmpty() ? TutorialEngine::expand(t->finishText) : QString("Well done. Help > Tutorials has more tours."));
   }
 }
 
@@ -344,7 +345,10 @@ void TutorialController::track() {
   bubble_->setFloating(cover != nullptr);
   if (!overlay_->ghostRunning()) overlay_->setSpotlight(last_.visible && !s->anchor.isNone() ? last_.rect : QRect());
   // how to reach a target that is not directly visible (unless the engine shows its own hint)
-  if (last_.via != lastVia_) {
+  // "Can't see it?" waits a few seconds: at step entry the target is often only behind the card
+  // for a moment, and an instant hint reads like a reproach
+  const bool hiddenVia = last_.via == "offscreen" || last_.via == "occluded";
+  if (last_.via != lastVia_ && (!hiddenVia || engine_->stepElapsedMs() >= kHiddenHintMs)) {
     lastVia_ = last_.via;
     if (engine_->hint().isEmpty()) {
       const QString& v = last_.via;
@@ -367,6 +371,11 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
   if (CommandCard* card = w_.commandCard(); card && card->isVisible()) avoid.push_back(windowRect(card));
   for (const char* name : {"OrientationDial", "ViewCube"})
     if (auto* x = w_.findChild<QWidget*>(name); x && x->isVisible()) avoid.push_back(windowRect(x));
+  // the on-canvas value boxes (a rectangle's width / height) the step asks to type into; weighted
+  // like a click target, with a margin for the cursor next to them (UI2-TUTORIAL-7)
+  std::vector<QRect> mustSee;
+  for (QWidget* x : w_.findChildren<QWidget*>("fcValueBox"))
+    if (x->isVisible()) mustSee.push_back(windowRect(x).adjusted(-24, -24, 24, 24));
   QRect bounds = win.adjusted(8, 8, -8, -8);
   if (QWidget* cover = bubble_->isFloating() ? (QApplication::activePopupWidget() ? QApplication::activePopupWidget()
                                                                                   : QApplication::activeModalWidget())
@@ -374,7 +383,13 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
     // beside the popup / dialog, on the screen
     target = windowRect(cover);
     avoid.clear();
-    if (QScreen* scr = cover->screen()) bounds = scr->availableGeometry().adjusted(8, 8, -8, -8);
+    // inside the main window when it fits there (a rootful / tiled X screen can be larger than
+    // what is visible), else on the popup's screen
+    if (QScreen* scr = cover->screen()) {
+      const QRect screen = scr->availableGeometry().adjusted(8, 8, -8, -8);
+      const QRect inWin = bounds.intersected(screen);
+      bounds = inWin.height() >= sz.height() && inWin.width() >= sz.width() ? inWin : screen;
+    }
   }
   QRect best;
   if (target.isNull()) {
@@ -404,6 +419,8 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
       if (q.intersects(target)) score += 100000;
       for (const QRect& a : actionRects_)
         if (q.intersects(a)) score += 50000;
+      for (const QRect& a : mustSee)
+        if (q.intersects(a)) score += 50000;
       for (const QRect& a : avoid) {
         const QRect i = q.intersected(a);
         score += i.width() * i.height();
@@ -422,7 +439,7 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
 
 void TutorialController::showMe() {
   const Step* s = engine_->step();
-  if (!s || s->actions.empty()) return;
+  if (!s) return;
   std::vector<TutorialOverlay::GhostStep> steps;
   QPoint at = last_.visible ? last_.point : QPoint();
   auto targetPoint = [&](const QJsonValue& v, bool* ok) -> QPoint {
@@ -479,7 +496,8 @@ void TutorialController::showMe() {
     }
   }
   if (steps.empty()) {
-    bubble_->setHint("Nothing to show from here: the target is not on screen yet.");
+    bubble_->setHint(s && !s->actions.empty() ? QString("The target is hidden from this view: orbit, or press [[Home]], then try Show me again.")
+                                              : QString("This step has nothing to show: follow the text, or press Next."));
     return;
   }
   const QPoint from = bubble_->mapToGlobal(bubble_->rect().center());

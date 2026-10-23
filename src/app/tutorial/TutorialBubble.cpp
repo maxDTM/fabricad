@@ -140,7 +140,7 @@ void TutorialBubble::applyTheme() {
   hint_->setFont(f);
   for (QWidget* w : {static_cast<QWidget*>(chapter_), static_cast<QWidget*>(counter_)}) ThemeManager::applyTextStyle(w);
   if (!markup_.isEmpty()) body_->setText(richText(markup_));
-  if (!hint_->text().isEmpty()) setHint(hint());
+  if (!hint_->text().isEmpty()) setHint(hint_->property("hintMarkup").toString(), hintWarning_);
   update();
 }
 
@@ -154,6 +154,8 @@ QString TutorialBubble::richText(const QString& markup) {
                             .arg(theme::color(theme::Tok::SurfaceHeader).name(), theme::color(theme::Tok::TextPrimary).name(),
                                  theme::color(theme::Tok::BorderDefault).name());
   s.replace(key, QString("<span style=\"%1\">&nbsp;\\1&nbsp;</span>").arg(style));
+  static const QRegularExpression code(R"(`([^`]+)`)");
+  s.replace(code, QString("<code style=\"color:%1; font-weight:700;\">\\1</code>").arg(theme::color(theme::Tok::TextPrimary).name()));
   s.replace('\n', "<br>");
   return s;
 }
@@ -163,6 +165,7 @@ QString TutorialBubble::plain(const QString& markup) {
   s.remove(QStringLiteral("**"));
   s.replace(QStringLiteral("[["), QString());
   s.replace(QStringLiteral("]]"), QString());
+  s.remove(QLatin1Char('`'));
   return s;
 }
 
@@ -192,12 +195,15 @@ void TutorialBubble::setContent(const Content& c) {
   QAccessible::updateAccessibility(&ev);
 }
 
-void TutorialBubble::setHint(const QString& text) {
+void TutorialBubble::setHint(const QString& text, bool warning) {
+  hintWarning_ = warning;
   if (text.isEmpty()) {
     hint_->clear();
     hint_->hide();
   } else {
-    hint_->setText(QString("<span style=\"color:%1\">%2</span>").arg(theme::color(theme::Tok::StatusWarning).name(), richText(text)));
+    const theme::Tok tok = warning ? theme::Tok::StatusWarning : theme::Tok::TextSecondary;
+    hint_->setText(QString("<span style=\"color:%1\">%2</span>").arg(theme::color(tok).name(), richText(text)));
+    hint_->setProperty("hintMarkup", text);
     hint_->setProperty("plainHint", plain(text));
     hint_->show();
   }

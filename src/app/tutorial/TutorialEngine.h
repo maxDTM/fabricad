@@ -59,6 +59,10 @@ class TutorialEngine : public QObject {
   /// Why the current step has not completed yet (last evaluation).
   QString waitingFor() const { return why_; }
   QString hint() const { return hint_; }
+  /// The current hint corrects an off-script action (red); other hints are help (neutral).
+  bool hintIsWarning() const { return hintWarning_; }
+  /// Milliseconds since the current step started.
+  qint64 stepElapsedMs() const { return stepClock_.isValid() ? stepClock_.elapsed() : 0; }
 
   /// {timeline} / {orientation} expanded for the current layout (ui/timelineStyle, ui/orientation).
   static QString expand(const QString& text);
@@ -74,7 +78,7 @@ class TutorialEngine : public QObject {
  signals:
   void started();
   void stepChanged(int index);
-  void hintChanged(const QString& hint);
+  void hintChanged(const QString& hint, bool warning);
   void chapterCompleted(int chapter);
   /// completed: the last step finished (false: exited).
   void finished(bool completed);
@@ -82,7 +86,7 @@ class TutorialEngine : public QObject {
  private:
   void enter(int index, bool recordUndo = true);
   void complete();
-  void setHint(const QString& h);
+  void setHint(const QString& h, bool warning = false);
   void watchViewer();
   void saveCheckpoint(int chapter);
 
@@ -103,6 +107,7 @@ class TutorialEngine : public QObject {
   QElapsedTimer undoChangedAt_;
   QString why_;
   QString hint_;
+  bool hintWarning_ = false;
   QPointer<QObject> watchedViewer_;
   QMetaObject::Connection cameraConn_;
 };
