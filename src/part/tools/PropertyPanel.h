@@ -131,6 +131,7 @@ class PropertyPanel : public QWidget {
   std::string live_;
   QString pendingFocus_;  ///< field to focus again after a rebuild retired the focused one
   QMetaObject::Connection focusWatch_;
+  int focusGen_ = 0;
   bool rebuilding_ = false;
   int delayMs_ = 0;
   QTimer debounce_;
