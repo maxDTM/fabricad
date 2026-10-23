@@ -1,0 +1,55 @@
+{
+  "$comment": "Sample tour for the tutorial engine (docs/plans/tutorial.md). Three steps; the bracket tour follows the same schema.",
+  "id": "sample",
+  "title": "Quick tour: your first sketch",
+  "description": "Three short steps: move the 3D view, start a sketch and pick the **XY** plane. About a minute. You can leave the tour at any time from Help > Tutorials.",
+  "version": 1,
+  "order": 50,
+  "welcome": true,
+  "window": [1600, 1000],
+  "finish": "That's it: you are sketching on the **XY** plane. Draw something, then click **Finish Sketch** or press [[Ctrl+Enter]].",
+  "chapters": [
+    {
+      "id": "view",
+      "title": "The 3D view",
+      "steps": [
+        {
+          "id": "1.1",
+          "text": "Orbit with a **right-drag**, pan with a **middle-drag**, zoom with the **wheel**. A right click without dragging opens the menu. Press [[Home]] to reset the view, then click **Next**.",
+          "anchor": "widget:viewport",
+          "keys_shown": ["Home"],
+          "until": {"next": true},
+          "do": [
+            {"drag": {"from": "@anchor", "to": {"dx": 140, "dy": 50}, "button": "right", "steps": 12}},
+            {"key": "Home"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sketch",
+      "title": "First sketch",
+      "checkpoint": "sample-sketch.fcad",
+      "steps": [
+        {
+          "id": "2.1",
+          "text": "Click **Create Sketch**.",
+          "anchor": "tool:sketch.create",
+          "until": {"tool": "sketch.create"},
+          "do": [{"click": "@anchor"}],
+          "hint": "It is the first button of the **SKETCH** section in the toolbar."
+        },
+        {
+          "id": "2.2",
+          "text": "Click the **XY** plane, the flat one. The view turns to look straight at it.",
+          "anchor": {"model": "plane:XY"},
+          "context": "tool:sketch.create",
+          "until": {"sketch": "active"},
+          "stable_ms": 300,
+          "do": [{"click": "@anchor"}],
+          "hint": "Click inside the flat square, not on its edge."
+        }
+      ]
+    }
+  ]
+}

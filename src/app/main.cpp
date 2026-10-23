@@ -22,6 +22,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/HeadlessHost.h"
 #include "app/MainWindow.h"
+#include "app/tutorial/TutorialController.h"
 #include "app/ScriptRunner.h"
 #include "app/ThemeManager.h"
 #include "core/Tool.h"
@@ -263,6 +264,9 @@ int main(int argc, char** argv) {
     }
     // nothing opened: a previous session may have left an autosave behind
     if (!openedFile && !scripted) window.offerRecovery();
+    // first launch: offer the guided tour (never for scripts, offscreen runs, FABRICAD_NO_TUTORIAL=1)
+    if (!openedFile && !scripted)
+      if (auto* tour = fabricad::app::tutorial::TutorialController::of(window)) tour->maybeShowWelcome();
     if (scripted) {
       auto* runner = new fabricad::app::ScriptRunner(window, &window);
       fabricad::app::ScriptRunner::Options ro;

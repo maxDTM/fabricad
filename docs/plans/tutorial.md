@@ -1,11 +1,15 @@
 # Plan: interactive "First part" tutorial (in-app guided tour + real-input GUI test)
 
-Status: planned, not started. No code yet. Section 8 questions answered by the user (2026-10-22). Starts after roadmap steps 1–3.
+Status: **engine built** (2026-10-23, roadmap step 4 part 1, see section 9): tour format, loader and validation,
+anchor resolution, conditions, overlay, bubble, welcome card, ghost cursor, shortcuts, recovery, checkpoints,
+Help > Tutorials, the offscreen lint ctest, the TestProbe and the opt-in GUI runner skeleton, with a 3-step sample
+tour. The bracket content (`resources/tutorials/bracket/`) is next. Section 8 questions answered by the user
+(2026-10-22).
 
 Reconciled on 2026-10-22 with the newer `docs/plans/ui-redesign.md` (it wins where they differ) and
 `docs/plans/feature-list-timeline.md`. The tour is built **on the redesigned UI**: no ribbon tab row, a sectioned
-main toolbar with a MORE ▾ section, the FEATURES list instead of the bottom timeline by default, the hex orientation
-dial instead of the ViewCube by default, a floating command card, dark theme by default, bold monospace caps.
+main toolbar with a MORE ▾ section, the FEATURES list instead of the bottom timeline by default, the ViewCube as the
+default orientation control (user decision 2026-10-23: the hex dial stays only as a non-default option), a floating command card, dark theme by default, bold monospace caps.
 Execution order: `docs/plans/ROADMAP.md` (this plan is step 4, after the redesign, the open-issue fixes and a
 drawing test round).
 
@@ -126,7 +130,7 @@ Columns:
 |---|---|---|---|---|---|
 | **Ch 0 Welcome** (first-launch card or Help > Tutorials) | | | | | |
 | 0.1 | "Welcome. We'll build a bracket and 3D-print it. Start?" | welcome card | click `TutorialStart` | tour running | |
-| 0.2 | "Orbit: Shift + middle-drag. Zoom: wheel. Home key resets the view." | viewport | Shift+MMB drag; Home | camera changed, then Home view | |
+| 0.2 | "Orbit: right-drag. Pan: middle-drag. Zoom: wheel. A right click without a drag opens the menu. Home resets the view." | viewport | RMB drag; Home | camera changed, then Home view | |
 | 0.3 | (only if the workspace selector does not show PART) "Open the workspace menu and choose **Part**." | `WorkspaceSwitcher` | click, click | toolbar filter = Part | |
 | **Ch 1 First sketch** | | | | | |
 | 1.1 | "Click **Create Sketch**." | `tool:sketch.create` | click | tool `sketch.create` active | |
@@ -415,13 +419,14 @@ saved step.
    - `QT_ENABLE_HIGHDPI_SCALING=0`, `QT_SCALE_FACTOR=1`, `QT_FONT_DPI=96`, `LANG=C.UTF-8`
    - `FABRICAD_TEST_PROBE=<socket>`
 
-   A first launch gets the redesign defaults (redesign 6.1): dark theme, `featureList`, `hexDial`, card
+   A first launch gets the redesign defaults (redesign 6.1): dark theme, `featureList`, `viewCube`, card
    `floatRight`, toolbar `top`, sidebar `left`. **Layout presets** (redesign 8.2): `--layout <preset>` writes the
    `ui/*` keys into the temporary `XDG_CONFIG_HOME` before launch, the same mechanism as `ui.sh prefs <N> key=value…`
    (redesign 8.3):
    - `default`: no keys written;
    - `alt`: `ui/cardPlacement=sidebar`, `ui/sidebarSide=right`, `ui/toolbarArea=left`;
-   - `light`: `ui/theme=light`, `ui/orientation=viewCube`, `ui/timelineStyle=strip`.
+   - `light`: `ui/theme=light`, `ui/orientation=hexDial` (the non-default option; the ViewCube is the default
+     since 2026-10-23), `ui/timelineStyle=strip`.
 3. **Start.** Launch the app and connect to the probe. Wait for `ready` (window exposed and `viewInitialized`). Size the
    window with `xdotool windowmove/windowsize` and wait until the probe reports the size. There are **no fixed sleeps**.
    The X server inside the backend has no window manager, so nothing re-tiles it.
@@ -477,7 +482,7 @@ saved step.
 | Risk (source) | Mitigation in the tutorial or runner | App change |
 |---|---|---|
 | Rectangle and other value boxes sit under the cursor and swallow the second click (NEW-SKETCH-1) | Never click a second corner. Type W, Tab, H, Enter. | Place boxes offset from the cursor, or make them mouse-transparent until focused |
-| Orientation-widget targets are small: hex dial tips (default), ViewCube corners in the `light` preset (UX-05, NEW-SKETCH-2) | Never use the dial or the ViewCube in a step. Use Home and Ctrl+1..7. | none required (the dial and the token-coloured ViewCube come with redesign phase 4) |
+| Orientation-widget targets: the ViewCube (default since 2026-10-23, big forgiving hitboxes), hex dial tips in the `light` preset (UX-05, NEW-SKETCH-2) | Never use the dial or the ViewCube in a step. Use Home and Ctrl+1..7. Orbit is a right-drag (a right click without a drag still opens the marking menu). | none required |
 | Layout variety: card placement, sidebar side, toolbar position, list vs strip, theme | Anchors resolve by name and property, never by position; `{timeline}`/`{orientation}` text placeholders; the tour runs in the 3 presets | `OverlayLayout` and `UiSettings::changed` (redesign) |
 | Origin planes win picks over bodies (NEW-ASSEMBLY-DRAWING-1); Create Sketch picks XZ instead of the top face (NEW-PART-CORE-3) | Select the face **first**, then Create Sketch. Pick YZ in the browser. Pick-check before every click. | Lower origin-plane pick priority below bodies |
 | Entering a sketch does not orient the view until the first click (NEW-SOLID-4); clicks during camera animation land wrong (SK-03) | Wait for `idle`, which includes the animation | Look At on sketch entry; expose `isAnimating()` and `cameraChanged` |
