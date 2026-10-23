@@ -79,7 +79,7 @@ SketchPalette::SketchPalette(viewer::ViewerWidget& viewer, core::ToolManager& ma
   ov->addWidget(head);
   construction_ = option("Construction linetype (X)", "New curves are construction geometry");
   ov->addWidget(construction_);
-  typedDims_ = option("Typed values create dimensions", "Typed coordinates, lengths, angles and sizes become driving dimensions");
+  typedDims_ = option("Typed values: dimensions", "Typed coordinates, lengths, angles and sizes become driving dimensions");
   typedDims_->setObjectName("typedDimensions");
   ov->addWidget(typedDims_);
   auto* look = new QPushButton(resourceIcon("look-at"), "Look At", opts);
