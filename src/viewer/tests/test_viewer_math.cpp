@@ -1,5 +1,6 @@
 // Unit tests for the GL-free viewer math (camera mapping, grid, views, selection tables).
 // SPDX-License-Identifier: LGPL-2.1-or-later
+#include "viewer/PrimitivePrs.h"
 #include "viewer/ViewerMath.h"
 
 #include <QtTest/QtTest>
@@ -180,6 +181,29 @@ class ViewerMathTest : public QObject {
     QVERIFY(!isCrossingSelection(20, 100));
     QVERIFY(!exceedsDragThreshold(2, 3));
     QVERIFY(exceedsDragThreshold(5, 0));
+  }
+
+  void centredDotMarker() {
+    // sketch points / the sketch origin: an odd, symmetric disc centred on its pixel
+    QCOMPARE(dotDiameter(6.0f), 7);
+    QCOMPARE(dotDiameter(7.0f), 7);
+    QCOMPARE(dotDiameter(8.0f), 9);
+    for (int d : {5, 7, 9, 11}) {
+      const std::vector<std::uint8_t> bits = roundDotBits(d);
+      const int stride = (d + 7) / 8;
+      QCOMPARE(int(bits.size()), stride * d);
+      auto on = [&](int x, int y) { return (bits[size_t(y * stride + x / 8)] & (0x80u >> (x % 8))) != 0; };
+      const int c = d / 2;
+      QVERIFY(on(c, c));
+      QVERIFY(on(0, c) && on(d - 1, c) && on(c, 0) && on(c, d - 1));
+      QVERIFY(!on(0, 0) && !on(d - 1, d - 1));
+      for (int y = 0; y < d; ++y)
+        for (int x = 0; x < d; ++x) {
+          QCOMPARE(on(x, y), on(d - 1 - x, y));
+          QCOMPARE(on(x, y), on(x, d - 1 - y));
+          QCOMPARE(on(x, y), on(y, x));
+        }
+    }
   }
 
   void pickPriorityOriginPlanesLast() {

@@ -10,7 +10,37 @@
 #include <Graphic3d_Group.hxx>
 #include <Prs3d_Presentation.hxx>
 
+#include <cmath>
+#include <map>
+
 namespace fabricad::viewer {
+
+int dotDiameter(float sizePx) { return std::max(3, static_cast<int>(std::lround(sizePx)) | 1); }
+
+std::vector<std::uint8_t> roundDotBits(int d) {
+  d = std::max(1, d | 1);
+  const int stride = (d + 7) / 8;
+  std::vector<std::uint8_t> bits(static_cast<size_t>(stride * d), 0);
+  const double c = (d - 1) / 2.0, r = d / 2.0;
+  for (int y = 0; y < d; ++y)
+    for (int x = 0; x < d; ++x)
+      if ((x - c) * (x - c) + (y - c) * (y - c) <= r * r - 0.25)
+        bits[static_cast<size_t>(y * stride + x / 8)] |= static_cast<std::uint8_t>(0x80u >> (x % 8));
+  return bits;
+}
+
+Handle(TColStd_HArray1OfByte) roundDotBitmap(int d) {
+  static std::map<int, Handle(TColStd_HArray1OfByte)> cache;
+  d = std::max(1, d | 1);
+  Handle(TColStd_HArray1OfByte)& h = cache[d];
+  if (h.IsNull()) {
+    const std::vector<std::uint8_t> bits = roundDotBits(d);
+    h = new TColStd_HArray1OfByte(0, static_cast<int>(bits.size()) - 1);
+    for (size_t i = 0; i < bits.size(); ++i) h->SetValue(static_cast<int>(i), bits[i]);
+  }
+  return h;
+}
+
 
 PrimitivePrs::PrimitivePrs(Kind kind, const Quantity_ColorRGBA& color, float width, bool dashed, float pointSize)
     : myKind(kind), myColorRgba(color), myWidth(width), myDashed(dashed), myPointSize(pointSize) {
@@ -49,8 +79,8 @@ void PrimitivePrs::Compute(const Handle(PrsMgr_PresentationManager)&, const Hand
       Handle(Graphic3d_Group) group = thePrs->NewGroup();
       Handle(Graphic3d_ArrayOfPoints) arr = new Graphic3d_ArrayOfPoints(n);
       for (const gp_Pnt& p : myPoints) arr->AddVertex(p);
-      Handle(Graphic3d_AspectMarker3d) asp =
-          new Graphic3d_AspectMarker3d(Aspect_TOM_BALL, myColorRgba.GetRGB(), myPointSize / 5.0);
+      const int d = dotDiameter(myPointSize);
+      Handle(Graphic3d_AspectMarker3d) asp = new Graphic3d_AspectMarker3d(myColorRgba.GetRGB(), d, d, roundDotBitmap(d));
       group->SetGroupPrimitivesAspect(asp);
       group->AddPrimitiveArray(arr);
       break;

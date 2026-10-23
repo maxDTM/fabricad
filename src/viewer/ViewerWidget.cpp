@@ -948,7 +948,7 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
       s->SetWidth(it.style == SceneStyle::SketchConstruction ? 1.5 : 2.0);
       setLineStyle(dr, it.style == SceneStyle::SketchConstruction);
       dr->SetVertexDrawMode(Prs3d_VDM_All);
-      dr->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, col, 0.5));
+      dr->SetPointAspect(new Prs3d_PointAspect(col, 5, 5, roundDotBitmap(5)));  // centred dot
       layer = Graphic3d_ZLayerId_Top;
       break;
     }
@@ -993,7 +993,7 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
     case SceneStyle::ConstructionPoint:
     case SceneStyle::OriginPoint: {
       s->SetColor(col);
-      dr->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, col, 0.8));
+      dr->SetPointAspect(new Prs3d_PointAspect(col, 7, 7, roundDotBitmap(7)));  // centred dot
       break;
     }
   }
@@ -1236,7 +1236,7 @@ void ViewerWidget::syncOverlays() {
       Handle(AIS_Shape) o = new AIS_Shape(shape);
       if (!isIdentity(placement)) o->SetLocalTransformation(placement);
       o->SetColor(qcol(edge));
-      o->Attributes()->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, qcol(edge), 1.0));
+      o->Attributes()->SetPointAspect(new Prs3d_PointAspect(qcol(edge), 9, 9, roundDotBitmap(9)));  // centred on the point
       display(o, AIS_WireFrame, kPrioMain);
       return;
     }

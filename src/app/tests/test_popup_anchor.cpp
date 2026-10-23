@@ -1,5 +1,6 @@
 // Dropdown popups under their labels and right click opening a button's dropdown
 // (user decisions 2026-10-23, app/PopupAnchor.h). Headless (offscreen).
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -82,6 +83,38 @@ class TestPopupAnchor : public QObject {
     const QRect br(b->mapToGlobal(QPoint(0, 0)), b->size());
     QCOMPARE(placed.topLeft(), QPoint(br.left(), br.bottom() + 1));
     QCOMPARE(PopupAnchor::instance()->lastPlacement().topLeft(), placed.topLeft());
+  }
+
+  void staleWindowPositionIsCorrected() {
+    // Xwayland on a tiling compositor: the server says the press was 300,200 px away from where
+    // Qt maps it (stale window position). The dropdown follows the server's coordinates.
+    QWidget win;
+    win.resize(400, 300);
+    auto* pad = new QWidget(&win);
+    pad->setGeometry(0, 0, 400, 100);
+    auto* b = new QToolButton(&win);
+    b->setGeometry(50, 120, 80, 40);
+    auto* menu = new QMenu(b);
+    menu->addAction("One");
+    b->setMenu(menu);
+    b->setPopupMode(QToolButton::InstantPopup);
+    win.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&win));
+    const QPointF local(10, 10);
+    const QPointF global = QPointF(pad->mapToGlobal(local.toPoint())) + QPointF(300, 200);
+    QMouseEvent press(QEvent::MouseButtonPress, local, local, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(pad, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, local, local, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(pad, &release);
+    QCOMPARE(PopupAnchor::instance()->correction(b), QPoint(300, 200));
+    QRect placed;
+    QTimer::singleShot(50, this, [&] {
+      placed = menu->geometry();
+      menu->close();
+    });
+    QVERIFY(PopupAnchor::instance()->showDropdown(b));
+    const QPoint under = b->mapToGlobal(QPoint(0, b->height())) + QPoint(300, 200);
+    QCOMPARE(placed.topLeft(), under);
   }
 
   void leftClickOnSplitStillRunsTheTool() {

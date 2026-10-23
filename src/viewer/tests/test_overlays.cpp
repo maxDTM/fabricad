@@ -35,6 +35,7 @@ class OverlaysTest : public QObject {
  private slots:
   void objectNamesAndPlacement() {
     ViewerWidget w;
+    w.setOrientationWidget(OrientationWidget::HexDial);  // the dial is an option since 2026-10-23
     w.resize(1600, 900);
     w.show();
     QVERIFY(QTest::qWaitForWindowExposed(&w));
@@ -75,8 +76,10 @@ class OverlaysTest : public QObject {
   void overlayLayoutKeepsTheCardClear() {
     // the viewer reports its overlays as fixed regions; a floating card and the view-tool column
     // never overlap them or each other (6.3)
+    for (OrientationWidget ow : {OrientationWidget::ViewCube, OrientationWidget::HexDial})
     for (QSize size : {QSize(1600, 900), QSize(1280, 700), QSize(1000, 640)}) {
       ViewerWidget w;
+      w.setOrientationWidget(ow);
       w.resize(size);
       w.show();
       QVERIFY(QTest::qWaitForWindowExposed(&w));
@@ -115,10 +118,14 @@ class OverlaysTest : public QObject {
     w.resize(1400, 860);
     w.show();
     QVERIFY(QTest::qWaitForWindowExposed(&w));
-    QCOMPARE(w.orientationWidget(), OrientationWidget::HexDial);
+    QCOMPARE(w.orientationWidget(), OrientationWidget::ViewCube);  // the default since 2026-10-23
     OrientationDial* d = w.orientationDial();
+    QVERIFY(!d->plateVisible());
+    const int cubeH = d->height();
+    w.setOrientationWidget(OrientationWidget::HexDial);
     QVERIFY(d->plateVisible());
     const int dialH = d->height();
+    QVERIFY(cubeH < dialH);
     QSignalSpy moved(&w, &ViewerWidget::overlayGeometryChanged);
     w.setOrientationWidget(OrientationWidget::ViewCube);
     QVERIFY(!d->plateVisible());
@@ -133,6 +140,7 @@ class OverlaysTest : public QObject {
 
   void dialReadoutAndButtons() {
     ViewerWidget w;
+    w.setOrientationWidget(OrientationWidget::HexDial);  // the dial is an option since 2026-10-23
     w.resize(1400, 860);
     w.show();
     QVERIFY(QTest::qWaitForWindowExposed(&w));
@@ -176,6 +184,7 @@ class OverlaysTest : public QObject {
 
   void dialAxisTipsAndVertices() {
     ViewerWidget w;
+    w.setOrientationWidget(OrientationWidget::HexDial);  // the dial is an option since 2026-10-23
     w.resize(1400, 860);
     w.show();
     QVERIFY(QTest::qWaitForWindowExposed(&w));
@@ -218,6 +227,7 @@ class OverlaysTest : public QObject {
   void dialPaintsInBothThemes() {
     // the dial and the bars paint from the palette's theme (no cached colours)
     ViewerWidget w;
+    w.setOrientationWidget(OrientationWidget::HexDial);  // the dial is an option since 2026-10-23
     w.resize(1400, 860);
     for (theme::Theme th : {theme::Theme::Dark, theme::Theme::Light}) {
       w.setViewerPalette(ViewerPalette::fromTokens(th));
