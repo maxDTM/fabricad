@@ -20,7 +20,8 @@ import subprocess
 import sys
 
 PAD = 48          # px around the bubble and the target
-MIN = (720, 420)  # smallest crop: enough of the window around the target to find it
+MIN = (720, 420)          # smallest crop: enough of the window around the target to find it
+MIN_MODEL = (1200, 720)   # a face / edge / plane target: enough of the part to see where it is
 
 
 def expand(text, timeline="FEATURES list", orientation="ViewCube"):
@@ -30,7 +31,7 @@ def expand(text, timeline="FEATURES list", orientation="ViewCube"):
     return re.sub(r"\[\[([^\]]+)\]\]", lambda m: "<kbd>%s</kbd>" % m.group(1), text)
 
 
-def crop_box(doc, size):
+def crop_box(doc, size, least=MIN):
     rects = [doc[k] for k in ("bubble", "target") if k in doc]
     w, h = size
     if not rects:
@@ -41,7 +42,7 @@ def crop_box(doc, size):
     y1 = max(r[1] + r[3] for r in rects) + PAD
     # grow to the minimum size around the centre, then keep inside the screen
     cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
-    cw, ch = max(x1 - x0, MIN[0]), max(y1 - y0, MIN[1])
+    cw, ch = max(x1 - x0, least[0]), max(y1 - y0, least[1])
     cw, ch = min(cw, w), min(ch, h)
     x0 = min(max(0, cx - cw // 2), w - cw)
     y0 = min(max(0, cy - ch // 2), h - ch)
@@ -103,7 +104,8 @@ def main():
                 md += ["", "> " + expand(s["hint"])]
             doc = shots.get(s["id"])
             if doc and os.path.exists(os.path.join(args.run, doc["png"])):
-                x, y, w, h = crop_box(doc, size)
+                model = str(s.get("anchor", "")).startswith("model:")
+                x, y, w, h = crop_box(doc, size, MIN_MODEL if model else MIN)
                 name = "step-%s.png" % s["id"].replace(".", "-")
                 subprocess.run([tool, os.path.join(args.run, doc["png"]), "-crop", "%dx%d+%d+%d" % (w, h, x, y), "+repage",
                                 "-resize", "%dx>" % args.width, "-strip", "-colors", "256", "PNG8:" + os.path.join(img_dir, name)],

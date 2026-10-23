@@ -402,7 +402,11 @@ def offscript(r, probe, tour, report):
         probe.wait(lambda x: x["tour"].get("step") == step_id, 10, what + " (step %s)" % step_id)
 
     def doc():
-        return json.dumps(probe.ask(cmd="docjson").get("doc"), sort_keys=True)
+        # the model only: `extensions` holds view state (hidden features, folders) that the window
+        # refreshes from the view whenever it stores it, which no undo step covers
+        d = probe.ask(cmd="docjson").get("doc") or {}
+        d.pop("extensions", None)
+        return json.dumps(d, sort_keys=True)
 
     def log(what):
         report["steps"].append({"id": "offscript", "check": what})
@@ -440,8 +444,12 @@ def offscript(r, probe, tour, report):
     r.idle()
     probe.wait(lambda x: x["undo"] == u0 and not x["tour"].get("hint"), 5, "Undo to step start")
     r.asserts(["feature:Extrude1 status ok"])
-    if doc() != d0:
-        raise Failure("Undo to step start did not restore the document")
+    d1 = doc()
+    if d1 != d0:
+        for n, d in (("before", d0), ("after", d1)):
+            with open(os.path.join(r.out, "undo-%s.json" % n), "w") as f:
+                f.write(d)
+        raise Failure("Undo to step start did not restore the document (undo-before/after.json)")
     log("Undo to step start restored the document")
     # 3. Back: finish the Fillet, then Back undoes it and shows step 4.2 again
     play_step(r, probe, steps["4.1"], report)

@@ -71,6 +71,9 @@ Status 2026-10-23 (later): first mouse/keyboard tester run of the whole tour don
 STL and reopened part match); its medium findings and the user-ui-fixes retest findings fixed in ui2/fix2, ui2/san
 (sanitizers, fuzzing) merged (`docs/uiux/ui2/SUMMARY.md`). Open: Markdown export, off-script GUI scenario, a
 second tester round, the real-Wayland popup check.
+Status 2026-10-23 (tut/finish): the tester leftovers (UI2-TUTORIAL-7/8/9 rest), the tutorial highlight style, the
+frame-based `idle`, `closeRect()`, value-box `field` ids, the Markdown export (`docs/tutorials/bracket.md`) and
+the off-script GUI scenario are done (tutorial.md §9 part 3). Open: the tester rounds, the real-Wayland popup check.
 
 ## Decisions (confirmed by the user, 2026-10-22)
 
