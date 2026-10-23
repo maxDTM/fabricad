@@ -138,6 +138,23 @@ QToolButton* MainToolbar::toolButton(core::ITool* tool, QWidget* parent, bool sm
   return b;
 }
 
+void MainToolbar::addVariantMenu(Page& p, QToolButton* b, const ToolbarSection& model, core::ITool* tool) {
+  auto it = model.variants.find(tool);
+  if (it == model.variants.end()) return;
+  auto* menu = new QMenu(b);
+  menu->setToolTipsVisible(true);
+  for (core::ITool* t : it->second) {
+    QAction* a = addToolMenuAction(menu, t->info());
+    a->setToolTip(core::qs(t->info().tooltip));
+    connect(a, &QAction::triggered, this, [this, id = t->info().id] { emit toolTriggered(id); });
+    addAction(p, t->info().id, a);
+  }
+  b->setMenu(menu);
+  b->setPopupMode(QToolButton::MenuButtonPopup);
+  b->setProperty("splitButton", true);
+  connect(menu, &QMenu::aboutToShow, this, &MainToolbar::refreshStates);
+}
+
 void MainToolbar::addCaptionMenu(Page& p, Section& s, QToolButton* caption) {
   const ToolbarSection& model = s.model;
   // the dropdown lists every tool of the section (MORE: grouped by registry tab)
@@ -277,6 +294,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
         for (core::ITool* t : model.promoted) {
           QToolButton* b = toolButton(t, s.buttonRow, false);
           addAction(p, t->info().id, b);
+          addVariantMenu(p, b, model, t);
           h->addWidget(b);
           s.buttons.push_back(b);
         }
@@ -501,6 +519,7 @@ MainToolbar::Page* MainToolbar::buildVerticalPage(bool sketch) {
           QToolButton* b = toolButton(t, s.buttonRow, false);
           styleButton(b, core::qs(shortToolLabel(t->info())));
           addAction(p, t->info().id, b);
+          addVariantMenu(p, b, model, t);
           h->addWidget(b);
           s.buttons.push_back(b);
         }
@@ -794,9 +813,21 @@ void MainToolbar::refreshStates() {
     core::ITool* tool = manager_->registry().tool(id);
     const bool toggle = tool && tool->info().checked;
     const bool on = toggle && it->second && tool->info().checked();  // disabled: no state to show
+    // state-dependent labels (Ground / Unground, NEW-ASM-CORE-2)
+    if (tool && tool->info().dynamicName) {
+      const std::string dyn = tool->info().dynamicName(ctx);
+      const QString text = core::qs(dyn.empty() ? tool->info().name : dyn);
+      if (auto* b = qobject_cast<QToolButton*>(obj)) {
+        if (b->toolButtonStyle() != Qt::ToolButtonIconOnly)
+          b->setText(dyn.empty() ? core::qs(shortToolLabel(tool->info())) : text);
+        b->setToolTip(dyn.empty() ? core::qs(toolTooltip(tool->info())) : text);
+      } else if (auto* a = qobject_cast<QAction*>(obj)) {
+        a->setText(text);
+      }
+    }
     if (auto* b = qobject_cast<QToolButton*>(obj)) {
       b->setEnabled(it->second);
-      if (b->objectName() == QLatin1StringView("RibbonTool") && !b->menu()) {
+      if (b->objectName() == QLatin1StringView("RibbonTool") && (!b->menu() || b->popupMode() == QToolButton::MenuButtonPopup)) {
         b->setCheckable(true);
         b->setChecked(active || on);
       }

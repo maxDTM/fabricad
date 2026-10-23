@@ -16,6 +16,7 @@ struct StepExportOptions {
   bool colors = true;
   bool names = true;
   bool visibleOnly = true;
+  bool pcurves = true;  ///< false: omit edge pcurves (write.surfacecurve.mode 0), smaller file
 };
 
 struct StepExportStats {

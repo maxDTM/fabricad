@@ -12,9 +12,12 @@
 #include <IntAna_QuadQuadGeo.hxx>
 #include <TopoDS.hxx>
 #include <gp_Lin.hxx>
+#include <gp.hxx>
 #include <gp_Pln.hxx>
 
+#include <algorithm>
 #include <cmath>
+#include <format>
 
 namespace fabricad::part {
 
@@ -96,7 +99,18 @@ OffsetPlaneFeature::OffsetPlaneFeature() : ConstructionFeature(kType) {
   addRef("plane", kPlaneKinds).setLabel("Plane");
   addLength("distance", 10.0).setLabel("Distance");
   addBool("flip", false).setLabel("Flip");
+  // COMPARISON.md recommendation 7 (U3): the XZ origin plane's normal is -Y, so "+175 along Y"
+  // needs a flip. A world direction makes the offset (and the new plane's normal) follow that
+  // axis whatever the reference plane's own normal is.
+  addEnum("direction", offsetPlaneDirections(), 0)
+      .setLabel("Direction")
+      .setTooltip("Plane normal, or a world axis the offset follows (the plane must be perpendicular to it)");
   addLength("size", 0.0).setLabel("Display size").setTooltip("0 = automatic");
+}
+
+const std::vector<std::string>& OffsetPlaneFeature::offsetPlaneDirections() {
+  static const std::vector<std::string> k = {"Plane normal", "+X", "-X", "+Y", "-Y", "+Z", "-Z"};
+  return k;
 }
 
 void OffsetPlaneFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
@@ -108,6 +122,16 @@ void OffsetPlaneFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   double d = ctx.length("distance");
   if (flag("flip")) d = -d;
   gp_Ax3 p = *base;
+  if (const int dir = enumIndex("direction"); dir > 0) {
+    static const gp_Dir kAxes[] = {gp::DX(), gp::DX().Reversed(), gp::DY(), gp::DY().Reversed(), gp::DZ(), gp::DZ().Reversed()};
+    const gp_Dir w = kAxes[std::min(dir, 6) - 1];
+    const double c = p.Direction().Dot(w);
+    if (std::abs(c) < 1.0 - 1e-9) {
+      ctx.setError(std::format("the plane is not perpendicular to world {}", offsetPlaneDirections()[static_cast<size_t>(dir)]));
+      return;
+    }
+    if (c < 0) p.ZReverse();  // the new plane's normal follows the world direction
+  }
   p.Translate(gp_Vec(p.Direction()) * d);
   setPlaneResult(ctx, p, out);
 }

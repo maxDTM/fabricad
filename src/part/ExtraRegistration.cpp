@@ -21,7 +21,7 @@ void reg(core::FeatureFactory& f) {
 
 template <class F>
 void tool(core::ToolRegistry& t, const std::string& id, const std::string& name, const std::string& tooltip,
-          const std::string& group, int order, std::vector<std::string> aliases) {
+          const std::string& group, int order, std::vector<std::string> aliases, const std::string& tab = "SOLID") {
   core::ToolInfo i;
   i.id = id;
   i.name = name;
@@ -29,7 +29,7 @@ void tool(core::ToolRegistry& t, const std::string& id, const std::string& name,
   i.icon = id;
   i.aliases = std::move(aliases);
   i.workspace = core::Workspace::Design;
-  i.tab = "SOLID";
+  i.tab = tab;
   i.group = group;
   i.order = order;
   i.promoted = false;
@@ -61,7 +61,8 @@ void registerExtraPartTools(core::ToolRegistry& t) {
   tool<SphereFeature>(t, "part.sphere", "Sphere", "Sphere primitive centred on a plane", CREATE, 82, {"SPHERE"});
   tool<TorusFeature>(t, "part.torus", "Torus", "Torus primitive on a plane", CREATE, 83, {"TORUS"});
   tool<CoilFeature>(t, "part.coil", "Coil", "Helical coil (spring) on a plane", CREATE, 84, {"COIL", "HELIX", "SPRING"});
-  tool<ThickenFeature>(t, "part.thicken", "Thicken", "Give faces a thickness to make a solid", CREATE, 90, {"THICKEN"});
+  tool<ThickenFeature>(t, "part.thicken", "Thicken", "Give faces a thickness to make a solid", CREATE, 90, {"THICKEN"},
+                         "SURFACE");  // MORE > SURFACE; also listed in SOLID > CREATE (ToolbarModel)
   tool<ScaleBodyFeature>(t, "part.scale", "Scale", "Scale bodies uniformly or per axis about a point", MODIFY, 55,
                          {"SCALE", "SC"});
   tool<SplitFaceFeature>(t, "part.split-face", "Split Face", "Split faces with a plane, face or body", MODIFY, 61,

@@ -1,6 +1,7 @@
 // FabriCAD assembly tools: component management implementation.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/tools/ComponentTools.h"
+#include "part/features/Import.h"
 
 #include "assembly/BaseBodyFeature.h"
 #include "assembly/JointFeature.h"
@@ -539,6 +540,8 @@ bool exportStep(ToolContext& ctx, const std::string& path) {
     return false;
   }
   StepExportOptions opt;
+  opt.pcurves = part::stepPcurvesDefault();
+  for (const std::string& a : ctx.args) part::applyStepOption(a, opt.pcurves);
   std::vector<ObjectId> comps = componentsOf(doc, ctx.preselection);
   if (comps.size() == 1) opt.root = comps.front();
   std::string err;

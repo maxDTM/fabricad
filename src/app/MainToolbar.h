@@ -114,6 +114,8 @@ class MainToolbar : public QWidget {
   void fit();
   void scheduleFit();
   QToolButton* toolButton(core::ITool* tool, QWidget* parent, bool small);
+  /// Split button: the arrow lists the tool's variants (ToolbarSection::variants).
+  void addVariantMenu(Page& page, QToolButton* b, const ToolbarSection& model, core::ITool* tool);
   void addAction(Page& page, const std::string& id, QObject* obj);
 
   core::ToolManager* manager_;

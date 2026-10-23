@@ -185,6 +185,15 @@ void FeatureTool::applyPreselection(core::ToolContext& ctx, const std::vector<co
   PartFeature* f = feature();
   if (!f || refs.empty()) return;
   for (core::ShapeRef r : refs) {
+    // the feature's own routing (Hole: a face is the start face)
+    bool routed = false;
+    for (const std::string& name : f->preselectionInputs(r)) {
+      core::Property* p = f->property(name);
+      if (!p || p->flags().hidden || !core::hasKind(p->refFilter(), r.kind)) continue;
+      if (p->type() == core::PropertyType::Ref && p->ref().isValid()) continue;
+      routed = addRefToInput(ctx, name, r) || routed;
+    }
+    if (routed) continue;
     // the primary input first, then any other ref property accepting the kind
     bool placed = false;
     if (core::Property* p = f->property(activeInput_); p && core::hasKind(p->refFilter(), r.kind))
@@ -860,6 +869,13 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   return panel;
 }
 
+void FeatureTool::showCrossComponentNotes(core::ToolContext& ctx, core::ObjectId featureId) {
+  if (!ctx.document || featureId == core::kInvalidId) return;
+  // the command may be owned by the undo stack already: look the feature up by id
+  if (auto* f = ctx.document->featureAs<PartFeature>(featureId))
+    for (const std::string& note : f->crossComponentNotes()) ctx.showMessage(note);
+}
+
 void FeatureTool::accept(core::ToolContext& ctx) {
   if (!ctx.document) {
     ctx.cancel();
@@ -899,6 +915,7 @@ void FeatureTool::accept(core::ToolContext& ctx) {
       ctx.document->recompute();
     }
     if (prepare && ctx.undo) ctx.undo->endMacro();
+    showCrossComponentNotes(ctx, id);
     ctx.finish();
     return;
   }
@@ -929,12 +946,14 @@ void FeatureTool::accept(core::ToolContext& ctx) {
     working_->adoptPrecomputed(outcome_, previewWarnings_, previewInput_);
   auto cmd = std::make_unique<core::AddFeatureCommand>(*ctx.document, std::move(working_));
   cmd->setText(text);
+  core::AddFeatureCommand* added = cmd.get();
   if (ctx.undo) ctx.undo->push(std::move(cmd));
   else {
     // no undo stack (scripting): apply directly
     cmd->redo();
   }
   if (prepare && ctx.undo) ctx.undo->endMacro();
+  showCrossComponentNotes(ctx, added ? added->featureId() : core::kInvalidId);
   if (ctx.viewer)
     for (core::ObjectId sk : consumedSketches) ctx.viewer->setFeatureHidden(sk, true);
   ctx.finish();

@@ -43,6 +43,8 @@ class OffsetPlaneFeature : public ConstructionFeature {
   static constexpr const char* kType = "OffsetPlane";
   OffsetPlaneFeature();
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
+  /// "direction" options: Plane normal, +X, -X, +Y, -Y, +Z, -Z.
+  static const std::vector<std::string>& offsetPlaneDirections();
 };
 
 /// Plane at Angle: a plane through a linear edge/axis, rotated by an angle from a reference

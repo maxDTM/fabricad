@@ -28,6 +28,11 @@ class HoleFeature : public PartFeature {
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   void updatePropertyFlags() override;
   std::string primaryInput() const override { return "points"; }
+  std::vector<std::string> preselectionInputs(const core::ShapeRef& ref) const override {
+    if (ref.kind != core::ShapeKind::Face) return {};
+    if (ref.hasPoint) return {"face", "points"};
+    return {"face"};
+  }
   Operation operation() const override { return Operation::Cut; }
 
   /// Proto hole along -Z starting at the origin (top of the hole at z = 0). Exposed for tests.

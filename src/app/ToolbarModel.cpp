@@ -25,10 +25,29 @@ struct ExtraPlacement {
   const char* tab;
   const char* group;
 };
-constexpr ExtraPlacement kExtraPlacements[] = {{"app.parameters", "TOOLS", "UTILITIES"}};
+constexpr ExtraPlacement kExtraPlacements[] = {{"app.parameters", "TOOLS", "UTILITIES"},
+                                               // SURFACE (MORE) is Thicken's home; Fusion also lists it in SOLID > CREATE
+                                               {"part.thicken", "SOLID", "CREATE"},
+                                               {"part.split-face", "SURFACE", "MODIFY"}};
 }  // namespace
 
 bool isContextualTab(const std::string& tab) { return tab == "SKETCH"; }
+
+const std::vector<std::pair<std::string, std::vector<std::string>>>& toolVariantFamilies() {
+  static const std::vector<std::pair<std::string, std::vector<std::string>>> kFamilies = {
+      {"part.rectangular-pattern", {"part.rectangular-pattern", "part.circular-pattern"}},
+      {"construct.offset-plane",
+       {"construct.offset-plane", "construct.plane-at-angle", "construct.tangent-plane", "construct.midplane",
+        "construct.plane-three-points"}},
+      {"sketch.rectangle", {"sketch.rectangle", "sketch.rectangle-3point", "sketch.rectangle-center"}},
+      {"sketch.circle", {"sketch.circle", "sketch.circle-2point", "sketch.circle-3point"}},
+      {"sketch.arc-3point", {"sketch.arc-3point", "sketch.arc-center", "sketch.arc-tangent"}},
+      {"sketch.polygon", {"sketch.polygon", "sketch.polygon-inscribed", "sketch.polygon-edge"}},
+      {"sketch.slot", {"sketch.slot", "sketch.slot-overall", "sketch.slot-center"}},
+      {"sketch.project", {"sketch.project", "sketch.intersect"}},
+  };
+  return kFamilies;
+}
 
 std::vector<std::string> orderedTabs(std::vector<std::string> tabs) {
   static const std::vector<std::string> kPreferred = {"SOLID",   "SURFACE", "SKETCH", "ASSEMBLE", "CONSTRUCT",
@@ -124,6 +143,27 @@ void promote(ToolbarSection& s) {
     for (size_t i = 0; i < s.all.size() && i < 2; ++i) s.promoted.push_back(s.all[i]);
 }
 
+/// Split buttons: a promoted family primary collects the family's tools of this section; the
+/// other members leave the button row (they stay in the caption dropdown).
+void applyVariants(ToolbarSection& s) {
+  if (s.flat || s.kind != SectionKind::Tools) return;
+  auto inSection = [&](const std::string& id) -> core::ITool* {
+    for (core::ITool* t : s.all)
+      if (t->info().id == id) return t;
+    return nullptr;
+  };
+  for (const auto& [primary, members] : toolVariantFamilies()) {
+    core::ITool* p = inSection(primary);
+    if (!p || std::find(s.promoted.begin(), s.promoted.end(), p) == s.promoted.end()) continue;
+    std::vector<core::ITool*> list;
+    for (const std::string& id : members)
+      if (core::ITool* t = inSection(id)) list.push_back(t);
+    if (list.size() < 2) continue;
+    s.variants[p] = list;
+    std::erase_if(s.promoted, [&](core::ITool* t) { return t != p && std::find(list.begin(), list.end(), t) != list.end(); });
+  }
+}
+
 ToolbarSection& sectionNamed(std::vector<ToolbarSection>& out, const std::string& name, const std::string& tab) {
   for (ToolbarSection& s : out)
     if (s.name == name) return s;
@@ -217,6 +257,7 @@ std::vector<ToolbarSection> buildToolbarSections(const core::ToolRegistry& regis
   }
   for (ToolbarSection& s : out)
     if (s.promoted.empty()) promote(s);
+  for (ToolbarSection& s : out) applyVariants(s);
 
   // the default page follows the preferred sequence; the sketch page keeps registry order with
   // its own sections first (INSPECT from the main page last)
@@ -290,6 +331,7 @@ std::vector<ToolbarSection> buildToolbarSections(const core::ToolRegistry& regis
 std::string shortToolLabel(const core::ToolInfo& info) {
   static const std::map<std::string, std::string> kShort = {
       {"sketch.create", "Sketch"},          {"sketch.edit", "Edit sketch"},
+      {"sketch.project-start", "Project"},  {"inspect.section", "Section"},
       {"assembly.new-component", "New comp"}, {"assembly.as-built-joint", "As-built"},
       {"assembly.rigid-group", "Rigid grp"}, {"assembly.drive-joint", "Drive"},
       {"assembly.interference", "Interfere"}, {"assembly.move", "Move comp"}, {"assembly.insert-design", "Insert"},

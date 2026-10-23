@@ -14,7 +14,9 @@
 
 #include "core/Tool.h"
 
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fabricad::app {
@@ -73,7 +75,15 @@ struct ToolbarSection {
   std::vector<core::ITool*> promoted;  ///< buttons, in order (right-most fold first)
   std::vector<core::ITool*> all;       ///< caption dropdown content
   std::vector<MoreEntry> more;         ///< SectionKind::More only
+  /// Split buttons (mockup v6 arrows): a promoted tool with variants gets a menu arrow listing
+  /// them (Pattern: rectangular, circular; Plane: offset, angle, midplane ...). The variants
+  /// are not promoted buttons of their own; the caption dropdown still lists every tool.
+  std::map<core::ITool*, std::vector<core::ITool*>> variants;
 };
+
+/// Split-button families: the primary tool id and its variants, in menu order (the primary
+/// first). A family applies when its primary tool is promoted in a section.
+const std::vector<std::pair<std::string, std::vector<std::string>>>& toolVariantFamilies();
 
 /// The toolbar page: the default page (SOLID in Design, DRAWING in Drawing) or the contextual
 /// SKETCH page while a sketch is edited (decision 5).

@@ -26,6 +26,8 @@
 #include <Bnd_Box.hxx>
 #include <Font_FontMgr.hxx>
 #include <Font_SystemFont.hxx>
+#include <Graphic3d_ClipPlane.hxx>
+#include <Graphic3d_SequenceOfHClipPlane.hxx>
 #include <Graphic3d_MaterialAspect.hxx>
 #include <Graphic3d_Vec3.hxx>
 #include <Prs3d_Drawer.hxx>
@@ -245,6 +247,8 @@ struct ViewerWidget::Impl {
   std::map<core::ManipulatorId, ManipObj> manips;
 
   Handle(Graphic3d_Camera) home;
+  /// Section analysis clip plane (null when off) and the bodies it is attached to.
+  Handle(Graphic3d_ClipPlane) sectionClip;
   std::vector<Handle(AIS_TextLabel)> originLabels;
   double originLabelSize = 0.0;
 
@@ -1069,9 +1073,47 @@ void ViewerWidget::doSync() {
     it = d_->objects.erase(it);
   }
   syncOriginLabels();
+  applySectionClip();
   applySelectionModes();
   syncOverlays();
   requestRedraw();
+}
+
+void ViewerWidget::setSectionPlane(const std::optional<gp_Pln>& plane) {
+  null_.setSectionPlane(plane);
+  sectionPlane_ = plane;
+  if (!d_->ready()) return;
+  applySectionClip();
+  requestRedraw();
+}
+
+void ViewerWidget::applySectionClip() {
+  if (!d_->ready()) return;
+  if (sectionPlane_) {
+    if (d_->sectionClip.IsNull()) {
+      d_->sectionClip = new Graphic3d_ClipPlane();
+      d_->sectionClip->SetCapping(true);
+      d_->sectionClip->SetUseObjectMaterial(true);  // the cut face shows the body's own colour
+    }
+    // Graphic3d keeps the side the equation is positive on: reverse the normal so the half
+    // space the section normal points into is the one removed
+    gp_Pln keep = *sectionPlane_;
+    keep.SetAxis(keep.Axis().Reversed());
+    d_->sectionClip->SetEquation(keep);
+    d_->sectionClip->SetOn(true);
+  }
+  if (d_->sectionClip.IsNull()) return;
+  for (auto& [key, o] : d_->objects) {
+    const bool want = sectionPlane_ && o.item.style == SceneStyle::Body;
+    const Handle(Graphic3d_SequenceOfHClipPlane)& planes = o.obj->ClipPlanes();
+    bool has = false;
+    if (!planes.IsNull())
+      for (Graphic3d_SequenceOfHClipPlane::Iterator it(*planes); it.More(); it.Next())
+        if (it.Value() == d_->sectionClip) has = true;
+    if (want && !has) o.obj->AddClipPlane(d_->sectionClip);
+    else if (!want && has) o.obj->RemoveClipPlane(d_->sectionClip);
+  }
+  if (!sectionPlane_ && !d_->sectionClip.IsNull()) d_->sectionClip->SetOn(false);
 }
 
 void ViewerWidget::syncOriginLabels() {
