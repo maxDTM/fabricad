@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
   // the first frame is already in the right theme (the desktop's platform theme must not leak in)
   fabricad::app::ThemeManager::instance().install(app);
   mark("theme applied");
-  app.setWindowIcon(QIcon(":/icons/fabricad.svg"));
+  app.setWindowIcon(QIcon(":/icons/app/fabricad-app.svg"));  // app icon (resources/icons/app)
 
   // Drawing workspace central widget (created lazily on the first switch to DRAWING).
   fabricad::app::MainWindow::setDrawingWorkspaceFactory(

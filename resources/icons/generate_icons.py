@@ -17,6 +17,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 QRC = os.path.join(HERE, "..", "fabricad.qrc")
 KEEP = {"fabricad.svg"}  # hand-made, not generated
+QRC_EXTRA = ["app/fabricad-app.svg"]  # hand-made application icon (window icon, packaging)
 
 # --- palette (README.md) ----------------------------------------------------------------
 # One drawing set, two colour sets: the colours come from resources/theme/icon-palette.json
@@ -42,6 +43,30 @@ IN = PAL["icon.badge.violet"]    # inspect
 UI = PAL["icon.badge.cyan"]      # view / application accent
 DR = PAL["icon.badge.teal"]      # drawing
 RED = PAL["icon.badge.red"]      # error / remove / cut
+
+# --- style switch ---------------------------------------------------------------------------
+# "mono" (default, v6 mockup, P5-MOCKUP-9/10): line icons in icon.ink, body fills neutral, and at
+# most one small accent where the meaning needs it: icon.badge.violet (the v6 accent) for the
+# action mark of a solid feature (extrude arrow, fillet edge, ...) and the profile of the sketch
+# tool, red for remove / cut / error, green for an OK check, amber for a warning. Live gold is never
+# used in icons. "colour" restores the earlier category palette (blue sketch, orange features,
+# green assembly, amber construction, violet inspect, cyan view/app, teal drawing).
+#     python3 resources/icons/generate_icons.py --style colour      (or FABRICAD_ICON_STYLE=colour)
+STYLES = ("mono", "colour")
+try:
+    STYLE
+except NameError:
+    STYLE = os.environ.get("FABRICAD_ICON_STYLE", "mono")
+if STYLE not in STYLES:
+    sys.exit("unknown icon style %r (one of %s)" % (STYLE, ", ".join(STYLES)))
+OKC = AS     # OK / done check marks
+WARN = CO    # warning triangle
+SKA = SK     # the profile drawn by the sketch tool icons
+if STYLE == "mono":
+    ACC = IN                                   # the single accent (icon.badge.violet)
+    SK = AS = CO = IN = UI = DR = INK          # categories no longer carry a hue
+    OR = ACC                                   # solid feature action mark
+    SKA = ACC
 
 HEADER = ('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" '
           'fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' % INK)
@@ -156,7 +181,7 @@ def sketch_plane(stroke=GREY, fill=WH):
 
 
 def sketch_profile():
-    return P("M7 15.5 L9.5 12 H14 A2 2 0 0 1 15.8 14.5 L15.2 15.5 Z", s=SK)
+    return P("M7 15.5 L9.5 12 H14 A2 2 0 0 1 15.8 14.5 L15.2 15.5 Z", s=SKA)
 
 
 def component(cx=12, cy=12, s=1.0):
@@ -316,8 +341,8 @@ I["sketch-dimension-edit"] = (P("M3 17 H15", s=SK) + P("M3 17 V6 M15 17 V6", s=G
 I["sketch"] = sketch_plane() + sketch_profile()
 I["sketch-create"] = sketch_plane() + sketch_profile() + plus(5.5, 5, SK, 3)
 I["sketch-edit"] = sketch_plane() + sketch_profile() + pencil(13, 14.5)
-I["sketch-finish"] = sketch_plane() + P("M7 7 L10.5 10.5 L18 3", s=AS)
-I["finish-sketch"] = R(3.5, 3.5, 17, 17, 3, s=AS, f=WH) + P("M7.5 12 L10.5 15 L16.5 9", s=AS)
+I["sketch-finish"] = sketch_plane() + P("M7 7 L10.5 10.5 L18 3", s=OKC)
+I["finish-sketch"] = R(3.5, 3.5, 17, 17, 3, s=AS, f=WH) + P("M7.5 12 L10.5 15 L16.5 9", s=OKC)
 I["sketch-look-at"] = (R(6, 3, 15, 13, 1, f=WH, s=GREY) + P("M10 12 L12 7 H17 L15 12 Z", s=SK) +
                        P("M2.5 21 L7 16.5", s=INK) + P("M3.5 16.5 H7 V20", s=INK))
 I["sketch-select"] = cursor(SK, WH)
@@ -570,10 +595,10 @@ I["eye-off"] = eye(iris=GREY) + P("M4 20 L20 4", s=INK)
 I["visibility"] = eye() + P("M4 20 L20 4", s=UI)
 I["app-toggle-visibility"] = P("M2 12 s4 -6.5 10 -6.5 C12 5.5 12 18.5 12 18.5 C6 18.5 2 12 2 12 z", f=WH) + P("M12 5.5 c6 0 10 6.5 10 6.5 s-4 6.5 -10 6.5", s=GREY, da="2 2") + P("M12 9 A3 3 0 0 0 12 15", s=UI)
 I["app-show-all"] = eye(9, 13) + P("M3.5 4 H20.5 M12 7 H20.5", s=GREY) + plus(19, 18, UI, 2.5)
-I["ok"] = C(12, 12, 9, s=AS, f=WH) + P("M7.5 12.5 L10.5 15.5 L16.5 9", s=AS)
+I["ok"] = C(12, 12, 9, s=AS, f=WH) + P("M7.5 12.5 L10.5 15.5 L16.5 9", s=OKC)
 I["cancel"] = P("M6 6 L18 18 M18 6 L6 18", s=RED)
 I["error"] = C(12, 12, 9, s=RED, f=WH) + P("M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5", s=RED)
-I["warning"] = P("M12 3 L21.5 20 H2.5 Z", s=CO, f=WH) + P("M12 9.5 V14", s=INK) + dot(12, 17, INK, 1.1)
+I["warning"] = P("M12 3 L21.5 20 H2.5 Z", s=WARN, f=WH) + P("M12 9.5 V14", s=INK) + dot(12, 17, INK, 1.1)
 I["body"] = cube(12, 12, 1.1)
 
 # ===== view / navigation / display (accent cyan) =============================================
@@ -719,7 +744,7 @@ I["drawing-revision"] = (P("M12 4 L21 20 H3 Z", f=WH, s=DR) + P("M10 17 L12 11 L
 I["drawing-edit-callout"] = (C(6, 7.5, 3.5, s=INK) + P("M8.5 9.9 L11.5 13 H17.5", s=DR) + dot(8.5, 9.9, DR, 1.2) + pencil(13, 21))
 
 # ===== round 2: scripting shell verbs (UI accent) ============================================
-I["app-ok"] = C(12, 12, 9, s=UI, f=WH) + P("M7.5 12.5 L10.5 15.5 L16.5 9", s=AS)
+I["app-ok"] = C(12, 12, 9, s=UI, f=WH) + P("M7.5 12.5 L10.5 15.5 L16.5 9", s=OKC)
 I["app-cancel"] = C(12, 12, 9, s=UI, f=WH) + cross(12, 12, RED, 3.5)
 I["app-select"] = cursor(UI, WH, -2, -1) + R(14, 14, 7, 7, 1, s=INK, da=DASH)
 I["app-pick"] = C(12, 12, 6, s=UI) + P("M12 2.5 V7 M12 17 V21.5 M2.5 12 H7 M17 12 H21.5", s=INK) + dot(12, 12, UI, 1.5)
@@ -728,7 +753,7 @@ I["app-options"] = (P("M4 7 H20 M4 12 H20 M4 17 H20", s=GREY) + R(7, 5, 3, 4, 0.
                     R(9, 15, 3, 4, 0.8, s=UI, f=WH))
 I["app-info"] = C(12, 12, 9, s=UI) + P("M12 11 V17", s=INK) + dot(12, 7.5, INK, 1.3)
 I["app-list"] = P("M8 6 H20 M8 12 H20 M8 18 H20", s=INK) + dot(4.5, 6, UI, 1.5) + dot(4.5, 12, UI, 1.5) + dot(4.5, 18, UI, 1.5)
-I["app-check"] = R(4, 4, 16, 18, 1.5, f=WH) + R(8.5, 2.5, 7, 3.5, 1, f=WH) + P("M8 14 L11 17 L16.5 10.5", s=AS)
+I["app-check"] = R(4, 4, 16, 18, 1.5, f=WH) + R(8.5, 2.5, 7, 3.5, 1, f=WH) + P("M8 14 L11 17 L16.5 10.5", s=OKC)
 I["app-rename"] = P("M12 5 V19 M9.5 5 H14.5 M9.5 19 H14.5", s=UI) + P("M3 9 H8 M3 15 H8 M16 9 H21 M16 15 H21", s=GREY)
 I["app-echo"] = P("M4 4 H20 V15 H11 L6.5 19.5 V15 H4 Z", f=WH) + P("M8 8 H16 M8 11.5 H13", s=UI)
 I["app-wait"] = (P("M7 3.5 H17 V6.5 L12 12 L17 17.5 V20.5 H7 V17.5 L12 12 L7 6.5 Z", f=WH) +
@@ -746,7 +771,7 @@ I["app-ungroup"] = (P("M2.5 5 H8.5 L10.5 7 H19.5 V12 M2.5 5 V17 H12", s=INK, da=
                     P("M15 15 L21 21 M21 15 L15 21", s=UI))
 I["app-suppress"] = (R(3, 5, 6, 6, 1, s=INK, f=WH) + R(3, 14, 6, 6, 1, s=INK, f=WH) + P("M12 8 H21 M12 17 H21", s=GREY) +
                      P("M11 17 H22", s=RED))
-I["app-unsuppress"] = (R(3, 9, 10, 10, 1.5, s=INK, f=WH) + P("M5.5 14 L7.5 16.5 L11 11.5", s=AS) + P("M15 11 H21 M15 16 H21", s=GREY))
+I["app-unsuppress"] = (R(3, 9, 10, 10, 1.5, s=INK, f=WH) + P("M5.5 14 L7.5 16.5 L11 11.5", s=OKC) + P("M15 11 H21 M15 16 H21", s=GREY))
 I["app-collapse-group"] = _gfolder + P("M15 13 L19 17 L15 21", s=UI)
 I["app-expand-group"] = _gfolder + P("M13.5 16 L17.5 20 L21.5 16", s=UI)
 I["app-rollback"] = (P("M5 5 H19 M5 9 H19", s=INK) + P("M3 13 H21", s=UI) + P("M5 17 H19 M5 21 H19", s=GREY) +
@@ -768,6 +793,20 @@ I["option-cut"] = P("M4 8 H11 V13 H16 V20 H4 Z", f=BODY) + R(11, 4, 9, 9, s=RED,
 I["option-intersect"] = R(3.5, 3.5, 11, 11, s=GREY) + R(9.5, 9.5, 11, 11, s=GREY) + R(9.5, 9.5, 5, 5, s=INK, f=BODY)
 I["option-new-body"] = cube(10, 13.5, 0.85) + plus(18.5, 5.5, AS, 3)
 
+
+# ===== mono style: icons that only differed by their category hue get a distinguishing mark ======
+if STYLE == "mono":
+    I["sketch-select"] = cursor(INK, WH, -2, -1) + P("M14 20.5 L20.5 14", s=ACC) + dot(14, 20.5, ACC, 1.3) + dot(20.5, 14, ACC, 1.3)
+    I["sketch-dimension"] = dimension(ACC, INK)
+    I["sketch-dimension-edit"] = (P("M3 17 H15", s=INK) + P("M3 17 V6 M15 17 V6", s=GREY) + P("M3.5 9.5 H14.5", s=ACC) +
+                                  arrow_head(3.5, 9.5, "left", ACC, 2) + arrow_head(14.5, 9.5, "right", ACC, 2) +
+                                  pencil(13, 22))
+    I["app-ok"] = C(12, 12, 9, s=GREY, f=WH) + P("M7.5 12.5 L10.5 15.5 L16.5 9", s=OKC)
+    I["display"] = cube(12, 12, 1.1, fill=BODY, stroke=INK, inner=GREY)
+    I["workspace-design"] = cube(12, 12, 1.1, fill=WH, stroke=INK, inner=ACC)
+    # keep the accent small: ink outline, the merged overlap is the accent
+    COMBINE = P("M3 3 H14 V10 H21 V21 H10 V14 H3 Z", f=BODY) + P("M10 10 H14 V14 H10 Z", s=ACC, da="1.5 1.5")
+    I["part-combine"] = COMBINE
 
 # ===== hand-drawn icons, kept as literal SVG bodies; {NAME} placeholders take the theme palette =====
 LITERAL = {
@@ -827,7 +866,7 @@ def main():
     with open(QRC, encoding="utf-8") as f:
         lines = f.read().splitlines()
     head = [l for l in lines if "<file>icons/" not in l and "</qresource>" not in l and "</RCC>" not in l]
-    icons = ["  <file>icons/%s</file>" % fn for fn in sorted(KEEP)]
+    icons = ["  <file>icons/%s</file>" % fn for fn in sorted(KEEP) + QRC_EXTRA]
     icons += ["  <file>icons/%s/%s</file>" % (th, fn) for th in THEMES for fn in sorted(written)]
     with open(QRC, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(head + icons + ["</qresource>", "</RCC>"]) + "\n")
@@ -836,9 +875,13 @@ def main():
 
 if __name__ == "__main__":
     # evaluate the drawings once per theme (the palette is read at import of each run)
+    _style = os.environ.get("FABRICAD_ICON_STYLE", "mono")
+    if "--style" in sys.argv[1:]:
+        _style = sys.argv[sys.argv.index("--style") + 1]
     THEME_SETS = {}
     for _th in THEMES:
-        g = runpy.run_path(__file__, init_globals={"THEME": _th}, run_name="icons_" + _th)
+        g = runpy.run_path(__file__, init_globals={"THEME": _th, "STYLE": _style}, run_name="icons_" + _th)
         THEME_SETS[_th] = {n: g["HEADER"] + g["I"][n] + "</svg>\n" for n in g["I"]}
     I = {n: None for n in THEME_SETS[THEMES[0]]}
     main()
+    print("style:", _style)

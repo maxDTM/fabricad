@@ -131,7 +131,7 @@ OCCT view fail. `main.cpp` now forces `xcb` whenever the variable is unset **or 
 and `DISPLAY` is set (XWayland). `offscreen`/`xcb` are kept; `FABRICAD_ALLOW_WAYLAND=1` opts out.
 
 ## 2026-10-19 — Packaging suggestions                                       (status: open, low)
-* Install `resources/icons/fabricad.svg` as the app icon and add a `fabricad.desktop` file
+* Install `resources/icons/app/fabricad-app.svg` (hicolor PNGs: `resources/icons/app/render_app_icons.sh`) as the app icon and add a `fabricad.desktop` file
   (`Exec=fabricad %f`, `MimeType=application/x-fabricad;`) when an install target is added.
 
 ## Known gaps / follow-ups in the ui module
