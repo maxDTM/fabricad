@@ -58,9 +58,33 @@ All notable changes to FabriCAD are listed here. The format follows
   joint, shared definitions with part number, description and material for the BOM.
 - **Hole Table** (`HOLETABLE`) in drawings, and a "FOR M6 SHCS" line on hole callouts of
   fastener-sized counterbores.
+- Materials for 3D printing and woodwork: PETG, ASA, TPU 95A, Nylon CF, PA12 (SLS/MJF), SLA resin,
+  polypropylene, HDPE; Baltic birch plywood, hard maple, walnut, birch, beech, cherry and OSB.
+- **Start Tutorial** in command search (`TUTORIAL`, `TOUR`): starts or resumes the guided tour.
+- Interference: *Include thread engagement* (`INTERFERENCE THREADS`); without it a standard screw in a tapped
+  hole, a nut on its bolt or a heat-set insert in its hole is counted as thread engagement, not as a clash.
 
 ### Fixed
 
+- Insert Fastener sizes the screw of a tapped hole from its thread: a 1/4-20 tapped hole (5.105 mm tap drill,
+  also the #8 loose clearance) gets a 1/4-20 screw, not #8-32. A blind hole in a thin plate is no longer taken
+  for a through hole, so Auto length stays inside it (within the thread when a standard length fits there), and
+  a hole too shallow for every standard length asks for `length=` instead of picking a longer screw.
+- Hole Table lists holes hidden behind something in front of them (a screw head over a tapped hole) and never
+  the bores of fasteners, washers or nuts.
+- Pocket Hole measures the thickness from the entry face's opposite face also on the underside of a board.
+- Hole with a preselected face: the first click places the hole instead of adding a second one.
+- Component Properties from the MODEL menu is the COMPPROPS card (with the computed mass); an empty Material
+  field shows the bodies' material it falls back to.
+- Long title block texts stay inside their cell (smaller, on two lines, or shortened).
+- BOM export with a cost column reports the cost total and how many rows have no cost.
+- Sketch: a typed line angle sits in its own arc at the start point instead of on top of the length label;
+  placed dimension labels follow their geometry after a dimension edit.
+- Tour: Back to a step whose result it undid opens that step's command again, and Next after Back redoes it;
+  the fillet, chamfer and measure steps pick edges first; the measure bubble points at CENTRE DISTANCE; the STL
+  step names the More list; Show me shows its F7 key; a restored chapter opens as "Tutorial - <chapter>".
+- Open and Save As start in Documents (or the last folder used), not the folder the app was launched from.
+- The STL / mesh and face DXF cards have a labelled Browse button.
 - Dropdown lists of combo boxes show all their items (the last one hid behind a scroll arrow).
 - The command card keeps the keyboard focus after a choice rebuilds it, so Enter applies the command.
 - A cut with Extent All goes into the material by itself, like a Distance cut.

@@ -8,6 +8,7 @@
 #include "core/Json.h"
 #include "core/Selection.h"
 
+#include <QCheckBox>
 #include <QHeaderView>
 #include <QLabel>
 #include <QPushButton>
@@ -43,12 +44,15 @@ void InterferenceTool::activate(ToolContext& ctx) {
   ctx_ = &ctx;
   report_ = InterferenceReport{};
   previews_.clear();
+  includeThreads_ = false;
   components_ = componentsOf(*ctx.document, ctx.preselection);
   ctx.selection->setFilter(ShapeKind::Component | ShapeKind::Body);
   if (ctx.viewer) ctx.viewer->setSelectionFilter(ctx.selection->filter());
   bool all = components_.empty();
-  for (const std::string& a : ctx.args)
+  for (const std::string& a : ctx.args) {
     if (wordIs(a, "ALL")) all = true;
+    if (wordIs(a, "THREADS") || wordIs(a, "threads=yes")) includeThreads_ = true;
+  }
   if (all) components_.clear();
   ctx.setPrompt(components_.empty() ? "Interference: checking all components" : std::format("Interference: {} selected components", components_.size()));
   compute(ctx);
@@ -59,6 +63,7 @@ void InterferenceTool::deactivate(ToolContext& ctx) {
   ctx_ = nullptr;
   scopeLabel_ = summaryLabel_ = nullptr;
   table_ = nullptr;
+  threadsBox_ = nullptr;
 }
 
 void InterferenceTool::accept(ToolContext& ctx) { ctx.finish(); }
@@ -76,6 +81,12 @@ bool InterferenceTool::commandLineInput(ToolContext& ctx, const std::string& tex
     compute(ctx);
     return true;
   }
+  if (wordIs(text, "THREADS") || wordIs(text, "threads=yes") || wordIs(text, "threads=no")) {
+    includeThreads_ = !wordIs(text, "threads=no");
+    if (threadsBox_) threadsBox_->setChecked(includeThreads_);
+    compute(ctx);
+    return true;
+  }
   return false;
 }
 
@@ -87,6 +98,7 @@ const InterferenceReport& InterferenceTool::compute(ToolContext& ctx) {
   // purpose). When every body sits in the same component, e.g. a plain multi-body design, that
   // left nothing to test ("0 pairs tested", general retest APP-11): compare them then.
   opt.sameComponentPairs = allInOneComponent(instances);
+  opt.includeThreads = includeThreads_;
   report_ = checkInterference(instances, &doc, opt);
   showResults(ctx);
   return report_;
@@ -98,6 +110,10 @@ void InterferenceTool::showResults(ToolContext& ctx) {
   std::string summary = report_.pairs.empty()
                             ? std::format("No interference ({} bodies, {} pairs tested)", report_.instances, report_.pairsTested)
                             : std::format("{} interfering pair(s), total {:.3f} mm3", report_.pairs.size(), report_.totalVolume());
+  // PRODUCTION-4: a screw in its tapped hole overlaps by design (cosmetic threads at the major
+  // diameter); say how many were left out so real clashes are not buried under them
+  if (report_.threadPairs > 0 && !includeThreads_)
+    summary += std::format(" \u00B7 {} thread engagement(s) not counted", report_.threadPairs);
   ctx.showMessage(summary, false);
   if (summaryLabel_) summaryLabel_->setText(core::qs(summary));
   if (scopeLabel_) scopeLabel_->setText(components_.empty() ? "All components" : QString::number(components_.size()) + " components");
@@ -109,7 +125,7 @@ void InterferenceTool::showResults(ToolContext& ctx) {
         const core::Body* b = doc.body(bi.body);
         return std::format("{} ({})", b ? b->name : std::to_string(bi.body), componentLabel(doc, bi.component));
       };
-      table_->setItem(i, 0, new QTableWidgetItem(core::qs(nameOf(p.a))));
+      table_->setItem(i, 0, new QTableWidgetItem(core::qs(nameOf(p.a) + (p.thread ? " [thread]" : ""))));
       table_->setItem(i, 1, new QTableWidgetItem(core::qs(nameOf(p.b))));
       auto* vol = new QTableWidgetItem(core::qs(std::format("{:.2f}", p.volume)));
       vol->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -159,6 +175,15 @@ QWidget* InterferenceTool::createDialog(ToolContext& ctx, QWidget* parent) {
     if (ctx_) this->compute(*ctx_);
   });
   v->addWidget(compute);
+  threadsBox_ = new QCheckBox("Include thread engagement", w);
+  threadsBox_->setObjectName("interferenceThreads");
+  threadsBox_->setToolTip("Also list standard screws in tapped holes, nuts on bolts and heat-set inserts in their holes (they overlap by design)");
+  threadsBox_->setChecked(includeThreads_);
+  QObject::connect(threadsBox_, &QCheckBox::toggled, this, [this](bool on) {
+    includeThreads_ = on;
+    if (ctx_) this->compute(*ctx_);
+  });
+  v->addWidget(threadsBox_);
   summaryLabel_ = new QLabel(w);
   v->addWidget(summaryLabel_);
   table_ = new QTableWidget(0, 3, w);

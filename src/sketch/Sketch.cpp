@@ -318,6 +318,10 @@ Pt2 Sketch::defaultLabelPos(const Constraint& c) const {
         Pt2 bis = (ga->direction() + gb->direction()).normalized();
         if (x) return *x + bis * (ga->length() * 0.4);
       }
+      // PRODUCTION-9: an angle to the horizontal sits in its arc at the start point, not beside
+      // the midpoint where the line's length label goes
+      if (ga->type == GeomType::Line && ga->length() > 1e-9)
+        return ga->start() + Pt2::polar(std::max(ga->length() * 0.35, off), ga->direction().angle() / 2);
       return ga->midpoint() + ga->direction().perp() * off;
     }
     default: {
@@ -375,7 +379,18 @@ int Sketch::originHelper(OriginRef which) {
 // ---------------------------------------------------------------------------
 
 SolveResult Sketch::solve() {
+  // placed dimension labels follow their geometry, as while dragging: after a dimension edit
+  // resizes a rectangle the other dimension moves with its edge (PRODUCTION-9)
+  std::vector<std::pair<Pt2, Pt2>> before(constraints_.size());
+  for (size_t i = 0; i < constraints_.size(); ++i)
+    if (constraints_[i].isDimensional() && constraints_[i].hasLabelPos) before[i] = {constraints_[i].labelPos, defaultLabelPos(constraints_[i])};
   last_ = SketchSolver::solve(*this, true);
+  for (size_t i = 0; i < constraints_.size() && i < before.size(); ++i) {
+    Constraint& c = constraints_[i];
+    if (!c.isDimensional() || !c.hasLabelPos) continue;
+    const Pt2 delta = defaultLabelPos(c) - before[i].second;
+    if (std::isfinite(delta.x) && std::isfinite(delta.y) && delta.length() > 1e-12) c.labelPos = before[i].first + delta;
+  }
   return last_;
 }
 

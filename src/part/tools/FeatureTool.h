@@ -177,6 +177,10 @@ class FeatureTool : public core::ToolBase {
   bool flipAuto_ = false;      ///< "flip" was set by autoFlipForCut (not by the user)
   bool flipUser_ = false;      ///< the user toggled "flip": never flip automatically again
   std::array<double, 6> triadStart_{};  ///< dx dy dz rx ry rz when a triad drag began
+  /// PRODUCTION-10: the point a preselected face was clicked at (Hole: a placement point) until
+  /// the first pick into that input, which replaces it: one hole per click, not one more.
+  std::string provisionalInput_;
+  core::ShapeRef provisionalRef_;
 };
 
 /// Press Pull (Q): context command. Face -> Offset Face, edge -> Fillet, profile -> Extrude.

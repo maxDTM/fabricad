@@ -136,6 +136,24 @@ class PocketHoleTest : public QObject {
     QVERIFY(near(vb, core::volume(s), 1e-6));
   }
 
+  // PRODUCTION-3: the underside of a board next to a touching second body: the thickness is
+  // measured (19), not "no face opposite the entry face"
+  void measuredThicknessFromUnderside() {
+    core::Document doc;
+    const double T = 19;
+    core::ObjectId b = board(doc, 0, 200, T);
+    board(doc, 200, 19, 60);  // the stile, touching the end face x = 200
+    auto ph = std::make_unique<PocketHoleFeature>();
+    ph->prop("face").setRef(planarFace(doc, b, gp_Dir(0, 0, -1), 0));
+    ph->prop("edges").addRef(topEdgeAtX(doc, b, 200, 0));
+    auto* f = static_cast<PocketHoleFeature*>(doc.addFeature(std::move(ph)));
+    doc.recompute();
+    QVERIFY2(f->status() == core::FeatureStatus::Ok, f->statusMessage().c_str());
+    QVERIFY(!f->placed().empty());
+    QVERIFY(near(f->placed().front().thickness, T, 1e-6));
+    QVERIFY(near(f->placed().front().entry.Z(), 0, 1e-6));
+  }
+
   void exitOffsetAndThicknessWords() {
     core::Document doc;
     core::ObjectId b = board(doc, 0, 100, 19);

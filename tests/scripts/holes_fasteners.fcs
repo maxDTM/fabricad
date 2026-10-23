@@ -72,6 +72,33 @@ OK
 CHECK status ok
 CHECK feature:PocketHole1 status ok
 
+# PRODUCTION-3: from the underside of a board with a stile touching its end, the thickness is
+# measured (it was "no face opposite the entry face")
+SKETCH XY
+RECT
+0,200
+150,80
+FINISH
+SELECT profile:@75,240,0
+EXTRUDE 19
+operation=New Body
+OK
+RENAME body:Body3 Rail
+SKETCH XY
+RECT
+150,200
+19,80
+FINISH
+SELECT profile:@159,240,0
+EXTRUDE 60
+operation=New Body
+OK
+POCKETHOLE
+INPUT face body:Rail/face:bottom
+INPUT edges body:Rail/edge:@150,240,0
+OK
+CHECK feature:PocketHole2 status ok
+
 EXPORTSTEP plate.step
 CHECK file plate.step size > 10000
 SAVE holes_fasteners.fcad

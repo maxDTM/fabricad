@@ -1545,6 +1545,7 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     connect(browser, &BrowserTree::editFeatureRequested, this, &MainWindow::editFeature);
     connect(browser, &BrowserTree::deleteRequested, this, &MainWindow::deleteRefs);
     connect(browser, &BrowserTree::runToolRequested, this, [this](const std::string& id) { runCommand(id); });
+    connect(browser, &BrowserTree::commandLineRequested, this, [this](const QString& line) { submitCommandLine(line); });
     connect(browser, &BrowserTree::findInTimelineRequested, this, [this](ObjectId id) {
       timelineFrameFollowsSelection_ = false;  // a "find" frame stays until something else happens
       if (sidebar_->timelineStyle() == SidebarHost::TimelineStyle::FeatureList && featureList_) {
@@ -2287,10 +2288,23 @@ bool MainWindow::newDocument() {
   return true;
 }
 
+namespace {
+/// Folder the Open / Save As dialogs start in: the last one that worked, else Documents (never
+/// the folder the app happened to be launched from, TUTORIAL2-8). FABRICAD_FILE_DIALOG_DIR wins.
+QString fileDialogDir() {
+  // test harnesses (tools/uitest) keep their files beside their reports, never in the real home
+  if (const QString forced = qEnvironmentVariable("FABRICAD_FILE_DIALOG_DIR"); !forced.isEmpty()) return forced;
+  const QString last = QSettings().value("file/lastDir").toString();
+  if (!last.isEmpty() && QDir(last).exists()) return last;
+  const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+  return docs.isEmpty() ? QDir::homePath() : docs;
+}
+}  // namespace
+
 bool MainWindow::open() {
   if (!interactive_) return false;
   QSettings s;
-  const QString dir = s.value("file/lastDir").toString();
+  const QString dir = fileDialogDir();
   const QString path = QFileDialog::getOpenFileName(
       this, "Open", dir, "All supported (*.fcad *.step *.stp *.stl);;FabriCAD design (*.fcad);;STEP (*.step *.stp);;STL (*.stl)");
   restoreKeyboardFocus();
@@ -2418,7 +2432,7 @@ bool MainWindow::saveAs() {
   if (!interactive_) return false;
   QSettings s;
   QString start = document_->filePath().empty()
-                      ? QDir(s.value("file/lastDir").toString()).filePath(core::qs(document_->name()) + ".fcad")
+                      ? QDir(fileDialogDir()).filePath(core::qs(document_->name()) + ".fcad")
                       : core::qs(document_->filePath());
   QString path = QFileDialog::getSaveFileName(this, "Save As", start, "FabriCAD design (*.fcad)");
   restoreKeyboardFocus();

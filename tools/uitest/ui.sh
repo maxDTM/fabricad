@@ -59,6 +59,7 @@ case $cmd in
     rm -f "$geo"
     XDG_CONFIG_HOME="$cfg" XDG_DATA_HOME="$data" QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$scale" \
       FABRICAD_GEOMETRY_DUMP="$geo" FABRICAD_NO_TUTORIAL="${FABRICAD_NO_TUTORIAL:-1}" \
+      FABRICAD_FILE_DIALOG_DIR="${FABRICAD_FILE_DIALOG_DIR:-$PWD}" \
       setsid bash -c "exec -a fabricad-ui-$n '$bin' ${UI_ARGS:-}" >"$logdir/fabricad-$n.log" 2>&1 &
     w=
     for _ in $(seq 60); do

@@ -33,6 +33,11 @@ struct HoleSite {
   double length = 0;      ///< entry -> far end of the hole
   bool through = false;   ///< the hole leaves the body at the far end
   double seatToFar = 0;   ///< grip: seat -> far end
+  /// Thread of a tapped hole (Hole feature tapped / Thread feature on the wall), "1/4-20" or
+  /// "M6x1"; empty for plain holes. Decides the screw size before the diameter does (a 5.105 mm
+  /// hole is a 1/4-20 tap drill as well as a #8 loose clearance hole).
+  std::string thread;
+  double threadLength = 0;  ///< usable thread length from the entry (0 = unknown / full)
 };
 
 /// Analyse a picked circular edge or cylindrical face. nullopt + error when it is not a hole.

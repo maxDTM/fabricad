@@ -21,6 +21,10 @@ struct InterferenceOptions {
   double minVolume = 1e-3;             ///< mm^3; smaller intersections are noise (touching faces)
   bool sameComponentPairs = false;     ///< also test bodies that share a component
   double bboxGap = 1e-6;               ///< boxes enlarged by this before the overlap test
+  /// Report thread engagement too: a standard screw / bolt / set screw in a tapped hole, a nut on
+  /// its bolt or a heat-set insert in its hole overlaps by design (threads are modelled at the
+  /// major diameter). Off: such pairs are counted in InterferenceReport::threadPairs only.
+  bool includeThreads = false;
   std::function<bool()> cancelled;     ///< polled between pairs
 };
 
@@ -28,6 +32,7 @@ struct InterferencePair {
   BodyInstance a, b;
   double volume = 0.0;    ///< mm^3 of the intersection
   TopoDS_Shape shape;     ///< intersection solid(s), world coordinates
+  bool thread = false;    ///< thread engagement of a standard part (see includeThreads)
   std::string label() const;  ///< "Body1 (Bracket:1) x Body2 (Bolt:1)"
 };
 
@@ -36,6 +41,7 @@ struct InterferenceReport {
   int instances = 0;
   int pairsTested = 0;      ///< pairs that reached the boolean
   int pairsSkipped = 0;     ///< rejected by the bounding-box prefilter
+  int threadPairs = 0;      ///< thread engagements found (reported in pairs only with includeThreads)
   bool cancelled = false;
   std::vector<std::string> errors;
   double totalVolume() const;

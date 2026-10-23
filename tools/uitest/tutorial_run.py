@@ -550,6 +550,8 @@ def run(args):
         first = chap["steps"][0]["id"]
         env["FABRICAD_TUTORIAL_START"] = "%s:%s:restore" % (tour["id"], first)
         env.pop("FABRICAD_TUTORIAL_WELCOME", None)
+    # Open / Save As start in Documents in the app; the run's files belong next to the report
+    env["FABRICAD_FILE_DIALOG_DIR"] = out
     app = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, cwd=out)
     transcript = open(os.path.join(out, "probe.txt"), "w")
     probe = Probe(sock, transcript)

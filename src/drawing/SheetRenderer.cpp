@@ -167,12 +167,47 @@ void SheetRenderer::addTitleBlock(DisplayList& out, const Sheet& sheet,
       std::string v = val(c.key);
       if (!v.empty()) {
         bool title = std::string(c.key) == "Title";
-        double h = title ? style_.titleTextHeight : 3.5;
-        // shrink to fit
-        double maxW = w - 2.0;
-        double est = textWidth(v, h);
-        if (est > maxW && est > 0) h = std::max(1.8, h * maxW / est);
-        out.texts.push_back({{x + w * 0.5, y0 + rowH * 0.62}, v, h, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, title});
+        const double h0 = title ? style_.titleTextHeight : 3.5;
+        // PRODUCTION-7: the text stays inside its cell: shrink (to 1.8 mm), then two lines broken
+        // at a space, then an ellipsis. Widths are measured with the sheet font (bold: +8 %).
+        const double maxW = w - 2.0;
+        auto width = [&](const std::string& t, double h) { return measureText(t, h, style_.fontFamily) * (title ? 1.08 : 1.0); };
+        auto fitHeight = [&](const std::string& t, double h) {
+          const double est = width(t, h);
+          return est > maxW && est > 0 ? h * maxW / est : h;
+        };
+        auto elide = [&](std::string t, double h) {
+          const std::string dots = "\xE2\x80\xA6";
+          while (!t.empty() && width(t + dots, h) > maxW) {
+            t.pop_back();
+            while (!t.empty() && (static_cast<unsigned char>(t.back()) & 0xC0) == 0x80) t.pop_back();  // whole code points
+            if (!t.empty() && (static_cast<unsigned char>(t.back()) & 0xC0) == 0xC0) t.pop_back();
+          }
+          return t + dots;
+        };
+        const double minH = 1.8;
+        const double labelSpace = 2.6;  // the cell label at the top
+        const double cy = y0 + labelSpace + (rowH - labelSpace) * 0.5;
+        double h = fitHeight(v, h0);
+        if (h >= minH || v.find(' ') == std::string::npos || rowH - labelSpace < 2 * minH * 1.4) {
+          h = std::max(minH, std::min(h, h0));
+          const std::string t = width(v, h) > maxW ? elide(v, h) : v;
+          out.texts.push_back({{x + w * 0.5, y0 + rowH * 0.62}, t, h, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, title});
+        } else {
+          // two lines: break at the space nearest the middle
+          size_t best = std::string::npos;
+          for (size_t i = v.find(' '); i != std::string::npos; i = v.find(' ', i + 1))
+            if (best == std::string::npos || std::abs(static_cast<double>(i) - v.size() / 2.0) < std::abs(static_cast<double>(best) - v.size() / 2.0))
+              best = i;
+          std::string a = v.substr(0, best), b = v.substr(best + 1);
+          double lh = std::min({h0, fitHeight(a, h0), fitHeight(b, h0), (rowH - labelSpace) / 2.6});
+          lh = std::max(minH, lh);
+          if (width(a, lh) > maxW) a = elide(a, lh);
+          if (width(b, lh) > maxW) b = elide(b, lh);
+          const double gap = lh * 0.7;
+          out.texts.push_back({{x + w * 0.5, cy - gap}, a, lh, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, title});
+          out.texts.push_back({{x + w * 0.5, cy + gap}, b, lh, 0, HAlign::Center, VAlign::Middle, LineClass::Annotation, title});
+        }
       }
       x += w;
     }

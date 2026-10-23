@@ -36,6 +36,7 @@
 #include <QFormLayout>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMetaMethod>
 #include <QScrollBar>
 #include <QTimer>
 
@@ -611,7 +612,14 @@ void BrowserTree::contextMenuEvent(QContextMenuEvent* e) {
       emit runToolRequested("assembly.paste-new");
     });
     pasteNew->setEnabled(canPaste);
-    menu.addAction("Properties...", this, [this, id] { editComponentProperties(id); });  // COMPPROPS card when registered
+    // PRODUCTION-6: the COMPPROPS card (with the computed mass and the bodies' material), the
+    // plain dialog only when nobody listens (tests, embedders)
+    menu.addAction("Properties...", this, [this, id] {
+      if (isSignalConnected(QMetaMethod::fromSignal(&BrowserTree::commandLineRequested)))
+        emit commandLineRequested(QString("COMPPROPS %1").arg(id));
+      else
+        editComponentProperties(id);
+    });
   }
   if (kind == KindBody) {
     menu.addAction(resourceIcon("component"), "Create Components from Bodies", this,

@@ -428,6 +428,7 @@ class TestTutorial : public QObject {
     QVERIFY2(e.restoreChapter(&err), qPrintable(err));
     QCOMPARE(w_->tabCount(), tabs + 1);
     QCOMPARE(e.step()->id, QString("2.1"));  // first step of the chapter
+    QVERIFY2(QString::fromStdString(w_->document().name()).startsWith("Tutorial - "), w_->document().name().c_str());
     e.stop();
     w_->closeTab(w_->activeTab());
   }

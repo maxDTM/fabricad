@@ -46,10 +46,11 @@ class DocumentTest : public QObject {
     // search: name, category and standard, case-insensitive; category filter
     QVERIFY(!core::searchMaterials("6061").empty());
     QVERIFY(!core::searchMaterials("astm a36").empty());
-    QCOMPARE(core::searchMaterials("", "Wood").size(), size_t(4));
+    QCOMPARE(core::searchMaterials("", "Wood").size(), size_t(11));
+    QVERIFY(core::findMaterial("PETG") && core::findMaterial("PA12 (SLS/MJF)") && core::findMaterial("Walnut"));
     QVERIFY(core::searchMaterials("steel", "Plastic").empty());
     // a user material is added, a user entry overrides a built-in by name, both survive a reload
-    core::Material pet{"PETG", "Plastic", 1.27, {0.2f, 0.4f, 0.8f, 1.0f}, "ISO 1043 PETG", 50, 25.0};
+    core::Material pet{"PETG-CF Custom", "Plastic", 1.27, {0.2f, 0.4f, 0.8f, 1.0f}, "ISO 1043 PETG", 50, 25.0};
     std::string err;
     QVERIFY2(core::saveUserMaterial(pet, &err), err.c_str());
     core::Material steel = *core::findMaterial("Steel");
@@ -57,7 +58,7 @@ class DocumentTest : public QObject {
     QVERIFY(core::saveUserMaterial(steel, &err));
     QVERIFY(QFileInfo::exists(QString::fromStdString(core::userMaterialLibraryPath())));
     core::reloadMaterialLibrary();  // "restart"
-    const core::Material* p = core::findMaterial("petg");
+    const core::Material* p = core::findMaterial("petg-cf custom");
     QVERIFY(p && p->source == "user" && std::abs(p->density - 1.27) < 1e-12 && p->costPerKg == 25.0);
     QVERIFY(std::abs(core::findMaterial("Steel")->density - 7.80) < 1e-12);
     QCOMPARE(core::materialLibrary().size(), core::builtinMaterials().size() + 1);

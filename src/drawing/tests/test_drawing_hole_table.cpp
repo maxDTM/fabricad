@@ -2,6 +2,7 @@
 // lower-left corner, sizes, quantities), persistence in the sheet JSON, rendering, the
 // HOLETABLE tool, and the hole callout's fastener line / ANSI data from a Hole feature.
 // SPDX-License-Identifier: LGPL-2.1-or-later
+#include "assembly/FastenerInsert.h"
 #include "core/Document.h"
 #include "core/Registry.h"
 #include "core/ShapeUtils.h"
@@ -16,6 +17,8 @@
 #include "support/HoleTestFeatures.h"
 
 #include <QtTest/QtTest>
+
+#include <gp_Lin.hxx>
 
 #include <cmath>
 
@@ -172,6 +175,28 @@ class HoleTableTest : public QObject {
       QCOMPARE(holeCalloutLines(info, off, fx.doc.units()).size(), holeCalloutLines(info, HoleCallout{}, fx.doc.units()).size() - 1);
       QCOMPARE(HoleCallout::fromJson(off.toJson()).fastenerLine, false);
     }
+    // PRODUCTION-2: a screw in each hole (the #8-32 head hides the whole 1/4-20 tapped hole from
+    // the top) still gives two rows, and the fasteners' own bores (none here) never count
+    for (auto [x, r] : {std::pair{15.0, 3.3}, std::pair{45.0, 0.201 * 25.4 / 2}}) {
+      const TopoDS_Shape& s = d->bodyShape(body);
+      core::ShapeRef wall;
+      for (const TopoDS_Shape& f : core::subShapes(s, TopAbs_FACE)) {
+        auto c = part::analyseThreadCylinder(s, f);
+        if (c && c->internal && near(c->radius, r, 1e-6) && gp_Lin(c->axis).Distance(gp_Pnt(x, 20, 0)) < 1e-6) wall = core::ShapeRef::subShape(body, s, f);
+      }
+      QVERIFY(wall.isValid());
+      assembly::InsertOptions o;
+      o.length = 6;  // the 8 mm blind hole is too shallow for a standard 1/4-20 length
+      auto res = assembly::insertFasteners(*d, nullptr, {wall}, o);
+      QVERIFY2(res.ok(), res.error.c_str());
+    }
+    fx.model->updateGeometry();
+    rows = holeTableRows(fx.doc, fx.view(), fx.doc.units());
+    all.clear();
+    for (const auto& r : rows) all += r.callout + " || ";
+    QVERIFY2(rows.size() == 2, all.c_str());
+    QVERIFY2(all.find("FOR M6 SHCS") != std::string::npos, all.c_str());
+    QVERIFY2(all.find("\xC3\x98" "5.105") != std::string::npos, all.c_str());
     // the HOLETABLE tool places a table right of the view
     core::ToolRegistry reg;
     registerCalloutTools(reg);

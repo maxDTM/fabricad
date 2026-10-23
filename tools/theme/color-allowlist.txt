@@ -11,7 +11,7 @@
 src/core/ViewerContext.h                   6  core     PreviewStyle preset RGBA: the headless fallback; the presets carry core::ColorRole (phase 4) and the viewer draws the role
 src/core/Manipulator.cpp                   8  core     manipulator colours -> ColorRole (manip.handle, axis.*)
 src/core/Manipulator.h                     2  core     manipulator defaults -> ColorRole
-src/core/Materials.cpp                    26  core     document material library (body appearance data, not UI chrome): stays; review in phase 4
+src/core/Materials.cpp                    41  core     document material library (body appearance data, not UI chrome): stays; review in phase 4
 src/core/Materials.h                       1  core     material default colour (document data): stays
 src/core/Body.h                            1  core     default body colour (document data, saved in .fcad): stays
 #

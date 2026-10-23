@@ -591,7 +591,8 @@
       "F"
      ],
      "context": "tool:part.fillet",
-     "hint": "Hover until the edge lights up, then click; the second one is at the front-left."
+     "hint": "Hover until the edge lights up, then click; the second one is at the front-left. If a whole face lights up instead, click it again to drop it.",
+     "pick": "edge"
     },
     {
      "id": "4.2",
@@ -1309,7 +1310,8 @@
        "click": "model:body:Body1/edge:@0,25,48"
       }
      ],
-     "context": "tool:part.chamfer"
+     "context": "tool:part.chamfer",
+     "pick": "edge"
     },
     {
      "id": "8.2",
@@ -1614,7 +1616,7 @@
    "steps": [
     {
      "id": "11.1",
-     "text": "Press [[Home]], then [[I]] (**Measure**), and click the **top rims** of the two counterbores.",
+     "text": "Press [[Home]], then [[I]] (**Measure**). Zoom in on the two counterbores with the **wheel**, then click their **top rims**.",
      "anchor": "model:body:Body1/edge:@35.5,-15,10",
      "until": {
       "all": [
@@ -1656,11 +1658,12 @@
       "I"
      ],
      "context": "tool:inspect.measure",
-     "hint": "Pick the **top rim** of each counterbore: the larger circle on the top face, not the smaller one at its floor. Click a wrong edge again to drop it."
+     "hint": "Pick the **top rim** of each counterbore: the larger circle on the top face, not the circle at its floor. Zooming in makes them easy to tell apart. Click a wrong edge again to drop it.",
+     "pick": "edge"
     },
     {
      "id": "11.2",
-     "text": "The table shows the **distance** between the two rims: 60 mm, centre to centre. Press [[Esc]] to close Measure.",
+     "text": "Look at **CENTRE DISTANCE**: 60 mm, the distance between the hole centres (**DISTANCE** is the gap between the two rims). Press [[Esc]] to close Measure.",
      "anchor": "measureTable",
      "until": {
       "tool": "none"
@@ -1765,7 +1768,7 @@
     },
     {
      "id": "12.4",
-     "text": "Power users: [[Ctrl+9]] opens the **cmd>** line, and `LIST features` prints the whole history as text. Click **Next**.",
+     "text": "Power users: [[Ctrl+9]] opens the **cmd>** line, and `LIST features` prints the whole history as text. If you opened it, press [[Esc]] to close it again, then click **Next**.",
      "anchor": "none",
      "until": {
       "next": true
@@ -1780,7 +1783,7 @@
    "steps": [
     {
      "id": "13.1",
-     "text": "Open **Export STL**: it is in the **Tools** menu at the end of the toolbar (under **More** when the window is narrow).",
+     "text": "Open **Export STL**: click **More** at the end of the toolbar (**Tools** when the window is wide), it is in the **TOOLS** section. Or press [[Ctrl+K]] and type **stl**.",
      "anchor": "tool:part.export-stl",
      "until": {
       "tool": "part.export-stl"
@@ -1789,7 +1792,8 @@
       {
        "click": "@anchor"
       }
-     ]
+     ],
+     "hint": "Scroll the More list down to its **TOOLS** section, or search for it with [[Ctrl+K]]."
     },
     {
      "id": "13.2",

@@ -59,12 +59,14 @@ after each undoable edit. The copies go to the application data folder
 offers to recover each document into its own tab. A clean save or close deletes the copy.
 
 **Guided tour.** The first launch offers "Your first part: a mounting bracket", a hands-on tour
-from a first sketch to an STL; **Help > Tutorials** starts or resumes it at any time. A bubble
+from a first sketch to an STL; **Help > Tutorials** (or **Start Tutorial** in command search,
+`TUTORIAL`) starts or resumes it at any time. A bubble
 says what to do and points at the button, field or row; a face, edge or plane to click glows in
 the view in the focus colour. The tour moves on by itself when the step is done, and all input
 still goes to the app: orbit, zoom and **Home** whenever you like. **Back** (Alt+Left) undoes to
-the previous step, **Show me** (F7) plays the input with a ghost cursor without changing
-anything, **Skip** (Alt+Right) moves on. When something else happened, the bubble says what
+the previous step and opens its command again, **Show me** (F7) plays the input with a ghost
+cursor without changing anything, **Skip** (Alt+Right) moves on (after Back it redoes what Back
+undid). When something else happened, the bubble says what
 (for example "That did Rename Extrude1"); the **⋯** menu has **Undo to step start**, **Restore
 chapter** (the chapter's start in a new tab, your tab is kept) and **Exit tour**. A printable
 copy with screenshots is in [tutorials/bracket.md](tutorials/bracket.md).
@@ -504,9 +506,12 @@ Switch to `ASSEMBLY` (Alt+2) to put the assemble tools first.
   Hole, Pocket Hole or imported) and choose the **Family**: socket head cap screw (ISO 4762 /
   B18.3), hex bolt (ISO 4017 / B18.2.1), hex nut (ISO 4032 / B18.2.2), nyloc nut (ISO 7040),
   washer (ISO 7089 / B18.22.1, ISO 7092), heat-set insert, dowel pin (ISO 2338 / B18.8.2) or set
-  screw (ISO 4026). **Size** and **Length** are Auto by default: the size from the hole (6.6 mm
-  clearance → M6, 0.281" → 1/4-20), the length from the grip rounded up to the next standard
-  length. **Material** (8.8, 10.9, 12.9, A2, A4, brass, nylon) sets the density and colour. The
+  screw (ISO 4026). **Size** and **Length** are Auto by default: the size from the hole's thread
+  when it is tapped (a 1/4-20 tapped hole → 1/4-20), else from its diameter (6.6 mm clearance →
+  M6, 0.281" → 1/4-20); the length from the grip rounded up to the next standard length for a
+  through hole, and the longest standard length that stays inside a blind hole (inside its
+  thread when one fits there). A blind hole too shallow for every standard length asks for a
+  typed length. **Material** (8.8, 10.9, 12.9, A2, A4, brass, nylon) sets the density and colour. The
   part sits on the counterbore bottom (or the face), coaxial, with an as-built rigid joint
   (**Allow rotation**: revolute). **Washer** puts one under the head and the nut, **Add nut** a
   nut on the far face of a through hole, **All equal holes** fills every equal hole of the
@@ -514,11 +519,16 @@ Switch to `ASSEMBLY` (Alt+2) to put the assemble tools first.
   share one definition, so the BOM lists them once with the quantity and the part number
   (`ISO 4762 M6x20 8.8`). The parts are generated from tables when the file opens; the file
   stores no geometry for them.
-* **Interference** (INSPECT) finds overlapping components. **Export BOM (CSV)** writes the
-  bill of materials.
+* **Interference** (INSPECT) finds overlapping components. A standard screw in a tapped hole,
+  a nut on its bolt or a heat-set insert in its hole overlaps by design (the threads are modelled
+  at the major diameter): such pairs are counted as thread engagement under the result, and
+  **Include thread engagement** lists them too (`[thread]`). **Export BOM (CSV)** writes the
+  bill of materials; with a cost column the message gives the cost total and how many rows have
+  no cost (standard fasteners carry none).
 * **Component Properties** (right-click a component in MODEL > **Properties...**, or
   `COMPPROPS`): part number, description, material, revision, vendor and unit cost. The BOM,
-  the parts list and the title block read them; the card also shows the computed mass.
+  the parts list and the title block read them; the card also shows the computed mass, and an
+  empty Material field shows the bodies' physical material the BOM falls back to.
 * **BOM options** (`EXPORTBOM a.csv structured columns=item,name,qty,massTotal`): *flat* (the
   default: one row per distinct part over the whole tree, with the total quantity) or
   *structured* (tree order, item numbers like `2.1`, names indented, quantities per parent,

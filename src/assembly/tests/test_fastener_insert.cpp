@@ -6,6 +6,7 @@
 #include "assembly/Bom.h"
 #include "assembly/ComponentOps.h"
 #include "assembly/FastenerInsert.h"
+#include "assembly/Interference.h"
 #include "assembly/JointFeature.h"
 #include "assembly/StepExport.h"
 #include "core/Document.h"
@@ -64,6 +65,21 @@ struct Plate {
       h->prop("holeType").setEnum("Counterbore");
       h->applyScriptOption("fastener", "shcs");
     }
+    h->updatePropertyFlags();
+    auto* raw = static_cast<part::HoleFeature*>(doc.addFeature(std::move(h)));
+    doc.recompute();
+    return raw;
+  }
+  /// A tapped blind hole (ANSI 1/4-20 by default) of the given depth at (x, y).
+  part::HoleFeature* tapped(double x, double y, double depth, const char* size = "1/4-20") {
+    auto h = std::make_unique<part::HoleFeature>();
+    core::ShapeRef top = faceWithNormal(doc, body, gp_Dir(0, 0, 1));
+    top.point = core::Vec3{x, y, t};
+    top.hasPoint = true;
+    h->prop("points").refs().push_back(top);
+    h->applyScriptOption("type", "tapped");
+    h->applyScriptOption("size", size);
+    h->prop("depth").setDouble(depth);
     h->updatePropertyFlags();
     auto* raw = static_cast<part::HoleFeature*>(doc.addFeature(std::move(h)));
     doc.recompute();
@@ -273,6 +289,62 @@ class FastenerInsertTest : public QObject {
     st::FastenerSpec screw{st::Family::SocketCap, "M6", 10, "8.8"};
     const double expect = core::volume(p.doc.bodyShape(p.body)) + 2 * core::volume(st::makeFastener(screw));
     QVERIFY2(std::abs(vol - expect) < 1e-3 * expect, qPrintable(QString("%1 %2").arg(vol).arg(expect)));
+  }
+
+  // PRODUCTION-1 / -5: a 1/4-20 tapped hole (tap drill #7 = 5.105 mm, also the #8 loose
+  // clearance) gets a 1/4-20 screw, and a blind 10 mm hole in a 12 mm plate is blind (the drill
+  // point does not make it "through"), so Auto length stays inside the hole.
+  void tappedHoleSizeAndBlindLength() {
+    Plate p(true, 100, 12);
+    p.tapped(30, 30, 10);
+    const core::ShapeRef wall = p.wall(30, 30, 0.201 * 25.4 / 2);
+    QVERIFY(wall.isValid());
+    auto site = analyseHole(p.doc, wall);
+    QVERIFY(site);
+    QVERIFY(!site->through);
+    QCOMPARE(site->thread, std::string("1/4-20"));
+    std::string err;
+    st::FastenerSpec s = specForHole(*site, InsertOptions{}, &err);
+    QVERIFY2(err.empty(), err.c_str());
+    QCOMPARE(s.size, std::string("1/4"));
+    QVERIFY2(s.length <= site->seatToFar + 1e-6, qPrintable(QString::number(s.length)));
+    QVERIFY(near(s.length, 0.375 * 25.4, 1e-6));
+    // too shallow for the shortest screw: an error, not a screw through the bottom
+    Plate q(true, 100, 12);
+    q.tapped(30, 30, 6);
+    auto shallow = analyseHole(q.doc, q.wall(30, 30, 0.201 * 25.4 / 2));
+    QVERIFY(shallow && !shallow->through);
+    err.clear();
+    specForHole(*shallow, InsertOptions{}, &err);
+    QVERIFY2(err.find("length=") != std::string::npos, err.c_str());
+    // a metric tapped hole: M6 from the thread
+    Plate m(true, 100, 20);
+    m.tapped(30, 30, 15, "M6x1");
+    auto ms = analyseHole(m.doc, m.wall(30, 30, 2.5));
+    QVERIFY(ms);
+    QCOMPARE(ms->thread, std::string("M6x1"));
+    err.clear();
+    QCOMPARE(specForHole(*ms, InsertOptions{}, &err).size, std::string("M6"));
+  }
+
+  // PRODUCTION-4: a screw seated in its counterbore does not clash with the plate, and a screw
+  // in a tapped hole is thread engagement, not interference.
+  void seatedFastenerNoInterference() {
+    Plate p(true, 100, 12);
+    p.holes({{20, 20}}, true);
+    p.tapped(60, 20, 10);
+    InsertResult r = insertFasteners(p.doc, nullptr, {p.wall(20, 20, 3.3)}, InsertOptions{});
+    QVERIFY2(r.ok(), r.error.c_str());
+    r = insertFasteners(p.doc, nullptr, {p.wall(60, 20, 0.201 * 25.4 / 2)}, InsertOptions{});
+    QVERIFY2(r.ok(), r.error.c_str());
+    InterferenceReport rep = checkInterference(p.doc);
+    QVERIFY2(rep.pairs.empty(), qPrintable(QString("%1 pairs, %2 mm3").arg(rep.pairs.size()).arg(rep.totalVolume())));
+    QCOMPARE(rep.threadPairs, 1);
+    InterferenceOptions all;
+    all.includeThreads = true;
+    rep = checkInterference(p.doc, {}, all);
+    QCOMPARE(rep.pairs.size(), size_t(1));
+    QVERIFY(rep.pairs.front().thread);
   }
 
   void errors() {

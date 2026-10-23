@@ -89,6 +89,12 @@ class TutorialEngine : public QObject {
   void setHint(const QString& h, bool warning = false);
   void watchViewer();
   void saveCheckpoint(int chapter);
+  /// The step's "pick" selection priority while it runs; the previous one back afterwards.
+  void applyPick(const Step* s);
+  /// Back undid the step's result: open its command again from its context ("cmd:SELECT ...;
+  /// CHAMFER"), so "Type 2 and press Enter" has its dialog (TUTORIAL2-1). Sketch contexts are
+  /// not replayed (they would make a new sketch).
+  void reenterContext(const Step& s);
 
   MainWindow& w_;
   StateQuery query_;
@@ -110,6 +116,8 @@ class TutorialEngine : public QObject {
   bool hintWarning_ = false;
   QPointer<QObject> watchedViewer_;
   QMetaObject::Connection cameraConn_;
+  QPointer<QObject> pickViewer_;  ///< viewer whose priority applyPick changed
+  int pickBefore_ = 0;            ///< its priority before (viewer::SelectionPriority)
 };
 
 }  // namespace fabricad::app::tutorial

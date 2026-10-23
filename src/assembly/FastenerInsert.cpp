@@ -8,6 +8,7 @@
 #include "core/GeometryRefs.h"
 #include "core/Materials.h"
 #include "core/ShapeUtils.h"
+#include "part/features/Hole.h"
 #include "part/features/StandardPart.h"
 #include "part/features/Thread.h"
 #include "part/standards/Clearance.h"
@@ -43,20 +44,54 @@ bool isAir(BRepClass3d_SolidClassifier& cls, const gp_Pnt& p) {
   return cls.State() == TopAbs_OUT;
 }
 
-/// Internal full cylindrical faces of a body (the walls of its holes).
-std::vector<part::ThreadCylinder> holeWalls(const TopoDS_Shape& body) {
-  std::vector<part::ThreadCylinder> out;
+/// The walls of a body's holes (internal full cylindrical faces) and the apexes of its cones
+/// (drill points close a blind hole).
+struct BodyHoles {
+  std::vector<part::ThreadCylinder> walls;
+  std::vector<gp_Ax1> cones;  ///< apex, cone axis
+};
+
+BodyHoles holeWalls(const TopoDS_Shape& body) {
+  BodyHoles out;
   for (TopExp_Explorer ex(body, TopAbs_FACE); ex.More(); ex.Next()) {
     BRepAdaptor_Surface a(TopoDS::Face(ex.Current()));
+    if (a.GetType() == GeomAbs_Cone) {
+      out.cones.emplace_back(a.Cone().Apex(), a.Cone().Axis().Direction());
+      continue;
+    }
     if (a.GetType() != GeomAbs_Cylinder) continue;
     auto c = part::analyseThreadCylinder(body, ex.Current());
-    if (c && c->internal) out.push_back(*c);
+    if (c && c->internal) out.walls.push_back(*c);
   }
   return out;
 }
 
+/// Thread of a tapped hole: a Hole (tapped) or Thread feature that put an internal thread on
+/// this axis of the body (body-local `h`).
+void attachThread(const core::Document& doc, ObjectId body, HoleSite& h) {
+  const gp_Lin axis(h.entry, h.axisIn);
+  for (const auto& f : doc.features()) {
+    if (f->isSuppressed() || f->status() == core::FeatureStatus::Error) continue;
+    const auto& touched = f->touchedBodies();
+    if (std::find(touched.begin(), touched.end(), body) == touched.end()) continue;
+    const std::vector<part::ThreadInfo>* threads = nullptr;
+    if (const auto* hf = dynamic_cast<const part::HoleFeature*>(f.get())) threads = &hf->threads();
+    else if (const auto* tf = dynamic_cast<const part::ThreadFeature*>(f.get())) threads = &tf->threads();
+    if (!threads) continue;
+    for (const part::ThreadInfo& t : *threads) {
+      if (!t.internal || !t.axis.Direction().IsParallel(h.axisIn, 1e-6)) continue;
+      if (axis.Distance(t.axis.Location()) > 1e-4) continue;
+      h.thread = t.designation;
+      // usable length from the entry: the thread may start below the entry (counterbore)
+      const double start = gp_Vec(h.entry, t.axis.Location()).Dot(gp_Vec(h.axisIn));
+      h.threadLength = std::max(0.0, start) + t.length;
+      return;
+    }
+  }
+}
+
 /// Hole analysis in the body's local frame from one wall of the hole (`walls`: holeWalls(body)).
-std::optional<HoleSite> analyseLocal(BRepClass3d_SolidClassifier& body, const std::vector<part::ThreadCylinder>& walls,
+std::optional<HoleSite> analyseLocal(BRepClass3d_SolidClassifier& body, const BodyHoles& holes,
                                      const std::optional<part::ThreadCylinder>& c0, const std::optional<gp_Pnt>& pick,
                                      std::string* error) {
   auto fail = [&](const char* m) -> std::optional<HoleSite> {
@@ -68,7 +103,7 @@ std::optional<HoleSite> analyseLocal(BRepClass3d_SolidClassifier& body, const st
   const gp_Pnt O = c0->axis.Location();
   const gp_Vec D(c0->axis.Direction());
   std::vector<Segment> segs;
-  for (const part::ThreadCylinder& cw : walls) {
+  for (const part::ThreadCylinder& cw : holes.walls) {
     const part::ThreadCylinder* c = &cw;
     if (!c->axis.Direction().IsParallel(c0->axis.Direction(), 1e-6)) continue;
     if (axis.Distance(c->axis.Location()) > 1e-5) continue;
@@ -96,8 +131,24 @@ std::optional<HoleSite> analyseLocal(BRepClass3d_SolidClassifier& body, const st
     if (s.t1 >= lo - 1e-6 && s.t0 <= hi + 1e-6) stack.push_back(s);
   double rMin = 1e100, rMax = 0;
   for (const Segment& s : stack) rMin = std::min(rMin, s.radius), rMax = std::max(rMax, s.radius);
-  const double probe = 2 * rMax + 0.5;
-  const bool open0 = isAir(body, O.Translated(D * (lo - probe))), open1 = isAir(body, O.Translated(D * (hi + probe)));
+  // An end is open when there is air just past it on the axis and no drill point closes it.
+  // (A probe far past the end, as before, came out through the far side of a thin plate below a
+  // blind hole's drill point: a 10 mm blind hole in a 12 mm plate counted as through.)
+  auto open = [&](double t, double sgn, double r) {
+    if (!isAir(body, O.Translated(D * (t + sgn * 0.01)))) return false;  // flat bottom
+    for (const gp_Ax1& apex : holes.cones) {
+      if (!apex.Direction().IsParallel(D, 1e-6) || axis.Distance(apex.Location()) > 1e-5) continue;
+      const double ta = gp_Vec(O, apex.Location()).Dot(D);
+      if (sgn * (ta - t) > 1e-6 && sgn * (ta - t) < 2 * r) return false;  // drill point beyond the end
+    }
+    return true;
+  };
+  auto endRadius = [&](double t) {
+    for (const Segment& s : stack)
+      if (std::abs(s.t0 - t) < 1e-6 || std::abs(s.t1 - t) < 1e-6) return s.radius;
+    return rMin;
+  };
+  const bool open0 = open(lo, -1, endRadius(lo)), open1 = open(hi, 1, endRadius(hi));
   if (!open0 && !open1) return fail("the hole is closed at both ends");
   // entry: the end of the widest segment when the hole is stepped, else the open end (nearer the pick)
   bool entryAtHi = open1 && !open0;
@@ -191,6 +242,7 @@ std::optional<HoleSite> analyseHole(const core::Document& doc, const core::Shape
   BRepClass3d_SolidClassifier cls(body);
   auto h = analyseLocal(cls, holeWalls(body), part::analyseThreadCylinder(body, face), pick, error);
   if (!h) return std::nullopt;
+  attachThread(doc, ref.owner, *h);
   const core::Body* b = doc.body(ref.owner);
   h->body = ref.owner;
   h->component = b->component;
@@ -204,9 +256,9 @@ std::vector<HoleSite> equalHoles(const core::Document& doc, const HoleSite& site
   const TopoDS_Shape& body = doc.bodyShape(site.body);
   const gp_Trsf w = doc.worldPlacement(b->component);
   std::vector<gp_Lin> seen;
-  const std::vector<part::ThreadCylinder> walls = holeWalls(body);
+  const BodyHoles walls = holeWalls(body);
   BRepClass3d_SolidClassifier cls(body);
-  for (const part::ThreadCylinder& c : walls) {
+  for (const part::ThreadCylinder& c : walls.walls) {
     if (std::abs(2 * c.radius - site.diameter) > 1e-6) continue;
     const gp_Lin l(c.axis);
     if (std::any_of(seen.begin(), seen.end(), [&](const gp_Lin& s) { return s.Distance(l.Location()) < 1e-5 && s.Direction().IsParallel(l.Direction(), 1e-6); }))
@@ -214,6 +266,8 @@ std::vector<HoleSite> equalHoles(const core::Document& doc, const HoleSite& site
     seen.push_back(l);
     auto h = analyseLocal(cls, walls, c, std::nullopt, nullptr);
     if (!h) continue;
+    attachThread(doc, site.body, *h);
+    if (h->thread != site.thread) continue;
     h->body = site.body;
     h->component = b->component;
     HoleSite hw = toWorld(*h, w);
@@ -251,6 +305,8 @@ st::FastenerSpec specForHole(const HoleSite& site, const InsertOptions& opt, std
         auto d = st::fastenerDims(probe);
         if (d && std::abs(d->d - site.diameter) < 0.05) s.size = sz;
       }
+    } else if (!site.thread.empty() && st::fastenerDims({s.family, st::sizeOf(site.thread), 10, s.grade})) {
+      s.size = st::sizeOf(site.thread);  // a tapped hole: the size of its thread
     } else {
       s.size = st::sizeForHoleDiameter(site.diameter, false);
       if (s.size.empty()) s.size = st::sizeForHoleDiameter(site.diameter, true);
@@ -270,16 +326,30 @@ st::FastenerSpec specForHole(const HoleSite& site, const InsertOptions& opt, std
     if (error) *error = std::format("no standard lengths for {} {}", st::familyDescription(s.family), s.size);
     return s;
   }
+  // the longest standard length that fits (0 when even the shortest does not)
   auto largestBelow = [&](double v) {
-    double best = ls.front();
+    double best = 0;
     for (double l : ls)
       if (l <= v + 1e-6) best = l;
     return best;
   };
+  auto noFit = [&](double room, const char* what) {
+    if (error)
+      *error = std::format("no standard {} {} is {:g} mm or shorter ({}; shortest {:g} mm): give length=",
+                           st::familyDescription(s.family), s.size, std::round(room * 100) / 100, what, ls.front());
+  };
   if (s.family == st::Family::DowelPin) {
     s.length = largestBelow(2 * site.length);
+    if (s.length <= 0) noFit(2 * site.length, "twice the hole depth");
   } else if (s.family == st::Family::SetScrew || !site.through) {
-    s.length = largestBelow(s.family == st::Family::SetScrew ? site.length : site.seatToFar);
+    // blind hole: the screw must not reach the bottom, nor run past the usable thread
+    const bool set = s.family == st::Family::SetScrew;
+    const double room = set ? site.length : site.seatToFar;
+    // within the usable thread when a standard length fits there, else within the drilled depth
+    const double inThread = site.threadLength > 0 ? (set ? site.threadLength : site.threadLength - (site.length - site.seatToFar)) : 0;
+    s.length = inThread > 0 ? largestBelow(std::min(room, inThread)) : 0;
+    if (s.length <= 0) s.length = largestBelow(room);
+    if (s.length <= 0) noFit(room, "the depth of the blind hole");
   } else {
     double need = site.seatToFar;
     const st::ThreadSpec* t = st::findThread(st::threadDesignationFor(s.size));
