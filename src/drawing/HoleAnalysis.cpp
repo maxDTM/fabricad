@@ -11,6 +11,7 @@
 #include "part/Naming.h"
 
 #include <BRepAdaptor_Curve.hxx>
+#include <iterator>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepGProp.hxx>
 #include <BRepTools.hxx>
@@ -284,7 +285,11 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
     }
     if (!instances.empty()) info.count = static_cast<int>(instances.size());
     else if (const core::Property* pts = f->property("points")) info.count = std::max(1, static_cast<int>(pts->refs().size()));
-    info.thread = stringProp(*f, {"threadDesignation", "threadSize", "thread"});
+    // P2: ANSI inch holes carry their size in ansiSize
+    const bool ansi = stringProp(*f, {"standard"}) == "ANSI inch";
+    info.standard = f->property("standard") ? (ansi ? "ANSI" : "ISO") : std::string();
+    info.thread = ansi ? stringProp(*f, {"ansiSize"}) : stringProp(*f, {"threadDesignation", "threadSize", "thread"});
+    const std::string sizeDesignation = info.thread;
     bool threaded = !info.thread.empty();
     if (const core::Property* p = f->property("threaded"); p && p->type() == core::PropertyType::Bool && p->toBool()) threaded = true;
     // Part Hole feature (round 2): the tap type decides; `threadSize` is only meaningful when Tapped,
@@ -294,7 +299,20 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
       const std::string t = stringProp(*f, {"tapType"});
       threaded = tappedHole = (t == "Tapped");
       if (!threaded) info.thread.clear();
+      if (t == "Clearance") info.fit = stringProp(*f, {"clearanceFit"});
+      if (t == "Tapped" || t == "Tap drill") info.tapDrill = info.diameter;
     }
+    // the head the counterbore / countersink was sized for ("M6 SHCS")
+    if (const core::Property* fp = f->property("fastener"); fp && fp->type() == core::PropertyType::Enum && fp->enumIndex() > 0 &&
+                                                          (info.type == HoleInfo::Counterbore || info.type == HoleInfo::Countersink)) {
+      static const char* kHead[] = {"", "SHCS", "HEX BOLT", "LOW HEAD SHCS", "BUTTON HEAD", "FLAT CSK", "PAN HEAD"};
+      const int hi = fp->enumIndex();
+      std::string size = sizeDesignation;
+      if (!size.empty() && size[0] == 'M') size = size.substr(0, size.find('x'));
+      else if (size.find('-') != std::string::npos) size = size.substr(0, size.rfind('-'));
+      if (hi < static_cast<int>(std::size(kHead)) && !size.empty()) info.fastener = size + " " + kHead[hi];
+    }
+    if (!info.through && info.drillAngle > 0) info.pointAngle = info.drillAngle;
     // DRW-VIEWS-ANNOT-2: the counterbore depth is the feature's, measured from the placement
     // face. The cylinder face can be taller: the hole tool reaches above the face and notches
     // material standing next to the hole (a boss), which makes the face 1 mm too long.
@@ -307,7 +325,7 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
     if (threaded && info.thread.empty()) info.thread = metricThreadForHole(info.diameter);
     if (threaded) {
       info.threadClass = stringProp(*f, {"threadClass", "threadFit"});
-      if (tappedHole && info.threadClass.empty()) info.threadClass = "6H";  // ISO internal thread, as ThreadInfo::callout()
+      if (tappedHole && info.threadClass.empty()) info.threadClass = ansi ? "2B" : "6H";  // as ThreadInfo::callout()
       bool fullDepth = false;
       if (const core::Property* p = f->property("threadFullDepth"); p && p->type() == core::PropertyType::Bool) fullDepth = p->toBool();
       if (const core::Property* p = f->property("threadDepth"); p && p->type() == core::PropertyType::Length && !fullDepth)
@@ -376,6 +394,7 @@ std::vector<RichLine> holeCalloutLines(const HoleInfo& info, const HoleCallout& 
       lines.push_back({RichRun::g(Glyph::Countersink), RichRun::t(" " + dia + L(info.csinkDiameter) + " X " + A(info.csinkAngle))});
     if (!thread.empty()) lines.push_back(threadLine(""));
   }
+  if (c.fastenerLine && !info.fastener.empty()) lines.push_back({RichRun::t("FOR " + info.fastener)});
   return lines;
 }
 

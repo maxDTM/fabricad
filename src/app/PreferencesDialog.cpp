@@ -18,6 +18,7 @@
 #include <QPainter>
 #include <QRadioButton>
 #include <QComboBox>
+#include <algorithm>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QLabel>
@@ -202,6 +203,18 @@ PreferencesDialog::PreferencesDialog(core::Document& doc, viewer::ViewerWidget* 
     sketch::setTypedDimensionsOverride(std::nullopt);  // the preference applies again
   });
   gf->addRow(typedDims);
+  {
+    // production features P2: the standard new Hole features start with
+    auto* holeStd = new QComboBox(general);
+    holeStd->setObjectName("holeDefaultStandard");
+    holeStd->addItem("Follow the document unit", "auto");
+    holeStd->addItem("ISO metric", "iso");
+    holeStd->addItem("ANSI inch", "ansi");
+    holeStd->setCurrentIndex(std::max(0, holeStd->findData(QSettings().value("hole/defaultStandard", "auto"))));
+    connect(holeStd, &QComboBox::currentIndexChanged, this,
+            [holeStd](int) { QSettings().setValue("hole/defaultStandard", holeStd->currentData()); });
+    gf->addRow("Hole standard (new holes)", holeStd);
+  }
   tabs_->addTab(general, "General");
 
   auto* document = new QWidget(tabs_);

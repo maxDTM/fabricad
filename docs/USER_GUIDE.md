@@ -448,6 +448,29 @@ while the card is open. **Copy** puts the values on the clipboard as tab-separat
 inertia is in g·mm². Bodies without a material count for volume and area only and the card
 says how many there are.
 
+**Holes for fasteners.** The Hole card (`H`) has a **Standard** (ISO metric, or ANSI inch
+with UNC / UNF sizes such as `1/4-20` and `#10-32`; new holes follow the document unit, or Preferences > General >
+**Hole standard**) and a **Type**: Simple (typed diameter),
+Clearance (Close / Normal / Loose fit from ISO 273 or ASME B18.2.8, e.g. M6 normal = 6.6 mm,
+1/4 normal = 0.281"), Tapped (the table tap drill, e.g. M6x1 = 5.0 mm, 1/4-20 = #7 = 0.201";
+thread class, cosmetic or modelled thread; the card shows "thread 12 mm, drill 15 mm + 1.5 mm
+point") or Tap drill (the drill, threaded later in the shop). For a counterbore or
+countersink, **Fastener** sizes the recess from the head table (SHCS ISO 4762 / B18.3, hex
+bolt, low head, button head, flat countersunk 90° / 82°, pan head): an M6 SHCS gets a
+counterbore of 11 x 6 mm. **Head clearance** deepens it, **Head below surface** sinks the head.
+Editing a filled value by hand switches Fastener to Custom. Drill point: Flat or Angled (118°
+HSS, 135° split point, 140° carbide, or typed). Holes saved by earlier versions keep their
+typed sizes.
+
+**Pocket Hole** (CREATE ▾, `POCKETHOLE`): pick the board face the screw enters (the back of
+the board), then the exit edges between that face and the board's edge face. Each edge gets
+**Holes per edge** holes, spread between the **Edge distance** from both ends (or every
+**Spacing**). **Jig**: Kreg 15° (step 9.5 mm, pilot 3.6 mm), Castle 6° or a custom angle. The
+thickness is measured from the opposite face (or typed: 12, 15, 18, 19, 25, 38 mm) and picks the
+pocket screw (1", 1 1/4", 1 1/2", 2 1/2") and the step depth (half the screw in each board).
+The screw leaves the edge face at mid-thickness (**Exit point offset** moves it). **Also drill
+the mating part** continues the pilot into the touching board you select.
+
 **Materials and appearance.** In MODEL, right-click a body for **Physical Material** >
 **Choose...**: a searchable picker with category tabs and a filter that matches the name, the
 category and the standard ("6061", "ASTM", "PLA"); each entry shows density, standard and,
@@ -477,6 +500,20 @@ Switch to `ASSEMBLY` (Alt+2) to put the assemble tools first.
 * **Rigid Group** locks components together.
 * **Copy / Paste** (Ctrl+C / Ctrl+V) inserts another occurrence of the same component, so the
   BOM counts it. **Paste New** (Ctrl+Shift+V) makes an independent copy with its own history.
+* **Insert Fastener** (ASSEMBLE ▾, `FASTENER`): pick holes (a circular edge or the hole wall;
+  Hole, Pocket Hole or imported) and choose the **Family**: socket head cap screw (ISO 4762 /
+  B18.3), hex bolt (ISO 4017 / B18.2.1), hex nut (ISO 4032 / B18.2.2), nyloc nut (ISO 7040),
+  washer (ISO 7089 / B18.22.1, ISO 7092), heat-set insert, dowel pin (ISO 2338 / B18.8.2) or set
+  screw (ISO 4026). **Size** and **Length** are Auto by default: the size from the hole (6.6 mm
+  clearance → M6, 0.281" → 1/4-20), the length from the grip rounded up to the next standard
+  length. **Material** (8.8, 10.9, 12.9, A2, A4, brass, nylon) sets the density and colour. The
+  part sits on the counterbore bottom (or the face), coaxial, with an as-built rigid joint
+  (**Allow rotation**: revolute). **Washer** puts one under the head and the nut, **Add nut** a
+  nut on the far face of a through hole, **All equal holes** fills every equal hole of the
+  body (more than eight parts are held by one rigid group instead of joints). Identical parts
+  share one definition, so the BOM lists them once with the quantity and the part number
+  (`ISO 4762 M6x20 8.8`). The parts are generated from tables when the file opens; the file
+  stores no geometry for them.
 * **Interference** (INSPECT) finds overlapping components. **Export BOM (CSV)** writes the
   bill of materials.
 * **Component Properties** (right-click a component in MODEL > **Properties...**, or
@@ -509,7 +546,12 @@ Switch to `ASSEMBLY` (Alt+2) to put the assemble tools first.
    * Centre marks and centrelines.
    * Hole and thread callouts, GD&T feature control frames, datum identifiers and surface
      texture symbols.
-   * Parts List and Balloons. Revision table.
+   * Parts List and Balloons. Revision table. **Hole Table** (`HOLETABLE`): select a view
+     (or the first one is used) and click where the table goes; it lists every hole of the
+     view with a tag (one letter per callout: A1, A2, B1...), X / Y from the view's lower-left
+     corner, size, callout and quantity, and follows model changes.
+   * Hole callouts read the Hole feature: a counterbore sized for a fastener adds a
+     "FOR M6 SHCS" line, inch holes give `1/4-20 - 2B`.
 6. **Edit** with double-click or the MODIFY tools (Edit View, Edit Sheet, Edit Title Block,
    hidden lines, tangent edges). Move views and annotations with `M`, delete them with Delete.
    Title block fields left empty fill from the model (title, part number, revision,

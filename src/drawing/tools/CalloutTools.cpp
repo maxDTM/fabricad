@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <format>
 #include <sstream>
 
 namespace fabricad::drawing {
@@ -1130,6 +1131,65 @@ void RevisionTableTool::preview(DisplayList& out) const {
   CalloutRenderer(m->style(), m->document().units()).addRevisionTable(out, t);
 }
 
+// ---------------------------------------------------------------------------------------
+// Hole table (production features P2)
+// ---------------------------------------------------------------------------------------
+
+HoleTableTool::HoleTableTool()
+    : ClickSequenceTool(drawingToolInfo("drawing.hole-table", "Hole Table", "Table of the holes of a view: tag, X, Y, size, callout, quantity",
+                                        "TABLES", 32, false, {}, {"HOLETABLE"})) {}
+
+void HoleTableTool::begin(core::ToolContext& ctx) {
+  viewId_ = core::kInvalidId;
+  Sheet* s = activeSheet(ctx);
+  if (!s) return;
+  if (DrawingView* v = pickedView(ctx, *s)) viewId_ = v->id;
+  if (viewId_ == core::kInvalidId)
+    for (const auto& v : s->views)
+      if (v.geometryValid) {
+        viewId_ = v.id;
+        break;
+      }
+  if (viewId_ == core::kInvalidId) {
+    ctx.showMessage("Hole Table: the sheet has no view", true);
+    finishNow(ctx);
+  }
+}
+
+bool HoleTableTool::create(core::ToolContext& ctx, const Point2* pos) {
+  DrawingModel* m = model(ctx);
+  Sheet* s = activeSheet(ctx);
+  if (!m || !s || viewId_ == core::kInvalidId) return false;
+  const DrawingView* v = s->view(viewId_);
+  if (!v) return false;
+  HoleTable t;
+  t.id = m->allocateId();
+  t.viewId = viewId_;
+  t.rows = holeTableRows(m->document(), *v, m->document().units());
+  if (t.rows.empty()) ctx.showMessage("Hole Table: no holes found in the view (the table stays empty until holes appear)");
+  const BBox2 b = v->layoutBBox();
+  t.position = pos ? *pos : Point2{b.max.x + 10.0, b.min.y};
+  commit("Hole table", [&](Sheet& sh) { sh.callouts.holeTables.push_back(t); });
+  ++created_;
+  createdIds_.push_back(t.id);
+  ctx.showMessage(std::format("Hole table: {} hole(s)", t.rows.size()));
+  finishNow(ctx);
+  return true;
+}
+
+bool HoleTableTool::onClick(core::ToolContext& ctx, const Point2& sheet) { return create(ctx, &sheet); }
+
+void HoleTableTool::onDone(core::ToolContext& ctx) { create(ctx, nullptr); }
+
+void HoleTableTool::preview(DisplayList& out) const {
+  if (!haveCursor_ || !ctx_) return;
+  DrawingModel* m = model(*ctx_);
+  if (!m) return;
+  HoleTable t;
+  t.position = cursor_;
+  CalloutRenderer(m->style(), m->document().units()).addHoleTable(out, t, m->document().units());
+}
+
 AddRevisionTool::AddRevisionTool()
     : DrawingToolBase(drawingToolInfo("drawing.revision", "Add Revision", "Append a row to the revision table", "TABLES", 31,
                                       false, {}, {"REVISION", "REV"})) {}
@@ -1460,6 +1520,7 @@ void registerCalloutTools(core::ToolRegistry& tools) {
   tools.registerTool(std::make_unique<SurfaceTextureTool>());
   tools.registerTool(std::make_unique<EditCalloutTool>());
   tools.registerTool(std::make_unique<RevisionTableTool>());
+  tools.registerTool(std::make_unique<HoleTableTool>());
   tools.registerTool(std::make_unique<AddRevisionTool>());
   tools.registerTool(std::make_unique<ComplexSectionTool>(false));
   tools.registerTool(std::make_unique<ComplexSectionTool>(true));

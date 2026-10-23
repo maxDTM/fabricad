@@ -10,6 +10,7 @@
 #include "core/Units.h"
 #include "drawing/Dimension.h"
 #include "drawing/DrawingTypes.h"
+#include "drawing/HoleTable.h"
 #include "drawing/Symbols.h"
 
 #include <QJsonObject>
@@ -63,6 +64,12 @@ struct HoleInfo {
   std::string threadClass;    ///< "6H"
   double threadDepth = 0;     ///< 0 = full depth / through
   std::string source;         ///< "feature:<name>" or "geometry"
+  // production features P2 (Hole feature data; empty for recognised geometry)
+  std::string standard;       ///< "ISO" / "ANSI"
+  std::string fastener;       ///< "M6 SHCS", "1/4 FLAT CSK" (head the recess is sized for)
+  std::string fit;            ///< clearance fit "Close" / "Normal" / "Loose"
+  double tapDrill = 0;        ///< tapped holes: the tap drill diameter (mm)
+  double pointAngle = 0;      ///< drill point angle of a blind hole (deg), 0 = flat
 };
 
 /// Analyse the hole whose edge produced the projected circle `circle` of the view.
@@ -80,6 +87,7 @@ struct HoleCallout {
   std::string threadOverride;  ///< user designation, e.g. "M8x1.25"; "auto" = from the drill size
   std::string threadClass = "6H";
   std::string overrideText;    ///< non-empty replaces the generated lines ('\n' separated)
+  bool fastenerLine = true;    ///< add "FOR M6 SHCS" when the hole was sized for a fastener
   int countOverride = 0;       ///< > 0 replaces the counted number of holes
   int precision = -1;          ///< -1 = document precision
   // cached (refreshCallouts; not persisted)
@@ -240,6 +248,7 @@ struct CalloutSet {
   std::vector<SurfaceFinish> surfaceFinishes;
   std::vector<OrdinateDimension> ordinates;
   std::vector<RevisionTable> revisionTables;
+  std::vector<HoleTable> holeTables;  ///< production features P2
 
   bool empty() const;
   bool contains(core::ObjectId id) const;
@@ -261,6 +270,7 @@ struct CalloutSet {
   SurfaceFinish* surfaceFinish(core::ObjectId id);
   OrdinateDimension* ordinate(core::ObjectId id);
   RevisionTable* revisionTable(core::ObjectId id);
+  HoleTable* holeTable(core::ObjectId id);
 
   /// Written into / read from the sheet JSON object (keys "holeCallouts", "featureFrames"...).
   void writeJson(QJsonObject& sheetJson) const;

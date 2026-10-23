@@ -59,18 +59,25 @@ struct IsoThread {
   double nominal = 0;       ///< major diameter D (mm)
   double pitch = 0;         ///< P (mm)
   bool coarse = false;
+  /// 0 = ISO 261 metric, 1 = UNC, 2 = UNF (ASME B1.1; nominal and pitch converted to mm).
+  int series = 0;
+  /// Tap drill from the standard's table (mm); 0 = the ISO rule D - P.
+  double tapDrillTable = 0;
+  bool isInch() const { return series != 0; }
   /// Basic minor diameter D1 = d1 = D - 1.082532 P (ISO 68-1 basic profile; nut minor diameter
   /// and the root of a modelled external thread).
   double minorDiameter() const { return nominal - 1.0825318 * pitch; }
   double pitchDiameter() const { return nominal - 0.6495191 * pitch; }  ///< d2 = D2
-  double tapDrill() const { return nominal - pitch; }                   ///< common tap drill D - P
+  /// Tap drill: the table value (inch: ASME B1.1 drill for ~75 % thread), else D - P (ISO).
+  double tapDrill() const { return tapDrillTable > 0 ? tapDrillTable : nominal - pitch; }
 };
 
 /// The full table, ordered by nominal diameter then coarse/fine (deterministic).
 const std::vector<IsoThread>& isoMetricThreads();
 /// Designations in table order (enum options).
 const std::vector<std::string>& isoMetricDesignations();
-/// Lookup by designation ("M8x1.25"; "M8" alone means the coarse pitch). nullptr if unknown.
+/// Lookup by designation ("M8x1.25"; "M8" alone means the coarse pitch; inch designations
+/// "1/4-20", "#10-32" from standards/Threads.h too). nullptr if unknown.
 const IsoThread* findIsoThread(const std::string& designation);
 /// Coarse thread whose nominal diameter matches `majorDiameter` (external, +-0.1 mm) or whose
 /// internal minor diameter / tap drill matches it (internal, +-0.15 mm). nullptr if none.

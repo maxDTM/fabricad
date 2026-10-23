@@ -244,6 +244,20 @@ EXTRUDE 30                    value = distance; then name=value lines and OK:
 REVOLVE / REV, SWEEP, LOFT, SHELL
 HOLE             PICK/INPUT face body:X/face:@x,y,z then PICK x,y,z nosnap, diameter=10, extentType=All;
                  cuts the body the hole is placed on (INPUT targets body:Y ... to cut others too)
+                 standard=iso|ansi type=simple|clearance|tapped|tapdrill size=M6x1|1/4-20|#10-32
+                 fit=close|normal|loose fastener=custom|shcs|hex|lowhead|button|csk|pan headClearance=0.5
+                 headOffset=1 point=118|135|140|flat class=6H (holeType=Counterbore|Countersink as before; in
+                 scripts the fastener defaults to custom, so typed cboreDiameter= / cboreDepth= keep working;
+                 a countersink takes fastener=csk, a counterbore the other heads)
+POCKETHOLE       INPUT face <entry face>, INPUT edges <exit edge>..., jig=kreg15|castle6|custom thickness=19
+                 (or thickness=measured) screw=32|auto count=2 edgeDistance=25 spacing=0 exitOffset=0
+                 mating=yes + INPUT matingBody body:X, OK
+FASTENER         with holes selected (circular edges / hole walls): family=shcs|hexbolt|hexnut|nyloc|washer|
+                 smallwasher|insert|dowel|setscrew size=auto|M6|1/4 length=auto|20 material=8.8|10.9|12.9|A2|A4|
+                 brass|nylon nut=yes|nyloc washer=yes rotation=yes all=yes joint=auto|rigid|group|none, OK;
+                 e.g. `SELECT face:@20,20,2` then `FASTENER all=yes nut=yes washer=yes` and `OK`
+HOLETABLE [view] in a drawing: hole table of the view (label or id; default the selected or first view);
+                 a point argument `x,y` places it, else right of the view
 FILLET 6         with edges/faces selected (tangentChain=true by default)
 CHAMFER 3        chamferType=Equal Distance|Two Distances|Distance and Angle, distance2=, angle=
 SPLIT            SELECT body:X first, then INPUT splitTool plane:YZ, OK

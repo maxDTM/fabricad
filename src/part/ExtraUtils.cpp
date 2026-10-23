@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "part/ExtraUtils.h"
+#include "part/standards/Threads.h"
 
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
@@ -219,7 +220,7 @@ const IsoThread* findIsoThread(const std::string& designation) {
     if (t.designation == designation) return &t;
   for (const auto& t : isoMetricThreads())  // "M8" = coarse
     if (t.coarse && std::format("M{}", t.nominal) == designation) return &t;
-  return nullptr;
+  return standards::findInchThread(designation);
 }
 
 const IsoThread* isoThreadForDiameter(double diameter, bool internal) {

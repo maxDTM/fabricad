@@ -64,6 +64,7 @@
   <file>icons/dark/assembly-ground-toggle.svg</file>
   <file>icons/dark/assembly-ground.svg</file>
   <file>icons/dark/assembly-insert-design.svg</file>
+  <file>icons/dark/assembly-insert-fastener.svg</file>
   <file>icons/dark/assembly-interference.svg</file>
   <file>icons/dark/assembly-joint.svg</file>
   <file>icons/dark/assembly-material.svg</file>
@@ -116,6 +117,7 @@
   <file>icons/dark/drawing-export-svg.svg</file>
   <file>icons/dark/drawing-feature-control-frame.svg</file>
   <file>icons/dark/drawing-hole-callout.svg</file>
+  <file>icons/dark/drawing-hole-table.svg</file>
   <file>icons/dark/drawing-leader.svg</file>
   <file>icons/dark/drawing-move.svg</file>
   <file>icons/dark/drawing-new-sheet.svg</file>
@@ -157,6 +159,7 @@
   <file>icons/dark/feature-offsetplane.svg</file>
   <file>icons/dark/feature-planeatangle.svg</file>
   <file>icons/dark/feature-planethreepoints.svg</file>
+  <file>icons/dark/feature-pockethole.svg</file>
   <file>icons/dark/feature-rectangularpattern.svg</file>
   <file>icons/dark/feature-revolve.svg</file>
   <file>icons/dark/feature-rib.svg</file>
@@ -166,6 +169,7 @@
   <file>icons/dark/feature-sphere.svg</file>
   <file>icons/dark/feature-splitbody.svg</file>
   <file>icons/dark/feature-splitface.svg</file>
+  <file>icons/dark/feature-standardpart.svg</file>
   <file>icons/dark/feature-sweep.svg</file>
   <file>icons/dark/feature-tangentplane.svg</file>
   <file>icons/dark/feature-thicken.svg</file>
@@ -225,6 +229,7 @@
   <file>icons/dark/part-mirror.svg</file>
   <file>icons/dark/part-move.svg</file>
   <file>icons/dark/part-offset-face.svg</file>
+  <file>icons/dark/part-pocket-hole.svg</file>
   <file>icons/dark/part-press-pull.svg</file>
   <file>icons/dark/part-rectangular-pattern.svg</file>
   <file>icons/dark/part-revolve.svg</file>
@@ -234,6 +239,7 @@
   <file>icons/dark/part-sphere.svg</file>
   <file>icons/dark/part-split-body.svg</file>
   <file>icons/dark/part-split-face.svg</file>
+  <file>icons/dark/part-standard-part.svg</file>
   <file>icons/dark/part-sweep.svg</file>
   <file>icons/dark/part-thicken.svg</file>
   <file>icons/dark/part-thread.svg</file>
@@ -399,6 +405,7 @@
   <file>icons/light/assembly-ground-toggle.svg</file>
   <file>icons/light/assembly-ground.svg</file>
   <file>icons/light/assembly-insert-design.svg</file>
+  <file>icons/light/assembly-insert-fastener.svg</file>
   <file>icons/light/assembly-interference.svg</file>
   <file>icons/light/assembly-joint.svg</file>
   <file>icons/light/assembly-material.svg</file>
@@ -451,6 +458,7 @@
   <file>icons/light/drawing-export-svg.svg</file>
   <file>icons/light/drawing-feature-control-frame.svg</file>
   <file>icons/light/drawing-hole-callout.svg</file>
+  <file>icons/light/drawing-hole-table.svg</file>
   <file>icons/light/drawing-leader.svg</file>
   <file>icons/light/drawing-move.svg</file>
   <file>icons/light/drawing-new-sheet.svg</file>
@@ -492,6 +500,7 @@
   <file>icons/light/feature-offsetplane.svg</file>
   <file>icons/light/feature-planeatangle.svg</file>
   <file>icons/light/feature-planethreepoints.svg</file>
+  <file>icons/light/feature-pockethole.svg</file>
   <file>icons/light/feature-rectangularpattern.svg</file>
   <file>icons/light/feature-revolve.svg</file>
   <file>icons/light/feature-rib.svg</file>
@@ -501,6 +510,7 @@
   <file>icons/light/feature-sphere.svg</file>
   <file>icons/light/feature-splitbody.svg</file>
   <file>icons/light/feature-splitface.svg</file>
+  <file>icons/light/feature-standardpart.svg</file>
   <file>icons/light/feature-sweep.svg</file>
   <file>icons/light/feature-tangentplane.svg</file>
   <file>icons/light/feature-thicken.svg</file>
@@ -560,6 +570,7 @@
   <file>icons/light/part-mirror.svg</file>
   <file>icons/light/part-move.svg</file>
   <file>icons/light/part-offset-face.svg</file>
+  <file>icons/light/part-pocket-hole.svg</file>
   <file>icons/light/part-press-pull.svg</file>
   <file>icons/light/part-rectangular-pattern.svg</file>
   <file>icons/light/part-revolve.svg</file>
@@ -569,6 +580,7 @@
   <file>icons/light/part-sphere.svg</file>
   <file>icons/light/part-split-body.svg</file>
   <file>icons/light/part-split-face.svg</file>
+  <file>icons/light/part-standard-part.svg</file>
   <file>icons/light/part-sweep.svg</file>
   <file>icons/light/part-thicken.svg</file>
   <file>icons/light/part-thread.svg</file>
