@@ -66,6 +66,7 @@
   <file>icons/dark/assembly-insert-design.svg</file>
   <file>icons/dark/assembly-interference.svg</file>
   <file>icons/dark/assembly-joint.svg</file>
+  <file>icons/dark/assembly-material.svg</file>
   <file>icons/dark/assembly-move.svg</file>
   <file>icons/dark/assembly-new-component.svg</file>
   <file>icons/dark/assembly-paste-new.svg</file>
@@ -322,6 +323,7 @@
   <file>icons/dark/sketch-toggle-profiles.svg</file>
   <file>icons/dark/sketch-toggle-snap.svg</file>
   <file>icons/dark/sketch-trim.svg</file>
+  <file>icons/dark/sketch-typed-dimensions.svg</file>
   <file>icons/dark/sketch.svg</file>
   <file>icons/dark/timeline-first.svg</file>
   <file>icons/dark/timeline-last.svg</file>
@@ -399,6 +401,7 @@
   <file>icons/light/assembly-insert-design.svg</file>
   <file>icons/light/assembly-interference.svg</file>
   <file>icons/light/assembly-joint.svg</file>
+  <file>icons/light/assembly-material.svg</file>
   <file>icons/light/assembly-move.svg</file>
   <file>icons/light/assembly-new-component.svg</file>
   <file>icons/light/assembly-paste-new.svg</file>
@@ -655,6 +658,7 @@
   <file>icons/light/sketch-toggle-profiles.svg</file>
   <file>icons/light/sketch-toggle-snap.svg</file>
   <file>icons/light/sketch-trim.svg</file>
+  <file>icons/light/sketch-typed-dimensions.svg</file>
   <file>icons/light/sketch.svg</file>
   <file>icons/light/timeline-first.svg</file>
   <file>icons/light/timeline-last.svg</file>

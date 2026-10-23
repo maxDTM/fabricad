@@ -141,6 +141,7 @@ class TestMassProperties : public QObject {
     core::Component occ;
     occ.name = "Plate";
     occ.definition = compId;
+    occ.parent = core::kRootComponentId;
     gp_Trsf t2;
     t2.SetTranslation(gp_Vec(0, 50, 0));
     occ.placement = t2;

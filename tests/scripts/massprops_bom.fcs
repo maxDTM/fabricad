@@ -17,7 +17,7 @@ MASSPROPS report=mass.md
 CHECK file mass.md exists
 COMPPROPS partNumber=BOX-1 description="Test block" revision=B vendor=Acme cost=2.5
 EXPORTBOM bom.csv
-CHECK file bom.csv exists
+CHECK file bom.csv size == 99
 EXPORTBOM bom-cols.csv structured columns=item,name,partNumber,qty,mass,massTotal,revision,vendor,cost
 CHECK file bom-cols.csv exists
 MATERIAL "Aluminum 6061"

@@ -335,6 +335,10 @@ I["sketch-fillet"] = (P("M5 20 V5 H20", s=GREY, da=DASH) + P("M5 20 V13 A8 8 0 0
 I["sketch-construction"] = (P("M4 19 L20 5", s=CO, da="3 2.5") + C(7, 7, 3.5, s=CO, da="2 2") + dot(4, 19, CO) +
                             dot(20, 5, CO))
 I["sketch-dimension"] = dimension(SK, SK)
+# typed values create dimensions (production-features P1): a dimension with a typed cursor bar
+I["sketch-typed-dimensions"] = (P("M4 19 H20", s=SK) + P("M4 19 V9 M20 19 V9", s=GREY) + P("M4.5 12.5 H19.5", s=SK) +
+                                arrow_head(4.5, 12.5, "left", SK, 2) + arrow_head(19.5, 12.5, "right", SK, 2) +
+                                R(8, 3, 8, 6, 1, s=INK, f=WH) + P("M12 4.5 V7.5", s=INK))
 # arc length (production-features P1): an arc with a concentric dimension arc and radial extensions
 I["sketch-arc-length"] = (P("M5 20 A11 11 0 0 1 16 9", s=SK) + P("M3 13.5 A15 15 0 0 1 10 6.2", s=SK) +
                           P("M5 20 L2.6 13 M16 9 L10.4 5.9", s=GREY))
@@ -487,6 +491,8 @@ I["assembly-move"] = component(12, 12, 0.5) + four_way(AS, 10, 12, 12, 5.5)
 INSERT_DESIGN = component(12, 15, 0.8) + P("M12 1.5 V8", s=INK) + arrow_head(12, 8, "down", INK, 2.5)
 I["assembly-insert-design"] = INSERT_DESIGN
 I["assembly-export-step"] = export_doc(component(7, 9.5, 0.4) + component(11, 14, 0.4), AS)
+# physical material (production-features P1): a body with a density drop
+I["assembly-material"] = (cube(10, 12, 0.85) + P("M17.5 11 C17.5 11 21 15.5 21 17.5 A3.5 3.5 0 0 1 14 17.5 C14 15.5 17.5 11 17.5 11 Z", s=INK, f=WH))
 # component properties (production-features P1): a component with a property sheet
 I["assembly-component-properties"] = (component(8.5, 9, 0.6) + R(11, 10, 10, 11, 1, f=WH) +
                                       P("M13.5 13.5 H18.5 M13.5 16.5 H18.5 M13.5 19 H16.5", s=AS))

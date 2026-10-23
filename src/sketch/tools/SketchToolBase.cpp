@@ -592,6 +592,14 @@ void SketchTool::dimensionTypedPoints(core::ToolContext& ctx, const std::vector<
       if (std::find(before.begin(), before.end(), g.geo) != before.end()) attached = true;
     if (attached) continue;
     if (p.length() < eps) {
+      // already pinned (the origin snap fixes it): no helper, no constraint
+      Sketch probe = *sk;
+      const int po = probe.originHelper(OriginRef::Point);
+      const int pid = probe.addConstraint(Constraint{.type = ConstraintType::Coincident, .a = ref, .b = GeoRef{po, PointPos::Center}});
+      const SolveResult pr = probe.solve();
+      if (!pr.ok() || std::count(pr.redundant.begin(), pr.redundant.end(), pid) > 0 ||
+          std::count(pr.conflicting.begin(), pr.conflicting.end(), pid) > 0)
+        continue;
       const int o = sk->originHelper(OriginRef::Point);
       Constraint c{.type = ConstraintType::Coincident, .a = ref, .b = GeoRef{o, PointPos::Center}};
       addTypedDimension(ctx, c);

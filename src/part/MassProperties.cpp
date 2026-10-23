@@ -157,7 +157,10 @@ std::vector<Row> reportRows(const MassProperties& p, bool inch, int prec) {
   const double M = inch ? 1.0 / 453.59237 : 1.0;      // mass factor (g -> lb)
   const std::string lu = inch ? "in" : "mm";
   const std::string mu = inch ? "lb" : "g";
-  auto f = [&](double v) { return std::format("{:.{}f}", v, prec); };
+  auto f = [&](double v) {
+    if (std::abs(v) < 0.5 * std::pow(10.0, -prec)) v = 0.0;  // no "-0.000"
+    return std::format("{:.{}f}", v, prec);
+  };
   auto g = [&](double v) { return std::format("{:.{}g}", v, std::max(prec + 3, 6)); };
   auto vec = [&](const Vec3& v, double k) { return f(v.x * k) + ", " + f(v.y * k) + ", " + f(v.z * k); };
   std::vector<Row> rows;

@@ -12,7 +12,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include "core/Document.h"
 #include "core/Tool.h"
+#include "core/UndoStack.h"
 
 #include <QObject>
 #include <QPointer>

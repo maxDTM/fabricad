@@ -1551,7 +1551,7 @@ void registerModifyTools(core::ToolRegistry& reg) {
     ToolInfo i{.id = "sketch.typed-dimensions",
                .name = "Typed Values Create Dimensions",
                .tooltip = "Typed coordinates, lengths, angles and sizes become driving dimensions (TYPEDDIMS on|off)",
-               .icon = "sketch-dimension",
+               .icon = "sketch-typed-dimensions",
                .aliases = {"TYPEDDIMS", "TYPEDDIMENSIONS"},
                .tab = "SKETCH",
                .group = "CONSTRAINTS",

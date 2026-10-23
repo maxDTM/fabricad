@@ -22,6 +22,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <format>
+#include <optional>
 
 namespace fabricad::assembly {
 
@@ -324,7 +325,7 @@ void registerComponentPropertiesTools(core::ToolRegistry& tools) {
     i.id = "assembly.material";
     i.name = "Physical Material";
     i.tooltip = "Set the physical material (density, appearance) of the selected bodies or components";
-    i.icon = "assembly-component-properties";
+    i.icon = "assembly-material";
     i.aliases = {"MATERIAL", "MAT"};
     i.workspace = core::Workspace::Design;
     i.hidden = true;
