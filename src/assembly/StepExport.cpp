@@ -8,6 +8,8 @@
 
 #include <BRepBuilderAPI_Transform.hxx>
 #include <IFSelect_ReturnStatus.hxx>
+#include "part/features/Import.h"
+
 #include <Interface_Static.hxx>
 #include <Quantity_ColorRGBA.hxx>
 #include <STEPCAFControl_Writer.hxx>
@@ -153,6 +155,7 @@ bool exportAssemblyStep(const Document& doc, const std::string& path, const Step
     ex.shapes->UpdateAssemblies();
     Interface_Static::SetCVal("write.step.schema", opt.schema.c_str());
     Interface_Static::SetCVal("write.step.unit", "MM");
+    part::setStepWriterPcurves(opt.pcurves);
     STEPCAFControl_Writer writer;
     writer.SetColorMode(opt.colors);
     writer.SetNameMode(opt.names);

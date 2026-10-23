@@ -21,6 +21,11 @@ class QTreeWidgetItem;
 
 namespace fabricad::app {
 
+/// Rank the S search gives a disabled command (searchCommandIds drops disabled fuzzy matches).
+inline constexpr int kDisabledRank = 2;
+/// The query (trimmed, case-insensitive) is a prefix of the name, of a word of the name, of an
+/// alias or of the id (or of its part after the module dot).
+bool isPrefixMatch(const core::ToolInfo& info, const std::string& query);
 /// Ordered result ids for a query (empty query: pinned, then recent, deduplicated).
 /// `rank` (optional) buckets the matches, lower first, keeping the score order inside a bucket:
 /// the popup puts enabled tools of the current workspace first, then other enabled ones, then

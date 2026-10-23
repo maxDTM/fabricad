@@ -23,6 +23,7 @@
 #include <cctype>
 #include <format>
 #include <memory>
+#include <optional>
 
 namespace fabricad::sketch {
 
@@ -181,6 +182,108 @@ class CreateSketchTool : public core::ToolBase {
     }
     ctx.finish();
   }
+};
+
+// ---------------------------------------------------------------------------
+// sketch.project-start: PROJECT on the default toolbar page (mockup v6 SKETCH section)
+// ---------------------------------------------------------------------------
+
+/// Project outside a sketch: in an open sketch it is sketch.project; otherwise it asks for the
+/// sketch plane (a preselected plane or planar face is taken at once), creates the sketch there
+/// and hands off to sketch.project. Preselected edges, vertices and bodies are projected right
+/// away. Fusion's Project from the Solid page works the same way.
+class ProjectToSketchTool : public core::ToolBase {
+ public:
+  static constexpr const char* kProject = "sketch.project";
+  ProjectToSketchTool()
+      : ToolBase(ToolInfo{.id = "sketch.project-start",
+                          .name = "Project to Sketch",
+                          .tooltip = "Project edges, vertices or bodies into a sketch (asks for the sketch plane when no sketch is open)",
+                          .icon = "sketch-project-start",
+                          .aliases = {"PROJECTSKETCH"},
+                          .tab = "SOLID",
+                          .group = "CREATE",
+                          .order = 3,
+                          .promoted = true,
+                          .repeatable = false}) {}
+
+  void activate(ToolContext& ctx) override {
+    handedOff_ = false;
+    toProject_.clear();
+    if (!ctx.document) {
+      ctx.cancel();
+      return;
+    }
+    if (SketchSession::current() && ctx.manager) {
+      handOff(ctx);
+      return;
+    }
+    std::optional<ShapeRef> plane;
+    if (!ctx.args.empty()) {
+      const std::string n = upper(ctx.args[0]);
+      if (n == "XY" || n == "XZ" || n == "YZ") plane = ShapeRef::originPlane(n);
+    }
+    for (const ShapeRef& r : ctx.preselection) {
+      if (!plane && isPlaneRef(r)) plane = r;
+      else if (r.isBrep() && r.kind != ShapeKind::Face) toProject_.push_back(r);
+    }
+    if (plane) {
+      start(ctx, *plane);
+      return;
+    }
+    ctx.setPrompt("Select the sketch plane (a plane or planar face) to project onto");
+    if (ctx.selection) {
+      ctx.selection->clear();
+      ctx.selection->setFilter(core::kPlaneKinds);
+    }
+    if (ctx.viewer) ctx.viewer->setSelectionFilter(core::kPlaneKinds);
+  }
+  void deactivate(ToolContext&) override { handedOff_ = false; }
+
+  void selectionChanged(ToolContext& ctx) override {
+    if (!ctx.selection || handedOff_) return;
+    for (const ShapeRef& r : ctx.selection->items())
+      if (isPlaneRef(r)) {
+        start(ctx, r);
+        return;
+      }
+  }
+  bool mousePress(ToolContext& ctx, const ViewerMouseEvent& e) override {
+    if (e.button == core::MouseButton::Left && e.hasPick && isPlaneRef(e.pick)) {
+      start(ctx, e.pick);
+      return true;
+    }
+    return false;
+  }
+  bool commandLineInput(ToolContext& ctx, const std::string& text) override {
+    const std::string n = upper(text);
+    if (n != "XY" && n != "XZ" && n != "YZ") return false;
+    start(ctx, ShapeRef::originPlane(n));
+    return true;
+  }
+
+ private:
+  void start(ToolContext& ctx, const ShapeRef& plane) {
+    if (handedOff_) return;
+    if (createSketch(ctx, plane) == core::kInvalidId) {
+      ctx.cancel();
+      return;
+    }
+    handOff(ctx);
+  }
+  void handOff(ToolContext& ctx) {
+    handedOff_ = true;
+    core::ToolManager* m = ctx.manager;
+    // sketch.project projects its preselection on activation
+    if (ctx.selection) {
+      ctx.selection->setFilter(core::kAllKinds);
+      if (toProject_.empty()) ctx.selection->clear();
+      else ctx.selection->set(toProject_);
+    }
+    if (!m || !m->registry().has(kProject) || !m->run(kProject)) ctx.finish();
+  }
+  bool handedOff_ = false;
+  std::vector<ShapeRef> toProject_;
 };
 
 // ---------------------------------------------------------------------------
@@ -495,6 +598,7 @@ std::unique_ptr<core::ITool> paletteToggle(const char* id, const char* name, con
 
 void registerModeTools(core::ToolRegistry& reg) {
   reg.registerTool(std::make_unique<CreateSketchTool>());
+  reg.registerTool(std::make_unique<ProjectToSketchTool>());
   reg.registerTool(std::make_unique<EditSketchTool>());
   reg.registerTool(std::make_unique<FinishSketchTool>());
   reg.registerTool(std::make_unique<SelectTool>());

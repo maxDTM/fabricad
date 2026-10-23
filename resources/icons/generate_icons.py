@@ -290,6 +290,9 @@ I["sketch-polygon-edge"] = (C(12, 12, 8, s=GREY, da=DASH) +
 I["sketch-point"] = P("M12 4 V8 M12 16 V20 M4 12 H8 M16 12 H20", s=GREY) + C(12, 12, 2.75, s=SK, f=WH)
 I["sketch-project"] = (cube(12, 7.5, 0.6, fill=BODY) + P("M12 13 V17.5", s=INK) + arrow_head(12, 17.5, "down", INK, 2) +
                        P("M3 21 H21", s=SK) + dot(3, 21, SK, 1.2) + dot(21, 21, SK, 1.2))
+# Project from the default page: the projection lands on a new sketch plane
+I["sketch-project-start"] = (cube(12, 7, 0.55, fill=BODY) + P("M12 12 V15.5", s=INK) + arrow_head(12, 15.5, "down", INK, 2) +
+                             P("M2.5 22 L6 17.5 H21.5 L18 22 Z", s=SK, f=SK, fo="0.2"))
 I["sketch-intersect"] = (cube(12, 9, 0.6, fill=BODY) + P("M3 15 H21", s=SK) + dot(6.8, 15, SK, 1.2) +
                          dot(17.2, 15, SK, 1.2))
 I["sketch-mirror"] = (P("M12 3 V21", s=GREY, da=DASHDOT) + P("M3.5 18 L9.5 6.5 V18 Z", s=SK) +
@@ -475,6 +478,11 @@ I["joint-ball"] = (C(12, 12, 8, s=AS, f=WH) + E(12, 12, 8, 3, s=AS) + P("M12 4 A
 
 # ===== inspect (purple) ======================================================================
 I["inspect-measure"] = (R(2, 8, 20, 8, 1.5, s=IN, f=WH) + P("M6 8 V11 M10 8 V12.5 M14 8 V11 M18 8 V12.5", s=IN))
+# section analysis: a body cut by a translucent plane, the cut face hatched
+I["inspect-section"] = (R(3, 8, 9, 11, 1, f=BODY) + P("M9 3 L20 6.5 V21 L9 17.5 Z", s=IN, f=IN, fo="0.25") +
+                        P("M12 9 L17 10.6 M12 13 L17 14.6", s=IN))
+I["inspect-section-off"] = (R(3, 8, 9, 11, 1, f=BODY) + P("M9 3 L20 6.5 V21 L9 17.5 Z", s=IN, da="2 1.5") +
+                            cross(18.5, 18.5, RED, 3))
 I["assembly-interference"] = (R(3, 4, 11, 11, 1, s=IN, f=WH) + R(10, 9, 11, 11, 1, s=IN, f=WH) +
                               R(10, 9, 4, 6, f=RED, fo="0.6", s="none") + P("M3 4 H14 V15 H3 Z", s=IN))
 

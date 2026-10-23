@@ -37,6 +37,45 @@ bool parseDouble(const std::string& text, double& out) {
 
 }  // namespace
 
+StlExportSettings stlPreset(StlQuality q) {
+  StlExportSettings s;
+  switch (q) {
+    case StlQuality::Coarse: s.linearDeflection = 0.1; s.angularDeflectionDeg = 20.0; break;
+    case StlQuality::Fine: s.linearDeflection = 0.01; s.angularDeflectionDeg = 5.0; break;
+    case StlQuality::Medium:
+    case StlQuality::Custom: break;
+  }
+  return s;
+}
+
+StlQuality stlQualityOf(const StlExportSettings& s) {
+  for (StlQuality q : {StlQuality::Coarse, StlQuality::Medium, StlQuality::Fine}) {
+    const StlExportSettings p = stlPreset(q);
+    if (std::abs(p.linearDeflection - s.linearDeflection) < 1e-9 && std::abs(p.angularDeflectionDeg - s.angularDeflectionDeg) < 1e-6)
+      return q;
+  }
+  return StlQuality::Custom;
+}
+
+const char* stlQualityName(StlQuality q) {
+  switch (q) {
+    case StlQuality::Coarse: return "coarse";
+    case StlQuality::Medium: return "medium";
+    case StlQuality::Fine: return "fine";
+    case StlQuality::Custom: break;
+  }
+  return "custom";
+}
+
+std::optional<StlQuality> parseStlQuality(const std::string& name) {
+  std::string n = name;
+  for (char& ch : n) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  if (n == "coarse" || n == "low") return StlQuality::Coarse;
+  if (n == "medium" || n == "default" || n == "normal") return StlQuality::Medium;
+  if (n == "fine" || n == "high") return StlQuality::Fine;
+  return std::nullopt;
+}
+
 ExportStlTool::ExportStlTool(core::ToolInfo info) : ToolBase(std::move(info)) {}
 
 bool ExportStlTool::isEnabled(const core::ToolContext& ctx) const {
@@ -50,7 +89,7 @@ StlExportSettings ExportStlTool::loadDefaults() {
   s.angularDeflectionDeg = q.value("export/stl/angular", s.angularDeflectionDeg).toDouble();
   s.binary = q.value("export/stl/binary", s.binary).toBool();
   if (!(s.linearDeflection > 0)) s.linearDeflection = 0.05;
-  if (!(s.angularDeflectionDeg > 0)) s.angularDeflectionDeg = 20.0;
+  if (!(s.angularDeflectionDeg > 0)) s.angularDeflectionDeg = kStlDefaultAngleDeg;
   return s;
 }
 
@@ -66,6 +105,21 @@ bool ExportStlTool::applyOption(const std::string& a, StlExportSettings& s) {
   const size_t eq = a.find('=');
   std::string key = eq == std::string::npos ? a : a.substr(0, eq);
   for (char& ch : key) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  if (key == "quality" || key == "preset" || key == "refinement") {
+    if (eq == std::string::npos) return false;
+    if (auto q = parseStlQuality(value(eq))) {
+      const StlExportSettings p = stlPreset(*q);
+      s.linearDeflection = p.linearDeflection;
+      s.angularDeflectionDeg = p.angularDeflectionDeg;
+    }
+    return true;
+  }
+  if (eq == std::string::npos && (key == "coarse" || key == "medium" || key == "fine")) {
+    const StlExportSettings p = stlPreset(*parseStlQuality(key));
+    s.linearDeflection = p.linearDeflection;
+    s.angularDeflectionDeg = p.angularDeflectionDeg;
+    return true;
+  }
   if (key == "deflection" || key == "linear" || key == "lineardeflection") {
     double v;
     std::string t = eq == std::string::npos ? std::string() : value(eq);
@@ -100,7 +154,7 @@ bool ExportStlTool::applyOption(const std::string& a, StlExportSettings& s) {
 }
 
 void ExportStlTool::activate(core::ToolContext& ctx) {
-  // Command line / script: the built-in defaults (0.05 mm, 20 deg, binary) unless options are typed,
+  // Command line / script: the built-in defaults (Medium: 0.05 mm, 0.2 rad, binary) unless options are typed,
   // so "EXPORTSTL a.stl" always means the same mesh. The dialog starts from the last used settings.
   settings_ = ctx.args.empty() ? loadDefaults() : StlExportSettings{};
   path_.clear();
@@ -117,7 +171,7 @@ void ExportStlTool::activate(core::ToolContext& ctx) {
     return;
   }
   if (!(ctx.host && ctx.host->mainWindow())) {
-    ctx.showMessage("EXPORTSTL needs a file name: EXPORTSTL out.stl [deflection=0.05] [angle=20|0.2rad] [ascii]", true);
+    ctx.showMessage("EXPORTSTL needs a file name: EXPORTSTL out.stl [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad] [ascii]", true);
     ctx.cancel();
     return;
   }
@@ -126,6 +180,7 @@ void ExportStlTool::activate(core::ToolContext& ctx) {
 }
 
 void ExportStlTool::deactivate(core::ToolContext&) {
+  qualityCombo_ = nullptr;
   pathEdit_ = nullptr;
   linearEdit_ = nullptr;
   angularEdit_ = nullptr;
@@ -140,10 +195,11 @@ bool ExportStlTool::commandLineInput(core::ToolContext& ctx, const std::string& 
   if (t.empty()) return false;
   if (applyOption(t, settings_)) {
     if (linearEdit_) linearEdit_->setText(QString::number(settings_.linearDeflection));
-    if (angularEdit_) angularEdit_->setText(QString::number(settings_.angularDeflectionDeg));
+    if (angularEdit_) angularEdit_->setText(QString::number(settings_.angularDeflectionDeg, 'g', 6));
     if (formatCombo_) formatCombo_->setCurrentIndex(settings_.binary ? 0 : 1);
-    ctx.showMessage(std::format("STL settings: linear {} mm, angular {} deg, {}", settings_.linearDeflection,
-                                settings_.angularDeflectionDeg, settings_.binary ? "binary" : "ascii"));
+    syncQualityCombo();
+    ctx.showMessage(std::format("STL settings: {} (linear {} mm, angular {:.4g} deg), {}", stlQualityName(stlQualityOf(settings_)),
+                                settings_.linearDeflection, settings_.angularDeflectionDeg, settings_.binary ? "binary" : "ascii"));
     return true;
   }
   if (t.rfind("file=", 0) == 0 || t.rfind("path=", 0) == 0) t = t.substr(5);
@@ -161,7 +217,10 @@ void ExportStlTool::readDialog() {
   }
   if (angularEdit_) {
     double v;
-    if (parseDouble(angularEdit_->text().trimmed().toStdString(), v) && v > 0) settings_.angularDeflectionDeg = v;
+    // the field shows 6 digits: an unchanged text keeps the exact value (0.2 rad = 11.4592 deg)
+    const QString t = angularEdit_->text().trimmed();
+    if (t != QString::number(settings_.angularDeflectionDeg, 'g', 6) && parseDouble(t.toStdString(), v) && v > 0)
+      settings_.angularDeflectionDeg = v;
   }
   if (formatCombo_) settings_.binary = formatCombo_->currentIndex() == 0;
 }
@@ -182,6 +241,10 @@ void ExportStlTool::accept(core::ToolContext& ctx) {
   if (exportNow(ctx)) ctx.finish();
 }
 
+void ExportStlTool::syncQualityCombo() {
+  if (qualityCombo_) qualityCombo_->setCurrentIndex(static_cast<int>(stlQualityOf(settings_)));
+}
+
 bool ExportStlTool::exportNow(core::ToolContext& ctx) {
   std::vector<TopoDS_Shape> shapes;
   std::vector<std::string> names;
@@ -192,9 +255,9 @@ bool ExportStlTool::exportNow(core::ToolContext& ctx) {
     return false;
   }
   if (ctx.args.empty()) saveDefaults(settings_);  // remembered for the next dialog, not for typed exports
-  ctx.showMessage(std::format("STL mesh: linear deflection {} mm, angular deflection {} deg ({} rad), {}", settings_.linearDeflection,
-                              settings_.angularDeflectionDeg, settings_.angularDeflectionDeg * kPi / 180.0,
-                              settings_.binary ? "binary" : "ascii"));
+  ctx.showMessage(std::format("STL mesh ({}): linear deflection {} mm, angular deflection {:.4g} deg ({:.4g} rad), {}",
+                              stlQualityName(stlQualityOf(settings_)), settings_.linearDeflection, settings_.angularDeflectionDeg,
+                              settings_.angularDeflectionDeg * kPi / 180.0, settings_.binary ? "binary" : "ascii"));
   ctx.showMessage(std::format("exported {} bod{} to {}", shapes.size(), shapes.size() == 1 ? "y" : "ies", path_));
   return true;
 }
@@ -218,12 +281,33 @@ QWidget* ExportStlTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     if (pathEdit_) pathEdit_->setText(p);
   });
   form->addRow("File", fileRow);
+  qualityCombo_ = new QComboBox(w);
+  qualityCombo_->setObjectName("stlQuality");
+  qualityCombo_->addItems({"Coarse", "Medium", "Fine", "Custom"});
+  qualityCombo_->setToolTip("Coarse 0.1 mm / 20 deg, Medium 0.05 mm / 11.5 deg, Fine 0.01 mm / 5 deg");
+  form->addRow("Quality", qualityCombo_);
   linearEdit_ = new QLineEdit(QString::number(settings_.linearDeflection), w);
   linearEdit_->setToolTip("Maximum distance between the mesh and the surface (mm, absolute)");
   form->addRow("Linear deflection (mm)", linearEdit_);
-  angularEdit_ = new QLineEdit(QString::number(settings_.angularDeflectionDeg), w);
+  angularEdit_ = new QLineEdit(QString::number(settings_.angularDeflectionDeg, 'g', 6), w);
   angularEdit_->setToolTip("Maximum angle between neighbouring facet normals (degrees)");
   form->addRow("Angular deflection (deg)", angularEdit_);
+  syncQualityCombo();
+  QObject::connect(qualityCombo_, &QComboBox::activated, w, [this](int index) {
+    const auto q = static_cast<StlQuality>(index);
+    if (q == StlQuality::Custom) return;
+    const StlExportSettings p = stlPreset(q);
+    settings_.linearDeflection = p.linearDeflection;
+    settings_.angularDeflectionDeg = p.angularDeflectionDeg;
+    if (linearEdit_) linearEdit_->setText(QString::number(settings_.linearDeflection));
+    if (angularEdit_) angularEdit_->setText(QString::number(settings_.angularDeflectionDeg, 'g', 6));
+  });
+  auto edited = [this] {
+    readDialog();
+    syncQualityCombo();
+  };
+  QObject::connect(linearEdit_, &QLineEdit::textEdited, w, edited);
+  QObject::connect(angularEdit_, &QLineEdit::textEdited, w, edited);
   formatCombo_ = new QComboBox(w);
   formatCombo_->addItems({"Binary", "ASCII"});
   formatCombo_->setCurrentIndex(settings_.binary ? 0 : 1);

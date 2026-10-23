@@ -1,6 +1,7 @@
 // FabriCAD assembly module: feature type + tool registration.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/AssemblyModule.h"
+#include "part/features/Import.h"
 
 #include "assembly/BaseBodyFeature.h"
 
@@ -37,7 +38,11 @@ namespace {
 
 /// First command-line argument, or a file dialog when the host has a window (headless: empty).
 std::string pathArgument(ToolContext& ctx, bool save, const char* title, const char* filter, const char* suffix) {
-  if (!ctx.args.empty()) return ctx.args.front();
+  // the first word that is not an export option (EXPORTSTEP out.step pcurves=off)
+  for (const std::string& a : ctx.args) {
+    bool dummy = true;
+    if (!part::applyStepOption(a, dummy)) return a;
+  }
   QWidget* parent = ctx.host ? ctx.host->mainWindow() : nullptr;
   if (!parent) return {};
   QString start = ctx.document && !ctx.document->filePath().empty() ? core::qs(ctx.document->filePath()) : QString();
@@ -95,6 +100,14 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
     // ungrounds them (Fusion's Ground / Unground)
     ToolInfo g = assembleInfo("assembly.ground-toggle", "Ground",
                               "Fix the selected components in space; when all of them are grounded, unground them", 4);
+    g.dynamicName = [](const ToolContext& c) -> std::string {
+      if (!c.document || !c.selection) return {};
+      const std::vector<core::ObjectId> comps = componentsOf(*c.document, c.selection->items());
+      if (comps.empty()) return {};
+      for (core::ObjectId id : comps)
+        if (const core::Component* comp = c.document->component(id); !comp || !comp->grounded) return {};
+      return "Unground";  // every selected component is grounded: the toggle frees them
+    };
     ctx.tools.registerTool(std::make_unique<LambdaTool>(g, [](ToolContext& c) { setGround(c, GroundMode::Toggle); }, hasComponentSelection));
     ToolInfo u = assembleInfo("assembly.unground", "Unground", "Free the selected components (undo Ground)", 5);
     u.aliases = {"UNGROUND"};

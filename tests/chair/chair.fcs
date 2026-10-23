@@ -282,13 +282,18 @@ CHECK file out/chair.stl size > 1000
 CHECK file out/seat.stl size > 1000
 CHECK file out/leg_left.stl size > 1000
 CHECK file out/leg_right.stl size > 1000
-# out-of-the-box export (default settings 0.05 mm / 20 deg) in the same session: every export
-# meshes afresh (F2), so this file is coarser than chair.stl (binary STL: 84 + 50 bytes per triangle)
+# out-of-the-box export (default = Medium: 0.05 mm / 0.2 rad) in the same session: every export
+# meshes afresh (F2), so it equals chair.stl; the Coarse preset (0.1 mm / 20 deg) is coarser
+# (binary STL: 84 + 50 bytes per triangle)
 SELECT none
 EXPORTSTL out/chair_default.stl
+EXPORTSTL out/chair_coarse.stl quality=coarse
+EXPORTSTL out/chair_fine.stl quality=fine
 CHECK file out/chair_default.stl size > 1000
 CHECK file out/chair.stl size > 90000
-CHECK file out/chair_default.stl size < 90000
+CHECK file out/chair_default.stl size > 90000
+CHECK file out/chair_coarse.stl size < 90000
+CHECK file out/chair_fine.stl size > 200000
 SAVE out/chair.fcad
 CHECK file out/chair.fcad exists
 # ---------- reopen the saved document in a new tab: round trip ----------

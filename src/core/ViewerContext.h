@@ -185,6 +185,15 @@ class IViewerContext {
   /// placing UI on a gizmo handle so it lines up with what is drawn.
   virtual double gizmoPixelSize(const gp_Pnt& at) const { return pixelSize(at); }
 
+  // --- section analysis (INSPECT > Section) -------------------------------------------------
+  /// A live clipping plane through the bodies: the half-space the plane normal points into is
+  /// cut away and the cut is capped. It stays on after the Section tool finishes (Fusion's
+  /// section analysis), until it is cleared (nullopt). Only bodies are clipped; sketches,
+  /// construction geometry, previews and gizmos are not. The base class keeps the state, so
+  /// headless contexts report it; ViewerWidget also draws it.
+  virtual void setSectionPlane(const std::optional<gp_Pln>& plane) { sectionPlane_ = plane; }
+  virtual std::optional<gp_Pln> sectionPlane() const { return sectionPlane_; }
+
   // --- misc -----------------------------------------------------------------------------
   /// In-context editing: components not in the list are drawn ghosted (30% opacity). Empty = none ghosted.
   virtual void setGhostedComponents(const std::vector<ObjectId>& componentIds) = 0;
@@ -199,6 +208,9 @@ class IViewerContext {
   virtual void requestRedraw() = 0;
   /// Host widget (nullptr in headless contexts). Use as dialog parent.
   virtual QWidget* widget() { return nullptr; }
+
+ protected:
+  std::optional<gp_Pln> sectionPlane_;
 };
 
 /// Headless implementation: records calls, keeps state, draws nothing. Used by unit tests

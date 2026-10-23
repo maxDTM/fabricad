@@ -177,6 +177,8 @@
   <file>icons/dark/help.svg</file>
   <file>icons/dark/home.svg</file>
   <file>icons/dark/inspect-measure.svg</file>
+  <file>icons/dark/inspect-section-off.svg</file>
+  <file>icons/dark/inspect-section.svg</file>
   <file>icons/dark/joint-ball.svg</file>
   <file>icons/dark/joint-cylindrical.svg</file>
   <file>icons/dark/joint-pin-slot.svg</file>
@@ -287,6 +289,7 @@
   <file>icons/dark/sketch-polygon-edge.svg</file>
   <file>icons/dark/sketch-polygon-inscribed.svg</file>
   <file>icons/dark/sketch-polygon.svg</file>
+  <file>icons/dark/sketch-project-start.svg</file>
   <file>icons/dark/sketch-project.svg</file>
   <file>icons/dark/sketch-rectangle-3point.svg</file>
   <file>icons/dark/sketch-rectangle-center.svg</file>
@@ -497,6 +500,8 @@
   <file>icons/light/help.svg</file>
   <file>icons/light/home.svg</file>
   <file>icons/light/inspect-measure.svg</file>
+  <file>icons/light/inspect-section-off.svg</file>
+  <file>icons/light/inspect-section.svg</file>
   <file>icons/light/joint-ball.svg</file>
   <file>icons/light/joint-cylindrical.svg</file>
   <file>icons/light/joint-pin-slot.svg</file>
@@ -607,6 +612,7 @@
   <file>icons/light/sketch-polygon-edge.svg</file>
   <file>icons/light/sketch-polygon-inscribed.svg</file>
   <file>icons/light/sketch-polygon.svg</file>
+  <file>icons/light/sketch-project-start.svg</file>
   <file>icons/light/sketch-project.svg</file>
   <file>icons/light/sketch-rectangle-3point.svg</file>
   <file>icons/light/sketch-rectangle-center.svg</file>

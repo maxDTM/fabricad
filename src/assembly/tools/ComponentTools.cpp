@@ -1,6 +1,7 @@
 // FabriCAD assembly tools: component management implementation.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "assembly/tools/ComponentTools.h"
+#include "part/features/Import.h"
 
 #include "assembly/BaseBodyFeature.h"
 #include "assembly/JointFeature.h"
@@ -282,6 +283,14 @@ std::vector<ObjectId> createComponentsFromSelectedBodies(ToolContext& ctx) {
     created.push_back(createComponent(doc, ctx.undo, spec));
   }
   if (ctx.undo) ctx.undo->endMacro();
+  // the bodies now belong to the new components: select those, so a following New Component
+  // does not take the bodies along again (be/drawing observation "CFB then NEWCOMPONENT")
+  if (ctx.selection) {
+    std::vector<ShapeRef> refs;
+    for (ObjectId c : created)
+      if (c != kInvalidId) refs.push_back(ShapeRef::component(c));
+    ctx.selection->set(refs);
+  }
   ctx.showMessage(std::format("Created {} component(s)", created.size()));
   return created;
 }
@@ -539,6 +548,8 @@ bool exportStep(ToolContext& ctx, const std::string& path) {
     return false;
   }
   StepExportOptions opt;
+  opt.pcurves = part::stepPcurvesDefault();
+  for (const std::string& a : ctx.args) part::applyStepOption(a, opt.pcurves);
   std::vector<ObjectId> comps = componentsOf(doc, ctx.preselection);
   if (comps.size() == 1) opt.root = comps.front();
   std::string err;

@@ -71,7 +71,7 @@ How the fixes were checked:
 |---|---|
 | Gate G blind re-run | One Sonnet T-cvd pass on the new build: crisp 1x crops, plus a conflict-curve scene and a warning-toast scene (no toast exists yet). |
 | Card body vs mockup (rest of P5-MOCKUP-3, P5-LIGHT-6) | MERGE WITH combo (today the OBJECTS TO CUT/JOIN selection input), PREVIEW switch (the tool needs a preview on/off), segment icons, DIRECTION order (mockup ONE SIDE · SYMMETRIC · TWO SIDES; the app uses the enum order), and START OFFSET (a real property the mockup omits). The plan owner should decide. |
-| Toolbar vs mockup (P5-MOCKUP-10, P5-LIGHT-6) | PROJECT, SWEEP, LOFT, PATTERN, MIRROR, SURFACE, SECTION and split arrows. These are mostly backend scope (`backend-deferred.md`). |
+| Toolbar vs mockup (P5-MOCKUP-10, P5-LIGHT-6) | **Done on `rm/feat`**: PROJECT, SWEEP, LOFT, PATTERN, MIRROR, SURFACE (MORE), SECTION (new Section Analysis), split arrows and the highlighted caption of the running command's section (`backend-deferred.md`, rm/feat). Monochrome icons remain open. |
 | `compare.py` layout gate (P5-MOCKUP-15) | Done (section 5). |
 | Partial-flush staleness under Xwayland | Done (section 5): the root cause was a blocking vsync swap. |
 | Low mockup gaps | Done except the `ø 40` dimension chip and the taper ring (section 5). |

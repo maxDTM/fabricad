@@ -1163,6 +1163,55 @@ class ToolsTest : public QObject {
     QCOMPARE(r.sk().geometryCount(), 1);
   }
 
+  void projectFromTheDefaultPage() {
+    // PROJECT outside a sketch (mockup v6 SKETCH section): asks for the sketch plane, creates the
+    // sketch there and hands off to sketch.project; preselected edges are projected at once
+    Rig r;
+    r.doc.addFeature(std::make_unique<BoxFeature>());
+    r.doc.recompute();
+    core::ObjectId bodyId = r.doc.liveBodies()[0];
+    const TopoDS_Shape& box = r.doc.bodyShape(bodyId);
+    QVERIFY(r.registry.has("sketch.project-start"));
+    const core::ToolInfo& info = r.registry.tool("sketch.project-start")->info();
+    QCOMPARE(info.tab, std::string("SOLID"));
+    QVERIFY(info.promoted);
+    QVERIFY(r.mgr.run("sketch.project-start"));
+    QVERIFY(r.mgr.isActive());
+    QVERIFY(!r.session());
+    QVERIFY(r.host.prompt().find("sketch plane") != std::string::npos);
+    QVERIFY(r.mgr.runCommandLine("XY"));
+    Rig::pump();
+    QVERIFY(r.session());
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.project"));
+    r.key(Qt::Key_Escape);
+    Rig::pump();
+    SketchSession::end();
+    Rig::pump();
+
+    // preselection: an edge of the box and the XY plane -> sketch on XY with that edge projected
+    TopoDS_Shape edge;
+    for (const TopoDS_Shape& e : core::subShapes(box, TopAbs_EDGE)) {
+      core::Vec3 mn, mx;
+      if (core::bbox(e, mn, mx) && mn.z > 24.9 && mx.z < 25.1) {
+        edge = e;
+        break;
+      }
+    }
+    QVERIFY(!edge.IsNull());
+    r.doc.selection().set({core::ShapeRef::originPlane("XY"), core::ShapeRef::subShape(bodyId, box, edge)});
+    QVERIFY(r.mgr.run("sketch.project-start"));
+    Rig::pump();
+    QVERIFY(r.session());
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.project"));
+    QCOMPARE(r.sk().geometryCount(), 1);
+    QVERIFY(r.sk().geometries().front().projected);
+    // inside a sketch the launcher is sketch.project itself
+    r.key(Qt::Key_Escape);
+    Rig::pump();
+    QVERIFY(r.mgr.run("sketch.project-start"));
+    QCOMPARE(r.mgr.activeToolId(), std::string("sketch.project"));
+  }
+
   void projectBodyEdges() {
     Rig r;
     r.doc.addFeature(std::make_unique<BoxFeature>());

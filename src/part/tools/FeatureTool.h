@@ -40,6 +40,8 @@ class FeatureTool : public core::ToolBase {
 
   void activate(core::ToolContext& ctx) override;
   void deactivate(core::ToolContext& ctx) override;
+  /// Status-line notes about other components touched by the committed feature (recommendation 6).
+  void showCrossComponentNotes(core::ToolContext& ctx, core::ObjectId featureId);
   void accept(core::ToolContext& ctx) override;
   void cancel(core::ToolContext& ctx) override;
   void selectionChanged(core::ToolContext& ctx) override;

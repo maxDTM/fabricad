@@ -25,6 +25,25 @@ namespace fabricad::app {
 
 using theme::Tok;
 
+bool isPrefixMatch(const core::ToolInfo& info, const std::string& query) {
+  auto lower = [](std::string v) {
+    std::transform(v.begin(), v.end(), v.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return v;
+  };
+  std::string q = lower(query);
+  while (!q.empty() && q.front() == ' ') q.erase(q.begin());
+  while (!q.empty() && q.back() == ' ') q.pop_back();
+  if (q.empty()) return true;
+  const std::string name = lower(info.name);
+  if (name.starts_with(q)) return true;
+  for (size_t i = 0; i < name.size(); ++i)
+    if ((name[i] == ' ' || name[i] == '-' || name[i] == '/') && name.compare(i + 1, q.size(), q) == 0) return true;
+  for (const std::string& a : info.aliases)
+    if (lower(a).starts_with(q)) return true;
+  const std::string id = lower(info.id);
+  return id.starts_with(q) || id.find("." + q) != std::string::npos;
+}
+
 std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const std::string& query,
                                           const QStringList& pinned, const QStringList& recent, int max,
                                           const std::function<int(const core::ITool*)>& rank) {
@@ -41,8 +60,12 @@ std::vector<std::string> searchCommandIds(const core::ToolRegistry& reg, const s
     return out;
   }
   std::vector<core::ITool*> found = reg.search(query, rank ? max * 3 : max);
-  if (rank)
+  if (rank) {
     std::stable_sort(found.begin(), found.end(), [&](const core::ITool* a, const core::ITool* b) { return rank(a) < rank(b); });
+    // APP-10: a disabled command stays listed (last) only when the query is a prefix of its
+    // name, a word of it or an alias; fuzzy matches of disabled commands are noise
+    std::erase_if(found, [&](const core::ITool* t) { return rank(t) >= kDisabledRank && !isPrefixMatch(t->info(), query); });
+  }
   for (core::ITool* t : found) push(t->info().id);
   return out;
 }
@@ -113,7 +136,7 @@ void CommandSearch::updateResults() {
   const core::ToolContext ctx = manager_->makeContext();
   const core::Workspace ws = ctx.host ? ctx.host->workspace() : core::Workspace::Design;
   auto rank = [&ctx, ws](const core::ITool* t) {
-    if (!t->isEnabled(ctx)) return 2;
+    if (!t->isEnabled(ctx)) return kDisabledRank;
     return t->info().workspace == ws ? 0 : 1;
   };
   for (const std::string& id :

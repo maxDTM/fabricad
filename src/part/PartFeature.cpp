@@ -56,6 +56,7 @@ void PartFeature::recompute(core::RecomputeContext& ctx) {
     }
   }
   Outcome out;
+  crossComponentNotes_.clear();
   try {
     compute(ctx, out);
   } catch (const Standard_Failure& e) {

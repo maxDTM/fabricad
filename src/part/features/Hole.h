@@ -28,6 +28,11 @@ class HoleFeature : public PartFeature {
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   void updatePropertyFlags() override;
   std::string primaryInput() const override { return "points"; }
+  std::vector<std::string> preselectionInputs(const core::ShapeRef& ref) const override {
+    if (ref.kind != core::ShapeKind::Face) return {};
+    if (ref.hasPoint) return {"face", "points"};
+    return {"face"};
+  }
   Operation operation() const override { return Operation::Cut; }
 
   /// Proto hole along -Z starting at the origin (top of the hole at z = 0). Exposed for tests.
@@ -46,7 +51,13 @@ class HoleFeature : public PartFeature {
     /// z = 0 is unchanged.
     double topExtension = 0;
   };
-  static TopoDS_Shape makeProtoHole(const Params& p, std::string* error);
+  /// The tool solid of one hole (axis -Z through the origin, placement face at z = 0). With a
+  /// top extension, a counterbore or countersink keeps only the drill radius above z = 0
+  /// (DRW-VIEWS-ANNOT-13: no notch in material above the placement face). `namedFaces` (optional)
+  /// receives the faces in naming order (F1, F2, ...): the faces of the plain revolved profile
+  /// first, in their old order, then the faces the trim adds, so saved Hole<n>/H<k>/F<i> names
+  /// keep their meaning.
+  static TopoDS_Shape makeProtoHole(const Params& p, std::string* error, std::vector<TopoDS_Shape>* namedFaces = nullptr);
 
   /// ISO 273 clearance hole diameter (fit 0 close / 1 normal / 2 loose).
   static double clearanceDiameter(const IsoThread& t, int fit);

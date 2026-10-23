@@ -78,6 +78,11 @@ class PartFeature : public core::Feature {
   /// computing again when its input state is the same (one shot; any other input recomputes).
   void adoptPrecomputed(Outcome out, std::vector<std::string> warnings, std::map<core::ObjectId, TopoDS_Shape> inputState);
   bool hasPrecomputed() const { return precomputed_.has_value(); }
+  /// Status-line notes of the last computation about bodies of other components (COMPARISON.md
+  /// recommendation 6): a Join/Cut/Intersect/Hole that changes a body of another component, or
+  /// whose tool touches one it leaves alone. FeatureTool shows them after OK.
+  const std::vector<std::string>& crossComponentNotes() const { return crossComponentNotes_; }
+  void addCrossComponentNote(std::string note) { crossComponentNotes_.push_back(std::move(note)); }
 
   /// Only an Outcome with component placements (component patterns) moves components.
   bool affectsPlacements() const override { return placementsWritten_; }
@@ -103,6 +108,13 @@ class PartFeature : public core::Feature {
   /// String property a bare typed value (or the first command-line argument) goes to when the
   /// feature has no primary numeric: "filePath" for Import. Empty by default.
   virtual std::string primaryText() const { return {}; }
+  /// Inputs a preselected reference goes to when a new feature starts (empty = the default:
+  /// the primary input, else the first input accepting the kind). Hole: a preselected face is the
+  /// start face (and, with a pick point, also a placement point), COMPARISON.md recommendation 7.
+  virtual std::vector<std::string> preselectionInputs(const core::ShapeRef& ref) const {
+    (void)ref;
+    return {};
+  }
 
   /// The feature's boolean operation (from an "operation" enum if it has one).
   virtual Operation operation() const;
@@ -141,6 +153,7 @@ class PartFeature : public core::Feature {
     bool scopeOpaque = false;
   };
   std::optional<Precomputed> precomputed_;
+  std::vector<std::string> crossComponentNotes_;
 };
 
 /// Convenience for features with an "operation" enum: adds the enum and the optional

@@ -70,9 +70,19 @@ class ImportFeature : public PartFeature {
   Imported cache_;
 };
 
-/// Write shapes to a STEP file (AP214, mm). One product per shape.
+/// Write shapes to a STEP file (AP214, mm). One product per shape. `pcurves` = false omits the
+/// 2D parameter curves of the edges (OCCT write.surfacecurve.mode 0): a smaller file that most
+/// importers rebuild (COMPARISON.md recommendation 8).
 bool exportStep(const std::vector<TopoDS_Shape>& shapes, const std::vector<std::string>& names, const std::string& path,
-                std::string* error);
+                std::string* error, bool pcurves = true);
+/// Preference "export/step/pcurves" (QSettings, default true): write pcurves into STEP files.
+bool stepPcurvesDefault();
+void setStepPcurvesDefault(bool on);
+/// Command-line STEP option words: "pcurves=off|on|0|1|no|yes", "nopcurves". False if the word
+/// is not an option (then it is the path).
+bool applyStepOption(const std::string& word, bool& pcurves);
+/// Apply the pcurve mode to OCCT's STEP writer statics (both writers call it before Transfer).
+void setStepWriterPcurves(bool pcurves);
 /// Write shapes to an STL file (binary by default) after meshing with the given deflection.
 bool exportStl(const std::vector<TopoDS_Shape>& shapes, const std::string& path, bool binary, double linearDeflection,
                double angularDeflectionDeg, std::string* error);

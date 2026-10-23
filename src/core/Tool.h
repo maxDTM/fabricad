@@ -39,6 +39,7 @@ class UndoStack;
 class IViewerContext;
 class IAppHost;
 class ToolManager;
+class ToolContext;
 
 enum class MouseButton { None, Left, Middle, Right };
 enum KeyModifier : int { ModNone = 0, ModShift = 1, ModCtrl = 2, ModAlt = 4 };
@@ -90,6 +91,9 @@ struct ToolInfo {
   /// like radio items (the ribbon renders them as an exclusive action group).
   std::function<bool()> checked;
   std::string exclusiveGroup;
+  /// Optional state-dependent label for toolbars and menus ("Ground" / "Unground", NEW-ASM-CORE-2).
+  /// Empty result or no function: `name`.
+  std::function<std::string(const ToolContext&)> dynamicName;
 };
 
 /// What a tool may use while active. Created by ToolManager for each activation.

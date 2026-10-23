@@ -212,6 +212,7 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   double gizmoPixelSize(const gp_Pnt& at) const override;
   void setGhostedComponents(const std::vector<core::ObjectId>& componentIds) override;
   void setFeatureVisibilityOverride(core::ObjectId featureId, std::optional<bool> visible) override;
+  void setSectionPlane(const std::optional<gp_Pln>& plane) override;
   void setCursor(core::CursorShape shape) override;
   void requestRedraw() override;
   QWidget* widget() override { return this; }
@@ -263,6 +264,8 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void syncOverlays();
   void applySelectionModes();
   void syncOriginLabels();
+  /// Attach / detach the section clipping plane to the displayed bodies.
+  void applySectionClip();
   void applyGestureMap();
   void onFilterInputsChanged();
 

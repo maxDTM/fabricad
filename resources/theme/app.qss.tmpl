@@ -48,10 +48,17 @@ QToolButton#RibbonTool:pressed { background: @{button.pressed.bg}; }
 QToolButton#RibbonTool:checked { background: @{tool.checked.bg}; border-color: @{tool.checked.border}; }
 QToolButton#RibbonTool:disabled { color: @{text.disabled}; }
 QToolButton#RibbonTool::menu-indicator { image: url(:/ui/@{theme}/arrow-down.svg); subcontrol-position: top right; subcontrol-origin: padding; width: 8px; height: 8px; top: 4px; }
+/* split buttons (mockup v6 arrows): the tool on the left, a narrow arrow strip for its variants */
+QToolButton#RibbonTool[splitButton="true"] { padding-right: 12px; }
+QToolButton#RibbonTool::menu-button { border: none; border-left: 1px solid transparent; background: transparent; width: 11px; subcontrol-origin: padding; subcontrol-position: top right; }
+QToolButton#RibbonTool::menu-button:hover { background: @{row.hover.bg}; border-left-color: @{border.subtle}; }
+QToolButton#RibbonTool::menu-button:open { background: @{accent.selFill}; }
+QToolButton#RibbonTool::menu-arrow { image: url(:/ui/@{theme}/arrow-down.svg); width: 8px; height: 8px; top: 4px; }
 QToolButton#RibbonGroupLabel { border: none; border-top: 1px solid @{border.subtle}; color: @{text.secondary}; padding: 0 4px; background: transparent; }
 QToolButton#RibbonGroupLabel:hover { color: @{accent.text}; }
 QToolButton#RibbonGroupLabel:pressed, QToolButton#RibbonGroupLabel:open { background: @{accent.selFill}; color: @{accent.text}; }
 QToolButton#RibbonGroupLabel::menu-indicator { image: none; width: 0; }
+QToolButton#RibbonGroupLabel[activeSection="true"] { color: @{accent.text}; border-top-color: @{accent.indicator}; }
 /* collapsed section: icon button over the usual caption (same baseline as the others, p1-check 6) */
 QToolButton#RibbonCollapsedTool { border: 1px solid transparent; border-radius: 1px; padding: 2px 4px; background: transparent; }
 QToolButton#RibbonCollapsedTool:hover { background: @{row.hover.bg}; }

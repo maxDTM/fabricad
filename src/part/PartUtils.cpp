@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "part/PartUtils.h"
+#include "part/PartFeature.h"
 
 #include "core/Document.h"
 #include "core/Feature.h"
@@ -34,6 +35,7 @@
 #include <TopoDS_Compound.hxx>
 
 #include <algorithm>
+#include <set>
 #include <cctype>
 #include <cmath>
 #include <format>
@@ -385,6 +387,48 @@ std::vector<core::ObjectId> participants(core::RecomputeContext& ctx, const Topo
   return out;
 }
 
+/// COMPARISON.md recommendation 6: say when an operation reaches into another component, or
+/// passes through a body of another component without changing it (status-line notes, no
+/// feature warning: leaving other components alone is the intended behaviour).
+void noteCrossComponent(core::RecomputeContext& ctx, const TopoDS_Shape& tool, Operation op,
+                        const std::vector<core::ObjectId>& parts) {
+  auto* pf = dynamic_cast<PartFeature*>(&ctx.self());
+  if (!pf) return;
+  const core::Document& doc = ctx.document();
+  const std::vector<core::ObjectId> all = ctx.bodies();
+  auto compOf = [&](core::ObjectId id) {
+    const core::Body* b = doc.body(id);
+    return b ? b->component : core::kInvalidId;
+  };
+  std::set<core::ObjectId> comps;
+  for (core::ObjectId id : all) comps.insert(compOf(id));
+  if (comps.size() < 2) return;  // every body in one component: nothing can be "another" one
+  const std::vector<core::ObjectId> tree = bodiesInComponentTree(doc, ctx.self().component(), all);
+  auto inTree = [&](core::ObjectId id) { return std::find(tree.begin(), tree.end(), id) != tree.end(); };
+  std::set<core::ObjectId> partComps;
+  for (core::ObjectId id : parts) partComps.insert(compOf(id));
+  auto label = [&](core::ObjectId id) {
+    const core::Body* b = doc.body(id);
+    const core::Component* c = b ? doc.component(b->component) : nullptr;
+    return std::format("body '{}' of component '{}'", b ? b->name : std::to_string(id), c ? c->name : std::string("?"));
+  };
+  const std::string feat = ctx.self().name().empty() ? ctx.self().type() : ctx.self().name();
+  const char* verb = op == Operation::Join ? "joins" : op == Operation::Cut ? "cuts" : "intersects";
+  const char* past = op == Operation::Join ? "joined" : op == Operation::Cut ? "cut" : "intersected";
+  // an explicit target outside the feature's component tree
+  for (core::ObjectId id : parts)
+    if (!inTree(id)) pf->addCrossComponentNote(std::format("{} {} {} (another component)", feat, verb, label(id)));
+  // the tool passes through a body of a component that takes no part
+  for (core::ObjectId id : all) {
+    if (std::find(parts.begin(), parts.end(), id) != parts.end()) continue;
+    const bool other = parts.empty() ? !inTree(id) : partComps.count(compOf(id)) == 0;
+    if (!other || !shapesTouch(ctx.bodyShape(id), tool)) continue;
+    pf->addCrossComponentNote(std::format("{} touches {} but left it alone (another component); pick it under the "
+                                          "operation's bodies to have it {}",
+                                          feat, label(id), past));
+  }
+}
+
 }  // namespace
 
 bool applyTool(core::RecomputeContext& ctx, const TopoDS_Shape& tool, Operation op, std::vector<core::ShapeRef>& targets,
@@ -409,6 +453,7 @@ bool applyTool(core::RecomputeContext& ctx, const TopoDS_Shape& tool, Operation 
   }
 
   std::vector<core::ObjectId> parts = participants(ctx, tool, targets);
+  noteCrossComponent(ctx, tool, op, parts);
   if (parts.empty()) {
     if (op == Operation::Join) {
       // Fusion: a join that touches nothing becomes a new body.

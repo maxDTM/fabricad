@@ -21,6 +21,7 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Static.hxx>
+#include <QSettings>
 #include <STEPCAFControl_Reader.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
@@ -502,8 +503,30 @@ void ImportFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
 // export
 // ---------------------------------------------------------------------------
 
+bool stepPcurvesDefault() { return QSettings().value("export/step/pcurves", true).toBool(); }
+void setStepPcurvesDefault(bool on) { QSettings().setValue("export/step/pcurves", on); }
+
+bool applyStepOption(const std::string& word, bool& pcurves) {
+  std::string w = word;
+  for (char& ch : w) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  if (w == "nopcurves" || w == "no-pcurves") {
+    pcurves = false;
+    return true;
+  }
+  if (w == "pcurves") {
+    pcurves = true;
+    return true;
+  }
+  if (!w.starts_with("pcurves=")) return false;
+  const std::string v = w.substr(8);
+  pcurves = !(v == "off" || v == "0" || v == "no" || v == "false");
+  return true;
+}
+
+void setStepWriterPcurves(bool pcurves) { Interface_Static::SetIVal("write.surfacecurve.mode", pcurves ? 1 : 0); }
+
 bool exportStep(const std::vector<TopoDS_Shape>& shapes, const std::vector<std::string>& names, const std::string& path,
-                std::string* error) {
+                std::string* error, bool pcurves) {
   (void)names;  // product names need XCAF; plain writer for now
   if (shapes.empty()) {
     if (error) *error = "nothing to export";
@@ -512,6 +535,7 @@ bool exportStep(const std::vector<TopoDS_Shape>& shapes, const std::vector<std::
   try {
     Interface_Static::SetCVal("write.step.schema", "AP214");
     Interface_Static::SetCVal("write.step.unit", "MM");
+    setStepWriterPcurves(pcurves);
     STEPControl_Writer writer;
     for (const auto& s : shapes) {
       if (s.IsNull()) continue;

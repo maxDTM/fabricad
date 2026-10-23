@@ -751,6 +751,14 @@ class AssemblyToolsTest : public QObject {
     QVERIFY(h.doc.component(b.compA)->grounded);
     QVERIFY(h.manager.runCommandLine("GROUND"));
     QVERIFY(h.doc.component(b.compA)->grounded);
+    // NEW-ASM-CORE-2: the toggle reads "Unground" while every selected component is grounded
+    const core::ToolInfo& gi = h.tools.tool("assembly.ground-toggle")->info();
+    QVERIFY(gi.dynamicName);
+    QCOMPARE(gi.dynamicName(h.manager.makeContext()), std::string("Unground"));
+    h.select({ShapeRef::component(b.compA), ShapeRef::component(b.compB)});
+    if (!h.doc.component(b.compB)->grounded) QVERIFY(gi.dynamicName(h.manager.makeContext()).empty());  // "Ground"
+    h.select({});
+    QVERIFY(gi.dynamicName(h.manager.makeContext()).empty());
   }
 
   void groundRigidGroupAndComponentsFromBodies() {
@@ -803,6 +811,13 @@ class AssemblyToolsTest : public QObject {
     QCOMPARE(static_cast<int>(h.doc.components().size()), comps + 2);
     QCOMPARE(h.doc.component(h.doc.body(b.bodyA)->component)->parent, b.compA);
     QCOMPARE(h.doc.component(h.doc.body(b.bodyB)->component)->parent, b.compB);
+    // the new components are selected (not the bodies): a following New Component does not
+    // take the bodies along (be/drawing observation "CFB then NEWCOMPONENT Pin")
+    {
+      const std::vector<ShapeRef> sel = h.doc.selection().items();
+      QCOMPARE(sel.size(), size_t(2));
+      for (const ShapeRef& r : sel) QCOMPARE(r.kind, core::ShapeKind::Component);
+    }
     h.doc.undoStack().undo();
     QCOMPARE(static_cast<int>(h.doc.components().size()), comps);
     QCOMPARE(h.doc.body(b.bodyA)->component, b.compA);

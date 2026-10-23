@@ -20,6 +20,8 @@
 #include "part/tools/ExportStlTool.h"
 #include "part/tools/FeatureTool.h"
 #include "part/tools/MeasureTool.h"
+#include "part/tools/SectionTool.h"
+#include "core/ViewerContext.h"
 
 #include <QFileDialog>
 #include <QString>
@@ -135,15 +137,18 @@ bool exportBodies(core::ToolContext& ctx, const std::string& format) {
   std::vector<std::string> names;
   if (!collectExportShapes(ctx, shapes, names)) return false;
   bool stl = format == "stl";
-  // command line: EXPORTSTL out.stl [deflection=0.05] [angle=20|0.2rad] [ascii]
+  // command line: EXPORTSTL out.stl [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad] [ascii]
   StlExportSettings st;  // built-in defaults unless options are typed
   std::string path;
-  for (const std::string& a : ctx.args)
-    if (!(stl && ExportStlTool::applyOption(a, st)) && path.empty()) path = a;
+  bool pcurves = stepPcurvesDefault();  // EXPORTSTEP out.step [pcurves=off]
+  for (const std::string& a : ctx.args) {
+    if (stl ? ExportStlTool::applyOption(a, st) : applyStepOption(a, pcurves)) continue;
+    if (path.empty()) path = a;
+  }
   if (path.empty()) path = chooseFile(ctx, true, stl ? "STL files (*.stl)" : "STEP files (*.step *.stp)", stl ? ".stl" : ".step");
   if (path.empty()) return false;
   std::string err;
-  bool ok = stl ? exportStl(shapes, path, st.binary, st.linearDeflection, st.angularDeflectionDeg, &err) : exportStep(shapes, names, path, &err);
+  bool ok = stl ? exportStl(shapes, path, st.binary, st.linearDeflection, st.angularDeflectionDeg, &err) : exportStep(shapes, names, path, &err, pcurves);
   if (ok && stl)
     ctx.showMessage(std::format("STL mesh: linear deflection {} mm, angular deflection {} deg ({} rad), {}", st.linearDeflection,
                                 st.angularDeflectionDeg, st.angularDeflectionDeg * M_PI / 180.0, st.binary ? "binary" : "ascii"));
@@ -159,29 +164,45 @@ void registerPartTools(core::ModuleContext& ctx) {
   core::ToolRegistry& t = ctx.tools;
   const std::string SOLID = "SOLID", CREATE = "CREATE", MODIFY = "MODIFY", CONSTRUCT = "CONSTRUCT", INSERT = "INSERT";
 
-  // CREATE
+  // CREATE (the toolbar follows mockup v6: SKETCH PROJECT | EXTRUDE REVOLVE SWEEP LOFT HOLE |
+  // FILLET CHAMFER SHELL PATTERN MIRROR; Pattern and Mirror live in MODIFY there)
   t.registerTool(featureTool<ExtrudeFeature>(info("part.extrude", "Extrude", "Extrude a profile into a solid", SOLID, CREATE, 20, true, "E", {"EXTRUDE", "EXT"})));
   t.registerTool(featureTool<RevolveFeature>(info("part.revolve", "Revolve", "Revolve a profile about an axis", SOLID, CREATE, 30, true, "", {"REVOLVE", "REV"})));
-  t.registerTool(featureTool<SweepFeature>(info("part.sweep", "Sweep", "Sweep a profile along a path", SOLID, CREATE, 40, false, "", {"SWEEP"})));
-  t.registerTool(featureTool<LoftFeature>(info("part.loft", "Loft", "Loft through profiles", SOLID, CREATE, 50, false, "", {"LOFT"})));
+  t.registerTool(featureTool<SweepFeature>(info("part.sweep", "Sweep", "Sweep a profile along a path", SOLID, CREATE, 40, true, "", {"SWEEP"})));
+  t.registerTool(featureTool<LoftFeature>(info("part.loft", "Loft", "Loft through profiles", SOLID, CREATE, 50, true, "", {"LOFT"})));
   t.registerTool(featureTool<HoleFeature>(info("part.hole", "Hole", "Simple, counterbore or countersink holes; clearance or tapped (ISO metric)", SOLID, CREATE, 60, true, "H", {"HOLE"})));
-  t.registerTool(featureTool<RectangularPatternFeature>(info("part.rectangular-pattern", "Rectangular Pattern", "Repeat features, bodies or components along one or two directions", SOLID, CREATE, 70, false, "", {"RECTPATTERN", "ARRAY", "AR"})));
-  t.registerTool(featureTool<CircularPatternFeature>(info("part.circular-pattern", "Circular Pattern", "Repeat features, bodies or components about an axis", SOLID, CREATE, 71, false, "", {"CIRCPATTERN", "POLAR"})));
-  t.registerTool(featureTool<MirrorFeature>(info("part.mirror", "Mirror", "Mirror features or bodies across a plane", SOLID, CREATE, 72, false, "", {"MIRROR", "MI"})));
+  t.registerTool(featureTool<RectangularPatternFeature>(info("part.rectangular-pattern", "Rectangular Pattern", "Repeat features, bodies or components along one or two directions", SOLID, MODIFY, 42, true, "", {"RECTPATTERN", "ARRAY", "AR"})));
+  t.registerTool(featureTool<CircularPatternFeature>(info("part.circular-pattern", "Circular Pattern", "Repeat features, bodies or components about an axis", SOLID, MODIFY, 43, false, "", {"CIRCPATTERN", "POLAR"})));
+  t.registerTool(featureTool<MirrorFeature>(info("part.mirror", "Mirror", "Mirror features or bodies across a plane", SOLID, MODIFY, 44, true, "", {"MIRROR", "MI"})));
 
   // MODIFY
-  t.registerTool(std::make_unique<PressPullTool>(info("part.press-pull", "Press Pull", "Offset a face, fillet an edge or extrude a profile", SOLID, MODIFY, 10, true, "Q", {"PRESSPULL", "PP"})));
+  t.registerTool(std::make_unique<PressPullTool>(info("part.press-pull", "Press Pull", "Offset a face, fillet an edge or extrude a profile", SOLID, MODIFY, 10, false, "Q", {"PRESSPULL", "PP"})));
   t.registerTool(featureTool<OffsetFaceFeature>(info("part.offset-face", "Offset Face", "Move planar faces along their normal", SOLID, MODIFY, 15, false, "", {"OFFSETFACE"})));
   t.registerTool(featureTool<FilletFeature>(info("part.fillet", "Fillet", "Round edges with a constant or variable radius", SOLID, MODIFY, 20, true, "F", {"FILLET"})));
   t.registerTool(featureTool<ChamferFeature>(info("part.chamfer", "Chamfer", "Bevel edges", SOLID, MODIFY, 30, true, "", {"CHAMFER", "CHA"})));
   t.registerTool(featureTool<ShellFeature>(info("part.shell", "Shell", "Hollow a body, removing faces", SOLID, MODIFY, 40, true, "", {"SHELL"})));
   t.registerTool(featureTool<DraftFeature>(info("part.draft", "Draft", "Tilt faces by an angle", SOLID, MODIFY, 45, false, "", {"DRAFT"})));
-  t.registerTool(featureTool<CombineFeature>(info("part.combine", "Combine", "Join, cut or intersect bodies", SOLID, MODIFY, 50, true, "", {"COMBINE"})));
+  t.registerTool(featureTool<CombineFeature>(info("part.combine", "Combine", "Join, cut or intersect bodies", SOLID, MODIFY, 50, false, "", {"COMBINE"})));
   t.registerTool(featureTool<SplitBodyFeature>(info("part.split-body", "Split Body", "Split bodies with a plane, face or body", SOLID, MODIFY, 60, false, "", {"SPLIT", "SPLITBODY"})));
   t.registerTool(std::make_unique<MoveCopyTool>(info("part.move", "Move/Copy", "Translate, rotate (free move with typed values) or copy bodies; with components selected, moves the components", SOLID, MODIFY, 70, false, "M", {"MOVE", "M", "COPY", "CO"})));
 
   // INSPECT
   t.registerTool(std::make_unique<MeasureTool>());
+  t.registerTool(std::make_unique<SectionTool>());
+  {
+    core::ToolInfo i = info("inspect.section-off", "Remove Section", "Turn the section analysis off", SOLID, "INSPECT", 3, false, "",
+                            {"SECTIONOFF"});
+    i.icon = "inspect-section-off";
+    i.repeatable = false;
+    i.keepsActiveTool = true;
+    t.registerTool(std::make_unique<core::LambdaTool>(
+        i,
+        [](core::ToolContext& c) {
+          if (c.viewer) c.viewer->setSectionPlane(std::nullopt);
+          c.showMessage("Section analysis removed");
+        },
+        [](const core::ToolContext& c) { return c.viewer && c.viewer->sectionPlane().has_value(); }));
+  }
 
   // CONSTRUCT
   t.registerTool(featureTool<OffsetPlaneFeature>(info("construct.offset-plane", "Offset Plane", "Plane parallel to a plane or face", SOLID, CONSTRUCT, 10, true, "", {"OFFSETPLANE", "PLANE"})));
