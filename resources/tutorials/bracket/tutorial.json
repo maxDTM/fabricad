@@ -1347,8 +1347,22 @@
    "checkpoint": "ch9.fcad",
    "steps": [
     {
+     "id": "9.0",
+     "text": "Click **Create Sketch**.",
+     "anchor": "tool:sketch.create",
+     "until": {
+      "tool": "sketch.create"
+     },
+     "do": [
+      {
+       "click": "@anchor"
+      }
+     ],
+     "hint": "It is the first button of the **SKETCH** section of the toolbar."
+    },
+    {
      "id": "9.1",
-     "text": "Click **Create Sketch**, then the **YZ** plane (the one through the middle).",
+     "text": "Click the **YZ** plane, the upright one through the middle of the part.",
      "anchor": "model:plane:YZ",
      "until": {
       "all": [
@@ -1361,9 +1375,6 @@
       ]
      },
      "do": [
-      {
-       "click": "tool:sketch.create"
-      },
       {
        "click": "@anchor"
       }
@@ -1613,6 +1624,16 @@
        {
         "selection": "edge",
         "count": 2
+       },
+       {
+        "selection": "edge",
+        "selector": "body:Body1/edge:@35.5,-15,10",
+        "count": 1
+       },
+       {
+        "selection": "edge",
+        "selector": "body:Body1/edge:@-24.5,-15,10",
+        "count": 1
        }
       ]
      },
@@ -1634,11 +1655,12 @@
       "Home",
       "I"
      ],
-     "context": "tool:inspect.measure"
+     "context": "tool:inspect.measure",
+     "hint": "Pick the **top rim** of each counterbore: the larger circle on the top face, not the smaller one at its floor. Click a wrong edge again to drop it."
     },
     {
      "id": "11.2",
-     "text": "The table shows the **distance** between the two rims: 60 mm from centre to centre when you picked both top rims. Press [[Esc]] to close Measure.",
+     "text": "The table shows the **distance** between the two rims: 60 mm, centre to centre. Press [[Esc]] to close Measure.",
      "anchor": "measureTable",
      "until": {
       "tool": "none"

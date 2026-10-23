@@ -279,6 +279,9 @@ void OcctView::paintGL()
 {
   if (myView.IsNull() || myView->Window().IsNull() || myInitFailed)
     return;
+  // every repaint requested so far is in this frame (a request made while painting stays pending)
+  myPaintedSeq = myRequestSeq;
+  ++myFrameCount;
 
   const double aDevPixelRatioOld = myView->Window()->DevicePixelRatio();
   if (myView->Window()->NativeHandle() != OcctGlTools::GetGlNativeWindow((Aspect_Drawable)effectiveWinId()))

@@ -12,6 +12,8 @@
 #include "theme/Tokens.h"
 #include "viewer/ViewerWidget.h"
 
+#include <limits>
+
 #include <QAccessible>
 #include <QApplication>
 #include <QDateTime>
@@ -275,6 +277,7 @@ void TutorialController::onFinished(bool completed) {
   bubble_->setFloating(false);
   bubble_->hide();
   last_ = {};
+  setTargetHighlight({});
   if (completed) {
     const Tour* t = findTour(currentTour_);
     showFinishCard(t && !t->finishText.isEmpty() ? TutorialEngine::expand(t->finishText) : QString("Well done. Help > Tutorials has more tours."));
@@ -324,6 +327,8 @@ void TutorialController::track() {
     lastModelResolveMs_ = now;
   }
   last_ = resolver_.resolve(s->anchor);
+  // a face / edge / plane target glows in the view itself, wherever the camera is
+  setTargetHighlight(s->anchor.kind == QLatin1String("model") && last_.found ? last_.refs : std::vector<core::ShapeRef>{});
   // the step's other click targets (the second edge, the dimension's line): the bubble keeps
   // clear of them, so it never covers what the user is asked to click next
   actionRects_.clear();
@@ -361,6 +366,13 @@ void TutorialController::track() {
   placeBubble(last_);
 }
 
+void TutorialController::setTargetHighlight(const std::vector<core::ShapeRef>& refs) {
+  viewer::ViewerWidget* v = refs.empty() ? nullptr : w_.viewer();
+  if (auto* old = qobject_cast<viewer::ViewerWidget*>(highlightView_.data()); old && old != v) old->setTutorialHighlight({});
+  highlightView_ = v;
+  if (v) v->setTutorialHighlight(refs);
+}
+
 void TutorialController::placeBubble(const ResolvedAnchor& r) {
   const QRect win = windowRect(&w_);
   const QSize sz = bubble_->sizeHint().expandedTo(QSize(TutorialBubble::kWidth, 80));
@@ -376,6 +388,16 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
   std::vector<QRect> mustSee;
   for (QWidget* x : w_.findChildren<QWidget*>("fcValueBox"))
     if (x->isVisible()) mustSee.push_back(windowRect(x).adjusted(-24, -24, 24, 24));
+  // a row of the FEATURES list, the strip or the MODEL tree: the bubble stays off the list, so
+  // the rows around the target stay readable (UI2-TUTORIAL-7, step "Edit the history")
+  QRect list;
+  if (r.visible && r.widget && !bubble_->isFloating())
+    for (QWidget* x = r.widget; x && x != &w_; x = x->parentWidget())
+      if (x->objectName() == QLatin1String("FeatureList") || x->objectName() == QLatin1String("Browser") ||
+          x->objectName() == QLatin1String("TimelineStrip") || x->objectName() == QLatin1String("TimelineScroll")) {
+        list = windowRect(x);
+        break;
+      }
   QRect bounds = win.adjusted(8, 8, -8, -8);
   if (QWidget* cover = bubble_->isFloating() ? (QApplication::activePopupWidget() ? QApplication::activePopupWidget()
                                                                                   : QApplication::activeModalWidget())
@@ -407,23 +429,36 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
         QRect(QPoint(target.left() - 6 * kGap - sz.width(), c.y() - sz.height() / 2), sz),
         QRect(QPoint(target.right() + 6 * kGap, c.y() - sz.height() / 2), sz),
         QRect(QPoint(c.x() - sz.width() / 2, target.top() - 6 * kGap - sz.height()), sz),
+        // the window's corners, when everything around the target is taken (the Measure card
+        // and the second rim: UI2-TUTORIAL-7)
+        QRect(bounds.topRight() - QPoint(sz.width() - 1, -48), sz),
+        QRect(bounds.bottomRight() - QPoint(sz.width() - 1, sz.height() + 40), sz),
+        QRect(bounds.bottomLeft() - QPoint(-8, sz.height() + 40), sz),
+        QRect(bounds.topLeft() + QPoint(8, 48), sz),
     };
-    int bestScore = INT_MAX;
+    // covering the target or a click target the step asks for always loses against covering
+    // part of a panel (an area score, at most the window's)
+    constexpr qint64 kCoverTarget = 400000000, kCoverClick = 100000000;
+    qint64 bestScore = std::numeric_limits<qint64>::max();
     for (QRect q : cands) {
       // slide into the bounds along the free axis
       if (q.left() < bounds.left()) q.moveLeft(bounds.left());
       if (q.right() > bounds.right()) q.moveRight(bounds.right());
       if (q.top() < bounds.top()) q.moveTop(bounds.top());
       if (q.bottom() > bounds.bottom()) q.moveBottom(bounds.bottom());
-      int score = 0;
-      if (q.intersects(target)) score += 100000;
+      qint64 score = 0;
+      if (q.intersects(target)) score += kCoverTarget;
       for (const QRect& a : actionRects_)
-        if (q.intersects(a)) score += 50000;
+        if (q.intersects(a)) score += kCoverClick;
       for (const QRect& a : mustSee)
-        if (q.intersects(a)) score += 50000;
+        if (q.intersects(a)) score += kCoverClick;
       for (const QRect& a : avoid) {
         const QRect i = q.intersected(a);
-        score += i.width() * i.height();
+        score += qint64(i.width()) * i.height();
+      }
+      if (!list.isNull()) {
+        const QRect i = q.intersected(list);
+        score += 4 * qint64(i.width()) * i.height();
       }
       if (score < bestScore) {
         bestScore = score;

@@ -60,6 +60,10 @@ class DocumentTabBar : public QTabBar {
   int tabAtPath(const QPoint& pos) const;
   /// Label without the unsaved marker, and whether the tab has one.
   static QString plainText(const QString& tabText, bool* modified = nullptr);
+  /// The close glyph of tab `index` in bar coordinates: the close button's geometry while it is
+  /// shown, else where it sits at the tab's right end (the tutorial's `tabclose:` anchor). Null
+  /// for an invalid index.
+  QRect closeRect(int index) const;
 
  protected:
   QSize tabSizeHint(int index) const override;

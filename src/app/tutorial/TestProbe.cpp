@@ -70,9 +70,25 @@ QJsonObject TestProbe::state() {
   o["focus"] = f ? (f->objectName().isEmpty() ? QString::fromLatin1(f->metaObject()->className()) : f->objectName()) : QString();
   o["window"] = QJsonArray{w_.x(), w_.y(), w_.width(), w_.height()};
   o["ready"] = w_.isVisible() && (!w_.viewer() || w_.viewer()->isVisible());
-  // idle: the answer is produced from the event loop, so queued events have run; and no camera
-  // animation (Home, Look At on sketch entry) is still moving the view (plan 5.5)
-  o["idle"] = !(w_.viewer() && w_.viewer()->isAnimating());
+  // idle: the answer is produced from the event loop, so queued events have run; no camera
+  // animation (Home, Look At on sketch entry) is still moving the view, and the view has painted
+  // the frame of the last document / selection / camera change (plan 5.5)
+  bool idle = true;
+  if (viewer::ViewerWidget* v = w_.viewer()) {
+    o["frame"] = static_cast<double>(v->frameCount());
+    if (v->isAnimating()) {
+      idle = false;
+    } else if (v->framePending()) {
+      if (pendingFrame_ != v->frameCount()) {
+        pendingFrame_ = v->frameCount();
+        pendingFor_.start();
+      }
+      idle = pendingFor_.elapsed() >= kStaleFrameMs;
+    } else {
+      pendingFrame_ = ~0ull;
+    }
+  }
+  o["idle"] = idle;
   if (QWidget* card = w_.findChild<QWidget*>("TutorialWelcome"); card && card->isVisible()) o["welcome"] = card->property("tourId").toString();
   o["inputSeq"] = static_cast<double>(inputSeq_);
   o["sketchDof"] = q.sketchDof();

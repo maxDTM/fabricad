@@ -184,6 +184,15 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   void clearPreviews() override;
   const std::vector<core::ShapeRef>& highlightedRefs() const { return highlighted_; }
   void setHighlighted(const std::vector<core::ShapeRef>& refs) override;
+  /// The guided tour's target (face, edge, vertex, profile) in the "tutorial" highlight style
+  /// (palette tutorial*, halo rule). Display only: it is not a selection, not a command's picks
+  /// (highlightedRefs), and never pickable. Empty clears it.
+  void setTutorialHighlight(const std::vector<core::ShapeRef>& refs);
+  const std::vector<core::ShapeRef>& tutorialHighlight() const { return tutorialRefs_; }
+  /// Frames the GL view has painted, and whether a repaint was requested that has not been
+  /// painted yet (the tour probe's `idle`, docs/plans/tutorial.md 5.5).
+  quint64 frameCount() const;
+  bool framePending() const;
   void setSelectionFilter(core::ShapeKindMask kinds) override;
   core::ShapeKindMask selectionFilter() const override { return toolFilter_; }
   void setSelectionEnabled(bool enabled) override { selectionEnabled_ = enabled; }
@@ -351,6 +360,7 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   core::DisplayMode displayMode_ = core::DisplayMode::ShadedEdges;
 
   std::vector<core::ShapeRef> highlighted_;
+  std::vector<core::ShapeRef> tutorialRefs_;
   std::optional<core::ShapeRef> hoverRef_;  ///< preselection the viewer itself set
   core::ManipulatorController manipulators_;
   bool gizmoCursor_ = false;  ///< the hand cursor is ours (a gizmo is hovered)

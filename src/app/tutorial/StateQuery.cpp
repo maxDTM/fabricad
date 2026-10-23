@@ -13,6 +13,8 @@
 #include "sketch/SketchSession.h"
 #include "viewer/ViewerWidget.h"
 
+#include <algorithm>
+
 #include <QApplication>
 #include <QLabel>
 #include <QLineEdit>
@@ -37,10 +39,11 @@ int StateQuery::sketchDof() const {
 
 int StateQuery::undoIndex() const { return w_.hasDocument() ? w_.document().undoStack().index() : -1; }
 
-QString StateQuery::focusedValueBox() const {
+QString StateQuery::focusedValueBox(QString* field) const {
   QWidget* f = QApplication::focusWidget();
   for (QWidget* p = f; p; p = p->parentWidget())
     if (p->objectName() == QLatin1String("fcValueBox")) {
+      if (field) *field = p->property("field").toString();
       if (auto* tag = p->findChild<QLabel*>("fcValueTag")) return tag->text();
       return "?";
     }
@@ -123,8 +126,10 @@ bool StateQuery::leaf(const Condition& c, const StepBaseline& base, const Engine
   if (t == "check") return check(v, why);
   if (t == "prompt") return w_.promptText().contains(v, Qt::CaseInsensitive);
   if (t == "valuebox") {
-    const QString f = focusedValueBox();
-    return v == "any" ? !f.isEmpty() : f.compare(v, Qt::CaseInsensitive) == 0;
+    QString field;
+    const QString f = focusedValueBox(&field);
+    // the field id ("width") or the caption shown in the box
+    return v == "any" ? !f.isEmpty() : f.compare(v, Qt::CaseInsensitive) == 0 || (!field.isEmpty() && field.compare(v, Qt::CaseInsensitive) == 0);
   }
   if (t == "visible") return visibleByName(v) != nullptr;
   if (t == "dialog") {
@@ -189,7 +194,12 @@ bool StateQuery::leaf(const Condition& c, const StepBaseline& base, const Engine
     }
     for (const core::ShapeRef& r : items) {
       if (v != "any" && QString::fromLatin1(core::shapeKindName(r.kind)).compare(v, Qt::CaseInsensitive) != 0) continue;
-      if (!want.empty() && std::find(want.begin(), want.end(), r) == want.end()) continue;
+      // same entity: B-rep refs from the selector carry history names a pick does not (and a pick
+      // carries its hit point), so B-rep refs compare by body, kind and index
+      if (!want.empty() && std::none_of(want.begin(), want.end(), [&](const core::ShapeRef& t) {
+            return t.isBrep() && r.isBrep() ? t.owner == r.owner && t.kind == r.kind && t.index == r.index : t == r;
+          }))
+        continue;
       ++n;
     }
     const bool ok = c.args.contains("count") ? n == c.args.value("count").toInt() : n > 0;

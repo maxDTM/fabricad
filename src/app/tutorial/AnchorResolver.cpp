@@ -10,6 +10,7 @@
 #include "app/Selectors.h"
 #include "app/TimelineLayout.h"
 #include "app/TimelineWidget.h"
+#include "app/TitleBar.h"
 #include "core/Json.h"
 #include "core/ShapeUtils.h"
 #include "sketch/SketchFeature.h"
@@ -457,17 +458,21 @@ ResolvedAnchor AnchorResolver::tabCloseAnchor(const QString& which) const {
   if (!bar || !reallyVisible(bar)) return fromWidget(nullptr, "no document tab bar");
   const int index = which.isEmpty() || which == "current" ? bar->currentIndex() : which.toInt() - 1;
   if (index < 0 || index >= bar->count()) return fromWidget(nullptr, "no tab " + which);
-  // the custom-painted close glyph sits at the right end of the tab (closeRect hook: later)
-  if (QWidget* b = bar->tabButton(index, QTabBar::RightSide); b && reallyVisible(b)) return fromWidget(b);
-  const QRect tr = bar->tabRect(index);
-  const int s = std::min(16, tr.height());
-  const QRect cr(tr.right() - s - 10, tr.center().y() - s / 2, s, s);
+  // the custom-painted tab bar reports its close glyph (DocumentTabBar::closeRect)
+  QRect cr;
+  if (auto* doc = qobject_cast<DocumentTabBar*>(bar)) {
+    cr = doc->closeRect(index);
+  } else if (QWidget* b = bar->tabButton(index, QTabBar::RightSide)) {
+    cr = b->geometry();
+  }
+  if (cr.isNull()) return fromWidget(nullptr, "tab " + which + " has no close glyph");
   ResolvedAnchor r;
-  r.found = r.visible = true;
+  r.found = true;
+  r.visible = bar->rect().intersects(cr);
   r.widget = bar;
   r.rect = QRect(bar->mapToGlobal(cr.topLeft()), cr.size());
   r.point = r.rect.center();
-  r.via = "approx";
+  if (!r.visible) r.why = "the tab is scrolled out of the tab bar";
   return r;
 }
 
