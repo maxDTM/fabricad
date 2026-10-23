@@ -16,7 +16,11 @@ class StandardPartFeature : public PartFeature {
   StandardPartFeature();
   void compute(core::RecomputeContext& ctx, Outcome& out) override;
   void applyDefaultsForNewFeature(const core::Document&) override {}
-  std::string primaryNumeric() const override { return "length"; }
+  std::string primaryNumeric() const override {
+    return standards::familyHasLength(static_cast<standards::Family>(enumIndex("family"))) ? "length" : std::string();
+  }
+  void updatePropertyFlags() override;
+  void fromJson(const QJsonObject& o) override;
   /// Double-click opens the standard part card (size / length / material edits regenerate it).
   std::string editToolId() const override { return "part.standard-part"; }
   /// An edit keeps the owning component's BOM data (part number, description, material) in step.

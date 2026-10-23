@@ -19,6 +19,18 @@ StandardPartFeature::StandardPartFeature() : PartFeature(kType) {
   addString("grade", "8.8").setLabel("Material");
   addBool("shortInsert", false).setLabel("Short insert");
   addString("bodyName", "").setLabel("Body name");
+  updatePropertyFlags();
+}
+
+void StandardPartFeature::updatePropertyFlags() {
+  const auto fam = static_cast<standards::Family>(std::clamp(enumIndex("family"), 0, standards::kFamilyCount - 1));
+  prop("length").flags().hidden = !standards::familyHasLength(fam);
+  prop("shortInsert").flags().hidden = fam != standards::Family::HeatSetInsert;
+}
+
+void StandardPartFeature::fromJson(const QJsonObject& o) {
+  PartFeature::fromJson(o);
+  updatePropertyFlags();
 }
 
 standards::FastenerSpec StandardPartFeature::spec() const {
@@ -37,6 +49,7 @@ void StandardPartFeature::setSpec(const standards::FastenerSpec& s) {
   prop("length").setDouble(s.length);
   prop("grade").setString(s.grade);
   prop("shortInsert").setBool(s.shortInsert);
+  updatePropertyFlags();
 }
 
 void StandardPartFeature::prepareCommit(core::Document& doc, core::UndoStack* undo) {
