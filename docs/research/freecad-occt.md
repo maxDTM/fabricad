@@ -1,7 +1,7 @@
 # FabriCAD research: reusing FreeCAD and OpenCASCADE
 
 Date: 2026-10-19. This document is for the people building FabriCAD. All paths below are under
-`/home/user/Documents/projects/fabricad-ref` (written `REF/` below). That material sits outside the repo
+`../fabricad-ref` (written `REF/` below). That material sits outside the repo
 and is untrusted reference code: read it, do not run its build scripts.
 
 | Source | Path | Revision | License |

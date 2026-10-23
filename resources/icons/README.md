@@ -73,3 +73,11 @@ the committed sheets with
 ```sh
 QT_QPA_PLATFORM=offscreen FABRICAD_ICON_SHEET_DIR=$PWD/docs/screenshots build/tests/fabricad_app_test_icons
 ```
+
+## Application icon (desktop / package)
+
+`app/fabricad-app.svg` is the one source of the installed application and `.fcad` MIME icons
+(hicolor `scalable` plus 16, 22, 24, 32, 48, 64, 128, 256 and 512 px PNGs). The PNGs are not
+committed: the build renders them with `packaging/linux/render-icons.sh` (rsvg-convert or
+ImageMagick), so replacing that SVG is all a new icon needs. It currently is a copy of
+`fabricad.svg` (placeholder until the new app icon lands). The in-app logo stays `fabricad.svg`.

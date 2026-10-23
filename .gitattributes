@@ -1,0 +1,5 @@
+# Release tarballs (git archive / GitHub "Source code" downloads) leave out the QA evidence:
+# thousands of test screenshots (~380 MB) that neither the build nor the tests need.
+docs/tests/** export-ignore
+docs/uiux/** export-ignore
+docs/plans/tutorial-walkthrough/** export-ignore

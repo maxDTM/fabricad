@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=FabriCAD
+GenericName=Parametric 3D CAD
+Comment=Design parts, assemblies and engineering drawings
+Exec=fabricad %F
+TryExec=fabricad
+Icon=io.github.maxdtm.FabriCAD
+Terminal=false
+Categories=Graphics;Engineering;3DGraphics;
+Keywords=CAD;3D;parametric;sketch;modelling;modeling;assembly;drawing;STEP;STL;
+MimeType=application/x-fabricad;model/step;
+StartupNotify=true
+StartupWMClass=fabricad

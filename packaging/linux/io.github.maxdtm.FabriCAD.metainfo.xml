@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.maxdtm.FabriCAD</id>
+  <name>FabriCAD</name>
+  <summary>Fast, lightweight parametric 3D CAD</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LGPL-2.1-or-later</project_license>
+  <developer id="io.github.maxdtm">
+    <name>maxDTM</name>
+  </developer>
+  <description>
+    <p>
+      FabriCAD makes parts (sketches and solid features), assemblies (components, joints,
+      motion) and engineering drawings (projected, section and detail views, dimensions,
+      parts lists; PDF, SVG and DXF export). It is built on Qt 6 and OpenCASCADE.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.maxdtm.FabriCAD.desktop</launchable>
+  <url type="homepage">https://github.com/maxDTM/fabricad</url>
+  <url type="bugtracker">https://github.com/maxDTM/fabricad/issues</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Engineering</category>
+  </categories>
+  <provides>
+    <binary>fabricad</binary>
+    <mediatype>application/x-fabricad</mediatype>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-10-23"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

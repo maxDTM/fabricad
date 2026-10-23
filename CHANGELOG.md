@@ -1,0 +1,46 @@
+# Changelog
+
+All notable changes to FabriCAD are listed here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/) (0.x: the file format and the UI may still change).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-10-23
+
+First public release.
+
+### Added
+
+- **Sketch**: lines, rectangles, circles, arcs, polygons, slots, points, ellipses, splines and
+  text; fillet, chamfer, trim, extend, break, offset, mirror, project, sketch patterns; driving
+  and driven dimensions with expressions and document parameters; geometric constraints solved
+  by the vendored FreeCAD PlaneGCS solver, with conflict and redundancy reporting; Fusion-style
+  on-screen value boxes and inference.
+- **Part**: extrude, revolve, sweep, loft, hole (simple / counterbore / countersink, ISO 273
+  clearance, tapped), fillet, chamfer, shell, draft, press pull, combine, split, move/copy,
+  scale, patterns, mirror, rib, thicken, thread; box, cylinder, sphere, torus and coil
+  primitives; construction planes, axes and points; on-canvas manipulators; history-based
+  topological naming so references survive upstream edits; Measure / Inspect; physical
+  materials and mass properties; STEP and STL import/export.
+- **Assembly**: components and occurrences, grounding, in-context editing, rigid groups;
+  rigid, revolute, slider, cylindrical, pin-slot, planar and ball joints with limits and
+  offsets; tree + Levenberg-Marquardt solver (closed loops); copy/paste of components;
+  interference check; BOM CSV; XCAF STEP export.
+- **Drawing**: ISO / ASME sheets with title block; base, projected, section (stepped,
+  aligned), detail and break views with hidden-line removal on a worker thread; associative
+  dimensions with tolerances and ISO 286 fits; GD&T frames, datums, surface texture, hole and
+  thread callouts, ordinate/baseline/chain dimensions, balloons, parts lists, revision tables;
+  PDF, SVG, DXF (R12) and CSV export.
+- **Application**: dark and light themes from one set of design tokens (WCAG and colour-vision
+  checked); captioned toolbar, sidebar feature list with rollback bar, model tree, selection
+  panel, command card with live preview, marking menu, command search (S), command line,
+  orientation widget, document tabs, Fusion / SolidWorks / AutoCAD / Inventor navigation
+  presets; scripting and batch mode (`fabricad --script file.fcs`); autosave and crash
+  recovery; `.fcad` JSON documents.
+- **Packaging**: CMake install rules (binary, `.desktop` file, AppStream metainfo,
+  `application/x-fabricad` MIME type for `*.fcad`, hicolor icons rendered from one SVG,
+  licences), an AUR `PKGBUILD` (`fabricad`, `fabricad-git`) and a GitHub Actions CI workflow.
+
+[Unreleased]: https://github.com/maxDTM/fabricad/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/maxDTM/fabricad/releases/tag/v0.1.0

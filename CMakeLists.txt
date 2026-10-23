@@ -119,4 +119,7 @@ if(FABRICAD_BUILD_TESTS)
   add_subdirectory(tests/chair)   # chair benchmark regression (docs/comparison/CHAIR_SPEC.md)
 endif()
 
+# Install rules: binary, .desktop, MIME type, hicolor icons, licences (cmake/FabriCADInstall.cmake, packaging/)
+include(FabriCADInstall)
+
 message(STATUS "FabriCAD ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, Qt ${Qt6_VERSION}, OCCT ${OpenCASCADE_VERSION}, Eigen ${Eigen3_VERSION}")
