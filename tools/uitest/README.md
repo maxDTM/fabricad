@@ -42,6 +42,9 @@ ui.sh stop 91
 * Each display gets `XDG_CONFIG_HOME=$UI_LOGDIR/cfg-N` and `XDG_DATA_HOME=$UI_LOGDIR/data-N`
   (`UI_LOGDIR` defaults to `/tmp/fabricad-uitest`), so tests never read or change the user's settings,
   recent files or autosaves.
+* Repaints: the app presents without waiting for vsync (swap interval 0; OCCT no longer sets 1 on the window),
+  so a hidden or unfocused private display no longer freezes the window or shows input one step late. Older
+  notes ask for `vblank_mode=0`; it is not needed any more. `FABRICAD_VSYNC=1` brings vsync back.
 * `prefs <N> group/key=value ...` merges into `cfg-N/FabriCAD/FabriCAD.conf` (QSettings INI). Keys are those of
   `UiSettings` (Preferences > Appearance / Layout), e.g. `ui/theme=dark|light|system`, `ui/cardPlacement`,
   `ui/sidebarSide`, `ui/toolbarArea`, `ui/quickToolbar`, `ui/orientation=hexDial|viewCube`,
@@ -71,10 +74,19 @@ Regions are the `<rect data-region="ID">` boxes of the token mockups (`AppBar`, 
 `FeatureList`, `CommandDialog`, `OrientationDial`, `StatusBar` and so on). For each region it prints:
 
 * **layout** (with `--geometry`): the matching widget's box must be within `--tol` px (default 4) of the mockup
-  box on every edge. A miss makes the exit status 1. `missing` means no visible widget matched (a region such as
-  `RollbackBar` or `ViewButtons` is painted inside another widget and has no box of its own). Widgets are found
-  by objectName, `RibbonGroup:NAME` by the `toolbarGroup`/`section` property, `ViewToolColumn` by the `overlay`
-  property, `StatusBar` by class and `Viewer` by the viewer widget class.
+  box on the region's gated edges. A miss, or a gated region with no visible widget (`missing`), makes the exit
+  status 1. Widgets are found by objectName (or the rect's `data-widget`, e.g. `FeatureList` ->
+  `SidebarPanel_features`, as the mockup box includes the panel header), `RibbonGroup:NAME` by the
+  `toolbarGroup`/`section` property, `ViewToolColumn` by the `overlay` property, `StatusBar` by class and
+  `Viewer` by the viewer widget class.
+* **gate** (`data-gate` on the rect, shown in the GATE column): the edges that must match, `ltrb` by default.
+  An edge that follows content is left out (`ltb`: the breadcrumb's width follows its crumbs, the document
+  tabs their count, the card its body rows; `tb`: the ribbon groups, whose tool sets differ, P5-MOCKUP-10).
+  `none` regions are reported as `info` only: the value box sits at the 3D handle, `RollbackBar` and
+  `ViewButtons` are painted inside other widgets. `data-why` says why. The v6 boxes were regenerated from the
+  app geometry where the app is the agreed layout (the 6 px dock separator before the 3D view, the dial with
+  its button row, the card's 16 px padding, decision 2's workspace selector), so a correct 1920x1080 GL grab
+  passes (29 of 29) and a layout regression fails.
 * **colour**: the dominant colour of the region in the shot and in the mockup PNG, and their CIEDE2000
   difference (`!` above 3). `<circle data-sample="token" cx cy>` points in the SVG are sampled too.
 * **SSIM**: mean structural similarity of the luminance (8x8 blocks). Informative only: the mockup has a model
