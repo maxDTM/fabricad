@@ -91,7 +91,15 @@ class TestSidebar : public QObject {
     list()->refresh();
     QCOMPARE(doc().featureCount(), 13);
   }
-  QPoint center(int r) { return list()->rowRect(r).center(); }
+  // the row scrolled into view first (the insert button is pinned over the last rows of a short list)
+  QPoint center(int r) {
+    list()->ensureVisible(r);
+    return list()->rowRect(r).center();
+  }
+  QRect rect(int r) {
+    list()->ensureVisible(r);
+    return list()->rowRect(r);
+  }
 
  private slots:
   void initTestCase() {
@@ -400,7 +408,7 @@ class TestSidebar : public QObject {
     const int before = doc().rollbackIndex();
     const int bar = list()->model().rollbackRow();
     const QPoint from = center(bar);
-    const QPoint to = list()->rowRect(rowOf("Sketch3")).topLeft() + QPoint(60, 1);
+    const QPoint to = rect(rowOf("Sketch3")).topLeft() + QPoint(60, 1);
     QTest::mousePress(list()->viewport(), Qt::LeftButton, {}, from);
     QMouseEvent move(QEvent::MouseMove, to, list()->viewport()->mapToGlobal(to), Qt::NoButton, Qt::LeftButton, {});
     QCoreApplication::sendEvent(list()->viewport(), &move);
@@ -462,12 +470,13 @@ class TestSidebar : public QObject {
     };
     // refused: Extrude1 above Sketch1
     const int count = doc().undoStack().count();
-    drag(rowOf("Extrude1"), list()->rowRect(rowOf("Sketch1")).topLeft() + QPoint(80, 2));
+    drag(rowOf("Extrude1"), rect(rowOf("Sketch1")).topLeft() + QPoint(80, 2));
     QCOMPARE(doc().undoStack().count(), count);
     QCOMPARE(msg.count(), 1);
     QVERIFY(msg.takeFirst().at(0).toString().startsWith("Cannot move Extrude1"));
     // allowed: Chamfer1 (rolled back, no dependants) up before Fillet2
     const int chamferBefore = doc().indexOf(feature("Chamfer1"));
+    list()->ensureVisible(rowOf("Chamfer1"));
     drag(rowOf("Chamfer1"), list()->rowRect(rowOf("Fillet2")).topLeft() + QPoint(80, 2));
     QCOMPARE(doc().indexOf(feature("Chamfer1")), chamferBefore - 1);
     doc().undoStack().undo();

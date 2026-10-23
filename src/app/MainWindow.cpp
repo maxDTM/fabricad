@@ -339,6 +339,8 @@ void MainWindow::updateLiveRow() {
             pending->name = core::qs(f->name());
             if (std::string icon = f->iconName(); !icon.empty()) pending->icon = std::move(icon);
             pending->value = featureValueText(*document_, *f);
+            pending->type = f->type();
+            pending->folder = f->browserFolder();
           }
       }
     }

@@ -93,6 +93,8 @@ class FeatureListWidget : public QAbstractScrollArea {
   /// Row rectangle in viewport coordinates (null when not laid out, e.g. compact mode).
   QRect rowRect(int row) const;
   int rowAt(const QPoint& viewportPos) const;
+  /// Scroll so `row` is in view (rows end above the insert button pinned at the bottom).
+  void ensureVisible(int row);
   /// Parts of a row for hit tests (viewport coordinates).
   QRect checkBoxRect(int row) const;
   QRect chevronRect(int row) const;
@@ -142,7 +144,6 @@ class FeatureListWidget : public QAbstractScrollArea {
   bool isSelected(const FeatureRow& r) const;
   void selectRow(int row, Qt::KeyboardModifiers mods);
   void syncFromSelection();
-  void ensureVisible(int row);
   void moveBar(int step);
   void commitRename();
   void cancelRename();

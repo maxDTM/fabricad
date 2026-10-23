@@ -198,6 +198,8 @@ void FeatureListModel::rebuild(const core::Document& doc) {
     live.name = pending_->name;
     live.icon = pending_->icon;
     live.value = pending_->value;
+    live.type = pending_->type;
+    live.folder = pending_->folder;
     live.live = true;
     live.first = live.last = rb;
     if (at > 0) {

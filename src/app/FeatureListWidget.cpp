@@ -621,7 +621,8 @@ void FeatureListWidget::paintRow(QPainter& p, int i, const QRect& r) {
   const QRect iconRect(kIconX + indent, cy - 8, 16, 16);
   QIcon icon;
   if (row.kind == Kind::Feature) icon = error ? resourceIcon("error") : warning ? resourceIcon("warning") : featureIcon(row.icon, row.type, row.folder);
-  else if (row.kind == Kind::Live) icon = iconOr(row.icon, row.name.toStdString());
+  else if (row.kind == Kind::Live)
+    icon = row.type.empty() ? iconOr(row.icon, row.name.toStdString()) : featureIcon(row.icon, row.type, row.folder);
   else icon = resourceIcon(QString::fromStdString(row.icon));
   p.setOpacity(iconOpacity);
   icon.paint(&p, iconRect);

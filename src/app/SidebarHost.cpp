@@ -76,6 +76,7 @@ SidebarHost::SidebarHost(QWidget* parent) : QWidget(parent) {
   slotLayout->setSpacing(0);
   splitter_->addWidget(cardSlot_);
   cardSlot_->hide();
+  cardSlot_->installEventFilter(this);
 
   // FEATURES: header (search, filter) + optional search field + one list per tab
   auto* features = new SidebarPanel(kPanelKeys[0], "Features", "feature", splitter_);
@@ -170,6 +171,21 @@ SidebarHost::SidebarHost(QWidget* parent) : QWidget(parent) {
 
 SidebarHost::~SidebarHost() {
   for (const auto& c : docConns_) disconnect(c);
+}
+
+bool SidebarHost::eventFilter(QObject* o, QEvent* e) {
+  // the docked card's height hint settles after it is docked (its body is built and laid out
+  // later): the splitter follows, otherwise the slot keeps the first, shorter hint and the body
+  // scrolls with room to spare (P5-TOGGLES-2)
+  if (o == cardSlot_ && e->type() == QEvent::LayoutRequest && card_ && !applying_ && !cardRelayoutQueued_ &&
+      card_->sizeHint().height() != appliedCardHint_) {
+    cardRelayoutQueued_ = true;
+    QTimer::singleShot(0, this, [this] {
+      cardRelayoutQueued_ = false;
+      if (card_) applyLayout();
+    });
+  }
+  return QWidget::eventFilter(o, e);
 }
 
 void SidebarHost::resizeEvent(QResizeEvent* e) {
@@ -369,7 +385,10 @@ void SidebarHost::applyLayout() {
   if (!showFeatures) s[0] = 0;
   int cardH = 0;
   if (docked) {
+    // three handles between the card slot and the panels (QSS: 6 px plus a 1 px rule)
+    const int handleSpace = 3 * std::max(splitter_->handleWidth(), splitter_->handle(1)->sizeHint().height());
     const int want = card_ ? std::max(card_->sizeHint().height(), card_->minimumSizeHint().height()) : 300;
+    appliedCardHint_ = card_ ? card_->sizeHint().height() : -1;
     if (compact) {
       s[0] = panels_[0]->maximumHeight();
       cardH = std::max(want, total - s[0] - s[1] - s[2]);
@@ -378,7 +397,7 @@ void SidebarHost::applyLayout() {
       // MODEL and SELECTION their headers; it scrolls only below that (P5-TOGGLES-2: half the
       // sidebar hid OPERATION on a 1000 px window)
       const int keep = PanelHeader::kHeight + FeatureListWidget::kTop + 4 * FeatureListWidget::kRowH +
-                       2 * PanelHeader::kHeight + 3 * splitter_->handleWidth();
+                       2 * PanelHeader::kHeight + handleSpace;
       cardH = std::min(want, std::max(total / 2, total - keep));
       if (showFeatures && fs) s[0] = std::max(s[0], (total - cardH) * 3 / 5);
     }
@@ -399,6 +418,10 @@ void SidebarHost::applyLayout() {
         panels_[i]->setCollapsed(true);
         s[i] = PanelHeader::kHeight;
       }
+    // an expanded FEATURES takes what is left: the remembered size would make the splitter scale
+    // every share down, the card's too (P5-TOGGLES-2)
+    if (showFeatures && fs)
+      s[0] = std::max(PanelHeader::kHeight + 2 * FeatureListWidget::kRowH, total - cardH - s[1] - s[2] - handleSpace);
   }
   // fit the remembered sizes to the height there is, in proportion (open panels only)
   if (!docked && splitter_->height() > 0) {

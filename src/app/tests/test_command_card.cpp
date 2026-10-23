@@ -28,6 +28,7 @@
 #include <QLineEdit>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QToolButton>
@@ -284,6 +285,32 @@ class TestCommandCard : public QObject {
     settle();
     QVERIFY(card()->isDocked());
     w_->toolManager().cancel();
+    settle();
+  }
+
+  // P5-TOGGLES-2: docked beside the expanded FEATURES (profile input) on a 1000 px window the card
+  // gets its full height while FEATURES keeps its rows: OPERATION is visible without scrolling
+  void dockedCardGetsItsHeight() {
+    const QSize old = w_->size();
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    QCOMPARE(run({"SKETCH XY", "RECT", "0,0", "40,30", "FINISH"}), 0);
+    setPlacement("sidebar");
+    w_->resize(1600, 1000);
+    settle();
+    QVERIFY(w_->runCommand("part.extrude"));
+    settle();
+    settle();
+    QVERIFY(card()->isDocked());
+    auto* scroll = card()->findChild<QScrollArea*>("CommandDialogScroll");
+    QVERIFY(scroll && scroll->widget());
+    QVERIFY2(scroll->viewport()->height() >= scroll->widget()->height(),
+             qPrintable(QString("%1 < %2").arg(scroll->viewport()->height()).arg(scroll->widget()->height())));
+    auto* list = w_->findChild<app::FeatureListWidget*>();
+    QVERIFY(list && list->isVisible() && list->height() >= 2 * app::FeatureListWidget::kRowH);
+    w_->toolManager().cancel();
+    settle();
+    setPlacement("floatRight");
+    w_->resize(old);
     settle();
   }
 

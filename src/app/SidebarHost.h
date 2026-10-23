@@ -129,6 +129,7 @@ class SidebarHost : public QWidget {
  protected:
   void paintEvent(QPaintEvent* e) override;
   void resizeEvent(QResizeEvent* e) override;
+  bool eventFilter(QObject* o, QEvent* e) override;
 
  private:
   void applyLayout();
@@ -164,6 +165,8 @@ class SidebarHost : public QWidget {
   bool filterFeatureSelection_ = false;
   bool dropHighlight_ = false;
   bool applying_ = false;
+  int appliedCardHint_ = -1;  ///< card height hint the last applyLayout() used
+  bool cardRelayoutQueued_ = false;
 };
 
 }  // namespace fabricad::app

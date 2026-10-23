@@ -49,6 +49,7 @@
 #include <QPainterPath>
 #include <QPainter>
 #include <QResizeEvent>
+#include <QSurfaceFormat>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -190,7 +191,19 @@ constexpr double kCubeCtlRadius = 84.0;
 
 }  // namespace
 
-void setupGlPlatform() { OcctQtTools::qtGlPlatformSetup(); }
+void setupGlPlatform() {
+  OcctQtTools::qtGlPlatformSetup();
+  // P5-KEYBOARD-1: the 3D view makes Qt compose the whole window with GL. With a swap interval of
+  // 1 a buffer swap waits for the display's frame: under Xwayland (a hidden, occluded or unfocused
+  // window gets no frame callbacks) the swap blocks and the window keeps showing the previous
+  // state until some later event, or the GUI hangs (the uitest harness needed vblank_mode=0). The
+  // widgets repaint on demand only, so no throttling is lost; FABRICAD_VSYNC=1 restores it.
+  if (qEnvironmentVariableIntValue("FABRICAD_VSYNC") == 0) {
+    QSurfaceFormat f = QSurfaceFormat::defaultFormat();
+    f.setSwapInterval(0);
+    QSurfaceFormat::setDefaultFormat(f);
+  }
+}
 
 // ---------------------------------------------------------------------------------------
 // Listener bridging OcctView callbacks to ViewerWidget's private handlers.
@@ -2295,7 +2308,10 @@ void ViewerWidget::setHighlighted(const std::vector<ShapeRef>& refs) {
   const bool changed = highlighted_ != refs;
   highlighted_ = refs;
   scheduleOverlaySync();
-  if (changed) emit highlightedChanged();
+  if (changed) {
+    if (filterBar_) filterBar_->update();  // the active segment follows the picks
+    emit highlightedChanged();
+  }
 }
 
 // ---------------------------------------------------------------------------------------

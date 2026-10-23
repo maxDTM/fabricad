@@ -657,10 +657,13 @@ bool SelectionFilterBar::segmentActive(Segment s) const {
   if (relevant != 0 && (relevant & ~segmentKinds(s)) == 0) return true;
   // several kinds allowed: the segment of what is picked lights (v6: a profile picked for Extrude
   // lights SKETCH PROFILES, P5-MOCKUP-7)
+  // (the selection, or a running command's picks, which it keeps out of the selection)
   core::Document* doc = viewer_.document();
-  if (!doc || doc->selection().items().empty() || relevant == 0) return false;
+  if (relevant == 0) return false;
+  const std::vector<core::ShapeRef>& items =
+      doc && !doc->selection().items().empty() ? doc->selection().items() : viewer_.highlightedRefs();
   core::ShapeKindMask picked = 0;
-  for (const core::ShapeRef& r : doc->selection().items()) picked |= core::mask(r.kind);
+  for (const core::ShapeRef& r : items) picked |= core::mask(r.kind);
   picked &= relevant;
   return picked != 0 && (picked & ~segmentKinds(s)) == 0;
 }

@@ -66,6 +66,8 @@ class FeatureListModel {
     QString name;          ///< "Extrude" (tool name)
     std::string icon;      ///< tool icon path or name
     QString value;
+    std::string type;      ///< feature type of a feature tool's working copy ("Extrude"): its row icon
+    std::string folder;
   };
 
   void rebuild(const core::Document& doc);

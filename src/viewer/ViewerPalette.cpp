@@ -14,6 +14,10 @@ bool sameColor(const ViewerPalette::Rgba& a, const ViewerPalette::Rgba& b) {
 }
 }  // namespace
 
+namespace {
+constexpr float kLightReflectance = 1.25f;
+}  // namespace
+
 ViewerPalette ViewerPalette::fromTokens(theme::Theme th) {
   using theme::Tok;
   auto c = [th](Tok t) { return theme::rgba(t, th); };
@@ -38,6 +42,12 @@ ViewerPalette ViewerPalette::fromTokens(theme::Theme th) {
   p.preFill = withAlpha(c(Tok::PreEdge), 0.16f);
   p.halo = c(Tok::Halo);
   p.selWidth = light ? 2.5f : 2.2f;
+  if (light) {
+    // P5-LIGHT-7: the light body rendered about 10 L under the mockup (#AAAEB2 lit top for
+    // body.default #BFC3C8): more reflectance brings the lit top back to about body.default
+    p.matAmbient *= kLightReflectance;
+    p.matDiffuse *= kLightReflectance;
+  }
   p.preWidth = 1.5f;
 
   p.live.fill = c(Tok::PreviewLiveFill);
