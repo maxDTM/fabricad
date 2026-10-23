@@ -191,6 +191,13 @@
   <file>icons/dark/new.svg</file>
   <file>icons/dark/ok.svg</file>
   <file>icons/dark/open.svg</file>
+  <file>icons/dark/option-cut.svg</file>
+  <file>icons/dark/option-intersect.svg</file>
+  <file>icons/dark/option-join.svg</file>
+  <file>icons/dark/option-new-body.svg</file>
+  <file>icons/dark/option-one-side.svg</file>
+  <file>icons/dark/option-symmetric.svg</file>
+  <file>icons/dark/option-two-sides.svg</file>
   <file>icons/dark/orbit.svg</file>
   <file>icons/dark/origin.svg</file>
   <file>icons/dark/pan.svg</file>
@@ -514,6 +521,13 @@
   <file>icons/light/new.svg</file>
   <file>icons/light/ok.svg</file>
   <file>icons/light/open.svg</file>
+  <file>icons/light/option-cut.svg</file>
+  <file>icons/light/option-intersect.svg</file>
+  <file>icons/light/option-join.svg</file>
+  <file>icons/light/option-new-body.svg</file>
+  <file>icons/light/option-one-side.svg</file>
+  <file>icons/light/option-symmetric.svg</file>
+  <file>icons/light/option-two-sides.svg</file>
   <file>icons/light/orbit.svg</file>
   <file>icons/light/origin.svg</file>
   <file>icons/light/pan.svg</file>

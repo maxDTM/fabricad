@@ -753,6 +753,22 @@ I["app-rollback"] = (P("M5 5 H19 M5 9 H19", s=INK) + P("M3 13 H21", s=UI) + P("M
                      dot(3, 13, UI, 1.6))
 
 
+# ===== command card options (segmented controls, approved Extrude card body 2026-10-23) ==========
+# DIRECTION: the profile (blue) and the extrusion arrows (orange); OPERATION: body boolean marks.
+_profile = P("M4 17.5 L7 14.5 H20 L17 17.5 Z", s=SK, f=SK, fo="0.2")
+I["option-one-side"] = _profile + P("M12 15 V4.5", s=OR) + arrow_head(12, 4.5, "up", OR, 2.5)
+I["option-symmetric"] = (P("M3.5 12 H20.5", s=SK) + P("M12 10 V3.5 M12 14 V20.5", s=OR) +
+                         arrow_head(12, 3.5, "up", OR, 2.5) + arrow_head(12, 20.5, "down", OR, 2.5) +
+                         P("M9 7 H15 M9 17 H15", s=GREY))
+I["option-two-sides"] = (P("M3.5 15 H20.5", s=SK) + P("M12 13 V3.5 M12 17 V21", s=OR) +
+                         arrow_head(12, 3.5, "up", OR, 2.5) + arrow_head(12, 21, "down", OR, 2) +
+                         dot(12, 15, SK, 1.4))
+I["option-join"] = P("M4 9 H11 V4 H20 V15 H13 V20 H4 Z", f=BODY) + P("M11 9 V11 M13 13 V15", s=GREY)
+I["option-cut"] = P("M4 8 H11 V13 H16 V20 H4 Z", f=BODY) + R(11, 4, 9, 9, s=RED, da=DASH)
+I["option-intersect"] = R(3.5, 3.5, 11, 11, s=GREY) + R(9.5, 9.5, 11, 11, s=GREY) + R(9.5, 9.5, 5, 5, s=INK, f=BODY)
+I["option-new-body"] = cube(10, 13.5, 0.85) + plus(18.5, 5.5, AS, 3)
+
+
 # ===== hand-drawn icons, kept as literal SVG bodies; {NAME} placeholders take the theme palette =====
 LITERAL = {
     'app-isolate': '<path d="M2 12 s4 -6.5 10 -6.5 10 6.5 10 6.5 -4 6.5 -10 6.5 S2 12 2 12 z" stroke="{GREY}"/><circle cx="12" cy="12" r="3.5" fill="{UI}" stroke="{UI}"/>',

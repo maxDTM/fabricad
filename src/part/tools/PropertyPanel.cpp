@@ -9,6 +9,7 @@
 #include "core/Units.h"
 #include "part/PartFeature.h"
 #include "theme/StatusGlyph.h"
+#include "theme/Tokens.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -16,11 +17,14 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+#include <QAbstractButton>
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +44,66 @@ void markInvalid(QLineEdit* edit, bool invalid) {
   edit->style()->unpolish(edit);
   edit->style()->polish(edit);
 }
+
+/// Logical icon of a segmented option (resources/icons/generate_icons.py, "option-*"); empty if none.
+QString optionIcon(const std::string& option) {
+  static const std::map<std::string, const char*> kIcons = {
+      {"One Side", "option-one-side"}, {"Symmetric", "option-symmetric"}, {"Two Sides", "option-two-sides"},
+      {"Join", "option-join"},         {"Cut", "option-cut"},             {"Intersect", "option-intersect"},
+      {"New Body", "option-new-body"}};
+  auto it = kIcons.find(option);
+  return it == kIcons.end() ? QString() : QStringLiteral(":/icons/%1.svg").arg(QLatin1StringView(it->second));
+}
+
+/// Segmented-control hints on an enum combo (see the header): icons when every option has one,
+/// the approved DIRECTION order One side, Symmetric, Two sides.
+void setSegmentHints(QComboBox* combo, const std::vector<std::string>& options) {
+  QStringList icons;
+  for (const auto& o : options) icons << optionIcon(o);
+  if (!icons.contains(QString())) combo->setProperty("segmentIcons", icons);
+  static const std::vector<std::string> kDirOrder = {"One Side", "Symmetric", "Two Sides"};
+  if (options.size() == kDirOrder.size() &&
+      std::is_permutation(options.begin(), options.end(), kDirOrder.begin())) {
+    QVariantList order;
+    for (const auto& o : kDirOrder) order << static_cast<int>(std::find(options.begin(), options.end(), o) - options.begin());
+    combo->setProperty("segmentOrder", order);
+  }
+}
+
+/// PREVIEW on/off switch (v6 mockup): track and knob painted from the tokens at paint time.
+class ToggleSwitch : public QAbstractButton {
+ public:
+  explicit ToggleSwitch(QWidget* parent) : QAbstractButton(parent) {
+    setCheckable(true);
+    setFocusPolicy(Qt::StrongFocus);
+    setCursor(Qt::PointingHandCursor);
+    setFixedSize(36, 20);
+  }
+  QSize sizeHint() const override { return {36, 20}; }
+
+ protected:
+  void paintEvent(QPaintEvent*) override {
+    using theme::Tok;
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    const QRectF track = QRectF(rect()).adjusted(2, 2, -2, -2);  // 32 x 16 (plan 5.4)
+    const bool on = isChecked();
+    p.setPen(on ? Qt::NoPen : QPen(theme::color(Tok::BorderControl), 1));
+    p.setBrush(!isEnabled() ? theme::color(Tok::SurfaceHover) : on ? theme::color(Tok::AccentSolid) : theme::color(Tok::SurfaceInput));
+    p.drawRect(track.adjusted(0.5, 0.5, -0.5, -0.5));
+    const double k = track.height() - 4;  // 12 x 12 square knob
+    const QRectF knob(on ? track.right() - 2 - k : track.left() + 2, track.top() + 2, k, k);
+    p.setPen(Qt::NoPen);
+    p.setBrush(!isEnabled() ? theme::color(Tok::TextDisabled) : on ? theme::color(Tok::AccentOnSolid) : theme::color(Tok::TextSecondary));
+    p.drawRect(knob);
+    if (hasFocus()) {
+      p.setRenderHint(QPainter::Antialiasing, false);
+      p.setPen(QPen(theme::color(Tok::AccentFocus), 2));
+      p.setBrush(Qt::NoBrush);
+      p.drawRect(rect().adjusted(1, 1, -1, -1));
+    }
+  }
+};
 }  // namespace
 
 PropertyPanel::PropertyPanel(core::Document& doc, PartFeature& feature, QWidget* parent)
@@ -89,7 +153,7 @@ QString PropertyPanel::refText(const core::Property& p) const {
     refs = p.refs();
   }
   const int n = static_cast<int>(refs.size());
-  if (n == 0) return tr("Select");
+  if (n == 0) return p.placeholder().empty() ? tr("Select") : qs(p.placeholder());
   core::ShapeKind kind = refs.front().kind;
   for (const auto& r : refs)
     if (r.kind != kind) kind = core::ShapeKind::None;
@@ -206,9 +270,17 @@ void PropertyPanel::rebuild() {
   refSources_.clear();
   exprLabels_.clear();
   trailSlots_.clear();
+  moreBox_ = nullptr;
   rows_ = visibleRows();
-  for (const auto& name : rows_)
-    if (core::Property* p = feature_.property(name)) addRow(*p);
+  std::vector<core::Property*> advanced;
+  for (const auto& name : rows_) {
+    core::Property* p = feature_.property(name);
+    if (!p) continue;
+    if (p->flags().advanced) advanced.push_back(p);
+    else addRow(*p, form_);
+  }
+  if (previewSwitch_) addPreviewRow();
+  addMoreOptions(advanced);
   // invalid text survives a rebuild in rows that still exist; hidden rows can't block OK
   bool dropped = false;
   for (auto it = invalid_.begin(); it != invalid_.end();) {
@@ -239,6 +311,90 @@ void PropertyPanel::rebuild() {
   for (auto& [name, btn] : refButtons_) btn->setChecked(name == active_);
   rebuilding_ = false;
   if (dropped) emit validityChanged();
+}
+
+void PropertyPanel::enablePreviewSwitch(bool on) {
+  previewSwitch_ = true;
+  previewOn_ = on;
+  rebuild();
+}
+
+void PropertyPanel::addPreviewRow() {
+  // PREVIEW [switch] LIVE, SEMI-TRANSPARENT (v6 mockup)
+  auto* cell = new QWidget(this);
+  cell->setObjectName("PreviewRow");
+  auto* h = new QHBoxLayout(cell);
+  h->setContentsMargins(0, 0, 0, 0);
+  h->setSpacing(10);
+  auto* sw = new ToggleSwitch(cell);
+  sw->setObjectName("prop_preview");
+  sw->setChecked(previewOn_);
+  sw->setAccessibleName(tr("Preview"));
+  sw->setToolTip(tr("Show the live preview of the result in the viewport"));
+  auto* caption = new QLabel(cell);
+  caption->setObjectName("PreviewCaption");
+  caption->setProperty("textStyle", "caption");
+  auto text = [caption](bool on) { caption->setText(on ? tr("Live, semi-transparent") : tr("Off")); };
+  text(previewOn_);
+  h->addWidget(sw, 0, Qt::AlignVCenter);
+  h->addWidget(caption, 1);
+  connect(sw, &QAbstractButton::toggled, this, [this, text](bool on) {
+    text(on);
+    if (previewOn_ == on) return;
+    previewOn_ = on;
+    emit previewToggled(on);
+  });
+  form_->addRow(tr("Preview"), cell);
+}
+
+void PropertyPanel::addMoreOptions(const std::vector<core::Property*>& advanced) {
+  if (advanced.empty()) return;
+  if (moreAuto_) {
+    // a value that is set (an edited Extrude with a start offset) must not hide behind the row
+    bool set = false;
+    for (const core::Property* p : advanced) {
+      if (invalid_.count(p->name())) set = true;
+      const auto t = p->type();
+      if ((t == core::PropertyType::Length || t == core::PropertyType::Angle || t == core::PropertyType::Double) &&
+          (p->hasExpression() || std::abs(p->toDouble()) > 1e-12))
+        set = true;
+    }
+    moreOpen_ = set;
+  }
+  auto* toggle = new QToolButton(this);
+  toggle->setObjectName("MoreOptions");
+  toggle->setText(tr("More options"));
+  toggle->setCheckable(true);
+  toggle->setChecked(moreOpen_);
+  toggle->setAutoRaise(true);
+  toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  toggle->setArrowType(moreOpen_ ? Qt::DownArrow : Qt::RightArrow);
+  toggle->setFocusPolicy(Qt::StrongFocus);
+  toggle->setToolTip(tr("Rarely used inputs"));
+  form_->addRow(toggle);
+  moreBox_ = new QWidget(this);
+  moreBox_->setObjectName("MoreOptionsBox");
+  auto* f = new QFormLayout(moreBox_);
+  f->setContentsMargins(0, 0, 0, 0);
+  f->setLabelAlignment(Qt::AlignLeft);
+  f->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+  for (core::Property* p : advanced) addRow(*p, f);
+  form_->addRow(moreBox_);
+  moreBox_->setVisible(moreOpen_);
+  connect(toggle, &QToolButton::toggled, this, [this](bool open) {
+    moreAuto_ = false;
+    setMoreOptionsOpen(open);
+  });
+}
+
+void PropertyPanel::setMoreOptionsOpen(bool open) {
+  moreOpen_ = open;
+  if (auto* t = findChild<QToolButton*>("MoreOptions")) {
+    QSignalBlocker block(t);
+    t->setChecked(open);
+    t->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
+  }
+  if (moreBox_) moreBox_->setVisible(open);
 }
 
 void PropertyPanel::refresh() {
@@ -345,7 +501,7 @@ void PropertyPanel::applyNumericText(core::Property& p, QLineEdit* edit, bool im
   emit valueChanged(p.name());
 }
 
-void PropertyPanel::addRow(core::Property& p) {
+void PropertyPanel::addRow(core::Property& p, QFormLayout* form) {
   const QString label = qs(p.label());
   const std::string name = p.name();
   switch (p.type()) {
@@ -386,7 +542,7 @@ void PropertyPanel::addRow(core::Property& p) {
           updateExpression(name);
         }
       });
-      form_->addRow(label, cell);
+      form->addRow(label, cell);
       updateExpression(name);
       break;
     }
@@ -403,7 +559,7 @@ void PropertyPanel::addRow(core::Property& p) {
           emit valueChanged(name);
         }
       });
-      form_->addRow(label, spin);
+      form->addRow(label, spin);
       break;
     }
     case core::PropertyType::Bool: {
@@ -417,7 +573,7 @@ void PropertyPanel::addRow(core::Property& p) {
           emit valueChanged(name);
         }
       });
-      form_->addRow(label, box);
+      form->addRow(label, box);
       // Flip: the value field's trailing ⇄ action (5.4) instead of a row of its own; the
       // check box stays (hidden) as the model, so scripts and tests drive it as before
       const std::string primary = feature_.primaryNumeric();
@@ -436,7 +592,7 @@ void PropertyPanel::addRow(core::Property& p) {
         connect(box, &QCheckBox::toggled, flip, [flip](bool v) {
           if (flip->isChecked() != v) flip->setChecked(v);
         });
-        form_->setRowVisible(box, false);
+        form->setRowVisible(box, false);
       }
       break;
     }
@@ -445,6 +601,7 @@ void PropertyPanel::addRow(core::Property& p) {
       for (const auto& o : p.options()) combo->addItem(qs(o));
       combo->setCurrentIndex(p.enumIndex());
       combo->setObjectName(qs("prop_" + name));
+      setSegmentHints(combo, p.options());
       enumCombos_[name] = combo;
       connect(combo, &QComboBox::currentIndexChanged, this, [this, name](int idx) {
         if (rebuilding_) return;
@@ -453,7 +610,7 @@ void PropertyPanel::addRow(core::Property& p) {
           emit valueChanged(name);
         }
       });
-      form_->addRow(label, combo);
+      form->addRow(label, combo);
       break;
     }
     case core::PropertyType::String: {
@@ -465,7 +622,7 @@ void PropertyPanel::addRow(core::Property& p) {
           emit valueChanged(name);
         }
       });
-      form_->addRow(label, edit);
+      form->addRow(label, edit);
       break;
     }
     case core::PropertyType::Ref:
@@ -503,7 +660,7 @@ void PropertyPanel::addRow(core::Property& p) {
           emit valueChanged(name);
         }
       });
-      form_->addRow(label, row);
+      form->addRow(label, row);
       break;
     }
     default: break;

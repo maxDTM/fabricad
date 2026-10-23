@@ -115,6 +115,9 @@ const QStringList kUiIcons = {
     "select", "select-body", "select-component", "select-face", "select-edge", "select-vertex",
     // dialogs
     "ok", "cancel", "joint",
+    // command card segmented options (part PropertyPanel segmentIcons)
+    "option-one-side", "option-symmetric", "option-two-sides", "option-join", "option-cut", "option-intersect",
+    "option-new-body",
 };
 
 QString sourceIconDir() {

@@ -415,6 +415,7 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 | Combo `QComboBox` | 28 h, `surface.input`, 1 px `border.control`, ▾ in a 24 px cell |
 | Value field | 28 h, value in `value`, unit suffix, trailing action (⇄ flip) 24 px. Live-edited: 1 px `live.base` border and the digits on gold. Expression line below: `fx` + expression in `value`, `text.secondary`. |
 | Switch (Preview) | 32 × 16, 1 px border, knob 12 × 12 square. On: `accent.solid`. |
+| Feature card body (approved 2026-10-23) | Rows in feature order, then `MERGE WITH` (the multi-body `targets` selection input as a chip, `AUTO` while empty = every body the tool touches), then `PREVIEW` (switch + `LIVE, SEMI-TRANSPARENT` / `OFF`; off removes the live preview shapes, the result is still computed for Apply and messages; session-wide for all feature commands), then a collapsed `More options` row holding the `PropertyFlags::advanced` rows (Extrude `START OFFSET`; opens by itself while the value is not zero). DIRECTION cells read One side, Symmetric, Two sides (display order only; the stored enum is unchanged). DIRECTION and OPERATION cells carry `option-*` icons from the themed icon set. Shared by every `PropertyPanel` card (Revolve, Sweep, Loft, primitives, ...). Tab order follows the rows top to bottom, then Cancel, Apply. |
 | Footer | Cancel (secondary, 1 px `border.control`, keycap `ESC`) and Apply (`accent.solid`, check icon, keycap `ENTER`). The existing `OkButton` objectName and behaviour are kept. |
 
 ---

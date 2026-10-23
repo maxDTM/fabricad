@@ -2,6 +2,14 @@
 // property panel). Length/angle fields accept expressions with units and parameters,
 // enums are combos, bools checkboxes, Ref/RefList rows are selection inputs (the active one
 // is highlighted; clicking makes it active; "x" clears). The shell adds title + OK/Cancel.
+//
+// Card body (approved 2026-10-23, v6 mockup): the feature's rows, then an optional PREVIEW switch
+// (enablePreviewSwitch(); the tool shows / hides its live preview), then a collapsed "More options"
+// row holding the PropertyFlags::advanced rows (Extrude: START OFFSET). It opens by itself while an
+// advanced value is not zero. Small enums carry hints for the card's segmented control as dynamic
+// combo properties: "segmentIcons" (logical icon paths per option, model order) and "segmentOrder"
+// (display order of the option indices: DIRECTION shows One side, Symmetric, Two sides while the
+// stored enum keeps One Side = 0, Two Sides = 1, Symmetric = 2).
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
@@ -68,15 +76,26 @@ class PropertyPanel : public QWidget {
   /// toggled PropertyFlags::hidden): rebuild() is needed (PART-06).
   bool needsRebuild() const;
 
+  /// Show the PREVIEW switch row (feature commands), initially `on`. Rebuilds the rows.
+  void enablePreviewSwitch(bool on);
+  bool isPreviewOn() const { return previewOn_; }
+  /// The "More options" section with the advanced rows is open.
+  bool isMoreOptionsOpen() const { return moreOpen_; }
+  void setMoreOptionsOpen(bool open);
+
  signals:
   void valueChanged(const std::string& property);
   void activeInputChanged(const std::string& property);
   void refsCleared(const std::string& property);
   /// hasInvalid() / invalidMessage() changed.
   void validityChanged();
+  /// The user flipped the PREVIEW switch.
+  void previewToggled(bool on);
 
  private:
-  void addRow(core::Property& p);
+  void addRow(core::Property& p, QFormLayout* form);
+  void addPreviewRow();
+  void addMoreOptions(const std::vector<core::Property*>& advanced);
   void applyNumericText(core::Property& p, QLineEdit* edit, bool immediate);
   void flushPending();
   QString refText(const core::Property& p) const;
@@ -96,6 +115,11 @@ class PropertyPanel : public QWidget {
   PartFeature& feature_;
   QFormLayout* form_ = nullptr;
   QLabel* message_ = nullptr;
+  QWidget* moreBox_ = nullptr;  ///< advanced rows (inside form_, rebuilt with it)
+  bool previewSwitch_ = false;
+  bool previewOn_ = true;
+  bool moreOpen_ = false;
+  bool moreAuto_ = true;  ///< the user has not toggled "More options" yet
   std::string active_;
   std::map<std::string, QPushButton*> refButtons_;
   std::map<std::string, QLineEdit*> numericEdits_;

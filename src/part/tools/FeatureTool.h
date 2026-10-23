@@ -83,6 +83,11 @@ class FeatureTool : public core::ToolBase {
   /// Compute a deferred preview now (no-op when it is up to date).
   void flushPreview(core::ToolContext& ctx);
   bool isPreviewPending() const { return previewPending_; }
+  /// The card's PREVIEW switch (shared by all feature commands for the session): off removes the
+  /// live preview shapes from the viewport; the result is still computed (Apply, messages, the
+  /// gizmos). An edit still changes the edited bodies in place (the document is the preview).
+  static bool isPreviewShown();
+  void setPreviewShown(core::ToolContext& ctx, bool shown);
   /// Set a numeric property from text (expression allowed). False if invalid.
   bool setNumeric(core::ToolContext& ctx, const std::string& propName, const std::string& text);
 

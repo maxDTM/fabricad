@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/SegmentedControl.h"
 
+#include "app/Icons.h"
 #include "app/ThemeManager.h"
 #include "theme/Hairline.h"
 #include "theme/Tokens.h"
@@ -33,6 +34,26 @@ void SegmentedControl::setOptions(const QStringList& labels) {
   update();
 }
 
+void SegmentedControl::setOrder(const QList<int>& order) {
+  QList<int> sorted = order;
+  std::sort(sorted.begin(), sorted.end());
+  bool ok = sorted.size() == count();
+  for (int i = 0; ok && i < sorted.size(); ++i) ok = sorted[i] == i;
+  order_ = ok ? order : QList<int>();
+  update();
+}
+
+void SegmentedControl::setIcons(const QList<QIcon>& icons) {
+  icons_ = icons.size() == count() ? icons : QList<QIcon>();
+  setFixedHeight(icons_.isEmpty() ? kHeight : kIconHeight);
+  updateGeometry();
+  update();
+}
+
+int SegmentedControl::optionAt(int pos) const { return order_.isEmpty() ? pos : order_.value(pos, -1); }
+
+int SegmentedControl::positionOf(int option) const { return order_.isEmpty() ? option : static_cast<int>(order_.indexOf(option)); }
+
 int SegmentedControl::currentIndex() const { return combo_ ? combo_->currentIndex() : index_; }
 
 void SegmentedControl::setCurrentIndex(int index) {
@@ -54,6 +75,19 @@ void SegmentedControl::bindCombo(QComboBox* combo) {
   QStringList labels;
   for (int i = 0; i < combo->count(); ++i) labels << combo->itemText(i);
   setOptions(labels);
+  QList<int> order;
+  for (const QVariant& v : combo->property("segmentOrder").toList()) order << v.toInt();
+  setOrder(order);
+  QList<QIcon> icons;
+  for (const QString& path : combo->property("segmentIcons").toStringList()) {
+    const QIcon icon = resourceIcon(path);
+    if (icon.isNull()) {
+      icons.clear();
+      break;
+    }
+    icons << icon;
+  }
+  setIcons(icons);
   setToolTip(combo->toolTip());
   setEnabled(combo->isEnabled());
   connect(combo, &QComboBox::currentIndexChanged, this, [this](int) { sync(); });
@@ -64,7 +98,8 @@ void SegmentedControl::sync() {
   if (painted_ != currentIndex()) update();
 }
 
-QRect SegmentedControl::cellRect(int i) const {
+QRect SegmentedControl::cellRect(int option) const {
+  const int i = positionOf(option);
   const int n = std::max(1, count());
   const int w = width();
   const int x0 = i * w / n, x1 = (i + 1) * w / n;
@@ -73,7 +108,7 @@ QRect SegmentedControl::cellRect(int i) const {
 
 int SegmentedControl::cellAt(const QPoint& p) const {
   for (int i = 0; i < count(); ++i)
-    if (cellRect(i).contains(p)) return i;
+    if (cellRect(i).contains(p)) return i;  // option indices
   return -1;
 }
 
@@ -81,14 +116,14 @@ QSize SegmentedControl::sizeHint() const {
   const QFontMetrics fm(theme::font(theme::TextStyle::LabelSm));
   int w = 0;
   for (const QString& l : labels_) w = std::max(w, fm.horizontalAdvance(l.toUpper()) + 16);
-  return {std::max(1, count()) * w, kHeight};
+  return {std::max(1, count()) * w, icons_.isEmpty() ? kHeight : kIconHeight};
 }
 
 QSize SegmentedControl::minimumSizeHint() const {
   const QFontMetrics fm(theme::font(theme::TextStyle::LabelSm));
   int w = 0;
   for (const QString& l : labels_) w = std::max(w, fm.horizontalAdvance(l.toUpper()) + 6);
-  return {std::max(1, count()) * w, kHeight};
+  return {std::max(1, count()) * w, icons_.isEmpty() ? kHeight : kIconHeight};
 }
 
 void SegmentedControl::paintEvent(QPaintEvent*) {
@@ -107,7 +142,14 @@ void SegmentedControl::paintEvent(QPaintEvent*) {
       p.fillRect(c, theme::color(Tok::SurfaceHover));
     }
     p.setPen(!on ? theme::color(Tok::TextDisabled) : i == cur ? theme::color(Tok::TextPrimary) : theme::color(Tok::TextSecondary));
-    p.drawText(c.adjusted(2, 0, -2, 0), Qt::AlignCenter, labels_[i]);
+    if (icons_.isEmpty()) {
+      p.drawText(c.adjusted(2, 0, -2, 0), Qt::AlignCenter, labels_[i]);
+      continue;
+    }
+    // icon above the label (v6 mockup); the themed engine picks dark/ or light/ artwork
+    const QRect icon(c.left() + (c.width() - 18) / 2, c.top() + 9, 18, 18);
+    icons_[i].paint(&p, icon, Qt::AlignCenter, on ? QIcon::Normal : QIcon::Disabled);
+    p.drawText(QRect(c.left() + 2, c.top() + 31, c.width() - 4, c.height() - 33), Qt::AlignHCenter | Qt::AlignTop, labels_[i]);
   }
   // outline and dividers (border.control), then the checked cell's indicator border on top. One device
   // pixel, aligned to device pixels (7.4): a plain 1 px pen lost the top and left edges at scale 1.25.
@@ -145,14 +187,15 @@ void SegmentedControl::leaveEvent(QEvent* e) {
 }
 
 void SegmentedControl::keyPressEvent(QKeyEvent* e) {
-  const int cur = currentIndex();
+  // arrows walk the cells as shown (segmentOrder), not the model indices
+  const int pos = positionOf(currentIndex());
   switch (e->key()) {
     case Qt::Key_Left:
-    case Qt::Key_Up: setCurrentIndex(std::max(0, cur - 1)); break;
+    case Qt::Key_Up: setCurrentIndex(optionAt(std::max(0, pos - 1))); break;
     case Qt::Key_Right:
-    case Qt::Key_Down: setCurrentIndex(std::min(count() - 1, cur + 1)); break;
-    case Qt::Key_Home: setCurrentIndex(0); break;
-    case Qt::Key_End: setCurrentIndex(count() - 1); break;
+    case Qt::Key_Down: setCurrentIndex(optionAt(std::min(count() - 1, pos + 1))); break;
+    case Qt::Key_Home: setCurrentIndex(optionAt(0)); break;
+    case Qt::Key_End: setCurrentIndex(optionAt(count() - 1)); break;
     default: QWidget::keyPressEvent(e); return;
   }
   e->accept();

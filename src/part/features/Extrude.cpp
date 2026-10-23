@@ -17,7 +17,8 @@ namespace fabricad::part {
 
 ExtrudeFeature::ExtrudeFeature() : PartFeature(kType) {
   addRefs("profiles", core::ShapeKind::Profile | core::ShapeKind::Face | core::ShapeKind::Sketch).setLabel("Profiles");
-  addLength("startOffset", 0.0).setLabel("Start offset").setTooltip("Offset of the start plane along the direction");
+  addLength("startOffset", 0.0).setLabel("Start offset").setTooltip("Offset of the start plane along the direction")
+      .flags().advanced = true;  // under the card's "More options" row (approved card body, 2026-10-23)
   addEnum("direction", {"One Side", "Two Sides", "Symmetric"}, OneSide).setLabel("Direction");
   addEnum("extentType", {"Distance", "To Object", "All"}, Distance).setLabel("Extent");
   addLength("distance", 10.0).setLabel("Distance");

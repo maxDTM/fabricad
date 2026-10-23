@@ -1184,7 +1184,7 @@
 <rect data-region="ViewButtons" x="1701.8" y="288.0" width="168.4" height="26.0" data-gate="none" data-why="painted inside the OrientationDial widget"/>
 <rect data-region="ViewToolColumn" x="1868.0" y="330.0" width="36.0" height="220.0"/>
 <rect data-region="StepIndicator" x="1302.0" y="222.0" width="328.0" height="22.0" data-why="inside the 16 px card padding"/>
-<rect data-region="CommandDialog" x="1286.0" y="182.0" width="360.0" height="532.0" data-gate="ltr" data-why="height follows the body rows (MERGE WITH / PREVIEW pending a decision)"/>
+<rect data-region="CommandDialog" x="1286.0" y="182.0" width="360.0" height="532.0" data-gate="ltr" data-why="height follows the body rows (approved body 2026-10-23: MERGE WITH, PREVIEW, collapsed More options; 522 px for the plain extrude grab vs 532 here, which has an fx line and no More options row)"/>
 <rect data-region="OkButton" x="1417.0" y="672.0" width="213.0" height="32.0" data-gate="lr" data-why="its top follows the card height"/>
 <rect data-region="WorkspaceSwitcher" x="137.0" y="4.0" width="128.0" height="28.0" data-why="decision 2: ALT shortcuts, the arrow inside the selector"/>
 <rect data-region="DocumentTabs" x="277.0" y="0.0" width="363.0" height="36.0" data-gate="ltb" data-why="the mockup shows three fixture tabs"/>
