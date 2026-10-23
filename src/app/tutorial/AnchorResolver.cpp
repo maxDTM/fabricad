@@ -10,6 +10,7 @@
 #include "app/TimelineLayout.h"
 #include "app/TimelineWidget.h"
 #include "core/Json.h"
+#include "core/ShapeUtils.h"
 #include "viewer/ViewerWidget.h"
 
 #include <BRepAdaptor_Curve.hxx>
@@ -426,7 +427,7 @@ ResolvedAnchor AnchorResolver::tabCloseAnchor(const QString& which) const {
 
 namespace {
 
-std::vector<gp_Pnt> samplePoints(const core::Document& doc, const core::ShapeRef& ref) {
+std::vector<gp_Pnt> samplePoints(const core::Document& doc, const core::ShapeRef& ref, double originSize) {
   std::vector<gp_Pnt> pts;
   if (ref.hasPoint) pts.emplace_back(ref.point.x, ref.point.y, ref.point.z);
   if (ref.isBrep() && ref.kind != core::ShapeKind::Body) {
@@ -462,13 +463,15 @@ std::vector<gp_Pnt> samplePoints(const core::Document& doc, const core::ShapeRef
     }
   }
   if (ref.kind == core::ShapeKind::OriginPlane) {
-    // origin planes are drawn as squares around the origin: points off the axes
+    // origin planes are squares in the positive quadrant (centre (h, h), half size 0.9 h, viewer
+    // SceneModel): a grid over the square, centre first; the pick check drops the points another
+    // plane covers (XZ hides the back half of XY in the iso view)
     const QString n = core::qs(ref.name).toUpper();
-    for (double a : {30.0, 20.0, 40.0}) {
-      if (n.startsWith("XY")) pts.emplace_back(a, a * 0.6, 0);
-      else if (n.startsWith("XZ")) pts.emplace_back(a, 0, a * 0.6);
-      else pts.emplace_back(0, a, a * 0.6);
-    }
+    const gp_Ax3 ax = core::originPlane(n.left(2).toStdString());
+    const double h = originSize > 0 ? originSize : 40.0;
+    for (double fu : {1.0, 0.5, 1.5, 0.25, 1.75})
+      for (double fv : {1.0, 0.5, 1.5, 0.25, 1.75})
+        pts.push_back(ax.Location().Translated(gp_Vec(ax.XDirection()) * (fu * h) + gp_Vec(ax.YDirection()) * (fv * h)));
   }
   if (pts.empty()) {
     auto m = [&](const char* k) { return refMetric(doc, ref, k); };
@@ -505,7 +508,7 @@ ResolvedAnchor AnchorResolver::modelAnchor(const QString& selector, bool sketchP
     r.found = true;
     r.refs = sel.refs;
     for (const core::ShapeRef& ref : sel.refs)
-      for (const gp_Pnt& p : samplePoints(doc, ref)) pts.push_back(p);
+      for (const gp_Pnt& p : samplePoints(doc, ref, v ? v->originPlaneSize() : 0.0)) pts.push_back(p);
   }
   if (!v || !reallyVisible(v)) {
     r.why = "no 3D view";
@@ -523,7 +526,9 @@ ResolvedAnchor AnchorResolver::modelAnchor(const QString& selector, bool sketchP
     anyOnScreen = true;
     const QPoint gp = v->mapToGlobal(lp);
     // not covered by a viewport overlay (card, dial, ViewCube, palette, value box, ...)
-    if (QWidget* top = QApplication::widgetAt(gp); top && top != v && !(v->isAncestorOf(top) && top->objectName().isEmpty()))
+    // (only the view itself or its GL surface counts as free; any other child, such as the
+    // floating command card or a value box, covers the point)
+    if (QWidget* top = QApplication::widgetAt(gp); top && top != v && !(v->isAncestorOf(top) && top->inherits("QOpenGLWidget")))
       continue;
     bool verified = false;
     if (!r.refs.empty()) {

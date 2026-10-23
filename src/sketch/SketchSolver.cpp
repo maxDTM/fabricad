@@ -100,6 +100,10 @@ class Builder {
 
     // diagnosis (initSolution already ran it; read the results)
     res.dofs = sys_.dofsNumber();
+    // PlaneGCS reports "parameters - non-redundant constraints", which goes negative when the
+    // rank check finds redundancy in a fully determined system (a centre-to-centre slot with both
+    // position dimensions on projected edges): that is 0 DOF, not "unknown"
+    if (res.dofs < 0 && sys_.hasDiagnosisResult()) res.dofs = 0;
     if (res.dofs < 0) res.dofs = static_cast<int>(unknowns_.size());
     GCS::VEC_I tags;
     sys_.getConflicting(tags);

@@ -1028,7 +1028,7 @@ SelectorResult resolveSelectors(const core::Document& doc, const std::vector<std
 // ---------------------------------------------------------------------------------------------
 
 std::optional<PickHit> pickAt(const core::Document& doc, const Vec3& p, core::ShapeKindMask kinds, double tolerance,
-                              const std::optional<Vec3>& rayDir) {
+                              const std::optional<Vec3>& rayDir, ObjectId onlySketch) {
   struct Cand {
     ShapeRef ref;
     Vec3 at;
@@ -1043,18 +1043,19 @@ std::optional<PickHit> pickAt(const core::Document& doc, const Vec3& p, core::Sh
     for (const auto& f : doc.features()) {
       const auto* sk = dynamic_cast<const sketch::SketchFeature*>(f.get());
       if (!sk || sk->status() != core::FeatureStatus::Ok || !sk->isVisible() || !doc.isFeatureActive(sk->id())) continue;
+      const int later = onlySketch && sk->id() != onlySketch ? 10 : 0;  // other sketches after everything else
       const gp_Ax3& pl = sk->plane();
       const double off = std::abs(Vec3::from(pl.Direction()).dot(p - Vec3::from(pl.Location())));
       if (off > tolerance) continue;
       sketch::Pt2 local = sk->toLocal(p);
       if (core::hasKind(kinds, ShapeKind::SketchPoint))
         if (auto h = sk->sketch().hitPoint(local, tolerance))
-          add(ShapeRef::sketchPoint(sk->id(), h->ref.geo, sketch::toRole(h->ref.pos)), sk->toWorldVec(h->point), h->distance, 0);
+          add(ShapeRef::sketchPoint(sk->id(), h->ref.geo, sketch::toRole(h->ref.pos)), sk->toWorldVec(h->point), h->distance, 0 + later);
       if (core::hasKind(kinds, ShapeKind::SketchCurve))
         if (auto h = sk->sketch().hitCurve(local, tolerance))
-          add(ShapeRef::sketchCurve(sk->id(), h->ref.geo), sk->toWorldVec(h->point), h->distance, 1);
+          add(ShapeRef::sketchCurve(sk->id(), h->ref.geo), sk->toWorldVec(h->point), h->distance, 1 + later);
       if (core::hasKind(kinds, ShapeKind::Profile))
-        if (const sketch::ProfileRegion* r = sk->regionAt(local)) add(sk->profileRef(*r), p, off, 2);
+        if (const sketch::ProfileRegion* r = sk->regionAt(local)) add(sk->profileRef(*r), p, off, 2 + later);
     }
   }
   // --- bodies ------------------------------------------------------------------------------------

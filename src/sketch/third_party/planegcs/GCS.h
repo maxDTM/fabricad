@@ -634,6 +634,10 @@ public:
     {
         return hasDiagnosis ? dofs : -1;
     }
+    bool hasDiagnosisResult() const  // FabriCAD: tells "no diagnosis" from a negative (over-constrained) count
+    {
+        return hasDiagnosis;
+    }
     void getConflicting(VEC_I& conflictingOut) const
     {
         conflictingOut = hasDiagnosis ? conflictingTags : VEC_I(0);

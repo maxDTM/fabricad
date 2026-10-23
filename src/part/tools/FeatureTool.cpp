@@ -584,7 +584,8 @@ void FeatureTool::autoFlipForCut(core::ToolContext& ctx) {
   PartFeature* f = feature();
   if (!f || editing_ || flipUser_ || f->type() != ExtrudeFeature::kType) return;
   if (f->operation() != Operation::Cut) return;
-  if (f->enumIndex("direction") != ExtrudeFeature::OneSide || f->enumIndex("extentType") != ExtrudeFeature::Distance) return;
+  const int extent = f->enumIndex("extentType");
+  if (f->enumIndex("direction") != ExtrudeFeature::OneSide || (extent != ExtrudeFeature::Distance && extent != ExtrudeFeature::All)) return;
   core::Property* flip = f->property("flip");
   if (!flip || flip->toBool()) return;
   flushPreview(ctx);  // the decision below reads the current tool solid
@@ -872,8 +873,8 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
       flipAuto_ = false;
     }
     updatePreview(*pctx);
-    if (name == "operation") {
-      autoFlipForCut(*pctx);  // PART-04: Cut on a face sketch goes into the body
+    if (name == "operation" || name == "extentType") {
+      autoFlipForCut(*pctx);  // PART-04: Cut on a face sketch goes into the body (Distance or All)
       undoAutoFlip(*pctx);
     }
     if (structural && panel_) panel_->rebuild();
