@@ -554,6 +554,7 @@ void ImportFeature::prepareCommit(core::Document& doc, core::UndoStack* undo) {
         c.partNumber = pp->second.partNumber;
         c.description = pp->second.description;
         c.material = pp->second.material;
+        c.revision = pp->second.revision;
       }
       c.placement = scaledPlacement(child.placement, scale);
       auto def = child.part.empty() ? leafDefinitions.end() : leafDefinitions.find(child.part);

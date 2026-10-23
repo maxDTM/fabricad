@@ -170,7 +170,7 @@ bool exportAssemblyStep(const Document& doc, const std::string& path, const Step
       std::map<std::string, part::io::ProductProperties> props;
       for (const core::Component* cp : doc.components()) {
         const core::Component& c = *cp;
-        part::io::ProductProperties p{c.partNumber, c.description, c.material, {}};
+        part::io::ProductProperties p{c.partNumber, c.description, c.material, c.revision};
         if (p.empty()) continue;
         const std::string name = c.isRoot() && (c.name.empty() || c.name == "Untitled") ? ex.rootName : c.name;
         props.emplace(name, p);

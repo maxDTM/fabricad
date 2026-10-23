@@ -161,7 +161,7 @@ bool collectExportItems(core::ToolContext& ctx, std::vector<io::MeshItem>& items
       const core::Component* c = doc.component(b->component);
       if (c && !c->isRoot()) it.component = c->name;
       if (c && properties) {
-        io::ProductProperties p{c->partNumber, c->description, c->material.empty() ? b->material : c->material, {}};
+        io::ProductProperties p{c->partNumber, c->description, c->material.empty() ? b->material : c->material, c->revision};
         if (!p.empty()) (*properties)[it.name] = p;
       }
     }
