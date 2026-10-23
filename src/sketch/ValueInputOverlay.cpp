@@ -257,6 +257,11 @@ void ValueInputOverlay::sync() {
       b.edit->setCursorPosition(t.size());
     }
     b.unit->setText(QString::fromStdString(f.unit));
+    if (b.unit->font().capitalization() != QFont::MixedCase) {  // "mm", never "MM" (the caps UI font)
+      QFont uf = b.unit->font();
+      uf.setCapitalization(QFont::MixedCase);
+      b.unit->setFont(uf);
+    }
     b.unit->setVisible(!f.unit.empty());
     const bool stepper = f.stepper && stepper_ != nullptr;
     b.steps->setVisible(stepper);

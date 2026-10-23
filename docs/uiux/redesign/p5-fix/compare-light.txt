@@ -1,0 +1,36 @@
+REGION                   LAYOUT  EDGES l,t,r,b (px)         COLOUR dE00       SSIM
+Viewer                   FAIL    +6,+0,+0,+0                  0.5  #F9FAFB    0.668
+fcValueBox               FAIL    +114.6,+4.7,+160.6,+8.7     19.2! #AAAEB2    0.269
+CoordReadout             FAIL    +6,+0,+6,+0                  0.5  #F1F2F6    0.425
+ScaleBar                 ok      +0,+0,+0,+2                  0.2  #D5DBE3    0.127
+Breadcrumb               FAIL    +6,+0,-94.6,+0               0.8  #F4F5F8    0.36
+SelectionFilterBar       FAIL    -94.6,+0,-215,+0             1.0  #F8F9FA    0.285
+OrientationDial          FAIL    -14,+0,+14,+30               0.0  #FAFBFC    0.489
+ViewButtons              missing -                            0.5  #F3F4F7    0.546
+ViewToolColumn           ok      -2,+0,+0,-2                  0.0  #F3F5F8    0.571
+StepIndicator            FAIL    +16,+0,-16,+0                0.0  #FFFFFF    0.238
+CommandDialog            FAIL    +0,+0,+0,-75                 0.0  #FFFFFF    0.372
+OkButton                 FAIL    -6.3,-75,+0,-75             46.0! #E3E7ED    0.488
+WorkspaceSwitcher        FAIL    -3,+0,-28.5,+0               0.0  #E9ECF1    0.414
+DocumentTabs             FAIL    -32.5,-4,-253.5,+0           0.0  #E9ECF1    0.591
+NewTabButton             FAIL    -255.5,+0,-242.5,-5          0.0  #E9ECF1    0.571
+SearchBox                FAIL    +66,+0,+66,+0                0.0  #FFFFFF    0.234
+AppBar                   ok      +0,+0,+0,+0                  0.0  #E9ECF1    0.689
+RibbonGroup:SKETCH       FAIL    -4,+0,-40.2,+2               0.0  #F3F5F8    0.407
+RibbonGroup:CREATE       FAIL    -49.2,+0,-129,+2             0.0  #F3F5F8    0.4
+RibbonGroup:MODIFY       FAIL    -138,+0,-94.4,+2             0.0  #F3F5F8    0.446
+RibbonGroup:ASSEMBLE     FAIL    -103.4,+0,-29.9,+2           0.0  #F3F5F8    0.398
+RibbonGroup:CONSTRUCT    FAIL    -38.9,+0,+74.1,+2            0.0  #F3F5F8    0.408
+RibbonGroup:INSPECT      FAIL    +65.1,+0,+93.3,+2            0.0  #F3F5F8    0.462
+RibbonGroup:MORE         FAIL    +84.3,+0,+150.4,+2           0.0  #F3F5F8    0.49
+RibbonGroup:DOCUMENT     FAIL    -10.2,+0,+4,+2               0.0  #F3F5F8    0.505
+MainToolbarHost          ok      +0,+0,+0,+0                  0.0  #F3F5F8    0.579
+RollbackBar              missing -                            0.0  #F5F7F9    -0.217
+FeatureList              FAIL    +0,+36,+0,-7                 0.0  #F3F5F8    0.526
+Browser                  FAIL    +0,+26,+0,+31                0.0  #F3F5F8    0.593
+SelectionPanel           FAIL    +0,+18,+0,+0                 0.0  #F3F5F8    0.57
+SidebarHost              ok      +0,+0,+0,+0                  0.0  #F3F5F8    0.551
+CommandLine              FAIL    +445.2,+1,+335.2,-2          4.7! #E9ECF1    0.319
+StatusBar                ok      +0,+0,+0,+0                  0.0  #E9ECF1    0.408
+layout: 6 of 31 matched regions within 4 px
+report: cmp-light/index.html
