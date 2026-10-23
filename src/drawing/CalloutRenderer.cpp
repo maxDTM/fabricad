@@ -293,6 +293,47 @@ void CalloutRenderer::addRevisionTable(DisplayList& out, const RevisionTable& t)
 }
 
 // ---------------------------------------------------------------------------------------
+// Hole table (production features P2)
+// ---------------------------------------------------------------------------------------
+
+void CalloutRenderer::addHoleTable(DisplayList& out, const HoleTable& t, const core::UnitSystem& units) const {
+  const double w = t.width(), hgt = t.height();
+  const Point2 o = t.position;
+  auto seg = [&](Point2 a, Point2 b) { out.curves.push_back(Curve2D::segment(a, b, LineClass::Border)); };
+  for (size_t r = 0; r <= t.rows.size() + 1; ++r) {
+    double y = o.y + t.rowHeight * static_cast<double>(r);
+    seg({o.x, y}, {o.x + w, y});
+  }
+  double x = o.x;
+  seg({x, o.y}, {x, o.y + hgt});
+  for (double cw : t.columnWidths) {
+    x += cw;
+    seg({x, o.y}, {x, o.y + hgt});
+  }
+  auto cell = [&](const std::string& v, double cx, double cw, double y, bool left, bool bold) {
+    double th = t.textHeight;
+    double est = measureText(v, th, style_.fontFamily) * (bold ? 1.1 : 1.0);
+    if (est > cw - 2.0 && est > 0) th = std::max(1.2, th * (cw - 2.0) / est);
+    out.texts.push_back({{left ? cx + 1.2 : cx + cw * 0.5, y}, v, th, 0, left ? HAlign::Left : HAlign::Center, VAlign::Middle,
+                         LineClass::Annotation, bold});
+  };
+  x = o.x;
+  for (size_t c = 0; c < t.columns.size() && c < t.columnWidths.size(); ++c) {
+    cell(t.columns[c], x, t.columnWidths[c], o.y + t.rowHeight * 0.5, false, true);
+    x += t.columnWidths[c];
+  }
+  for (size_t r = 0; r < t.rows.size(); ++r) {
+    const std::vector<std::string> cells = holeTableCells(t.rows[r], units);
+    const double y = o.y + t.rowHeight * (static_cast<double>(r) + 1.5);
+    x = o.x;
+    for (size_t c = 0; c < cells.size() && c < t.columnWidths.size(); ++c) {
+      cell(cells[c], x, t.columnWidths[c], y, c == 4, false);
+      x += t.columnWidths[c];
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------
 // All
 // ---------------------------------------------------------------------------------------
 
@@ -310,6 +351,7 @@ std::vector<std::pair<core::ObjectId, DisplayList>> CalloutRenderer::entityLists
   for (const auto& e : cs.surfaceFinishes) add(e.id, [&](DisplayList& l) { addSurfaceFinish(l, sheet, e); });
   for (const auto& e : cs.ordinates) add(e.id, [&](DisplayList& l) { addOrdinate(l, sheet, e); });
   for (const auto& e : cs.revisionTables) add(e.id, [&](DisplayList& l) { addRevisionTable(l, e); });
+  for (const auto& e : cs.holeTables) add(e.id, [&](DisplayList& l) { addHoleTable(l, e, units_); });
   return out;
 }
 

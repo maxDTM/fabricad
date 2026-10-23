@@ -741,6 +741,19 @@ I["drawing-section-view-aligned"] = (R(4.5, 5.5, 15, 13, f=WH) + P("M2 19 L12 12
                                      dot(12, 12, DR, 1.3) + arrow_head(22, 12, "down", DR, 1.6) + _hatch)
 I["drawing-revision-table"] = table(2.5, 4, 19, 13, 3, 3, DR) + P("M9.5 22 L12 18 L14.5 22 Z", f=WH, s=DR)
 I["drawing-revision"] = (P("M12 4 L21 20 H3 Z", f=WH, s=DR) + P("M10 17 L12 11 L14 17 M10.8 15 H13.2", s=INK))
+
+# ===== production features P2: pocket hole, insert fastener, hole table ======================
+# pocket hole: a board section with an angled stepped bore leaving through the end face
+I["part-pocket-hole"] = (P("M2.5 9 H21.5 V17 H2.5 Z", f=BODY) +
+                         P("M5.5 6.2 L15.2 11 L14.2 13 L4.5 8.2 Z", f=WH, s=OR) +
+                         P("M14.7 12 L21.5 13", s=OR) + dot(21.5, 13, OR, 1.3))
+# insert fastener: a socket head cap screw going into a hole
+I["assembly-insert-fastener"] = (R(7, 2.5, 10, 6, 1, f=WH) + P("M10.5 4.2 H13.5 L14.3 5.5 L13.5 6.8 H10.5 L9.7 5.5 Z", s=INK) +
+                                 P("M9.5 8.5 V18 M14.5 8.5 V18", s=INK) +
+                                 P("M9.5 11 L14.5 10 M9.5 13.5 L14.5 12.5 M9.5 16 L14.5 15", s=GREY) +
+                                 P("M3 21.5 H8 M16 21.5 H21", s=OR) + P("M12 18 V22.5", s=GREY, da=DASHDOT))
+# hole table: a table with a hole symbol
+I["drawing-hole-table"] = table(2.5, 6, 19, 13, 3, 3, DR) + C(6, 4, 2.2, s=INK) + dot(6, 4, INK, 0.8)
 I["drawing-edit-callout"] = (C(6, 7.5, 3.5, s=INK) + P("M8.5 9.9 L11.5 13 H17.5", s=DR) + dot(8.5, 9.9, DR, 1.2) + pencil(13, 21))
 
 # ===== round 2: scripting shell verbs (UI accent) ============================================

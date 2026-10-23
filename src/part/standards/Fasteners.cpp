@@ -464,7 +464,7 @@ std::string sizeForHoleDiameter(double holeDia, bool inch) {
       if (std::abs(clearanceDiameter(t, f) - holeDia) < 0.05) return sizeOf(t.designation);
   }
   for (const ThreadSpec& t : table)
-    if (t.coarse && (std::abs(t.tapDrill() - holeDia) < 0.05 || std::abs(t.nominal - holeDia) < 0.05)) return sizeOf(t.designation);
+    if (t.coarse && std::abs(t.tapDrill() - holeDia) < 0.05) return sizeOf(t.designation);
   return {};
 }
 

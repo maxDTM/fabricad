@@ -6,6 +6,7 @@
 #include "core/Document.h"
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
+#include "core/Tool.h"
 #include "part/PartUtils.h"
 #include "part/standards/Clearance.h"
 #include "part/standards/Threads.h"
@@ -116,8 +117,12 @@ std::optional<standards::HeadRecess> HoleFeature::tableRecess() const {
   if (fast <= 0) return std::nullopt;
   const IsoThread* t = threadSpec();
   if (!t) return std::nullopt;
-  return standards::headRecess(static_cast<standards::HeadType>(fast), *t, prop("headClearance").toDouble(),
-                               prop("headOffset").toDouble());
+  auto rec = standards::headRecess(static_cast<standards::HeadType>(fast), *t, prop("headClearance").toDouble(),
+                                   prop("headOffset").toDouble());
+  // the head must suit the recess: countersinks take countersunk heads, counterbores the others
+  const int holeType = enumIndex("holeType");
+  if (rec && (holeType == Countersink) != rec->countersink) return std::nullopt;
+  return rec;
 }
 
 double HoleFeature::effectiveDiameter() const {
@@ -189,7 +194,9 @@ void HoleFeature::fromJson(const QJsonObject& o) {
 
 void HoleFeature::applyDefaultsForNewFeature(const core::Document& doc) {
   PartFeature::applyDefaultsForNewFeature(doc);
-  prop("fastener").setEnum(static_cast<int>(standards::HeadType::SocketCap));
+  // Interactive holes size counterbores for a socket head cap screw; scripts keep Custom (typed
+  // recess values, as before P2) unless they say fastener=...
+  if (!core::isBatchMode()) prop("fastener").setEnum(static_cast<int>(standards::HeadType::SocketCap));
   // preference hole/defaultStandard: auto (follows the document unit), iso or ansi
   const std::string pref = QSettings().value("hole/defaultStandard", "auto").toString().toStdString();
   const bool inchDoc = doc.units().length == core::LengthUnit::Inch || doc.units().length == core::LengthUnit::Foot;
@@ -409,9 +416,11 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
       p.cboreDepth = rec->depth;
       p.csinkDiameter = rec->diameter;
       if (rec->angle > 0) p.csinkAngle = rec->angle;
-    } else if (enumIndex("fastener") > 0) {
-      ctx.setWarning(std::format("no {} head for {} in the table: typed recess used", standards::headTypeKeys()[enumIndex("fastener")],
-                                 iso ? iso->designation : std::string("this size")));
+    } else if (enumIndex("fastener") > 0 && iso) {
+      const auto any = standards::headRecess(static_cast<standards::HeadType>(enumIndex("fastener")), *iso, 0, 0);
+      if (!any)
+        ctx.setWarning(std::format("no {} head for {} in the table: typed recess used",
+                                   standards::headTypeKeys()[static_cast<size_t>(enumIndex("fastener"))], iso->designation));
     }
   }
   const bool all = enumIndex("extentType") == All;

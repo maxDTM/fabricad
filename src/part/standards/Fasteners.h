@@ -82,7 +82,7 @@ std::string partNumber(const FastenerSpec& s);
 std::string familyDescription(Family f);
 std::string standardName(Family f, bool inch);
 
-/// Screw size whose clearance hole (any fit, +-0.05 mm), tap drill or nominal diameter matches a
+/// Screw size whose clearance hole (any fit, +-0.05 mm) or tap drill matches a
 /// hole diameter (mm); inch sizes when `inch`. Empty when nothing matches.
 std::string sizeForHoleDiameter(double holeDia, bool inch);
 /// The shortest standard length >= `minLength` (else the longest).

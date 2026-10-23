@@ -63,6 +63,7 @@
   <file>icons/dark/assembly-ground-toggle.svg</file>
   <file>icons/dark/assembly-ground.svg</file>
   <file>icons/dark/assembly-insert-design.svg</file>
+  <file>icons/dark/assembly-insert-fastener.svg</file>
   <file>icons/dark/assembly-interference.svg</file>
   <file>icons/dark/assembly-joint.svg</file>
   <file>icons/dark/assembly-move.svg</file>
@@ -114,6 +115,7 @@
   <file>icons/dark/drawing-export-svg.svg</file>
   <file>icons/dark/drawing-feature-control-frame.svg</file>
   <file>icons/dark/drawing-hole-callout.svg</file>
+  <file>icons/dark/drawing-hole-table.svg</file>
   <file>icons/dark/drawing-leader.svg</file>
   <file>icons/dark/drawing-move.svg</file>
   <file>icons/dark/drawing-new-sheet.svg</file>
@@ -222,6 +224,7 @@
   <file>icons/dark/part-mirror.svg</file>
   <file>icons/dark/part-move.svg</file>
   <file>icons/dark/part-offset-face.svg</file>
+  <file>icons/dark/part-pocket-hole.svg</file>
   <file>icons/dark/part-press-pull.svg</file>
   <file>icons/dark/part-rectangular-pattern.svg</file>
   <file>icons/dark/part-revolve.svg</file>
@@ -393,6 +396,7 @@
   <file>icons/light/assembly-ground-toggle.svg</file>
   <file>icons/light/assembly-ground.svg</file>
   <file>icons/light/assembly-insert-design.svg</file>
+  <file>icons/light/assembly-insert-fastener.svg</file>
   <file>icons/light/assembly-interference.svg</file>
   <file>icons/light/assembly-joint.svg</file>
   <file>icons/light/assembly-move.svg</file>
@@ -444,6 +448,7 @@
   <file>icons/light/drawing-export-svg.svg</file>
   <file>icons/light/drawing-feature-control-frame.svg</file>
   <file>icons/light/drawing-hole-callout.svg</file>
+  <file>icons/light/drawing-hole-table.svg</file>
   <file>icons/light/drawing-leader.svg</file>
   <file>icons/light/drawing-move.svg</file>
   <file>icons/light/drawing-new-sheet.svg</file>
@@ -552,6 +557,7 @@
   <file>icons/light/part-mirror.svg</file>
   <file>icons/light/part-move.svg</file>
   <file>icons/light/part-offset-face.svg</file>
+  <file>icons/light/part-pocket-hole.svg</file>
   <file>icons/light/part-press-pull.svg</file>
   <file>icons/light/part-rectangular-pattern.svg</file>
   <file>icons/light/part-revolve.svg</file>

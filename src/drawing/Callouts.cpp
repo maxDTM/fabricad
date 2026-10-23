@@ -119,6 +119,7 @@ QJsonObject HoleCallout::toJson() const {
   if (!overrideText.empty()) o["override"] = qs(overrideText);
   if (countOverride > 0) o["count"] = countOverride;
   if (precision >= 0) o["precision"] = precision;
+  if (!fastenerLine) o["fastenerLine"] = false;
   return o;
 }
 
@@ -134,6 +135,7 @@ HoleCallout HoleCallout::fromJson(const QJsonObject& o) {
   c.overrideText = ss(o["override"].toString());
   c.countOverride = o["count"].toInt(0);
   c.precision = o["precision"].toInt(-1);
+  c.fastenerLine = o["fastenerLine"].toBool(true);
   return c;
 }
 
@@ -533,7 +535,7 @@ Point2 defaultRevisionTablePosition(const Sheet& sheet, const RevisionTable& tab
 
 bool CalloutSet::empty() const {
   return holeCallouts.empty() && featureFrames.empty() && datums.empty() && surfaceFinishes.empty() && ordinates.empty() &&
-         revisionTables.empty();
+         revisionTables.empty() && holeTables.empty();
 }
 
 std::vector<ObjectId> CalloutSet::ids() const {
@@ -544,6 +546,7 @@ std::vector<ObjectId> CalloutSet::ids() const {
   for (const auto& e : surfaceFinishes) out.push_back(e.id);
   for (const auto& e : ordinates) out.push_back(e.id);
   for (const auto& e : revisionTables) out.push_back(e.id);
+  for (const auto& e : holeTables) out.push_back(e.id);
   return out;
 }
 
@@ -554,7 +557,8 @@ bool CalloutSet::contains(ObjectId id) const {
 
 bool CalloutSet::erase(ObjectId id) {
   return eraseIn(holeCallouts, id) || eraseIn(featureFrames, id) || eraseIn(datums, id) || eraseIn(surfaceFinishes, id) ||
-         eraseIn(ordinates, id) || eraseIn(revisionTables, id);
+         eraseIn(ordinates, id) || eraseIn(revisionTables, id) ||
+         eraseIn(holeTables, id);
 }
 
 std::vector<ObjectId> CalloutSet::entitiesOf(ObjectId viewId) const {
@@ -570,6 +574,8 @@ std::vector<ObjectId> CalloutSet::entitiesOf(ObjectId viewId) const {
     if (e.anchor.viewId == viewId) out.push_back(e.id);
   for (const auto& e : surfaceFinishes)
     if (e.anchor.viewId == viewId) out.push_back(e.id);
+  for (const auto& e : holeTables)
+    if (e.viewId == viewId) out.push_back(e.id);
   return out;
 }
 
@@ -584,6 +590,8 @@ ObjectId CalloutSet::viewOf(ObjectId id) const {
     if (e.id == id) return e.anchor.viewId;
   for (const auto& e : surfaceFinishes)
     if (e.id == id) return e.anchor.viewId;
+  for (const auto& e : holeTables)
+    if (e.id == id) return e.viewId;
   return core::kInvalidId;
 }
 
@@ -620,6 +628,10 @@ bool CalloutSet::move(ObjectId id, const Point2& delta, const Sheet* sheet) {
     t->position += delta;
     return true;
   }
+  if (auto* t = holeTable(id)) {
+    t->position += delta;
+    return true;
+  }
   return false;
 }
 
@@ -645,6 +657,7 @@ DatumFeature* CalloutSet::datum(ObjectId id) { return findIn(datums, id); }
 SurfaceFinish* CalloutSet::surfaceFinish(ObjectId id) { return findIn(surfaceFinishes, id); }
 OrdinateDimension* CalloutSet::ordinate(ObjectId id) { return findIn(ordinates, id); }
 RevisionTable* CalloutSet::revisionTable(ObjectId id) { return findIn(revisionTables, id); }
+HoleTable* CalloutSet::holeTable(ObjectId id) { return findIn(holeTables, id); }
 
 void CalloutSet::writeJson(QJsonObject& o) const {
   if (!holeCallouts.empty()) o["holeCallouts"] = arrayOf(holeCallouts);
@@ -653,6 +666,7 @@ void CalloutSet::writeJson(QJsonObject& o) const {
   if (!surfaceFinishes.empty()) o["surfaceFinishes"] = arrayOf(surfaceFinishes);
   if (!ordinates.empty()) o["ordinates"] = arrayOf(ordinates);
   if (!revisionTables.empty()) o["revisionTables"] = arrayOf(revisionTables);
+  if (!holeTables.empty()) o["holeTables"] = arrayOf(holeTables);
 }
 
 CalloutSet CalloutSet::readJson(const QJsonObject& o) {
@@ -663,6 +677,7 @@ CalloutSet CalloutSet::readJson(const QJsonObject& o) {
   s.surfaceFinishes = vectorOf<SurfaceFinish>(o["surfaceFinishes"]);
   s.ordinates = vectorOf<OrdinateDimension>(o["ordinates"]);
   s.revisionTables = vectorOf<RevisionTable>(o["revisionTables"]);
+  s.holeTables = vectorOf<HoleTable>(o["holeTables"]);
   return s;
 }
 
@@ -689,6 +704,11 @@ void refreshCallouts(const core::Document& doc, Sheet& sheet) {
   }
   for (auto& o : sheet.callouts.ordinates)
     if (const DrawingView* v = sheet.view(o.viewId)) updateOrdinate(o, *v);
+  for (auto& t : sheet.callouts.holeTables) {
+    const DrawingView* v = sheet.view(t.viewId);
+    t.orphaned = !v || !v->geometryValid;
+    t.rows = t.orphaned ? std::vector<HoleTableRow>{} : holeTableRows(doc, *v, doc.units());
+  }
 }
 
 }  // namespace fabricad::drawing

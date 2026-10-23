@@ -22,6 +22,7 @@ class CalloutRenderer {
   void addSurfaceFinish(DisplayList& out, const Sheet& sheet, const SurfaceFinish& s) const;
   void addOrdinate(DisplayList& out, const Sheet& sheet, const OrdinateDimension& o) const;
   void addRevisionTable(DisplayList& out, const RevisionTable& t) const;
+  void addHoleTable(DisplayList& out, const HoleTable& t, const core::UnitSystem& units) const;
   /// Every callout of a sheet, one display list per entity (canvas items, hit testing).
   std::vector<std::pair<core::ObjectId, DisplayList>> entityLists(const Sheet& sheet) const;
   /// Everything appended to one list (export).

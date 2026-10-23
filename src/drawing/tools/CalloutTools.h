@@ -296,6 +296,26 @@ class RevisionTableTool : public ClickSequenceTool {
   bool create(core::ToolContext& ctx, const Point2* pos);
 };
 
+/// Hole table of a view (production features P2): HOLETABLE [view] [x,y]. Pick the view (or
+/// select it first), then click the table's top-left corner; Enter places it right of the view.
+class HoleTableTool : public ClickSequenceTool {
+  Q_OBJECT
+ public:
+  HoleTableTool();
+
+ protected:
+  void begin(core::ToolContext& ctx) override;
+  bool onClick(core::ToolContext& ctx, const Point2& sheet) override;
+  void onDone(core::ToolContext& ctx) override;
+  void preview(DisplayList& out) const override;
+  std::string prompt() const override { return "Click the top-left corner of the hole table (Enter: right of the view)"; }
+  bool expectsMore() const override { return false; }
+
+ private:
+  bool create(core::ToolContext& ctx, const Point2* pos);
+  core::ObjectId viewId_ = core::kInvalidId;
+};
+
 /// Add a revision row (instant): description=, approved=, date=, rev=. Creates the table if
 /// the sheet has none.
 class AddRevisionTool : public DrawingToolBase {

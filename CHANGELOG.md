@@ -13,6 +13,21 @@ All notable changes to FabriCAD are listed here. The format follows
   holes, mirror, chamfer, rib, a history edit, measure, save and reopen, export), with chapter checkpoints for
   Restore chapter.
 
+- **Holes for production**: ANSI inch holes (UNC / UNF #0 to 1 1/2") beside ISO metric; hole
+  type Clearance (ISO 273 / ASME B18.2.8 close, normal, loose), Tapped (table tap drills, thread
+  class, inch callouts `1/4-20 - 2B`) and Tap drill only; counterbores and countersinks sized from
+  screw head tables (SHCS, hex, low head, button, flat countersunk 90° / 82°, pan) with head
+  clearance and offset; drill point presets; thread depth readout. Old files keep their typed sizes.
+- **Pocket Hole** (`POCKETHOLE`): angled stepped screw holes for board joints (Kreg 15°, Castle 6°,
+  custom), thickness measured or typed, screw length and step depth from the jig chart, exit point at
+  mid-thickness, optional pilot in the mating board.
+- **Insert Fastener** (`FASTENER`): socket head cap screws, hex bolts, hex and nyloc nuts, washers,
+  heat-set inserts, dowel pins and set screws (ISO and ANSI tables, generated on load, no stored
+  geometry), size and length from the picked hole, washer / nut stack, as-built rigid or revolute
+  joint, shared definitions with part number, description and material for the BOM.
+- **Hole Table** (`HOLETABLE`) in drawings, and a "FOR M6 SHCS" line on hole callouts of
+  fastener-sized counterbores.
+
 ### Fixed
 
 - Dropdown lists of combo boxes show all their items (the last one hid behind a scroll arrow).
