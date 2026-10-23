@@ -37,6 +37,15 @@ HoleFeature::HoleFeature() : PartFeature(kType) {
       .setLabel("Placement points")
       .setTooltip("Sketch points, vertices, circular edges (centre) or clicks on a planar face where holes start");
   addRef("face", core::mask(core::ShapeKind::Face)).setLabel("Start face").setTooltip("Optional: face defining the hole direction");
+  addEnum("standard", {"ISO metric", "ANSI inch"}, Iso)
+      .setLabel("Standard")
+      .setTooltip("ISO metric (ISO 261 / 273) or ANSI unified inch (UNC / UNF, ASME B18.2.8)");
+  addEnum("tapType", {"Simple", "Clearance", "Tapped", "Tap drill"}, Simple)
+      .setLabel("Type")
+      .setTooltip("Simple: typed diameter. Clearance / Tapped / Tap drill take the diameter from the size table");
+  addEnum("threadSize", isoMetricDesignations(), 0).setLabel("Size").setEnum("M6x1");
+  addEnum("ansiSize", standards::inchDesignations(), 0).setLabel("Size").setEnum("1/4-20");
+  addEnum("clearanceFit", {"Close", "Normal", "Loose"}, 1).setLabel("Fit").setTooltip("ISO 273 / ASME B18.2.8 clearance hole series");
   addEnum("holeType", {"Simple", "Counterbore", "Countersink"}, Simple).setLabel("Hole type");
   addLength("diameter", 6.6).setLabel("Diameter");
   addEnum("extentType", {"Distance", "All"}, Distance).setLabel("Extent");
@@ -47,25 +56,16 @@ HoleFeature::HoleFeature() : PartFeature(kType) {
   addLength("cboreDepth", 6.0).setLabel("Counterbore depth");
   addLength("csinkDiameter", 12.0).setLabel("Countersink diameter");
   addAngle("csinkAngle", 90.0).setLabel("Countersink angle");
-  addBool("flip", false).setLabel("Flip direction");
-  addEnum("tapType", {"Simple", "Clearance", "Tapped", "Tap drill only"}, Simple)
-      .setLabel("Type")
-      .setTooltip("Simple: typed diameter. Clearance / Tapped / Tap drill only take the diameter from the size table");
-  addEnum("standard", {"ISO metric", "ANSI inch"}, Iso)
-      .setLabel("Standard")
-      .setTooltip("ISO metric (ISO 261 / 273) or ANSI unified inch (UNC / UNF, ASME B18.2.8)");
-  addEnum("threadSize", isoMetricDesignations(), 0).setLabel("Size").setEnum("M6x1");
-  addEnum("ansiSize", standards::inchDesignations(), 0).setLabel("Size").setEnum("1/4-20");
-  addEnum("clearanceFit", {"Close", "Normal", "Loose"}, 1).setLabel("Fit").setTooltip("ISO 273 / ASME B18.2.8 clearance hole series");
-  addBool("threadModeled", false).setLabel("Modeled").setTooltip("Cut the real thread (slow); off = cosmetic thread");
-  addBool("threadFullDepth", true).setLabel("Full tap depth");
-  addLength("threadDepth", 8.0).setLabel("Thread depth");
-  addString("threadClass", "").setLabel("Thread class").setTooltip("Tolerance class; empty = 6H (ISO) / 2B (ANSI)");
   addEnum("fastener", standards::headTypeNames(), 0)
       .setLabel("Fastener")
       .setTooltip("Size the counterbore / countersink from the screw head table; Custom = typed values");
   addLength("headClearance", 0.0).setLabel("Head clearance").setTooltip("Extra counterbore depth above the head (0 / 0.5 / 1 mm)");
   addLength("headOffset", 0.0).setLabel("Head below surface").setTooltip("Sink the head this far below the surface");
+  addBool("flip", false).setLabel("Flip direction");
+  addBool("threadModeled", false).setLabel("Modeled").setTooltip("Cut the real thread (slow); off = cosmetic thread");
+  addBool("threadFullDepth", true).setLabel("Full tap depth");
+  addLength("threadDepth", 8.0).setLabel("Thread depth");
+  addString("threadClass", "").setLabel("Thread class").setTooltip("Tolerance class; empty = 6H (ISO) / 2B (ANSI)");
   addString("threadInfo", "").setLabel("Thread").flags().readOnly = true;
   addRefs("targets", core::mask(core::ShapeKind::Body))
       .setLabel("Bodies to cut")
@@ -226,7 +226,7 @@ bool HoleFeature::applyScriptOption(const std::string& nameIn, const std::string
   }
   if (name == "type") {
     static const std::pair<const char*, int> kTypes[] = {{"simple", SimpleTap}, {"clearance", Clearance}, {"tapped", Tapped},
-                                                         {"tapdrill", TapDrillOnly}, {"tap drill only", TapDrillOnly}};
+                                                         {"tapdrill", TapDrillOnly}, {"tap drill", TapDrillOnly}};
     for (auto [k, i] : kTypes)
       if (v == k) {
         prop("tapType").setEnum(i);

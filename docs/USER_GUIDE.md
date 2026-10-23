@@ -423,7 +423,7 @@ with UNC / UNF sizes such as `1/4-20` and `#10-32`; new holes follow the documen
 Clearance (Close / Normal / Loose fit from ISO 273 or ASME B18.2.8, e.g. M6 normal = 6.6 mm,
 1/4 normal = 0.281"), Tapped (the table tap drill, e.g. M6x1 = 5.0 mm, 1/4-20 = #7 = 0.201";
 thread class, cosmetic or modelled thread; the card shows "thread 12 mm, drill 15 mm + 1.5 mm
-point") or Tap drill only (the drill, threaded later in the shop). For a counterbore or
+point") or Tap drill (the drill, threaded later in the shop). For a counterbore or
 countersink, **Fastener** sizes the recess from the head table (SHCS ISO 4762 / B18.3, hex
 bolt, low head, button head, flat countersunk 90° / 82°, pan head): an M6 SHCS gets a
 counterbore of 11 x 6 mm. **Head clearance** deepens it, **Head below surface** sinks the head.

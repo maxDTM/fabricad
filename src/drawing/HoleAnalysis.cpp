@@ -300,7 +300,7 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
       threaded = tappedHole = (t == "Tapped");
       if (!threaded) info.thread.clear();
       if (t == "Clearance") info.fit = stringProp(*f, {"clearanceFit"});
-      if (t == "Tapped" || t == "Tap drill only") info.tapDrill = info.diameter;
+      if (t == "Tapped" || t == "Tap drill") info.tapDrill = info.diameter;
     }
     // the head the counterbore / countersink was sized for ("M6 SHCS")
     if (const core::Property* fp = f->property("fastener"); fp && fp->type() == core::PropertyType::Enum && fp->enumIndex() > 0 &&
