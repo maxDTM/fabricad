@@ -27,7 +27,7 @@ const char* meshFormatName(MeshFormat f);  ///< "STL", "OBJ", "glTF", "GLB", "3M
 struct MeshItem {
   TopoDS_Shape shape;                                   ///< world placement
   std::string name;                                     ///< body name
-  std::array<float, 4> color{0.73f, 0.74f, 0.77f, 1.0f};
+  std::array<float, 4> color{1, 1, 1, 1};              ///< RGBA 0..1 (the body colour)
   std::string component;                                ///< owning component name; empty = top level
 };
 

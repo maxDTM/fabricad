@@ -334,7 +334,6 @@ void registerPartTools(core::ModuleContext& ctx) {
                            Fixed{"part.export-gltf", "Export glTF", "Export bodies as glTF 2.0 (binary .glb or .gltf), one node per body and component", "EXPORTGLTF", io::MeshFormat::Glb},
                            Fixed{"part.export-3mf", "Export 3MF", "Export bodies as 3MF for 3D printing (mm, colour and name per object, components kept)", "EXPORT3MF", io::MeshFormat::ThreeMf}}) {
       core::ToolInfo j = info(f.id, f.name, f.tip, "TOOLS", "EXPORT", 22, false, "", {f.verb});
-      j.icon = "part.export-mesh";
       j.repeatable = false;
       t.registerTool(std::make_unique<ExportMeshTool>(j, f.format));
     }

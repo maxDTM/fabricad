@@ -429,6 +429,15 @@ I["part-edit-feature"] = cube(10, 10.5, 0.85) + pencil(13, 22)
 I["feature"] = cube(10, 10.5, 0.85, fill=WH) + pencil(13, 22)
 I["part-export-step"] = export_doc(cube(9, 12.5, 0.55), OR)
 I["part-export-stl"] = export_doc(P("M5.5 16 L9 8.5 L12.5 16 Z M7.25 12.25 H10.75 L9 16 Z", s=OR), OR)
+# P3 interop: mesh formats (one triangulated glyph, a letter mark per format), IGES (a trimmed
+# surface patch) and the 1:1 face DXF (a flat plate outline with two holes)
+MESH_GLYPH = P("M4.5 15.5 L9 7.5 L13.5 15.5 Z M6.75 11.5 H11.25 L9 15.5 Z M9 7.5 V11.5", s=OR)
+I["part-export-mesh"] = export_doc(MESH_GLYPH, OR)
+I["part-export-obj"] = export_doc(MESH_GLYPH + C(9, 5.5, 1.2, s=INK), OR)
+I["part-export-gltf"] = export_doc(MESH_GLYPH + P("M5.5 5.5 H12.5", s=INK), OR)
+I["part-export-3mf"] = export_doc(MESH_GLYPH + P("M5.5 5 H12.5 M9 5 V7", s=INK), OR)
+I["part-export-iges"] = export_doc(P("M4.5 14.5 C6.5 9.5 10.5 9.5 13.5 12 M5.5 7.5 C8 5.5 10.5 6 13 8 M4.5 14.5 L5.5 7.5 M13.5 12 L13 8", s=OR), OR)
+I["part-export-face-dxf"] = export_doc(R(4.5, 7, 9, 8, 0.5, s=OR) + C(7, 11, 1.2, s=OR) + C(11, 11, 1.2, s=OR), OR)
 IMPORT = import_doc(cube(15, 12, 0.55), OR)
 I["part-import"] = IMPORT
 I["part-import-file"] = (P("M2.5 6 H8.5 L10.5 8 H20 V19 H2.5 Z", f=WH) + P("M11.5 1.5 V12", s=OR) +

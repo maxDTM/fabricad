@@ -211,7 +211,19 @@ bool stepLoadFailed(const Handle(XSControl_WorkSession)& ws) {
     const Handle(Interface_Check)& check = checks.Value();
     for (int i = 1; i <= check->NbFails(); ++i) {
       const char* text = check->Fail(i, false)->ToCString();  // the message template
-      if (print) std::fprintf(stderr, "STEP_FAIL %s\n", text);
+      if (print) {
+        const int n = checks.Number();
+        const Handle(Standard_Transient) ent = n > 0 && n <= ws->Model()->NbEntities() ? ws->Model()->Value(n) : nullptr;
+        std::fprintf(stderr, "STEP_FAIL #%d %s %s\n", n, ent.IsNull() ? "?" : ent->DynamicType()->Name(), text);
+      }
+      // PMI, presentation and property entities that OCCT's AP242 schema types differently (the
+      // NIST CTC / FTC samples): the shape transfer never follows them, so they are not fatal
+      const int num = checks.Number();
+      const Handle(Standard_Transient) e = num > 0 && num <= ws->Model()->NbEntities() ? ws->Model()->Value(num) : nullptr;
+      const char* type = e.IsNull() ? "" : e->DynamicType()->Name();
+      if (std::strncmp(type, "StepDimTol_", 11) == 0 || std::strncmp(type, "StepVisual_", 11) == 0 ||
+          std::strncmp(type, "StepAP242_", 10) == 0 || std::strcmp(type, "StepRepr_PropertyDefinition") == 0)
+        continue;
       for (const char* k : kStructural)
         if (std::strstr(text, k)) failed = true;
     }
