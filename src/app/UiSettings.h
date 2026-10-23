@@ -9,7 +9,7 @@
 //   ui/cardRememberDrag  bool                        (stored; phase 3)
 //   ui/cardFreePos    string (anchor + offset)       (written by the card, phase 3)
 //   ui/quickToolbar   off | left | right             (applied live; QuickToolbar in the viewport)
-//   ui/orientation    hexDial | viewCube             (stored; phase 4)
+//   ui/orientation    viewCube | hexDial             (default viewCube since 2026-10-23)
 //   ui/timelineStyle  featureList | strip            (stored; phase 2)
 //   ui/fontScale      90 .. 130 (%)                  (applied live)
 //   ui/glow, ui/scanlines  bool                      (decision 10; stored)

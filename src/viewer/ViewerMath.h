@@ -116,9 +116,19 @@ struct BrepModes {
 /// allowed (Fusion picks faces first; bodies come from the browser or Body priority).
 BrepModes brepModesFor(core::ShapeKindMask filter);
 
+/// Pick priority among the depth-sorted candidates under the cursor (kinds already filtered):
+/// faces, edges, vertices, bodies, sketch geometry... win; an origin plane only when nothing
+/// else is there (the planes are large and sit in front of the model in iso views:
+/// NEW-ASSEMBLY-DRAWING-1 / UX-02). Returns the index to use, -1 for an empty list.
+int preferredPickIndex(const std::vector<core::ShapeKind>& candidates);
+
 /// Window (left-to-right, fully inside) vs crossing (right-to-left, touching) selection.
 inline bool isCrossingSelection(int startX, int endX) { return endX < startX; }
 inline bool exceedsDragThreshold(int dx, int dy, int threshold = 4) { return dx * dx + dy * dy > threshold * threshold; }
+/// Right button: a press that moves more than this many px orbits the view; a release before
+/// that is a click and opens the context / marking menu (user decision 2026-10-23).
+constexpr int kRightOrbitThreshold = 5;
+inline bool rightDragStartsOrbit(int dx, int dy) { return exceedsDragThreshold(dx, dy, kRightOrbitThreshold); }
 
 /// How a click combines with the existing selection.
 enum class SelectOp { Replace, Add, Toggle };
@@ -128,7 +138,8 @@ SelectOp selectOpForModifiers(int modifiers);  ///< Ctrl toggles, Shift adds, no
 enum class NavAction { None, Orbit, Pan, Zoom };
 enum class NavPreset { Fusion, SolidWorks, AutoCAD, Inventor };
 struct NavBinding {
-  int button = 0;     ///< 1 L, 2 M, 4 R (ViewerMouseEvent::buttons bits)
+  int button = 0;     ///< 1 L, 2 M, 4 R (ViewerMouseEvent::buttons bits); R orbits only after
+                      ///< kRightOrbitThreshold (a right click opens the menu)
   int modifiers = 0;  ///< core::KeyModifier bits
   NavAction action = NavAction::None;
 };

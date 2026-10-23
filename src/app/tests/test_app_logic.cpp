@@ -312,7 +312,7 @@ class TestAppLogic : public QObject {
     QCOMPARE(ui.string("ui/sidebarSide"), QString("left"));
     QCOMPARE(ui.string("ui/cardPlacement"), QString("floatRight"));
     QCOMPARE(ui.string("ui/quickToolbar"), QString("off"));
-    QCOMPARE(ui.string("ui/orientation"), QString("hexDial"));
+    QCOMPARE(ui.string("ui/orientation"), QString("viewCube"));  // the dial is opt-in (2026-10-23)
     QCOMPARE(ui.string("ui/timelineStyle"), QString("featureList"));
     QCOMPARE(ui.number("ui/fontScale"), 100);
     QVERIFY(ui.flag("ui/glow"));

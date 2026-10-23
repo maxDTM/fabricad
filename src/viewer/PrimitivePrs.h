@@ -9,9 +9,19 @@
 #include <Quantity_ColorRGBA.hxx>
 #include <gp_Pnt.hxx>
 
+#include <TColStd_HArray1OfByte.hxx>
+
+#include <cstdint>
 #include <vector>
 
 namespace fabricad::viewer {
+
+/// A filled disc as a 1-bit marker bitmap (rows of ceil(d/8) bytes, MSB first). The diameter is
+/// made odd so the disc has a centre pixel and sits exactly on its point: OCCT's TOM_BALL sprite
+/// is shaded and lopsided at small sizes and read as an off-centre sketch origin (2026-10-23).
+int dotDiameter(float sizePx);
+std::vector<std::uint8_t> roundDotBits(int diameter);
+Handle(TColStd_HArray1OfByte) roundDotBitmap(int diameter);
 
 class PrimitivePrs : public AIS_InteractiveObject {
   DEFINE_STANDARD_RTTI_INLINE(PrimitivePrs, AIS_InteractiveObject)

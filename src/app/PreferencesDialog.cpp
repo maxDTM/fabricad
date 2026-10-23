@@ -305,7 +305,7 @@ QWidget* PreferencesDialog::buildLayoutPage() {
                     {{"Float right", "floatRight"}, {"Float left", "floatLeft"}, {"In the sidebar", "sidebar"}, {"Where dragged", "free"}},
                     form));
   f->addRow("Quick toolbar", uiCombo("ui/quickToolbar", {{"Off", "off"}, {"Left", "left"}, {"Right", "right"}}, form));
-  f->addRow("Orientation", uiCombo("ui/orientation", {{"Hex dial", "hexDial"}, {"View cube", "viewCube"}}, form));
+  f->addRow("Orientation", uiCombo("ui/orientation", {{"View cube", "viewCube"}, {"Hex dial", "hexDial"}}, form));
   f->addRow("Timeline", uiCombo("ui/timelineStyle", {{"Feature list", "featureList"}, {"Bottom strip", "strip"}}, form));
   auto* remember = new QCheckBox("Remember the dragged card position", form);
   remember->setObjectName("pref_cardRememberDrag");

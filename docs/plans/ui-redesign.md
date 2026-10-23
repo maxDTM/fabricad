@@ -363,7 +363,7 @@ All controls use radius 0 (containers) or 1 px (inputs and chips). Heights are l
 | Document tab `#DocumentTabs` | 36 h, min 120 w, angled sides (12° slant, 8 px run), 12 px text padding | inactive `text.secondary` on `bg.app`; hover `surface.hover`; active `surface.panel` + 2 px top `accent.indicator`; modified dot | Custom `QTabBar` paint (section 7.1). The `+` tab is `#NewTabButton`. |
 | Search box | 26 h, 260 w, `>_` glyph, keycap `CTRL K` | focus ring | opens the existing `#SearchPopup` |
 | Main toolbar `#RibbonRow` (horizontal) | 70 h: button row 52 + caption row 16; sections divided by a straight 1 px `border.default`, 8 px gaps | — | sections SKETCH, CREATE, MODIFY, ASSEMBLE, CONSTRUCT, INSPECT on the left; DOCUMENT right-aligned |
-| Tool button `#RibbonTool` | 48–60 w × 50 h: 24 px icon, 4 px gap, `label.sm`; split arrow ▾ 8 px when it has variants | hover `surface.hover`; pressed `surface.pressed`; active (running tool) `accent.selFill` + 1 px `accent.indicator` border; disabled 35 % | gets the dynamic property `toolId` (new: today's `Ribbon.cpp` sets no dynamic properties) |
+| Tool button `#RibbonTool` | 48–60 w × 50 h: 24 px icon, 4 px gap, `label.sm`; split arrow ▾ in a 16 px arrow zone when it has variants (wider since 2026-10-23); a right click on any button with a dropdown opens it under the button, a left click runs the tool | hover `surface.hover`; pressed `surface.pressed`; active (running tool) `accent.selFill` + 1 px `accent.indicator` border; disabled 35 % | gets the dynamic property `toolId` (new: today's `Ribbon.cpp` sets no dynamic properties) |
 | Section caption `#RibbonGroupLabel` | 16 h, `caption`, ▾, straight; full width of the section | hover `accent.text`; open `accent.selFill` | the dropdown lists every tool in the group (as today) |
 | Vertical toolbar | 64 w; each section = caption bar (16 h, straight rule above) + one column of 40 × 40 icon buttons, label below at 9 px if it fits, else in the tooltip | as above | for the left and right positions (section 6.2) |
 | Status bar | 28 h, `bg.app`, cells divided by 1 px `border.subtle` | — | 3 px left bar + gold square + command name; prompt (`text.primary`); key hints (`text.tertiary`); command line cell; OCCT version; units; grid; snap; rebuild meter (8 bars + ms); selection count |
@@ -433,7 +433,7 @@ All are live (no restart), stored in QSettings under `ui/` and applied through o
 | 2 | Floating quick toolbar (`ui/quickToolbar`) | `off`, `left`, `right` | `off` |
 | 3 | Main toolbar position (`ui/toolbarArea`) | `top`, `left`, `right` | `top` |
 | 4 | Sidebar side (`ui/sidebarSide`) | `left`, `right` | `left` |
-| 5 | Orientation widget (`ui/orientation`) | `hexDial`, `viewCube` | `hexDial` |
+| 5 | Orientation widget (`ui/orientation`) | `viewCube`, `hexDial` | `viewCube` (user decision 2026-10-23: the dial was rejected and stays an option) |
 | 6 | Theme (`ui/theme`) | `dark`, `light`, `system` | `dark` |
 | 7 | Timeline style (`ui/timelineStyle`; a new key, no older timeline key exists in the code) | `featureList` (sidebar), `strip` (bottom) | `featureList` (open question 1) |
 | — | UI scale (`ui/fontScale`) | 90–130 % | 100 % |
@@ -531,6 +531,15 @@ Double-clicking the header returns the card to the chosen placement. The positio
 - Toolbar dividers and caption dropdowns are **straight** (the v6 decision): plain 1 px lines with no paint code.
 
 ### 7.2 Hex orientation dial (alongside AIS_ViewCube)
+
+> **2026-10-23 (user):** the ViewCube is the default (`ui/orientation=viewCube`); the dial below is an option.
+> ViewCube: 86 px cube, 13 px facet extension, edge zones ≥ 10 px, corner zones 15 px (+ 16 px corner-click
+> tolerance), 24 px home/roll/step buttons, drag on the cube orbits, hover tint `vp.cube.hover`, token colours in
+> both themes. Viewport mouse: **right drag orbits** (after 5 px; a right click without a drag opens the marking /
+> ViewCube menu), middle drag pans, Shift+middle orbits, wheel zooms. Picking: origin planes lose to any body face,
+> edge or other geometry under the cursor and win only when nothing else is there (or the filter allows planes
+> only). Dropdowns (tool-button menus, combo lists) open under their label, corrected for a stale window position
+> under Xwayland (`app/PopupAnchor`).
 
 - `viewer::OrientationDial` is a QWidget overlay child of `ViewerWidget`, the same pattern as `NavBar`. It is fed
   by a new `cameraChanged` signal (the tutorial plan needs the same signal).

@@ -3,6 +3,7 @@
 #include "app/MainWindow.h"
 
 #include "app/ThemeManager.h"
+#include "app/PopupAnchor.h"
 #include "viewer/ViewerPalette.h"
 
 #include "app/AppActions.h"
@@ -158,6 +159,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   recentCommands_ = QSettings().value("search/recent").toStringList();
   navBar_->applySettings();
   qApp->installEventFilter(this);
+  PopupAnchor::install();  // dropdowns under their labels, right click opens them (2026-10-23)
   // live theme switch: viewports take their colours from the tokens too
   connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](theme::Theme th) {
     const viewer::ViewerPalette pal = viewer::ViewerPalette::fromTokens(th);
@@ -1570,7 +1572,8 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
       search_->setRecent(recentCommands_);
       FeatureListWidget* l = featureList_;
       const QRect r = l ? l->rowRect(l->model().insertRow()) : QRect();
-      search_->popup(l && !r.isNull() ? l->viewport()->mapToGlobal(r.bottomLeft()) : QCursor::pos());
+      search_->popup(l && !r.isNull() ? l->viewport()->mapToGlobal(r.bottomLeft()) + PopupAnchor::install().correction(l)
+                                      : QCursor::pos());
     });
     connect(list, &FeatureListWidget::messageRequested, this, [this](const QString& text, int level) {
       showMessage(text.toStdString(), static_cast<core::MessageLevel>(level));
@@ -2588,8 +2591,9 @@ void MainWindow::openCommandSearch() {
   search_->setRecent(recentCommands_);
   // under the title-bar search box, inside the window (p1-check 5); the cursor without one
   if (searchBox_ && searchBox_->isVisible()) {
-    const QRect anchor(searchBox_->mapToGlobal(QPoint(0, 0)), searchBox_->size());
-    search_->popupBelow(anchor, QRect(mapToGlobal(QPoint(0, 0)), size()));
+    // corrected by the measured window offset (stale positions under Xwayland: PopupAnchor)
+    const PopupAnchor& pa = PopupAnchor::install();
+    search_->popupBelow(pa.globalRect(searchBox_), pa.globalRect(this));
   } else {
     search_->popup(QCursor::pos());
   }

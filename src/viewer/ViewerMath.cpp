@@ -278,6 +278,12 @@ BrepModes brepModesFor(ShapeKindMask filter) {
   return m;
 }
 
+int preferredPickIndex(const std::vector<core::ShapeKind>& candidates) {
+  for (size_t i = 0; i < candidates.size(); ++i)
+    if (candidates[i] != core::ShapeKind::OriginPlane) return static_cast<int>(i);
+  return candidates.empty() ? -1 : 0;
+}
+
 SelectOp selectOpForModifiers(int modifiers) {
   if (modifiers & core::ModCtrl) return SelectOp::Toggle;
   if (modifiers & core::ModShift) return SelectOp::Add;
@@ -286,6 +292,7 @@ SelectOp selectOpForModifiers(int modifiers) {
 
 std::vector<NavBinding> navigationBindings(NavPreset preset) {
   constexpr int M = 2;
+  constexpr int R = 4;  // right drag orbits in every preset (right click stays the menu)
   using core::ModCtrl;
   using core::ModNone;
   using core::ModShift;
@@ -293,9 +300,11 @@ std::vector<NavBinding> navigationBindings(NavPreset preset) {
     case NavPreset::Fusion:
     case NavPreset::AutoCAD:
     case NavPreset::Inventor:
-      return {{M, ModNone, NavAction::Pan}, {M, ModShift, NavAction::Orbit}, {M, ModCtrl, NavAction::Zoom}};
+      return {{M, ModNone, NavAction::Pan}, {M, ModShift, NavAction::Orbit}, {M, ModCtrl, NavAction::Zoom},
+              {R, ModNone, NavAction::Orbit}};
     case NavPreset::SolidWorks:
-      return {{M, ModNone, NavAction::Orbit}, {M, ModCtrl, NavAction::Pan}, {M, ModShift, NavAction::Zoom}};
+      return {{M, ModNone, NavAction::Orbit}, {M, ModCtrl, NavAction::Pan}, {M, ModShift, NavAction::Zoom},
+              {R, ModNone, NavAction::Orbit}};
   }
   return {};
 }

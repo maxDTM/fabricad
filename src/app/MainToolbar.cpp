@@ -29,6 +29,7 @@ constexpr int kButtonHeight = 50;  // icon + gap + label.sm
 constexpr int kCaptionHeight = 16;
 constexpr int kRowHeight = 70;     // 52 button row + 16 caption + border
 constexpr int kMinButtonWidth = 48;
+constexpr int kSplitArrowExtra = 13;  // label room lost to a split button's arrow zone
 constexpr int kButtonSpacing = 2;
 constexpr int kSectionMargin = 4;  // left and right inside a section
 constexpr int kSectionPadding = 2 * kSectionMargin + 1;  // + the 1 px divider
@@ -754,8 +755,9 @@ void MainToolbar::fit() {
       for (QToolButton* b : s.buttons) {
         // width budget (3.4): max(48, label + 12), plus the arrow of dropdown buttons
         b->ensurePolished();
-        const int w = std::max(kMinButtonWidth, QFontMetrics(b->font()).horizontalAdvance(b->text()) + 12 +
-                                                    (b->menu() ? 8 : 0));
+        // split buttons: the 16 px arrow zone (QSS padding-right 17, wider since 2026-10-23)
+        const int arrow = !b->menu() ? 0 : b->popupMode() == QToolButton::MenuButtonPopup ? kSplitArrowExtra : 8;
+        const int w = std::max(kMinButtonWidth, QFontMetrics(b->font()).horizontalAdvance(b->text()) + 12 + arrow);
         if (b->width() != w || b->minimumWidth() != w) b->setFixedWidth(w);
         f.buttonWidths.push_back(w);
       }

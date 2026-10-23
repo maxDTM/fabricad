@@ -190,6 +190,9 @@ const char* viewerFont() {
 // radius of the ring the overlay controls sit on
 constexpr double kCubeOffset = 115.0;
 constexpr double kCubeCtlRadius = 84.0;
+// ViewCube size and hit zones (device px): forgiving edges and corners (user 2026-10-23)
+constexpr double kCubeSize = 86.0, kCubeFacet = 13.0, kCubeCornerTol = 16.0;
+constexpr double kCubeCtlBox = 24.0;  ///< logical px, the home / roll / step buttons
 
 }  // namespace
 
@@ -325,6 +328,7 @@ ViewerWidget::ViewerWidget(QWidget* parent) : QWidget(parent), d_(std::make_uniq
   sceneOptions_.shadeProfiles = true;  // SK-12: finished sketches show their closed profiles
   // viewport overlays (5.3): placed by layoutOverlayWidgets(), reported to OverlayLayout
   dial_ = new OrientationDial(*this);
+  dial_->setPlateVisible(orientation_ == OrientationWidget::HexDial);
   breadcrumb_ = new Breadcrumb(*this);
   filterBar_ = new SelectionFilterBar(*this);
   readout_ = new CoordReadout(*this);
@@ -609,11 +613,11 @@ void ViewerWidget::onGlInitialized() {
   // outline (edges and corners in vp.cube.edge, so it reads on the light viewport too); generous
   // edge and corner zones (facet extension + minimum sizes) so they are easy to hit
   const Handle(AIS_ViewCube)& cube = d_->view->viewCube();
-  cube->SetSize(80.0);
-  cube->SetBoxFacetExtension(12.0);
+  cube->SetSize(kCubeSize);
+  cube->SetBoxFacetExtension(kCubeFacet);
   cube->SetRoundRadius(0.08);
-  cube->SetBoxEdgeMinSize(8.0);
-  cube->SetBoxCornerMinSize(13.0);
+  cube->SetBoxEdgeMinSize(10.0);
+  cube->SetBoxCornerMinSize(15.0);
   cube->SetBoxEdgeGap(0.0);
   cube->SetFontHeight(13.0);
   cube->SetFont(viewerFont());
@@ -944,7 +948,7 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
       s->SetWidth(it.style == SceneStyle::SketchConstruction ? 1.5 : 2.0);
       setLineStyle(dr, it.style == SceneStyle::SketchConstruction);
       dr->SetVertexDrawMode(Prs3d_VDM_All);
-      dr->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, col, 0.5));
+      dr->SetPointAspect(new Prs3d_PointAspect(col, 5, 5, roundDotBitmap(5)));  // centred dot
       layer = Graphic3d_ZLayerId_Top;
       break;
     }
@@ -989,7 +993,7 @@ Handle(AIS_InteractiveObject) makeDisplayObject(const SceneItem& it, const Viewe
     case SceneStyle::ConstructionPoint:
     case SceneStyle::OriginPoint: {
       s->SetColor(col);
-      dr->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, col, 0.8));
+      dr->SetPointAspect(new Prs3d_PointAspect(col, 7, 7, roundDotBitmap(7)));  // centred dot
       break;
     }
   }
@@ -1232,7 +1236,7 @@ void ViewerWidget::syncOverlays() {
       Handle(AIS_Shape) o = new AIS_Shape(shape);
       if (!isIdentity(placement)) o->SetLocalTransformation(placement);
       o->SetColor(qcol(edge));
-      o->Attributes()->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, qcol(edge), 1.0));
+      o->Attributes()->SetPointAspect(new Prs3d_PointAspect(qcol(edge), 9, 9, roundDotBitmap(9)));  // centred on the point
       display(o, AIS_WireFrame, kPrioMain);
       return;
     }
@@ -1335,6 +1339,10 @@ bool ViewerWidget::detect(int x, int y, ShapeKindMask kinds, ShapeRef& out, gp_P
   const Handle(StdSelect_ViewerSelector3d)& sel = ctx->MainSelector();
   bool found = false;
   gp_Pnt bestHit;
+  // origin planes lose to anything else under the cursor (preferredPickIndex): collect the
+  // candidates in depth order until one that is not an origin plane
+  std::vector<std::pair<ShapeRef, gp_Pnt>> cands;
+  std::vector<ShapeKind> candKinds;
   for (int i = 1; i <= sel->NbPicked(); ++i) {
     const Handle(SelectMgr_EntityOwner)& owner = sel->Picked(i);
     if (owner.IsNull()) continue;
@@ -1354,10 +1362,14 @@ bool ViewerWidget::detect(int x, int y, ShapeKindMask kinds, ShapeRef& out, gp_P
     const gp_Pnt p = sel->PickedPoint(i);
     if (!ownerToRef(*document_, scene_, o->second.item, owner, p, priority_, r)) continue;
     if (!core::hasKind(kinds, r.kind)) continue;
-    out = r;
-    bestHit = p;
+    cands.emplace_back(r, p);
+    candKinds.push_back(r.kind);
+    if (r.kind != ShapeKind::OriginPlane) break;
+  }
+  if (const int best = preferredPickIndex(candKinds); best >= 0) {
+    out = cands[static_cast<size_t>(best)].first;
+    bestHit = cands[static_cast<size_t>(best)].second;
     found = true;
-    break;
   }
 
   // sketch points are picked in screen space (8 px), and win over curves/faces
@@ -1516,6 +1528,7 @@ Qt::MouseButtons ViewerWidget::onMousePress(QMouseEvent* e) {
     rightDown_ = true;
     rightDragged_ = false;
     rightPressPos_ = e->position().toPoint();
+    rightPressGlobal_ = e->globalPosition().toPoint();  // server coordinates, not a mapped cache
     ShapeRef dummy;
     detect(ev.x, ev.y, effectiveFilter(), dummy, nullptr, &rightOnCube_);
     rightConsumed_ = manager_ && manager_->mousePress(ev);
@@ -1525,6 +1538,29 @@ Qt::MouseButtons ViewerWidget::onMousePress(QMouseEvent* e) {
 
 Qt::MouseButtons ViewerWidget::onMouseMove(QMouseEvent* e) {
   if (lmbNav_ != NavAction::None && (e->buttons() & Qt::LeftButton)) return Qt::MiddleButton | Qt::LeftButton;
+  if (rightOrbit_) {
+    navigating_ = true;
+    return Qt::MiddleButton | Qt::RightButton;
+  }
+  if (rightDown_ && !rightConsumed_ && (e->buttons() & Qt::RightButton) && d_->ready()) {
+    const QPoint dlt = e->position().toPoint() - rightPressPos_;
+    if (rightDragStartsOrbit(dlt.x(), dlt.y())) {
+      // right drag orbits (Right binds RotateOrbit in applyGestureMap): start the OCCT gesture
+      // at the press point so the first frame does not jump, then feed it this move
+      rightOrbit_ = rightDragged_ = true;
+      navigating_ = true;
+      if (hoverRef_ && document_) {
+        hoverRef_.reset();
+        document_->selection().setPreselection(std::nullopt);
+      }
+      const Graphic3d_Vec2i p0(d_->v3d()->Window()->ConvertPointToBacking(
+                                   Graphic3d_Vec2d(rightPressPos_.x(), rightPressPos_.y())) +
+                               Graphic3d_Vec2d(0.5));
+      d_->view->UpdateMouseButtons(p0, Aspect_VKeyMouse_RightButton,
+                                   OcctQtTools::qtMouseModifiers2VKeys(e->modifiers()), false);
+      return Qt::MiddleButton | Qt::RightButton;
+    }
+  }
   if (e->buttons() & Qt::MiddleButton) {
     navigating_ = true;
     return Qt::MiddleButton;
@@ -1579,10 +1615,6 @@ Qt::MouseButtons ViewerWidget::onMouseMove(QMouseEvent* e) {
       rubberEnd_ = pos;
       requestImmediateRedraw();
     }
-  }
-  if (rightDown_ && !rightConsumed_) {
-    const QPoint dlt = pos - rightPressPos_;
-    if (exceedsDragThreshold(dlt.x(), dlt.y(), 15)) rightDragged_ = true;
   }
   return Qt::MiddleButton;
 }
@@ -1656,13 +1688,22 @@ Qt::MouseButtons ViewerWidget::onMouseRelease(QMouseEvent* e) {
     rubber_ = false;
     suppressRelease_ = false;
     requestRedraw();
+  } else if (e->button() == Qt::RightButton && rightOrbit_) {
+    // end of a right-drag orbit: OCCT sees the button go up; no menu, the tool is not told
+    rightOrbit_ = false;
+    navigating_ = false;
+    rightDown_ = false;
+    rightConsumed_ = false;
+    return Qt::MiddleButton | Qt::RightButton;
   } else if (e->button() == Qt::RightButton) {
     core::ViewerMouseEvent ev = buildEvent(e, core::MouseButton::Right, false);
     const bool consumed = (manager_ && manager_->mouseRelease(ev)) || rightConsumed_;
     if (!consumed && rightDown_) {
-      const QPoint g = mapToGlobal(pos);
-      if (rightOnCube_ && !rightDragged_) emit viewCubeMenuRequested(g);
-      else emit markingMenuRequested(mapToGlobal(rightPressPos_), g, rightDragged_);
+      // the event's global position (root coordinates): mapToGlobal() can use a stale window
+      // position under Xwayland and put the menu far from the cursor
+      const QPoint g = e->globalPosition().toPoint();
+      if (rightOnCube_) emit viewCubeMenuRequested(g);
+      else emit markingMenuRequested(rightPressGlobal_, g, false);
     }
     rightDown_ = false;
     rightConsumed_ = false;
@@ -1884,7 +1925,7 @@ QRect ViewerWidget::orientationRect() const {
     // step arrows show right now: docked panels must not move when the view turns face-on
     const QPointF c = cubeCenter();
     const double dpr = d_->view->devicePixelRatioF();
-    const double half = kCubeCtlRadius / dpr + 22.0 / 2;
+    const double half = kCubeCtlRadius / dpr + kCubeCtlBox / 2;
     r = r.united(QRectF(c.x() - half, c.y() - half, 2 * half, 2 * half).toAlignedRect());
   }
   return r;
@@ -1899,7 +1940,7 @@ void ViewerWidget::layoutOverlayWidgets() {
   dial_->resize(dial_->sizeHint());
   if (orientation_ == OrientationWidget::ViewCube) {
     const double dpr = d_->view ? d_->view->devicePixelRatioF() : devicePixelRatioF();
-    const int top = static_cast<int>(std::ceil(kCubeOffset / dpr + kCubeCtlRadius / dpr + 11.0)) + 4;
+    const int top = static_cast<int>(std::ceil(kCubeOffset / dpr + kCubeCtlRadius / dpr + kCubeCtlBox / 2)) + 4;
     const int cx = static_cast<int>(std::lround(w - kCubeOffset / dpr));
     dial_->move(std::min(cx - dial_->width() / 2, w - kMargin - dial_->width()), top);
   } else {
@@ -2003,7 +2044,7 @@ std::vector<std::pair<ViewerWidget::CubeCtl, QRectF>> ViewerWidget::cubeControls
   const QPointF c = cubeCenter();
   // the cube's size and offset are in device pixels (OCCT), the controls in logical ones
   const double dpr = d_->view->devicePixelRatioF();
-  const double r = kCubeCtlRadius / dpr, s = 22.0, rs = 26.0 / dpr;
+  const double r = kCubeCtlRadius / dpr, s = kCubeCtlBox, rs = 28.0 / dpr;
   auto box = [s](QPointF at) { return QRectF(at.x() - s / 2, at.y() - s / 2, s, s); };
   out.push_back({CubeCtl::Home, box(c + QPointF(-r, -r))});
   out.push_back({CubeCtl::RollCcw, box(c + QPointF(r - rs, -r))});
@@ -2025,12 +2066,13 @@ ViewerWidget::CubeCtl ViewerWidget::cubeControlAt(QPointF p) const {
 
 bool ViewerWidget::cubeCornerClick(QPointF p) {
   if (orientation_ != OrientationWidget::ViewCube || !d_->ready()) return false;
-  // corner zones: 13 px around each corner on the eye's side (cube size 80 + facet extension
-  // 12, device px), so iso views are reachable from face-on views too (VIEWER-7)
+  // corner zones: kCubeCornerTol px around each corner on the eye's side (cube size + facet
+  // extension, device px), so iso views are reachable from face-on views too (VIEWER-7)
   const double dpr = d_->view->devicePixelRatioF();
   const QPointF c = cubeCenter();
   const std::optional<gp_Dir> corner =
-      cubeCornerHit(p.x() - c.x(), p.y() - c.y(), (40.0 + 11.0) / dpr, viewDirection(), upDirection(), 13.0);
+      cubeCornerHit(p.x() - c.x(), p.y() - c.y(), (kCubeSize / 2 + kCubeFacet - 1.0) / dpr, viewDirection(),
+                    upDirection(), kCubeCornerTol);
   if (!corner) return false;
   const AzEl ae = azimuthElevation(*corner);
   setViewAzEl(ae.az, ae.el, true);
