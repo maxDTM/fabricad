@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QStyle>
 
 #include <cmath>
@@ -135,6 +136,63 @@ void KeyHints::paintEvent(QPaintEvent*) {
 
 // ---- StatusCell ---------------------------------------------------------------------------------
 
+namespace {
+
+/// 12 px line glyph of a StatusCell, painted in its caption's colour (follows the on state and theme).
+class CellGlyph : public QWidget {
+ public:
+  CellGlyph(QLabel* colourFrom, QWidget* parent) : QWidget(parent), from_(colourFrom) {
+    setObjectName("StatusCellGlyph");
+    setFixedSize(12, 12);
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+  }
+  StatusCell::Glyph glyph = StatusCell::Glyph::None;
+
+ protected:
+  void paintEvent(QPaintEvent*) override {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    QPen pen(from_->palette().color(QPalette::WindowText), 1.2);
+    pen.setCapStyle(Qt::FlatCap);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    if (glyph == StatusCell::Glyph::Grid) {
+      p.drawRect(QRectF(1.5, 1.5, 9, 9));
+      p.drawLine(QPointF(4.5, 1.5), QPointF(4.5, 10.5));
+      p.drawLine(QPointF(7.5, 1.5), QPointF(7.5, 10.5));
+      p.drawLine(QPointF(1.5, 4.5), QPointF(10.5, 4.5));
+      p.drawLine(QPointF(1.5, 7.5), QPointF(10.5, 7.5));
+    } else if (glyph == StatusCell::Glyph::Snap) {
+      // a horseshoe magnet, poles up
+      QPainterPath path;
+      path.moveTo(2.5, 1.5);
+      path.lineTo(2.5, 6.5);
+      path.arcTo(QRectF(2.5, 3, 7, 7.5), 180, 180);
+      path.lineTo(9.5, 1.5);
+      p.drawPath(path);
+      p.drawLine(QPointF(1.5, 3.5), QPointF(3.8, 3.5));
+      p.drawLine(QPointF(8.2, 3.5), QPointF(10.5, 3.5));
+    }
+  }
+
+ private:
+  QLabel* from_;
+};
+
+}  // namespace
+
+void StatusCell::setGlyph(Glyph g) {
+  glyph_ = g;
+  if (!glyphBox_) {
+    auto* box = new CellGlyph(caption_, this);
+    static_cast<QHBoxLayout*>(layout())->insertWidget(0, box, 0, Qt::AlignVCenter);
+    glyphBox_ = box;
+  }
+  static_cast<CellGlyph*>(glyphBox_)->glyph = g;
+  glyphBox_->setVisible(g != Glyph::None);
+  glyphBox_->update();
+}
+
 StatusCell::StatusCell(const QString& caption, QWidget* parent) : QWidget(parent) {
   setObjectName("StatusCellBox");
   setAttribute(Qt::WA_StyledBackground);
@@ -174,6 +232,7 @@ void StatusCell::setOn(bool on) {
     w->style()->unpolish(w);
     w->style()->polish(w);
   }
+  if (glyphBox_) glyphBox_->update();
 }
 
 void StatusCell::setClickAction(std::function<void()> fn) {

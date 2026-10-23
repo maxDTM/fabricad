@@ -374,7 +374,12 @@ void SidebarHost::applyLayout() {
       s[0] = panels_[0]->maximumHeight();
       cardH = std::max(want, total - s[0] - s[1] - s[2]);
     } else {
-      cardH = std::min(want, total / 2);
+      // the card gets what it asks for while FEATURES keeps its header and four rows and the folded
+      // MODEL and SELECTION their headers; it scrolls only below that (P5-TOGGLES-2: half the
+      // sidebar hid OPERATION on a 1000 px window)
+      const int keep = PanelHeader::kHeight + FeatureListWidget::kTop + 4 * FeatureListWidget::kRowH +
+                       2 * PanelHeader::kHeight + 3 * splitter_->handleWidth();
+      cardH = std::min(want, std::max(total / 2, total - keep));
       if (showFeatures && fs) s[0] = std::max(s[0], (total - cardH) * 3 / 5);
     }
     // MODEL and SELECTION give way to the card (down to their headers), never FEATURES' live row
@@ -490,6 +495,13 @@ void SidebarHost::setDropHighlight(bool on) {
   dropOverlay_->setGeometry(QRect(mapFromGlobal(g.topLeft()), g.size()));
   dropOverlay_->raise();
   dropOverlay_->show();
+}
+
+void SidebarHost::openFeatureSearch() {
+  if (!searchButton_->isChecked()) searchButton_->setChecked(true);  // shows the field, expands FEATURES
+  if (isPanelCollapsed(Panel::Features)) setPanelCollapsed(Panel::Features, false);
+  search_->setFocus(Qt::ShortcutFocusReason);
+  search_->selectAll();
 }
 
 }  // namespace fabricad::app

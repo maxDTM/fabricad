@@ -4,6 +4,7 @@
 #include "core/AppHost.h"
 #include "core/Commands.h"
 #include "core/Document.h"
+#include "core/GeometryRefs.h"
 #include "core/Log.h"
 #include "core/Selection.h"
 #include "core/ShapeUtils.h"
@@ -205,6 +206,13 @@ bool FeatureTool::addRefToInput(core::ToolContext& ctx, const std::string& propN
   PartFeature* f = feature();
   core::Property* p = f ? f->property(propName) : nullptr;
   if (!p || !core::hasKind(p->refFilter(), ref.kind)) return false;
+  // P5-LIGHT-2: a profile input takes planar faces only; a curved face is refused at the pick
+  // instead of joining the input (and its count) with an error the preview reports later
+  if (ref.kind == core::ShapeKind::Face && core::hasKind(p->refFilter(), core::ShapeKind::Profile) && ctx.document)
+    if (const TopoDS_Shape face = core::resolveShape(*ctx.document, ref); !face.IsNull() && !core::facePlane(face)) {
+      ctx.showMessage("Only planar faces can be used as profiles", true);
+      return false;
+    }
   if (ref.isBrep() && ref.kind != core::ShapeKind::Body && ctx.document) annotateRef(*ctx.document, ref);
   if (p->type() == core::PropertyType::Ref) {
     p->setRef(ref);

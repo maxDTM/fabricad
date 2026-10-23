@@ -3,6 +3,7 @@
 #include "viewer/ViewportOverlays.h"
 
 #include "core/Document.h"
+#include "core/Selection.h"
 #include "core/Units.h"
 #include "theme/Tokens.h"
 #include "viewer/ViewerWidget.h"
@@ -408,11 +409,16 @@ void OrientationDial::wheelEvent(QWheelEvent* e) {
 }
 
 void OrientationDial::keyPressEvent(QKeyEvent* e) {
+  // P5-KEYBOARD-8: exact 15 degree steps of the AZ / EL readout (an orbit about the screen axes
+  // drifted: Right twice from AZ 315 gave 350); the other angle stays as it is. No animation, so a
+  // held or repeated key steps from where the last one ended.
+  const AzEl ae = azimuthElevation(viewer_.viewDirection());
+  const auto step = [](double v, int dir) { return std::round(v / 15.0) * 15.0 + 15.0 * dir; };
   switch (e->key()) {
-    case Qt::Key_Left: viewer_.orbitBy(-15.0, 0.0); break;
-    case Qt::Key_Right: viewer_.orbitBy(15.0, 0.0); break;
-    case Qt::Key_Up: viewer_.orbitBy(0.0, -15.0); break;
-    case Qt::Key_Down: viewer_.orbitBy(0.0, 15.0); break;
+    case Qt::Key_Left: viewer_.setViewAzEl(std::fmod(step(ae.az, -1) + 360.0, 360.0), ae.el, false); break;
+    case Qt::Key_Right: viewer_.setViewAzEl(std::fmod(step(ae.az, 1) + 360.0, 360.0), ae.el, false); break;
+    case Qt::Key_Up: viewer_.setViewAzEl(ae.az, std::clamp(step(ae.el, 1), -90.0, 90.0), false); break;
+    case Qt::Key_Down: viewer_.setViewAzEl(ae.az, std::clamp(step(ae.el, -1), -90.0, 90.0), false); break;
     case Qt::Key_Home: viewer_.setStandardView(core::StandardView::Home, true); break;
     default: return QWidget::keyPressEvent(e);
   }
@@ -648,7 +654,15 @@ bool SelectionFilterBar::segmentActive(Segment s) const {
   const core::ShapeKindMask avail = viewer_.availableKinds();
   const core::ShapeKindMask brepAndSketch = segmentKinds(Bodies) | segmentKinds(Faces) | segmentKinds(Edges) | segmentKinds(Profiles);
   const core::ShapeKindMask relevant = avail & brepAndSketch;
-  return relevant != 0 && (relevant & ~segmentKinds(s)) == 0;
+  if (relevant != 0 && (relevant & ~segmentKinds(s)) == 0) return true;
+  // several kinds allowed: the segment of what is picked lights (v6: a profile picked for Extrude
+  // lights SKETCH PROFILES, P5-MOCKUP-7)
+  core::Document* doc = viewer_.document();
+  if (!doc || doc->selection().items().empty() || relevant == 0) return false;
+  core::ShapeKindMask picked = 0;
+  for (const core::ShapeRef& r : doc->selection().items()) picked |= core::mask(r.kind);
+  picked &= relevant;
+  return picked != 0 && (picked & ~segmentKinds(s)) == 0;
 }
 
 QSize SelectionFilterBar::sizeHint() const {

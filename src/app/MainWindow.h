@@ -296,6 +296,11 @@ class MainWindow : public QMainWindow, public fabricad::core::IAppHost, public A
   void updateCardDockAvailability();
   /// Live row of the FEATURES list: the feature being edited or the command creating one.
   void updateLiveRow();
+  /// The feature the active command edits: editFeature(), a "<tool> edit <id>" run (EDITFEATURE, the
+  /// timeline's edit) or an editing FeatureTool; kInvalidId while creating or idle.
+  core::ObjectId editedFeature() const;
+  /// The app bar's find (Ctrl+F): FEATURES search field open and focused.
+  void openFeatureSearch();
   /// Viewport breadcrumb: document > component and the live chip (phase 4).
   void updateBreadcrumb();
   /// ui/orientation (hex dial or ViewCube) on a tab's viewer.

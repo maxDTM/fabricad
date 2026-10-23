@@ -455,7 +455,10 @@ void ViewerWidget::connectDocument() {
     scheduleSync();
   }));
   auto* sel = &document_->selection();
-  cs.push_back(connect(sel, &core::SelectionModel::changed, this, [this] { scheduleOverlaySync(); }));
+  cs.push_back(connect(sel, &core::SelectionModel::changed, this, [this] {
+    scheduleOverlaySync();
+    if (filterBar_) filterBar_->update();  // the active segment follows what is picked
+  }));
   cs.push_back(connect(sel, &core::SelectionModel::filterChanged, this, [this](ShapeKindMask) { onFilterInputsChanged(); }));
   cs.push_back(connect(sel, &core::SelectionModel::preselectionChanged, this, [this] {
     const auto& pre = document_->selection().preselection();
@@ -2130,6 +2133,9 @@ PreviewHandle ViewerWidget::showPreviewShape(const TopoDS_Shape& shape, const Pr
     if (pc.fill[3] < 0.999f) s->SetTransparency(1.0 - pc.fill[3]);
     dr->SetFaceBoundaryDraw(style.role != core::ColorRole::SketchProfile);  // a profile tint has no outline
     dr->SetFaceBoundaryAspect(new Prs3d_LineAspect(edge, pc.dashed ? Aspect_TOL_DASH : Aspect_TOL_SOLID, pc.edgeWidth));
+    // the preview's base lies on the face it grows from (a boss on the top face): pulled toward the
+    // eye past that face and the profile tint, it no longer z-fights into a jagged fill (P5-MOCKUP-13)
+    dr->ShadingAspect()->Aspect()->SetPolygonOffsets(Aspect_POM_Fill, -2.0f, -8.0f);
   }
   ctx->Display(s, mode, -1, false);
   ctx->SetZLayer(s, layer);

@@ -5,6 +5,7 @@
 // regions, and an Extrude end to end through the card in every placement and both themes.
 // FABRICAD_CARD_SHOTS=<dir> also saves a grab of the window per placement and theme.
 // SPDX-License-Identifier: LGPL-2.1-or-later
+#include "app/CardFrame.h"
 #include "app/CardSlot.h"
 #include "app/CommandCard.h"
 #include "app/FeatureListWidget.h"
@@ -16,6 +17,7 @@
 #include "app/UiSettings.h"
 #include "core/Document.h"
 #include "core/Tool.h"
+#include "theme/Tokens.h"
 #include "viewer/OverlayHost.h"
 #include "viewer/ViewerWidget.h"
 
@@ -24,6 +26,7 @@
 #include <QDockWidget>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPushButton>
 #include <QSettings>
 #include <QStandardPaths>
@@ -479,6 +482,42 @@ class TestCommandCard : public QObject {
     QVERIFY(!c->isVisible());
     QCOMPARE(run({"CHECK bodies == 1"}), 0);
     if (placement == "sidebar") QVERIFY(!c->isDocked());
+  }
+
+  // 7.4: the card border is 1 device px and the live hairline liveHairline() device px at any scale,
+  // also when the card's origin sits half-way into a device pixel
+  void cardFrameHairlinesAreDevicePixels_data() {
+    QTest::addColumn<double>("dpr");
+    QTest::addColumn<int>("origin");
+    for (double dpr : {1.0, 1.25, 1.5, 2.0})
+      for (int o : {8, 9}) QTest::addRow("dpr %.2f origin %d", dpr, o) << dpr << o;
+  }
+  void cardFrameHairlinesAreDevicePixels() {
+    QFETCH(double, dpr);
+    QFETCH(int, origin);
+    QImage img(QSize(int(160 * dpr), int(120 * dpr)), QImage::Format_ARGB32_Premultiplied);
+    img.setDevicePixelRatio(dpr);
+    img.fill(Qt::transparent);
+    {
+      QPainter p(&img);
+      app::CardFrame::Style st;
+      st.brackets = false;
+      st.shadow = false;
+      st.live = true;
+      app::CardFrame::paint(p, QRect(origin, origin, 100, 60), st);
+    }
+    const QRgb border = theme::color(theme::Tok::BorderDefault).rgb(), gold = theme::color(theme::Tok::LiveBase).rgb();
+    const auto at = [&](int x, int y) { return img.pixel(x, y) | 0xff000000u; };
+    const int midX = int((origin + 50) * dpr), midY = int((origin + 30) * dpr);
+    int goldRows = 0, borderRows = 0, borderCols = 0;
+    for (int y = 0; y < img.height(); ++y) {
+      goldRows += at(midX, y) == gold;
+      borderRows += at(midX, y) == border;
+    }
+    for (int x = 0; x < img.width(); ++x) borderCols += at(x, midY) == border;
+    QCOMPARE(goldRows, app::CardFrame::liveHairline());  // over the top border
+    QCOMPARE(borderRows, 1);                              // bottom edge
+    QCOMPARE(borderCols, 2);                              // left and right edge
   }
 
   void segmentedControlDrivesCombo() {

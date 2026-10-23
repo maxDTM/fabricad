@@ -67,6 +67,8 @@ class SidebarHost : public QWidget {
   SelectionPanel* selectionPanel() const { return selection_; }
   QSplitter* splitter() const { return splitter_; }
   QLineEdit* featureSearch() const { return search_; }
+  /// Show the FEATURES search field (expanding FEATURES) and focus it; its text is selected.
+  void openFeatureSearch();
 
   /// The active tab's widgets (null for a drawing tab): the stacks switch, the SELECTION panel
   /// and the feature-selection watch follow the document.

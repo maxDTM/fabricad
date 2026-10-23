@@ -76,7 +76,7 @@ class BadgeEngine : public QIconEngine {
 /// ":/icons/<dark|light>/x.svg" for theme::current(). Renderers are created lazily per theme.
 class ThemedSvgIconEngine : public QIconEngine {
  public:
-  explicit ThemedSvgIconEngine(QString logical) : logical_(std::move(logical)) {}
+  explicit ThemedSvgIconEngine(QString logical, bool neutral = false) : logical_(std::move(logical)), neutral_(neutral) {}
   void paint(QPainter* p, const QRect& rect, QIcon::Mode mode, QIcon::State) override {
     QSvgRenderer* r = renderer(theme::current());
     if (!r || !r->isValid()) return;
@@ -95,16 +95,28 @@ class ThemedSvgIconEngine : public QIconEngine {
   }
   QSize actualSize(const QSize& size, QIcon::Mode, QIcon::State) override { return size; }
   bool isNull() override { return logical_.isEmpty(); }
-  QIconEngine* clone() const override { return new ThemedSvgIconEngine(logical_); }
+  QIconEngine* clone() const override { return new ThemedSvgIconEngine(logical_, neutral_); }
   QString key() const override { return QStringLiteral("fabricad-themed-svg"); }
 
  private:
   QSvgRenderer* renderer(theme::Theme th) {
     auto& r = renderers_[th == theme::Theme::Dark ? 0 : 1];
-    if (!r) r = std::make_unique<QSvgRenderer>(themedIconPath(logical_, th));
+    if (!r) {
+      if (!neutral_) {
+        r = std::make_unique<QSvgRenderer>(themedIconPath(logical_, th));
+      } else {
+        // neutral: the cyan accent strokes are drawn in icon.ink (monochrome app-bar actions)
+        QFile f(themedIconPath(logical_, th));
+        QString svg = f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
+        svg.replace(theme::color(theme::Tok::IconBadgeCyan, th).name(), theme::color(theme::Tok::IconInk, th).name(),
+                    Qt::CaseInsensitive);
+        r = std::make_unique<QSvgRenderer>(svg.toUtf8());
+      }
+    }
     return r.get();
   }
   QString logical_;
+  bool neutral_ = false;
   std::unique_ptr<QSvgRenderer> renderers_[2];
 };
 
@@ -153,6 +165,60 @@ QIcon resourceIcon(const QString& nameOrPath) {
   c.insert(key, icon);
   return icon;
 }
+
+QIcon neutralIcon(const QString& nameOrPath) {
+  if (nameOrPath.isEmpty()) return {};
+  auto& c = cache();
+  const QString key = "neutral:" + nameOrPath;
+  if (auto it = c.find(key); it != c.end()) return *it;
+  const QString path = resourceIconPath(nameOrPath);
+  QIcon icon;
+  if (!path.isEmpty()) icon = QIcon(new ThemedSvgIconEngine(path, true));
+  c.insert(key, icon);
+  return icon;
+}
+
+namespace {
+
+/// The app-bar mark (v6 mockup): an accent hexagon with an F, from the tokens at paint time.
+class LogoEngine : public QIconEngine {
+ public:
+  void paint(QPainter* p, const QRect& rect, QIcon::Mode, QIcon::State) override {
+    p->save();
+    p->setRenderHint(QPainter::Antialiasing, true);
+    p->translate(rect.topLeft());
+    p->scale(rect.width() / 24.0, rect.height() / 24.0);
+    QPainterPath hex;
+    hex.moveTo(12, 1.5);
+    for (const QPointF& pt : {QPointF(21.5, 7), QPointF(21.5, 17), QPointF(12, 22.5), QPointF(2.5, 17), QPointF(2.5, 7)})
+      hex.lineTo(pt);
+    hex.closeSubpath();
+    p->fillPath(hex, theme::color(theme::Tok::AccentSolid));
+    QPainterPath f;
+    f.moveTo(8.5, 7.5);
+    for (const QPointF& pt : {QPointF(16.5, 7.5), QPointF(16.5, 10.5), QPointF(11.5, 10.5), QPointF(11.5, 12.3),
+                              QPointF(15.5, 12.3), QPointF(15.5, 15.3), QPointF(11.5, 15.3), QPointF(11.5, 18.5),
+                              QPointF(8.5, 18.5)})
+      f.lineTo(pt);
+    f.closeSubpath();
+    p->fillPath(f, theme::color(theme::Tok::AccentOnSolid));
+    p->restore();
+  }
+  QPixmap pixmap(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+    QPixmap pm(size);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    paint(&p, QRect(QPoint(0, 0), size), mode, state);
+    return pm;
+  }
+  QSize actualSize(const QSize& size, QIcon::Mode, QIcon::State) override { return size; }
+  QIconEngine* clone() const override { return new LogoEngine; }
+  QString key() const override { return QStringLiteral("fabricad-logo"); }
+};
+
+}  // namespace
+
+QIcon appBarLogoIcon() { return QIcon(new LogoEngine); }
 
 QIcon iconOr(const std::string& nameOrPath, const std::string& label) {
   QIcon i = resourceIcon(QString::fromStdString(nameOrPath));

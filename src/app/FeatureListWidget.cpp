@@ -179,10 +179,19 @@ QRect FeatureListWidget::contentRect(int row) const {
 QRect FeatureListWidget::rowRect(int row) const {
   QRect r = contentRect(row);
   if (r.isNull()) return r;
-  return r.translated(0, -verticalScrollBar()->value());
+  r.translate(0, -verticalScrollBar()->value());
+  // the insert button stays at the bottom of the list while the rows overflow (P5-MOCKUP-14: it
+  // used to show only its dashed edge until the list was scrolled to the end)
+  if (model_.rows()[static_cast<size_t>(row)].kind == Kind::Insert && !compact_) {
+    const int bottom = viewport()->height() - 6;
+    if (r.bottom() > bottom && viewport()->height() > kInsertH + kRowH * 2) r.moveBottom(bottom);
+  }
+  return r;
 }
 
 int FeatureListWidget::rowAt(const QPoint& p) const {
+  // the pinned insert button covers the rows under it
+  if (const int ins = model_.rowCount() - 1; rowShown(ins) && rowRect(ins).contains(p)) return ins;
   const int y = p.y() + verticalScrollBar()->value();
   for (int i = 0; i < model_.rowCount(); ++i) {
     if (!rowShown(i)) continue;
@@ -343,8 +352,11 @@ void FeatureListWidget::ensureVisible(int row) {
   const QRect r = contentRect(row);
   if (r.isNull()) return;
   QScrollBar* sb = verticalScrollBar();
+  // rows end above the pinned insert button (rowRect), the button itself at the list end
+  const bool insert = row == model_.rowCount() - 1;
+  const int visibleH = viewport()->height() - (insert || compact_ ? 0 : kInsertH + 6);
   if (r.top() < sb->value()) sb->setValue(r.top() - kTop);
-  else if (r.bottom() > sb->value() + viewport()->height()) sb->setValue(r.bottom() - viewport()->height() + 1);
+  else if (r.bottom() > sb->value() + visibleH) sb->setValue(insert ? sb->maximum() : r.bottom() - visibleH + 1);
 }
 
 void FeatureListWidget::scrollToFeature(ObjectId id) {
@@ -459,6 +471,11 @@ void FeatureListWidget::paintEvent(QPaintEvent*) {
       paintBar(p, r, dragging ? false : hover_ == i);
       if (dragging) p.fillRect(r, alpha(theme::color(Tok::SurfacePanel), 0.6));
     } else if (row.kind == Kind::Insert) {
+      // pinned over the rows (rowRect): a panel band hides the rows under it and its top edge
+      if (contentRect(i).translated(0, -scroll).top() != r.top()) {
+        p.fillRect(QRect(0, r.top(), viewport()->width(), viewport()->height() - r.top()), theme::color(Tok::SurfacePanel));
+        p.fillRect(QRect(0, r.top(), viewport()->width(), 1), theme::color(Tok::BorderSubtle));
+      }
       paintInsert(p, r, hover_ == i);
     } else {
       paintRow(p, i, r);

@@ -7,8 +7,8 @@
 // - StatusCommandCell (#StatusCommand): 3 px gold bar + gold square + the active command name;
 //   hidden while idle.
 // - KeyHints (#StatusHints): keycap + label pairs ("ENTER APPLY").
-// - StatusCell (#StatusCell): caption in caps + value as typed ("GRID" "10 mm"); optional
-//   on/off state and click action.
+// - StatusCell (#StatusCell): optional glyph (grid, magnet) + caption in caps + value as typed
+//   ("GRID" "10 mm"); optional on/off state and click action.
 // - RebuildMeter (#StatusRebuild): 8 bars + "REBUILD 14 ms" for the last recompute.
 // Everything paints from tokens at paint time (theme switches repaint).
 // SPDX-License-Identifier: LGPL-2.1-or-later
@@ -82,11 +82,17 @@ class StatusCell : public QWidget {
   void setOn(bool on);
   bool isOn() const { return on_; }
   void setClickAction(std::function<void()> fn);
+  /// Small monochrome glyph before the caption, in the caption's colour (v6 status bar, P5-MOCKUP-8).
+  enum class Glyph { None, Grid, Snap };
+  void setGlyph(Glyph g);
+  Glyph glyph() const { return glyph_; }
 
  protected:
   void mouseReleaseEvent(QMouseEvent* e) override;
 
  private:
+  QWidget* glyphBox_ = nullptr;
+  Glyph glyph_ = Glyph::None;
   QLabel* caption_ = nullptr;
   QLabel* value_ = nullptr;
   bool on_ = false;

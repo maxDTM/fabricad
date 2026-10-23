@@ -283,6 +283,9 @@ void BrowserTree::fillComponent(QTreeWidgetItem* node, ObjectId compId, bool roo
       it->setData(0, RoleKey, key("body", id));
       it->setFlags(it->flags() | Qt::ItemIsEditable);
       if (!b->material.empty()) it->setToolTip(0, core::qs(b->name + " - " + b->material));
+      // a part with one body works on it: ACTIVE, as the breadcrumb's last crumb (v6, P5-MOCKUP-11)
+      if (root && comp->children.empty() && live.size() == 1 && doc_.activeComponent() == compId)
+        it->setData(0, RoleBadge, "Active");
       updateEye(it, true, b->visible);
     }
   }

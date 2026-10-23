@@ -15,6 +15,7 @@
 #include "core/ShapeUtils.h"
 #include "core/Tool.h"
 #include "core/UndoStack.h"
+#include "part/tools/FeatureTool.h"
 
 #include <QElapsedTimer>
 #include <QSettings>
@@ -344,6 +345,27 @@ class TestScripting : public QObject {
     QCOMPARE(run({"FILLET", "SELECT plane:XY"}), 1);  // a plane is no fillet input
     QVERIFY(w_->commandLine()->submit("CANCEL"));
     QVERIFY(!w_->toolManager().isActive());
+  }
+
+  // P5-LIGHT-2: a curved face picked for Extrude's profiles is refused (not counted); a planar one joins
+  void profileInputRefusesCurvedFaces() {
+    QCOMPARE(run({"SKETCH XY", "CIRCLE", "0,0", "20", "FINISH", "SELECT profile:@0,0,0", "EXTRUDE 10", "OK"}), 0);
+    QVERIFY(w_->runCommand("part.extrude"));
+    settle();
+    auto* tool = dynamic_cast<part::FeatureTool*>(w_->toolManager().activeTool());
+    QVERIFY(tool && tool->feature());
+    const app::SelectorResult side = app::resolveSelector(doc(), "body:Body1/face:@10,0,5");
+    QCOMPARE(side.refs.size(), size_t(1));
+    doc().selection().set(side.refs);
+    settle();
+    QCOMPARE(tool->feature()->prop("profiles").refs().size(), size_t(0));
+    const app::SelectorResult top = app::resolveSelector(doc(), "body:Body1/face:top");
+    QCOMPARE(top.refs.size(), size_t(1));
+    doc().selection().set(top.refs);
+    settle();
+    QCOMPARE(tool->feature()->prop("profiles").refs().size(), size_t(1));
+    w_->toolManager().cancel();
+    settle();
   }
 
   void pickInputAndRename() {
