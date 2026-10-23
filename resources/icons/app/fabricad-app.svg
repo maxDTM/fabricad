@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke-linecap="butt" stroke-linejoin="miter">
+<defs><radialGradient id="g" cx="0.5" cy="0.5" r="0.5"><stop offset="0.6" stop-color="#F5B700" stop-opacity="0.14"/><stop offset="1" stop-color="#F5B700" stop-opacity="0"/></radialGradient></defs>
+<rect width="48" height="48" fill="#14111C"/>
+<path d="M24 24 L9.278 15.500" stroke="#F0525F" stroke-width="1.5" stroke-opacity="0.6"/>
+<rect x="6.477" y="12.150" width="3.4" height="3.4" fill="#14111C" stroke="#F0525F" stroke-width="1.4"/>
+<path d="M24 24 L9.278 32.500" stroke="#4CC27A" stroke-width="1.5" stroke-opacity="0.6"/>
+<rect x="6.477" y="32.450" width="3.4" height="3.4" fill="#14111C" stroke="#4CC27A" stroke-width="1.4"/>
+<path d="M24 24 L24.000 41.000" stroke="#5B8CFF" stroke-width="1.5" stroke-opacity="0.6"/>
+<rect x="22.300" y="40.200" width="3.4" height="3.4" fill="#14111C" stroke="#5B8CFF" stroke-width="1.4"/>
+<path d="M24 24 L38.722 32.500" stroke="#F0525F" stroke-width="2.0"/>
+<rect x="37.423" y="31.750" width="5.6" height="5.6" fill="#F0525F"/>
+<path d="M24 24 L38.722 15.500" stroke="#4CC27A" stroke-width="2.0"/>
+<rect x="37.423" y="10.650" width="5.6" height="5.6" fill="#4CC27A"/>
+<path d="M24 24 L24.000 7.000" stroke="#5B8CFF" stroke-width="2.0"/>
+<rect x="21.200" y="2.900" width="5.6" height="5.6" fill="#5B8CFF"/>
+<circle cx="24" cy="24" r="12.3" fill="url(#g)"/>
+<circle cx="24" cy="24" r="8.4" fill="#F5B700" stroke="#F5B700" stroke-width="1.5"/>
+</svg>

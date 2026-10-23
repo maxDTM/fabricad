@@ -1,3 +1,5 @@
+<img src="resources/icons/app/fabricad-app.svg" alt="FabriCAD logo" width="96" height="96">
+
 # FabriCAD
 
 FabriCAD is an open-source, fast, lightweight parametric 3D CAD application. Its workflow

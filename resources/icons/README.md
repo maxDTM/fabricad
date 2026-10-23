@@ -11,6 +11,14 @@ python3 resources/icons/generate_icons.py   # rewrites dark/*.svg, light/*.svg a
 
 The script is deterministic (same script, same bytes) and removes SVGs it no longer generates.
 
+**Style.** The committed set is the `mono` style (v6 mockup): ink line icons, neutral body fill, at
+most one accent per icon (violet `icon.badge.violet` for a feature's action mark, red for
+remove/cut/error, green for OK checks, amber for the warning triangle). The category colours in the
+table below apply to the `colour` style, which restores the earlier set byte for byte:
+`python3 resources/icons/generate_icons.py --style colour` (or `FABRICAD_ICON_STYLE=colour`).
+Contact sheets: `docs/uiux/ui2/icons/`. The application icon is the hand-made
+`app/fabricad-app.svg` (`app/render_app_icons.sh` renders hicolor PNGs from it).
+
 ## Style rules (enforced by `src/app/tests/test_icons.cpp`)
 
 * Root element exactly: `width="24" height="24" viewBox="0 0 24 24" fill="none"
