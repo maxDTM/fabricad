@@ -1,4 +1,4 @@
-# Maintainer: maxDTM <https://github.com/maxDTM>
+# Maintainer: maxDTM <265972625+maxDTM at users dot noreply dot github dot com>
 # AUR release package. After tagging v${pkgver} on GitHub run `updpkgsums` and
 # `makepkg --printsrcinfo > .SRCINFO` (the checksum below is for the GitHub tarball).
 pkgname=fabricad

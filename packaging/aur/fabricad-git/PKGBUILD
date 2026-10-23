@@ -1,4 +1,4 @@
-# Maintainer: maxDTM <https://github.com/maxDTM>
+# Maintainer: maxDTM <265972625+maxDTM at users dot noreply dot github dot com>
 # AUR VCS package: builds the latest commit of the default branch.
 pkgname=fabricad-git
 _pkgname=fabricad
