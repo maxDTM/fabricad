@@ -106,7 +106,7 @@ class SketchTool : public core::ToolBase {
   /// as driven. No-op when typed dimensions are off (typedDimensionsEnabled()).
   void dimensionTypedPoints(core::ToolContext& ctx, const std::vector<Pt2>& typed, const std::vector<int>& before);
   /// Add a dimension created from a typed value: driving, or driven when redundant/conflicting
-  /// (without an error message). Returns the constraint id.
+  /// (without an error message); a redundant geometric constraint is dropped (-1). Returns the id.
   int addTypedDimension(core::ToolContext& ctx, Constraint c);
   /// Ids of the current geometries (snapshot before a tool creates new ones).
   std::vector<int> geometryIds() const;

@@ -1,0 +1,26 @@
+# Mass properties, materials, component properties and the BOM options
+# (docs/plans/production-features.md P1 §2.2 / §2.3).
+SKETCH XY
+RECT
+0,0
+10,20
+FINISH
+SELECT profile:@5,10,0
+EXTRUDE 30
+OK
+MATERIAL Steel
+CHECK mass 47.1 ±0.001
+CHECK cog 5,10,15 0.001
+MASSPROPS report=mass.csv
+CHECK file mass.csv exists
+MASSPROPS report=mass.md
+CHECK file mass.md exists
+COMPPROPS partNumber=BOX-1 description="Test block" revision=B vendor=Acme cost=2.5
+EXPORTBOM bom.csv
+CHECK file bom.csv exists
+EXPORTBOM bom-cols.csv structured columns=item,name,partNumber,qty,mass,massTotal,revision,vendor,cost
+CHECK file bom-cols.csv exists
+MATERIAL "Aluminum 6061"
+CHECK mass 16.2 ±0.001
+MATERIAL none
+CHECK mass 0

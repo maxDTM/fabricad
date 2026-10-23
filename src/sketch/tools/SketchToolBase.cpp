@@ -550,6 +550,11 @@ int SketchTool::addTypedDimension(core::ToolContext& ctx, Constraint c) {
   const bool bad = !r.ok() || std::count(r.conflicting.begin(), r.conflicting.end(), id) > 0 ||
                    std::count(r.redundant.begin(), r.redundant.end(), id) > 0;
   if (bad) {
+    if (!c.isDimensional()) {
+      sk->removeConstraint(id);  // a geometric constraint the sketch already has: nothing to add
+      sk->solve();
+      return -1;
+    }
     if (Constraint* cc = sk->constraint(id)) cc->driven = true;
     sk->solve();
   }
