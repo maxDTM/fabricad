@@ -216,8 +216,8 @@ QWidget* ExportFaceDxfTool::createDialog(core::ToolContext& ctx, QWidget* parent
   pathEdit_->setObjectName("facedxf_path");
   pathEdit_->setPlaceholderText("out.dxf");
   pathEdit_->setToolTip("Empty: a file dialog opens on OK");
-  auto* browse = new QPushButton("...", fileRow);
-  browse->setFixedWidth(28);
+  auto* browse = new QPushButton("Browse", fileRow);
+  browse->setToolTip("Choose the file in a dialog");
   h->addWidget(pathEdit_);
   h->addWidget(browse);
   QObject::connect(browse, &QPushButton::clicked, w, [this, w] {

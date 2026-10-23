@@ -17,8 +17,11 @@
 //     "hint": "...",                       shown after timeout_ms or on a wrong action
 //     "do": [<action>...],                 canonical real input (GUI runner; "show me" path)
 //     "assert": ["body:Body1 volume ~ 32000 0.01%"],   CHECK expressions after the step (runner)
-//     "context": "idle" | "tool:<id>" | "cmd:<line>; <line>" }   app state the lint test resolves the
-//                                          anchor in (on the chapter's start file, else its checkpoint)
+//     "context": "idle" | "tool:<id>" | "cmd:<line>; <line>",  app state the lint test resolves the
+//                                          anchor in (on the chapter's start file, else its checkpoint);
+//                                          Back re-enters it when the step's tool is gone
+//     "pick": "edge" | "face" | "vertex" | "body" }  selection priority while the step runs
+//                                          (the step's clicks hit the right kind first)
 // Conditions: {"tool": id|"none"} {"dialog": "card"|"modal"|"popup"|<objectName>}
 //   {"selection": kind|"any", "count": n, "selector": s} {"valuebox": caption} {"prompt": text}
 //   {"sketch": "active"|"none"|"dof == 0"} {"workspace": "part"|"assembly"|"drawing"}
@@ -93,7 +96,8 @@ struct Step {
   QString hint;
   std::vector<Action> actions;
   QStringList asserts;
-  QString context = "idle";  ///< lint only: "idle", "tool:<id>" or "cmd:<command line>; ..."
+  QString context = "idle";  ///< lint: "idle", "tool:<id>" or "cmd:<command line>; ..."; Back re-enters it
+  QString pick;              ///< "edge" / "face" / "vertex" / "body": selection priority during the step
 };
 
 struct Chapter {

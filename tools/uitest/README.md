@@ -55,6 +55,8 @@ ui.sh stop 91                                            # also drops :91's auto
 
 `ui.sh start` sets `FABRICAD_NO_TUTORIAL=1` (fresh per-display settings would show the first-launch tour
 welcome card in every screenshot); export `FABRICAD_NO_TUTORIAL=0` to see it.
+It also sets `FABRICAD_FILE_DIALOG_DIR` to the directory `ui.sh start` runs in (unless already set): the app's
+Open / Save As dialogs start in Documents, a test run's saves stay beside its report instead.
 
 ## tutorial_run.py (guided tours, docs/plans/tutorial.md section 5)
 

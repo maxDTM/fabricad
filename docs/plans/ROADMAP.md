@@ -75,6 +75,18 @@ second tester round, the real-Wayland popup check.
 Status 2026-10-23 (tut/finish): the tester leftovers (UI2-TUTORIAL-7/8/9 rest), the tutorial highlight style, the
 frame-based `idle`, `closeRect()`, value-box `field` ids, the Markdown export (`docs/tutorials/bracket.md`) and
 the off-script GUI scenario are done (tutorial.md §9 part 3). Open: the tester rounds, the real-Wayland popup check.
+Status 2026-10-23 (pf/fix): second tutorial tester round done (`docs/tests/tutorial2/report.md`); its findings are
+fixed (Back reopens the step's command and Next redoes, edge-first picking, measure / STL wording, Start Tutorial in
+search, Documents as dialog folder). Open: TUTORIAL2-6 (window size, likely harness), the real-Wayland popup check.
+
+### Step 6 status
+
+2026-10-23: P1, P2 and P3 are merged; the production tester run (`docs/tests/production/report.md`) found 10
+issues; all high / medium and the cheap low ones are fixed in pf/fix (`docs/tests/production/SUMMARY.md`): fastener
+size from the tapped thread, blind-hole length, hole table with occluded holes, pocket-hole thickness from the
+underside, thread engagement separated in Interference, title-block fit, more materials, BOM cost note. Open: the
+not-tested items listed there (inch face DXF, AP242 + material write, IGES faces mode, mating-part drilling, Castle
+jig, modelled threads) for a retest round.
 
 ## Decisions (confirmed by the user, 2026-10-22)
 

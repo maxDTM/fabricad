@@ -101,7 +101,7 @@ TutorialBubble::TutorialBubble(QWidget* window) : QFrame(window), window_(window
   buttons->setSpacing(6);
   back_ = button("Back", "TutorialBack", this);
   back_->setToolTip("Previous step (Alt+Left)");
-  showMe_ = button("Show me", "TutorialShowMe", this);
+  showMe_ = button("Show me \u00B7 F7", "TutorialShowMe", this);  // TUTORIAL2-9: the key on the button
   showMe_->setToolTip("Show the input with a ghost cursor (F7). Nothing is changed.");
   next_ = button("Skip", "TutorialNext", this);
   next_->setToolTip("Next step (Alt+Right)");

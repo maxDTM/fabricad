@@ -778,6 +778,18 @@ void SketchSession::drawDimension(const Constraint& c) {
         addPolyline(arc, ls);
         seg(*x, *x + Pt2::polar(r, a0));
         seg(*x, *x + Pt2::polar(r, a1));
+      } else if (ga->type == GeomType::Line) {
+        // to the horizontal: an arc at the start from the X direction to the line (PRODUCTION-9)
+        const Pt2 o = ga->start();
+        const double r = label.distance(o);
+        if (r > 1e-12) textShift = (label - o).normalized() * textGap;
+        const double a1 = ga->direction().angle();
+        const double sweep = angleDelta(0.0, a1);
+        std::vector<Vec3> arc;
+        const int n = 16;
+        for (int i = 0; i <= n; ++i) arc.push_back(toWorld(o + Pt2::polar(r, sweep * i / n)));
+        addPolyline(arc, ls);
+        seg(o, o + Pt2::polar(r * 1.15, 0.0));
       } else {
         seg(ga->start(), label);
       }

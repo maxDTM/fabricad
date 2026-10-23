@@ -286,6 +286,17 @@ QWidget* ComponentPropertiesTool::createDialog(ToolContext& ctx, QWidget* parent
     material_->completer()->setCaseSensitivity(Qt::CaseInsensitive);
   }
   material_->setToolTip("BOM material text; empty: the bodies' physical materials");
+  if (ctx.document && material_->lineEdit()) {
+    // PRODUCTION-6: an empty field is not "no material": show what the BOM falls back to
+    std::vector<std::string> mats;
+    for (ObjectId b : displayedBodies(*ctx.document, target_))
+      if (const core::Body* body = ctx.document->body(b); body && !body->material.empty() &&
+                                                         std::find(mats.begin(), mats.end(), body->material) == mats.end())
+        mats.push_back(body->material);
+    std::string text;
+    for (const std::string& m : mats) text += (text.empty() ? "" : ", ") + m;
+    material_->lineEdit()->setPlaceholderText(QString::fromStdString(text.empty() ? "none (set a Physical Material)" : "from bodies: " + text));
+  }
   rev_ = line(props_.revision, "compRevision", "e.g. B");
   vendor_ = line(props_.vendor, "compVendor", "supplier");
   cost_ = line(props_.cost > 0 ? std::format("{}", props_.cost) : std::string(), "compCost", "unit cost");

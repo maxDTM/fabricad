@@ -131,6 +131,8 @@ void FeatureTool::resetState() {
   previewPending_ = false;
   panelRebuildPending_ = false;
   pendingCtx_ = nullptr;
+  provisionalInput_.clear();
+  provisionalRef_ = {};
 }
 
 void FeatureTool::activate(core::ToolContext& ctx) {
@@ -217,7 +219,12 @@ void FeatureTool::applyPreselection(core::ToolContext& ctx, const std::vector<co
       core::Property* p = f->property(name);
       if (!p || p->flags().hidden || !core::hasKind(p->refFilter(), r.kind)) continue;
       if (p->type() == core::PropertyType::Ref && p->ref().isValid()) continue;
-      routed = addRefToInput(ctx, name, r) || routed;
+      const bool added = addRefToInput(ctx, name, r);
+      if (added && p->type() == core::PropertyType::RefList && f->refsDistinguishedByPoint(name) && r.hasPoint && !p->refs().empty()) {
+        provisionalInput_ = name;
+        provisionalRef_ = p->refs().back();
+      }
+      routed = added || routed;
     }
     if (routed) continue;
     // the primary input first, then any other ref property accepting the kind
@@ -796,6 +803,23 @@ void FeatureTool::selectionChanged(core::ToolContext& ctx) {
   if (items.empty()) return;
   inSelectionUpdate_ = true;
   bool changed = false;
+  if (!provisionalInput_.empty()) {
+    // the first click into the input the preselection seeded replaces the preselected point
+    if (provisionalInput_ == activeInput_)
+      if (core::Property* p = f->property(provisionalInput_); p && p->type() == core::PropertyType::RefList) {
+        auto& refs = p->refs();
+        auto it = std::find_if(refs.begin(), refs.end(), [&](const core::ShapeRef& x) {
+          return x == provisionalRef_ && x.hasPoint == provisionalRef_.hasPoint &&
+                 x.point.toPnt().Distance(provisionalRef_.point.toPnt()) < 1e-9;
+        });
+        if (it != refs.end()) {
+          refs.erase(it);
+          changed = true;
+        }
+      }
+    provisionalInput_.clear();
+    provisionalRef_ = {};
+  }
   for (const auto& r : items) {
     if (!activeInput_.empty() && addRefToInput(ctx, activeInput_, r)) changed = true;
   }

@@ -302,7 +302,9 @@ JOINT REVOLUTE   then SELECT/PICK a snap on each component (face, edge, vertex),
 SELECT component:LegLeft / MOVECOMPONENT / -15,0,0 / OK     typed x,y,z translates, @30 rotates about Z;
                  x= y= z= rx= ry= rz= set one dialog field; pivot=0,200,430 is the world point the
                  angles turn about (rx=-5 then rotates -5 deg about +X through it; the dialog has Pivot fields)
-DRIVEJOINT Joint1 45, RIGIDGROUP, INTERFERENCE, INSERTDESIGN file.fcad, COPYCOMPONENT / PASTE
+DRIVEJOINT Joint1 45, RIGIDGROUP, INTERFERENCE [THREADS], INSERTDESIGN file.fcad, COPYCOMPONENT / PASTE
+                 (INTERFERENCE THREADS also lists screws engaged in tapped holes, nuts on bolts, inserts)
+TUTORIAL         (TOUR) start or resume the guided tour (the first one of Help > Tutorials)
 SELECT feature:Joint1 / DELETE
 COMPPROPS partNumber=BRK-12 description="Mounting bracket" material=Steel revision=B vendor=Acme cost=4.20
                  BOM / title block data of the selected component (else the active one; component=<name>

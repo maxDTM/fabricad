@@ -28,7 +28,9 @@
 #include <QSaveFile>
 #include <QWidget>
 
+#include <algorithm>
 #include <cctype>
+#include <format>
 #include <memory>
 
 namespace fabricad::assembly {
@@ -235,7 +237,29 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
         c.showMessage("Cannot write " + path, true);
         return;
       }
-      c.showMessage("BOM written to " + path);
+      // PRODUCTION-8: a cost column with unpriced rows (standard fasteners have no price) would
+      // understate the total silently: say so
+      const bool costs = std::find(columns.begin(), columns.end(), BomColumn::Cost) != columns.end() ||
+                         std::find(columns.begin(), columns.end(), BomColumn::CostTotal) != columns.end();
+      std::string note;
+      if (costs) {
+        double total = 0;
+        int priced = 0, unpriced = 0;
+        BomOptions flat = opt;
+        flat.structured = false;  // the total over the whole tree (structured quantities are per parent)
+        for (const BomRow& r : (opt.structured ? buildBom(*c.document, flat) : table).rows) {
+          if (r.cost > 0) {
+            total += r.cost * r.quantity;
+            ++priced;
+          } else {
+            ++unpriced;
+          }
+        }
+        note = std::format(" (cost total {:.2f}", total);
+        if (unpriced > 0) note += std::format("; {} of {} rows have no cost and are not in the total", unpriced, priced + unpriced);
+        note += ")";
+      }
+      c.showMessage("BOM written to " + path + note);
     }));
   }
   registerComponentPropertiesTools(ctx.tools);  // production-features P1: COMPPROPS, MATERIAL

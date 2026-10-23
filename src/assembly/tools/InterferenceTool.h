@@ -44,6 +44,8 @@ class InterferenceTool : public QObject, public core::ToolBase {
   QLabel* scopeLabel_ = nullptr;
   QLabel* summaryLabel_ = nullptr;
   QTableWidget* table_ = nullptr;
+  QCheckBox* threadsBox_ = nullptr;
+  bool includeThreads_ = false;  ///< also list fasteners engaged in their threads / inserts
 };
 
 }  // namespace fabricad::assembly

@@ -63,6 +63,8 @@ class BrowserTree : public QTreeWidget {
   void suppressRequested(fabricad::core::ObjectId id, bool suppress);
   /// Run a registered tool (Copy / Paste component...).
   void runToolRequested(const std::string& toolId);
+  /// Run a command line ("COMPPROPS 12": the Component Properties card of component 12).
+  void commandLineRequested(const QString& line);
 
  protected:
   void contextMenuEvent(QContextMenuEvent* e) override;

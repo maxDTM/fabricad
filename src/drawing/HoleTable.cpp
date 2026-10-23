@@ -5,9 +5,20 @@
 #include "core/Json.h"
 #include "drawing/Callouts.h"
 #include "drawing/DrawingView.h"
+#include "drawing/Projection.h"
 #include "drawing/Tolerance.h"
+#include "part/Naming.h"
+#include "part/features/StandardPart.h"
 
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
 #include <QJsonArray>
+#include <TopExp.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+#include <TopoDS.hxx>
+#include <gp_Circ.hxx>
+
+#include <set>
 
 #include <algorithm>
 #include <cmath>
@@ -43,6 +54,76 @@ HoleTable HoleTable::fromJson(const QJsonObject& o) {
   return t;
 }
 
+namespace {
+
+/// Bodies of standard parts (fasteners, washers, nuts, inserts): their bores are not holes of
+/// the part.
+std::set<core::ObjectId> standardPartBodies(const core::Document& doc) {
+  std::set<core::ObjectId> out;
+  for (const auto& f : doc.features())
+    if (dynamic_cast<const part::StandardPartFeature*>(f.get()))
+      for (core::ObjectId b : f->createdBodies()) out.insert(b);
+  return out;
+}
+
+/// PRODUCTION-2: holes whose circles are not in the view because something in front hides them
+/// (a screw head over a tapped hole). For every body of the view: one circle per hole axis
+/// parallel to the view direction, the one nearest the viewer, when the hole opens towards the
+/// viewer (blind holes from the back stay out, as in the view).
+std::vector<Curve2D> occludedHoleCircles(const core::Document& doc, const DrawingView& view, const std::set<core::ObjectId>& skip) {
+  std::vector<Curve2D> out;
+  if (view.type == ViewType::Section || view.type == ViewType::Detail || !view.breaks.empty()) return out;
+  std::set<core::ObjectId> bodies;
+  for (const Curve2D& cv : view.curves)
+    if (cv.sourceBody != core::kInvalidId && !skip.count(cv.sourceBody)) bodies.insert(cv.sourceBody);
+  const gp_Dir toViewer = view.frame.Direction();
+  for (core::ObjectId bodyId : bodies) {
+    const core::Body* b = doc.body(bodyId);
+    const TopoDS_Shape& shape = doc.bodyShape(bodyId);
+    if (!b || shape.IsNull()) continue;
+    const gp_Trsf w = doc.worldPlacement(b->component);
+    TopTools_IndexedMapOfShape edges;
+    TopExp::MapShapes(shape, TopAbs_EDGE, edges);
+    struct Cand {
+      int edge;
+      Point2 c;
+      double r, height;
+      gp_Pnt local;
+      gp_Dir localUp;
+    };
+    std::vector<Cand> best;
+    for (int i = 1; i <= edges.Extent(); ++i) {
+      BRepAdaptor_Curve ac(TopoDS::Edge(edges(i)));
+      if (ac.GetType() != GeomAbs_Circle || std::abs(ac.LastParameter() - ac.FirstParameter() - 2 * M_PI) > 1e-6) continue;
+      const gp_Circ circ = ac.Circle();
+      const gp_Dir axisW = circ.Axis().Direction().Transformed(w);
+      if (!axisW.IsParallel(toViewer, 1e-6)) continue;
+      const gp_Pnt cw = circ.Location().Transformed(w);
+      const Point2 c2 = worldToView(view.frame, cw);
+      const double h = gp_Vec(cw.XYZ()).Dot(gp_Vec(toViewer));
+      auto it = std::find_if(best.begin(), best.end(), [&](const Cand& x) { return std::hypot(x.c.x - c2.x, x.c.y - c2.y) < 1e-3; });
+      const gp_Dir up = toViewer.Transformed(w.Inverted());
+      if (it == best.end()) best.push_back({i, c2, circ.Radius(), h, circ.Location(), up});
+      else if (h > it->height + 1e-6 || (std::abs(h - it->height) <= 1e-6 && circ.Radius() > it->r)) *it = {i, c2, circ.Radius(), h, circ.Location(), up};
+    }
+    if (best.empty()) continue;
+    BRepClass3d_SolidClassifier cls(shape);
+    const part::NameMap names = part::currentNames(doc, bodyId);
+    for (const Cand& k : best) {
+      cls.Perform(k.local.Translated(gp_Vec(k.localUp) * 0.01), 1e-7);
+      if (cls.State() != TopAbs_OUT) continue;  // the hole does not open towards the viewer
+      Curve2D cv = Curve2D::circle(k.c, k.r, LineClass::Hidden);
+      cv.sourceBody = bodyId;
+      cv.sourceEdge = k.edge;
+      cv.sourceName = part::nameOf(names, edges(k.edge));
+      out.push_back(cv);
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
 std::vector<HoleTableRow> holeTableRows(const core::Document& doc, const DrawingView& view, const core::UnitSystem& units) {
   struct Found {
     Point2 c;
@@ -50,7 +131,17 @@ std::vector<HoleTableRow> holeTableRows(const core::Document& doc, const Drawing
     std::string callout;
   };
   std::vector<Found> found;
-  for (const Curve2D& cv : view.curves) {
+  const std::set<core::ObjectId> standard = standardPartBodies(doc);
+  std::vector<Curve2D> curves;
+  curves.reserve(view.curves.size());
+  for (const Curve2D& cv : view.curves)
+    if (!standard.count(cv.sourceBody)) curves.push_back(cv);
+  for (const Curve2D& cv : occludedHoleCircles(doc, view, standard))
+    if (std::none_of(curves.begin(), curves.end(), [&](const Curve2D& x) {
+          return x.isCircle() && (x.cls == LineClass::Visible || x.cls == LineClass::Hidden) && std::hypot(x.center.x - cv.center.x, x.center.y - cv.center.y) < 1e-3;
+        }))
+      curves.push_back(cv);
+  for (const Curve2D& cv : curves) {
     if (cv.type != CurveType::Arc || std::abs(std::abs(cv.sweep) - 360.0) > 1e-6) continue;
     if (cv.cls != LineClass::Visible && cv.cls != LineClass::Hidden) continue;
     auto same = std::find_if(found.begin(), found.end(),

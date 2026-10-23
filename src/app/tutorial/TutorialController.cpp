@@ -9,6 +9,7 @@
 #include "app/tutorial/TutorialBubble.h"
 #include "app/tutorial/TutorialEngine.h"
 #include "app/tutorial/TutorialOverlay.h"
+#include "core/Tool.h"
 #include "theme/Tokens.h"
 #include "viewer/ViewerWidget.h"
 
@@ -24,6 +25,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPointer>
 #include <QPushButton>
 #include <QScreen>
 #include <QSettings>
@@ -158,6 +160,27 @@ TutorialController::TutorialController(MainWindow& w, QMenu* helpMenu) : QObject
     }
     connect(menu_, &QMenu::aboutToShow, this, &TutorialController::fillMenu);
     fillMenu();
+  }
+  // TUTORIAL2-7: Ctrl+K "tutorial" / "tour" finds the tour (resumes where it was left)
+  if (!w.tools().tool("help.tutorial")) {
+    core::ToolInfo i;
+    i.id = "help.tutorial";
+    i.name = "Start Tutorial";
+    i.tooltip = "Guided tour: build a first part step by step (resumes where you left it; Help > Tutorials lists every tour)";
+    i.icon = "help";
+    i.aliases = {"TUTORIAL", "TOUR"};
+    i.needsDocument = false;
+    i.repeatable = false;
+    QPointer<TutorialController> self(this);
+    w.tools().registerTool(std::make_unique<core::LambdaTool>(i, [self](core::ToolContext& ctx) {
+      if (!self || self->tours_.empty()) {
+        ctx.showMessage("No tutorials installed", true);
+        return;
+      }
+      const Tour& t = self->tours_.front();
+      const QString saved = TutorialEngine::savedStep(t.id);
+      self->startTour(t.id, !saved.isEmpty() && t.indexOfStep(saved) > 0);
+    }));
   }
   qApp->installEventFilter(this);
   if (!qEnvironmentVariableIsEmpty("FABRICAD_TEST_PROBE")) probe_ = new TestProbe(w, *this, qEnvironmentVariable("FABRICAD_TEST_PROBE"), this);

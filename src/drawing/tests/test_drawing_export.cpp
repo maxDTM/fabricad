@@ -5,6 +5,7 @@
 #include "drawing/DrawingModel.h"
 #include "drawing/DxfWriter.h"
 #include "drawing/SheetRenderer.h"
+#include "drawing/Symbols.h"
 
 #include <QFile>
 #include <QImage>
@@ -105,6 +106,25 @@ class ExportTest : public QObject {
     for (const auto& c : vl.curves)
       if (c.isCircle() && near(c.radius, 4.0, 1e-6)) circle = true;
     QVERIFY(circle);
+  }
+
+  // PRODUCTION-7: a long title stays inside its cell (two lines, smaller, or elided)
+  void longTitleFitsItsCell() {
+    Fixture fx;
+    SheetRenderer r(fx.model->style(), fx.doc.units());
+    auto tv = titleBlockValues(*fx.model, *fx.sheet);
+    tv["Title"] = "Mounting plate - Acme Precision Machining Ltd - Anodised aluminium mounting plate for the left motor bracket";
+    DisplayList list;
+    r.addTitleBlock(list, *fx.sheet, tv);
+    const BBox2 tb = fx.sheet->titleBlockRect();
+    int titleTexts = 0;
+    for (const DisplayText& t : list.texts) {
+      if (!t.bold) continue;
+      ++titleTexts;
+      const double w = measureText(t.text, t.height, fx.model->style().fontFamily) * 1.08;
+      QVERIFY2(t.pos.x - w / 2 >= tb.min.x + 0.35 * tb.width() - 1e-6 && t.pos.x + w / 2 <= tb.max.x + 1e-6, t.text.c_str());  // the Title cell
+    }
+    QVERIFY(titleTexts >= 1);
   }
 
   void paintsToImage() {

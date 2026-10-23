@@ -157,6 +157,16 @@ void PocketHoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   }
   const core::ShapeRef faceRef = ref("face");
   TopoDS_Shape face = resolveRefProperty(ctx, prop("face"));
+  const TopoDS_Shape& body = ctx.bodyShape(faceRef.owner);
+  // PRODUCTION-3: the resolved face can come without the orientation it has in the body (a
+  // board's underside then "points" into the material and no opposite face is found); take the
+  // body's own copy, whose orientation gives the outward normal
+  if (!face.IsNull())
+    for (const TopoDS_Shape& f : facesOf(body))
+      if (f.IsSame(face)) {
+        face = f;
+        break;
+      }
   auto pl = face.IsNull() ? std::nullopt : core::facePlane(face);
   auto nrm = face.IsNull() ? std::nullopt : faceNormal(face);
   if (!pl || !nrm) {
@@ -165,7 +175,6 @@ void PocketHoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   }
   const gp_Dir n = *nrm;  // outward normal of the entry face
   const gp_Pnt origin = pl->Location();
-  const TopoDS_Shape& body = ctx.bodyShape(faceRef.owner);
 
   // thickness: nearest parallel face with the opposite normal
   double thickness = ctx.length("thickness");
@@ -216,6 +225,10 @@ void PocketHoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
 
   std::vector<TopoDS_Shape> tools;
   for (core::ShapeRef& er : prop("edges").refs()) {
+    if (er.owner != faceRef.owner) {
+      ctx.setWarning("exit edges must be edges of the entry face's body (an edge of the touching part was picked)");
+      continue;
+    }
     TopoDS_Shape e = resolveRef(ctx, er);
     if (e.IsNull() || e.ShapeType() != TopAbs_EDGE) continue;
     BRepAdaptor_Curve c(TopoDS::Edge(e));

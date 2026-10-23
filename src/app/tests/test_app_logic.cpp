@@ -873,20 +873,20 @@ class TestAppLogic : public QObject {
       QCOMPARE(p.visibleNames(), QStringList{"Aluminum 6061"});
       p.setFilter("");
       p.setCategory("Wood");
-      QCOMPARE(p.visibleNames().size(), 4);
+      QCOMPARE(p.visibleNames().size(), 11);
       p.setFilter("astm");  // standard text matches too
       QVERIFY(p.visibleNames().isEmpty());  // ASTM A36 steel is not a wood
       p.setCategory("All");
       QVERIFY(p.visibleNames().contains("Steel"));
     }
-    core::Material m{"PETG", "Plastic", 1.27};
+    core::Material m{"PETG Matte (user)", "Plastic", 1.27};
     QVERIFY(core::saveUserMaterial(m));
     QVERIFY(QString::fromStdString(core::userMaterialLibraryPath()).startsWith(dir.path()));
     core::reloadMaterialLibrary();  // a restart reads the file again
     {
       app::MaterialPicker p("");
-      p.setFilter("petg");
-      QCOMPARE(p.visibleNames(), QStringList{"PETG"});
+      p.setFilter("petg matte");
+      QCOMPARE(p.visibleNames(), QStringList{"PETG Matte (user)"});
     }
     QStandardPaths::setTestModeEnabled(testMode);
     if (old.isEmpty()) qunsetenv("XDG_CONFIG_HOME");

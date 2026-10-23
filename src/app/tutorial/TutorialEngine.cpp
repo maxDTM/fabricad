@@ -6,6 +6,7 @@
 #include "core/Document.h"
 #include "core/Json.h"
 #include "core/UndoStack.h"
+#include "viewer/ViewerMath.h"
 #include "viewer/ViewerWidget.h"
 
 #include <QDir>
@@ -64,6 +65,7 @@ bool TutorialEngine::start(const Tour& tour, int step) {
 
 void TutorialEngine::stop() {
   if (!tour_) return;
+  applyPick(nullptr);
   poll_->stop();
   tour_.reset();
   index_ = chapter_ = -1;
@@ -97,9 +99,40 @@ void TutorialEngine::enter(int index, bool recordUndo) {
       if (tour_ && index_ == index) complete();
     });
   }
+  applyPick(s);
   emit stepChanged(index_);
   hintWarning_ = false;
   emit hintChanged({}, false);
+}
+
+void TutorialEngine::applyPick(const Step* s) {
+  using viewer::SelectionPriority;
+  if (auto* old = qobject_cast<viewer::ViewerWidget*>(pickViewer_.data())) old->setSelectionPriority(static_cast<SelectionPriority>(pickBefore_));
+  pickViewer_ = nullptr;
+  if (!s || s->pick.isEmpty()) return;
+  viewer::ViewerWidget* v = w_.viewer();
+  if (!v) return;
+  const SelectionPriority p = s->pick == "edge"     ? SelectionPriority::Edge
+                              : s->pick == "face"   ? SelectionPriority::Face
+                              : s->pick == "vertex" ? SelectionPriority::Vertex
+                                                    : SelectionPriority::Body;
+  pickBefore_ = static_cast<int>(v->selectionPriority());
+  pickViewer_ = v;
+  v->setSelectionPriority(p);
+}
+
+void TutorialEngine::reenterContext(const Step& s) {
+  if (!w_.hasDocument() || w_.toolManager().isActive()) return;
+  if (s.context.startsWith("tool:")) {
+    const QString tool = s.context.mid(5);
+    if (!tool.startsWith("sketch.")) w_.runCommand(tool.toStdString());
+    return;
+  }
+  if (!s.context.startsWith("cmd:")) return;
+  const QStringList lines = s.context.mid(4).split(';', Qt::SkipEmptyParts);
+  for (const QString& l : lines)
+    if (l.trimmed().startsWith("SKETCH", Qt::CaseInsensitive)) return;
+  for (const QString& l : lines) w_.submitCommandLine(l.trimmed());
 }
 
 void TutorialEngine::setHint(const QString& h, bool warning) {
@@ -160,6 +193,7 @@ void TutorialEngine::complete() {
     emit chapterCompleted(chapter);
   }
   if (!more) {
+    applyPick(nullptr);
     QSettings st;
     st.remove(key(tour_->id, "step"));
     st.setValue(key(tour_->id, "done"), true);
@@ -175,6 +209,17 @@ void TutorialEngine::complete() {
 void TutorialEngine::next() {
   const Step* s = step();
   if (!s) return;
+  // TUTORIAL2-1: Forward after Back: the work Back undid is on the redo stack; put it back so
+  // the next step finds the model it expects (when the user changed nothing in between)
+  const int nextIndex = index_ + 1;
+  if (w_.hasDocument() && nextIndex < static_cast<int>(undoAtStep_.size()) && undoAtStep_[nextIndex] >= 0) {
+    core::UndoStack& u = w_.document().undoStack();
+    if (u.index() < undoAtStep_[nextIndex] && u.canRedo()) {
+      if (w_.toolManager().isActive()) w_.toolManager().cancel();
+      while (u.index() < undoAtStep_[nextIndex] && u.canRedo()) u.redo();
+      lastUndo_ = u.index();
+    }
+  }
   facts_.nextPressed = true;  // NEXT of a manual step, SKIP of any other: both move on
   complete();
 }
@@ -201,13 +246,17 @@ void TutorialEngine::back() {
     if (!p || !p->skipIf || !query_.eval(*p->skipIf, base_, facts_)) break;
     --prev;
   }
+  bool undid = false;
   if (w_.hasDocument() && undoAtStep_[prev] >= 0) {
     core::UndoStack& u = w_.document().undoStack();
     if (u.index() > undoAtStep_[prev]) {
       if (w_.toolManager().isActive()) w_.toolManager().cancel();
       while (u.index() > undoAtStep_[prev] && u.canUndo()) u.undo();
+      undid = true;
     }
   }
+  if (undid)
+    if (const Step* p = tour_->stepAt(prev)) reenterContext(*p);
   enter(prev, false);
 }
 
@@ -229,7 +278,8 @@ bool TutorialEngine::restoreChapter(QString* error) {
     }
     doc->undoStack().clear();
   }
-  doc->setName(QString("%1 %2").arg(tour_->id, tour_->chapters[chapter_].id).toStdString());
+  // TUTORIAL2-8: "Tutorial - Fillet", not the ids ("bracket welcome")
+  doc->setName(QString("Tutorial - %1").arg(tour_->chapters[chapter_].title).toStdString());
   doc->setModified(false);
   w_.addDesignTab(doc);  // a new tab: the user's own work stays in its tab (decision 9)
   const int first = tour_->firstStepOfChapter(chapter_);

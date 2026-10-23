@@ -27,7 +27,7 @@ QString typeName(const QJsonValue& v) {
 }
 
 const QStringList kStepKeys = {"id", "title", "text", "anchor", "keys_shown", "until", "skip_if", "stable_ms",
-                               "timeout_ms", "hint", "do", "assert", "context", "$comment"};
+                               "timeout_ms", "hint", "do", "assert", "context", "pick", "$comment"};
 const QStringList kChapterKeys = {"id", "title", "start", "checkpoint", "steps", "$comment"};
 const QStringList kTourKeys = {"id", "title", "description", "version", "order", "welcome", "window", "finish",
                                "chapters", "$comment", "$schema"};
@@ -436,6 +436,9 @@ std::optional<Tour> parseTour(const QByteArray& json, const QString& baseDir, QS
       s.context = so.value("context").toString("idle");
       if (s.context != "idle" && !s.context.startsWith("tool:") && !s.context.startsWith("cmd:"))
         err->append(where + ": context is \"idle\", \"tool:<id>\" or \"cmd:<command line>[; ...]\"");
+      s.pick = so.value("pick").toString();
+      if (!s.pick.isEmpty() && !QStringList{"edge", "face", "vertex", "body"}.contains(s.pick))
+        err->append(where + ": pick is \"edge\", \"face\", \"vertex\" or \"body\"");
       ch.steps.push_back(std::move(s));
     }
     t.chapters.push_back(std::move(ch));

@@ -351,8 +351,10 @@ QWidget* ExportMeshTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   pathEdit_->setObjectName("stl_path");  // stable names: tours and GUI tests (docs/plans/tutorial.md 6)
   pathEdit_->setPlaceholderText(fixedFormat_ ? QString::fromStdString("out" + defaultSuffix() + " (empty: ask on OK)")
                                              : QString("out.stl | .obj | .glb | .3mf"));
-  auto* browse = new QPushButton("...", fileRow);
-  browse->setFixedWidth(28);
+  // TUTORIAL2-5: a 28 px "..." button rendered as an empty box under the token theme's padding
+  auto* browse = new QPushButton("Browse", fileRow);
+  browse->setObjectName("stl_browse");
+  browse->setToolTip("Choose the file in a dialog");
   h->addWidget(pathEdit_);
   h->addWidget(browse);
   QObject::connect(browse, &QPushButton::clicked, w, [this, w] {
