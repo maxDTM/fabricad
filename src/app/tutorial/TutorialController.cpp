@@ -154,13 +154,16 @@ TutorialController::TutorialController(MainWindow& w, QMenu* helpMenu) : QObject
   }
   qApp->installEventFilter(this);
   if (!qEnvironmentVariableIsEmpty("FABRICAD_TEST_PROBE")) probe_ = new TestProbe(w, *this, qEnvironmentVariable("FABRICAD_TEST_PROBE"), this);
-  // developer aid (screenshots, docs): FABRICAD_TUTORIAL_START=<tour>[:<step id>] starts a tour at launch
+  // developer aid (screenshots, docs, the GUI runner's --from-chapter):
+  // FABRICAD_TUTORIAL_START=<tour>[:<step id>[:restore]] starts a tour at launch; "restore" then
+  // opens that chapter's start state in a new (untitled) tab, as ⋯ > Restore chapter does
   if (const QString start = qEnvironmentVariable("FABRICAD_TUTORIAL_START"); !start.isEmpty())
     QTimer::singleShot(200, this, [this, start] {
       const QString id = start.section(':', 0, 0);
       if (!startTour(id)) return;
       if (const Tour* t = findTour(id); t && start.contains(':'))
-        for (int i = t->indexOfStep(start.section(':', 1)); i > engine_->stepIndex() && engine_->running();) engine_->next();
+        for (int i = t->indexOfStep(start.section(':', 1, 1)); i > engine_->stepIndex() && engine_->running();) engine_->next();
+      if (start.section(':', 2, 2) == QLatin1String("restore") && engine_->running()) engine_->restoreChapter();
     });
 }
 
@@ -320,6 +323,18 @@ void TutorialController::track() {
     lastModelResolveMs_ = now;
   }
   last_ = resolver_.resolve(s->anchor);
+  // the step's other click targets (the second edge, the dimension's line): the bubble keeps
+  // clear of them, so it never covers what the user is asked to click next
+  actionRects_.clear();
+  for (const Action& a : s->actions) {
+    if (a.type != "click" && a.type != "dclick" && a.type != "rclick" && a.type != "move") continue;
+    const QJsonValue t = a.raw.value(a.type);
+    if (t.isString() && t.toString() == "@anchor") continue;
+    if (t.isObject() && (t.toObject().contains("dx") || t.toObject().contains("dy"))) continue;
+    QString err;
+    if (auto an = Anchor::parse(t, &err); an && !an->isNone())
+      if (const QRect r = resolver_.roughRect(*an); !r.isNull()) actionRects_.push_back(r);
+  }
   // popups and modal dialogs cannot be covered: no dim, the bubble floats beside them
   QWidget* popup = QApplication::activePopupWidget();
   if (popup && popup->objectName() == QLatin1String("TutorialMoreMenu")) popup = nullptr;
@@ -372,6 +387,11 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
         QRect(QPoint(target.right() + kGap, c.y() - sz.height() / 2), sz),   // right
         QRect(QPoint(c.x() - sz.width() / 2, target.top() - kGap - sz.height()), sz),  // above
         QRect(QPoint(target.left() - kGap - sz.width(), c.y() - sz.height() / 2), sz),  // left
+        // further away (the step's next targets sit around the anchor)
+        QRect(QPoint(c.x() - sz.width() / 2, target.bottom() + 6 * kGap), sz),
+        QRect(QPoint(target.left() - 6 * kGap - sz.width(), c.y() - sz.height() / 2), sz),
+        QRect(QPoint(target.right() + 6 * kGap, c.y() - sz.height() / 2), sz),
+        QRect(QPoint(c.x() - sz.width() / 2, target.top() - 6 * kGap - sz.height()), sz),
     };
     int bestScore = INT_MAX;
     for (QRect q : cands) {
@@ -382,6 +402,8 @@ void TutorialController::placeBubble(const ResolvedAnchor& r) {
       if (q.bottom() > bounds.bottom()) q.moveBottom(bounds.bottom());
       int score = 0;
       if (q.intersects(target)) score += 100000;
+      for (const QRect& a : actionRects_)
+        if (q.intersects(a)) score += 50000;
       for (const QRect& a : avoid) {
         const QRect i = q.intersected(a);
         score += i.width() * i.height();

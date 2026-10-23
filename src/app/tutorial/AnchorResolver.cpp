@@ -631,4 +631,29 @@ ResolvedAnchor AnchorResolver::modelAnchor(const QString& selector, bool sketchP
   return r;
 }
 
+QRect AnchorResolver::roughRect(const Anchor& a) const {
+  if (!a.isModel()) {
+    const ResolvedAnchor r = resolve(a);
+    return r.visible ? r.rect : QRect();
+  }
+  viewer::ViewerWidget* v = w_.viewer();
+  if (!v || !w_.hasDocument() || !reallyVisible(v)) return {};
+  gp_Pnt p;
+  if (a.kind == "sketchpoint") {
+    core::Vec3 q;
+    if (parsePoint(a.target.startsWith('@') ? a.target.mid(1).toStdString() : a.target.toStdString(), q) < 2) return {};
+    p = q.toPnt();
+  } else {
+    SelectorResult sel = resolveSelector(w_.document(), a.target.toStdString());
+    if (!sel.ok() || sel.refs.empty()) return {};
+    const std::vector<gp_Pnt> pts = samplePoints(w_.document(), sel.refs.front(), v->originPlaneSize());
+    if (pts.empty()) return {};
+    p = pts.front();
+  }
+  double x = 0, y = 0;
+  if (!v->worldToScreen(p, x, y)) return {};
+  const QPoint g = v->mapToGlobal(QPoint(static_cast<int>(std::lround(x)), static_cast<int>(std::lround(y))));
+  return QRect(g - QPoint(18, 18), QSize(36, 36));
+}
+
 }  // namespace fabricad::app::tutorial

@@ -361,7 +361,22 @@ def run(args):
     log = open(os.path.join(out, "app.log"), "w")
     # the run folder is the app's working directory: file dialogs open there, so the files a tour
     # saves or exports ("bracket", "bracket.stl") land next to the report
-    app = subprocess.Popen([os.path.abspath(args.bin)], env=env, stdout=log, stderr=subprocess.STDOUT, cwd=out)
+    cmd = [os.path.abspath(args.bin)]
+    first = None
+    if args.from_chapter:
+        # debugging aid: start the tour at the chapter's first step from its start state (its
+        # "start" file, else the previous chapter's checkpoint); earlier chapters are not replayed
+        ids = [c["id"] for c in tour["chapters"]]
+        if args.from_chapter not in ids:
+            raise SystemExit("tutorial_run: no chapter '%s' (%s)" % (args.from_chapter, ", ".join(ids)))
+        ci = ids.index(args.from_chapter)
+        chap = tour["chapters"][ci]
+        # (Restore chapter: an untitled tab, so Ctrl+S asks for a name as in a full run and never
+        # writes over the shipped checkpoint)
+        first = chap["steps"][0]["id"]
+        env["FABRICAD_TUTORIAL_START"] = "%s:%s:restore" % (tour["id"], first)
+        env.pop("FABRICAD_TUTORIAL_WELCOME", None)
+    app = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, cwd=out)
     transcript = open(os.path.join(out, "probe.txt"), "w")
     probe = Probe(sock, transcript)
     report = {"tour": tour["id"], "layout": args.layout, "size": [w, h], "steps": [], "ok": False}
@@ -374,8 +389,10 @@ def run(args):
                        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         r = Runner(args, env, probe, out)
         # start through real input: the welcome card, else Help > Tutorials > <title>
-        loc = probe.ask(cmd="locate", anchor="TutorialStart")
-        started = False
+        loc = probe.ask(cmd="locate", anchor="TutorialStart") if not first else {}
+        started = bool(first)
+        if first:
+            probe.wait(lambda s: s["tour"].get("step") == first, 15, "the tour to start at " + first)
         if loc.get("visible"):
             # the card offers one tour (the probe says which): ours, or "Not now" and the Help menu
             if probe.state().get("welcome", tour["id"]) == tour["id"]:
@@ -390,7 +407,11 @@ def run(args):
             r.click("menu:Help/Tutorials")
             r.click("menu:Help/Tutorials/" + tour["title"])
         probe.wait(lambda s: s["tour"].get("id") == tour["id"], 10, "tour start")
+        skipping = bool(first)
         for ch, s in steps_of(tour):
+            if skipping and s["id"] != first:
+                continue
+            skipping = False
             st = probe.state()
             cur = st["tour"].get("step")
             if cur != s["id"]:
@@ -485,6 +506,7 @@ def main():
     ap.add_argument("--stl-volume", type=float, default=0.0)
     ap.add_argument("--stl-box", default="0,0,0,0,0,0", help="xmin,xmax,ymin,ymax,zmin,zmax")
     ap.add_argument("--stl-vol-tol", type=float, default=0.003)
+    ap.add_argument("--from-chapter", help="debugging: start at this chapter from its shipped start file")
     ap.add_argument("--update-checkpoints", action="store_true",
                     help="copy the chapter checkpoints of a passing run into the tour folder")
     sys.exit(run(ap.parse_args()))
