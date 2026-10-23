@@ -6,6 +6,8 @@
 
 #include "part/features/Import.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #ifndef FUZZ_IMPORT_EXT
@@ -22,6 +24,11 @@ extern "C" int LLVMFuzzerInitialize(int*, char***) {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   if (size > (1u << 20)) return -1;
   fuzz::fuzzEnvironment(false);
+  if (std::getenv("FABRICAD_FUZZ_TRACE")) {  // input order when chasing a state-dependent bug
+    unsigned long long h = 1469598103934665603ull;
+    for (size_t i = 0; i < size; ++i) h = (h ^ data[i]) * 1099511628211ull;
+    std::fprintf(stderr, "FUZZ_TRACE %zu %016llx\n", size, h);
+  }
   // a new name per run: readStepAssembly caches by path + modification time
   static unsigned counter = 0;
   const QString name = QString("input%1" FUZZ_IMPORT_EXT).arg(counter++ % 2);
@@ -29,9 +36,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   part::ImportFeature::Imported out;
   std::string error;
   (void)part::ImportFeature::readFile(path, out, &error);
-  if (std::string(FUZZ_IMPORT_EXT) == ".step") {
-    std::string error2;
-    (void)part::ImportFeature::readStepAssembly(path, &error2);
-  }
+  std::string error2;
+  if (std::string(FUZZ_IMPORT_EXT) == ".step") (void)part::ImportFeature::readStepAssembly(path, &error2);
+  if (std::getenv("FABRICAD_FUZZ_TRACE")) std::fprintf(stderr, "FUZZ_RESULT [%s] [%s]\n", error.c_str(), error2.c_str());
   return 0;
 }

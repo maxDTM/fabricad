@@ -236,7 +236,7 @@ class InspectExportTest : public QObject {
     auto write = [&](const char* name, const char* vertex) {
       const QString path = dir.path() + "/" + name;
       QFile f(path);
-      f.open(QIODevice::WriteOnly);
+      if (!f.open(QIODevice::WriteOnly)) return std::string();
       f.write(QByteArray("solid t\n facet normal 0 0 1\n  outer loop\n   vertex 0 0 0\n   vertex 1 0 0\n   vertex ") +
               vertex + "\n  endloop\n endfacet\nendsolid t\n");
       return path.toStdString();

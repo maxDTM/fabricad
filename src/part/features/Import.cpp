@@ -60,6 +60,7 @@
 #include <mutex>
 
 #include <csignal>
+#include <pthread.h>
 #include <set>
 
 namespace fabricad::part {
@@ -68,31 +69,81 @@ namespace {
 
 /// Damaged STEP files make OCCT's translators dereference null handles (an entity reference of the
 /// wrong type: StepToGeom::MakeDirection, StepGeom_Vector::Orientation ... found by fuzzing). While
-/// a reader runs, OCCT's signal handlers are installed so that OCC_CATCH_SIGNALS in the try block
-/// turns SIGSEGV/SIGBUS/SIGFPE into a Standard_Failure (a clean "import failed" error); the
-/// previous handlers (the default, Qt's or a sanitizer's) are restored afterwards. Imports are
-/// serialised, the handlers being process-wide.
+/// a reader runs, a fault signal (SIGSEGV/SIGBUS/SIGFPE/SIGILL) raised on a thread that is inside an
+/// OCCT try block (OCC_CATCH_SIGNALS here or in OCCT itself) goes to OCCT's handler, which turns it
+/// into a Standard_Failure: a clean "import failed" error, or OCCT skips the broken entity. Any
+/// other fault (another thread, our own code) goes to the previous handler (the default, Qt's or a
+/// sanitizer's) exactly as without the guard. Everything is restored afterwards; imports are
+/// serialised, the handlers being process-wide. FABRICAD_OCCT_SIGNALS=0 disables the guard.
 class ScopedOcctSignals {
  public:
   ScopedOcctSignals() : lock_(mutex()) {
+    if (depth()++ > 0 || qEnvironmentVariable("FABRICAD_OCCT_SIGNALS") == "0") return;
+    active_ = true;
+    pthread_sigmask(SIG_SETMASK, nullptr, &oldMask_);
     for (int s = 1; s < kSignals; ++s) saved_[s] = sigaction(s, nullptr, &old_[s]) == 0;
     OSD::SetSignal(OSD_SignalMode_Set, false);
+    for (int s = 1; s < kSignals; ++s) {
+      if (!saved_[s]) continue;
+      if (isFault(s)) {
+        sigaction(s, nullptr, &occt()[s]);
+        previous()[s] = old_[s];
+        // SA_NODEFER: OCCT leaves its handler by longjmp, which does not restore the signal mask;
+        // a still-blocked SIGSEGV would make the next fault kill the process
+        struct sigaction a = {};
+        a.sa_sigaction = &trampoline;
+        sigemptyset(&a.sa_mask);
+        a.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
+        sigaction(s, &a, nullptr);
+      } else {
+        sigaction(s, &old_[s], nullptr);  // OSD also grabs SIGINT, SIGHUP, SIGALRM...: keep them
+      }
+    }
   }
   ~ScopedOcctSignals() {
+    --depth();
+    if (!active_) return;
     for (int s = 1; s < kSignals; ++s)
       if (saved_[s]) sigaction(s, &old_[s], nullptr);
+    pthread_sigmask(SIG_SETMASK, &oldMask_, nullptr);
   }
   ScopedOcctSignals(const ScopedOcctSignals&) = delete;
   ScopedOcctSignals& operator=(const ScopedOcctSignals&) = delete;
 
  private:
+  static constexpr int kSignals = 32;
+  static bool isFault(int s) { return s == SIGSEGV || s == SIGBUS || s == SIGFPE || s == SIGILL; }
   static std::recursive_mutex& mutex() {
     static std::recursive_mutex m;
     return m;
   }
-  static constexpr int kSignals = 32;
+  static int& depth() {
+    static int d = 0;
+    return d;
+  }
+  static struct sigaction* occt() {
+    static struct sigaction a[kSignals];
+    return a;
+  }
+  static struct sigaction* previous() {
+    static struct sigaction a[kSignals];
+    return a;
+  }
+  static void trampoline(int sig, siginfo_t* info, void* context) {
+    const struct sigaction& a = Standard_ErrorHandler::IsInTryBlock() ? occt()[sig] : previous()[sig];
+    if (a.sa_flags & SA_SIGINFO) {
+      a.sa_sigaction(sig, info, context);
+    } else if (a.sa_handler != SIG_DFL && a.sa_handler != SIG_IGN) {
+      a.sa_handler(sig);
+    } else {
+      signal(sig, SIG_DFL);  // the default action: returning re-executes the fault and dies
+    }
+  }
+
   std::lock_guard<std::recursive_mutex> lock_;
   struct sigaction old_[kSignals] = {};
+  sigset_t oldMask_ = {};
+  bool active_ = false;
   bool saved_[kSignals] = {};
 };
 
@@ -137,7 +188,8 @@ bool isStepPath(const std::string& path) {
 
 long long fileStamp(const std::string& path) {
   QFileInfo fi(QString::fromStdString(path));
-  return fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : -2;
+  // modification time and size: a file rewritten within the timestamp granularity still changes
+  return fi.exists() ? fi.lastModified().toMSecsSinceEpoch() * 1000003LL + fi.size() : -2;
 }
 
 std::string labelName(const TDF_Label& label) {

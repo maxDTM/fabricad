@@ -62,13 +62,17 @@ function(fabricad_add_fuzzer name source corpus)
   endif()
   set_target_properties(${name} PROPERTIES AUTOMOC ON RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fuzz")
   if(FABRICAD_BUILD_TESTS)
-    # new inputs go to a work dir in the build tree, never into the checked-in seeds
+    # new inputs go to a work dir in the build tree, never into the checked-in seeds; it is
+    # emptied before every run so the smoke test stays deterministic (seed 1)
     set(_work "${CMAKE_CURRENT_BINARY_DIR}/work-${name}")
-    file(MAKE_DIRECTORY "${_work}")
+    add_test(NAME ${name}_smoke_clean COMMAND ${CMAKE_COMMAND} -E rm -rf "${_work}")
+    add_test(NAME ${name}_smoke_mkdir COMMAND ${CMAKE_COMMAND} -E make_directory "${_work}")
+    set_tests_properties(${name}_smoke_clean PROPERTIES FIXTURES_SETUP ${name}_work LABELS fuzz)
+    set_tests_properties(${name}_smoke_mkdir PROPERTIES FIXTURES_SETUP ${name}_work DEPENDS ${name}_smoke_clean LABELS fuzz)
     add_test(NAME ${name}_smoke
       COMMAND ${name} -runs=500 -max_total_time=60 -seed=1 -timeout=60 "${_work}" "${CMAKE_CURRENT_SOURCE_DIR}/corpus/${corpus}"
       WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
-    set_tests_properties(${name}_smoke PROPERTIES LABELS fuzz TIMEOUT 600
+    set_tests_properties(${name}_smoke PROPERTIES LABELS fuzz TIMEOUT 600 FIXTURES_REQUIRED ${name}_work
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen;ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1")
   endif()
 endfunction()
