@@ -54,6 +54,18 @@ struct TitleBlock {
   static TitleBlock fromJson(const QJsonObject& o);
 };
 
+/// Model values a title block field can reference as `${token}` (production-features P1):
+/// ${material} ${mass} ${partNumber} ${revision} ${description} ${vendor} ${title}; `${mass:kg,2}`
+/// picks the unit (g, kg, lb) and decimals (default: kg, 3). Token names are case-insensitive.
+struct TitleBlockModel {
+  std::map<std::string, std::string> text;  ///< lower-case token -> value ("material" -> "Steel")
+  double massGrams = 0.0;                   ///< 0: no density known, ${mass} expands to ""
+};
+/// Expand the `${...}` tokens of `value`; unknown tokens are kept verbatim.
+std::string expandTitleBlockTokens(const std::string& value, const TitleBlockModel& model);
+/// The tokens offered by Edit Title Block, in display order.
+const std::vector<std::string>& titleBlockTokens();
+
 struct Sheet {
   core::ObjectId id = core::kInvalidId;
   std::string name = "Sheet1";

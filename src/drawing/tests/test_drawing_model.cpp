@@ -4,6 +4,7 @@
 #include "core/Document.h"
 #include "core/tests/support/TestFeatures.h"
 #include "drawing/DrawingModel.h"
+#include "drawing/SheetRenderer.h"
 
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
@@ -611,6 +612,50 @@ class ModelTest : public QObject {
     // removing the view removes the attached marks
     QVERIFY(fx.model->removeView(top.id));
     QVERIFY(s.centerMarks.empty() && s.centerLines.empty());
+  }
+
+  // production-features P1 §2.3: ${token} title block fields fed by the model
+  void titleBlockModelTokens() {
+    TitleBlockModel m;
+    m.text["material"] = "Steel";
+    m.text["partnumber"] = "BRK-12";
+    m.text["revision"] = "C";
+    m.massGrams = 1234.5678;
+    QCOMPARE(expandTitleBlockTokens("${material}", m), std::string("Steel"));
+    QCOMPARE(expandTitleBlockTokens("${mass}", m), std::string("1.235 kg"));
+    QCOMPARE(expandTitleBlockTokens("${mass:g,1}", m), std::string("1234.6 g"));
+    QCOMPARE(expandTitleBlockTokens("${MASS:kg,2}", m), std::string("1.23 kg"));
+    QCOMPARE(expandTitleBlockTokens("${mass:lb,2}", m), std::string("2.72 lb"));
+    QCOMPARE(expandTitleBlockTokens("PN ${partNumber} rev ${rev}", m), std::string("PN BRK-12 rev C"));
+    QCOMPARE(expandTitleBlockTokens("${bogus} ${", m), std::string("${bogus} ${"));
+    m.massGrams = 0;
+    QCOMPARE(expandTitleBlockTokens("${mass}", m), std::string());
+
+    Fixture fx;
+    Sheet& s = fx.model->addSheet(*sheetFormatByName("A3"), ProjectionStandard::FirstAngle);
+    core::Body* b = fx.doc.body(fx.bodyId);
+    QVERIFY(b);
+    fx.doc.rootComponent().partNumber = "BLK-1";
+    fx.doc.rootComponent().revision = "D";
+    s.titleBlock.setField("Mass", "${mass:g,2}");
+    s.titleBlock.setField("Material", "${material}");
+    s.titleBlock.setField("PartNumber", "${partNumber}");
+    auto values = titleBlockValues(*fx.model, s);
+    QCOMPARE(values["PartNumber"], std::string("BLK-1"));
+    QCOMPARE(values["Rev"], std::string("D"));  // root revision when there is no revision table
+    QVERIFY(values["Mass"].empty());            // no density yet
+    b->material = "Steel";
+    b->density = 7.85;
+    values = titleBlockValues(*fx.model, s);
+    QCOMPARE(values["Mass"], std::string("47.10 g"));  // 6000 mm3 steel
+    QCOMPARE(values["Material"], std::string("Steel"));
+    // a material change refreshes the next render
+    b->material = "Aluminum 6061";
+    b->density = 2.70;
+    values = titleBlockValues(*fx.model, s);
+    QCOMPARE(values["Mass"], std::string("16.20 g"));
+    QCOMPARE(values["Material"], std::string("Aluminum 6061"));
+    QVERIFY(!titleBlockTokens().empty());
   }
 };
 

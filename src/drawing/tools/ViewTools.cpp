@@ -1531,6 +1531,14 @@ QWidget* EditTitleBlockTool::createDialog(core::ToolContext& ctx, QWidget* paren
     edits_[name] = e;
     connect(e, &QLineEdit::editingFinished, this, [this]() { applyDialog(); });
   }
+  // model tokens (production-features P1): a field may read e.g. "${mass:kg,2}"
+  std::string tokens;
+  for (const auto& t : titleBlockTokens()) tokens += (tokens.empty() ? "" : "  ") + t;
+  auto* hint = new QLabel(QString::fromStdString("Empty: from the model. Tokens: " + tokens), w);
+  hint->setObjectName("titleBlockTokens");
+  hint->setWordWrap(true);
+  hint->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  form->addRow(hint);
   return w;
 }
 

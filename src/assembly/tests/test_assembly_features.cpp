@@ -8,6 +8,7 @@
 #include "assembly/JointFeature.h"
 #include "assembly/JointFrame.h"
 #include "assembly/StepExport.h"
+#include "assembly/tools/ComponentPropertiesTool.h"
 #include "core/Commands.h"
 #include "core/Document.h"
 #include "core/Registry.h"
@@ -582,6 +583,103 @@ class AssemblyFeaturesTest : public QObject {
     QVERIFY(!doc.component(topId));
     QCOMPARE(doc.component(childId)->parent, core::kRootComponentId);
     QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
+  }
+
+  // production-features P1 §2.3: structured BOM, selectable columns, default output unchanged
+  void bomStructuredAndColumns() {
+    Document doc;
+    TwoBoxes t = makeTwoBoxes(doc);
+    doc.body(t.bodyA)->density = 2.0;
+    doc.body(t.bodyB)->density = 1.0;
+    // a sub-assembly "Sub" holding two occurrences of Top
+    ObjectId sub = doc.addComponent("Sub").id;
+    gp_Trsf tr;
+    tr.SetTranslation(gp_Vec(0, 40, 0));
+    QVERIFY(createOccurrence(doc, nullptr, t.compB, sub, tr) != core::kInvalidId);
+    tr.SetTranslation(gp_Vec(0, 80, 0));
+    QVERIFY(createOccurrence(doc, nullptr, t.compB, sub, tr) != core::kInvalidId);
+    doc.component(t.compB)->revision = "C";
+    doc.component(t.compB)->vendor = "Acme";
+    doc.component(t.compB)->cost = 1.25;
+    // flat: default columns through both writers are byte-identical
+    const BomTable flat = buildBom(doc);
+    QCOMPARE(bomToCsv(flat, defaultBomColumns(), false), bomToCsv(flat));
+    const BomRow* top = nullptr;
+    for (const auto& r : flat.rows)
+      if (r.name == "Top") top = &r;
+    QVERIFY(top);
+    QCOMPARE(top->quantity, 3);
+    QCOMPARE(top->revision, std::string("C"));
+    // structured: Base, Top, Sub with Top x2 below it
+    BomOptions opt;
+    opt.structured = true;
+    const BomTable st = buildBom(doc, opt);
+    QCOMPARE(st.rows.size(), size_t(4));
+    QCOMPARE(st.rows[0].name, std::string("Base"));
+    QCOMPARE(st.rows[1].name, std::string("Top"));
+    QCOMPARE(st.rows[1].quantity, 1);
+    QCOMPARE(st.rows[2].name, std::string("Sub"));
+    QCOMPARE(st.rows[2].itemPath, std::string("3"));
+    QVERIFY(std::abs(st.rows[2].mass - 2.0) < 1e-9);  // two 1 g boxes
+    QCOMPARE(st.rows[3].name, std::string("Top"));
+    QCOMPARE(st.rows[3].quantity, 2);
+    QCOMPARE(st.rows[3].level, 1);
+    QCOMPARE(st.rows[3].itemPath, std::string("3.1"));
+    std::vector<BomColumn> cols;
+    std::string err;
+    QVERIFY(parseBomColumns("item,name,qty,mass,massTotal,revision,vendor,cost,costTotal", cols, &err));
+    QCOMPARE(cols.size(), size_t(9));
+    QVERIFY(!parseBomColumns("item,bogus", cols, &err));
+    QVERIFY(err.find("bogus") != std::string::npos);
+    QVERIFY(parseBomColumns("item,name,qty,massTotal,costTotal", cols, &err));
+    const std::string csv = bomToCsv(st, cols, true);
+    QVERIFY2(csv.find("Item,Name,Qty,Mass total [g],Cost total\n") == 0, csv.c_str());
+    QVERIFY2(csv.find("3.1,  Top,2,2.000,2.50\n") != std::string::npos, csv.c_str());
+    QVERIFY(parseBomColumns("", cols, &err));
+    QVERIFY(cols == defaultBomColumns());
+  }
+
+  void componentPropsAndMaterialVerbs() {
+    Document doc;
+    TwoBoxes t = makeTwoBoxes(doc);
+    ComponentProps p;
+    std::string target, err;
+    QVERIFY(parseComponentProps({"partNumber=BRK-12", "description=Mounting bracket", "rev=B", "vendor=Acme", "cost=4.2",
+                                 "component=Top"},
+                                p, &target, &err));
+    QCOMPARE(p.partNumber, std::string("BRK-12"));
+    QCOMPARE(p.revision, std::string("B"));
+    QCOMPARE(target, std::string("Top"));
+    QVERIFY(std::abs(p.cost - 4.2) < 1e-12);
+    QVERIFY(!parseComponentProps({"colour=red"}, p, nullptr, &err));
+    QVERIFY(!parseComponentProps({"cost=abc"}, p, nullptr, &err));
+    core::UndoStack undo;
+    auto cmd = makeSetComponentProps(doc, t.compB, p);
+    QVERIFY(cmd);
+    undo.push(std::move(cmd));
+    QCOMPARE(doc.component(t.compB)->vendor, std::string("Acme"));
+    QVERIFY(!makeSetComponentProps(doc, t.compB, p));  // unchanged -> no command
+    undo.undo();
+    QVERIFY(doc.component(t.compB)->vendor.empty());
+    undo.redo();
+    // round trip of the new fields; absent keys load empty
+    Document doc2;
+    QVERIFY(doc2.fromJson(doc.toJson()));
+    QCOMPARE(doc2.component(t.compB)->revision, std::string("B"));
+    QCOMPARE(doc2.component(t.compB)->vendor, std::string("Acme"));
+    QVERIFY(std::abs(doc2.component(t.compB)->cost - 4.2) < 1e-12);
+    QVERIFY(doc2.component(t.compA)->revision.empty() && doc2.component(t.compA)->cost == 0.0);
+    // MATERIAL: library density + colour, custom density, clear
+    QCOMPARE(applyBodyMaterial(doc, &undo, {t.bodyA, t.bodyB}, "aluminum 6061", 0), 2);
+    QCOMPARE(doc.body(t.bodyA)->material, std::string("Aluminum 6061"));
+    QVERIFY(std::abs(doc.body(t.bodyB)->density - 2.70) < 1e-12);
+    QVERIFY(std::abs(buildBom(doc).rows[0].mass - 2.7) < 1e-9);
+    undo.undo();  // one macro for both bodies
+    QVERIFY(doc.body(t.bodyA)->material.empty() && doc.body(t.bodyB)->material.empty());
+    QCOMPARE(applyBodyMaterial(doc, &undo, {t.bodyA}, "Unobtainium", 3.5), 1);
+    QVERIFY(std::abs(doc.body(t.bodyA)->density - 3.5) < 1e-12);
+    QCOMPARE(applyBodyMaterial(doc, &undo, {t.bodyA}, "none", 0), 1);
+    QCOMPARE(doc.body(t.bodyA)->density, 0.0);
   }
 
   void stepExportKeepsNamesOfMovedBodiesAndNamesTheRoot() {
