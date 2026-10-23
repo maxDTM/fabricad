@@ -765,7 +765,7 @@
  590  ok    LIST tabs                                              6.9 ms
         info: Tabs (2):
         info:   1. chair  [design]  out/chair.fcad
-        info:   2. chair  [design]  /tmp/claude-1000/-home-user-tmp/75fdb322-cdb4-476f-821c-92e962712276/scratchpad/chairrun/out/chair.fcad  (active)
+        info:   2. chair  [design]  $SCRATCH/chairrun/out/chair.fcad  (active)
  591  ok    WAIT 300                                             305.6 ms
  592  ok    CHECK components == 3                                  2.3 ms
         info: CHECK components == 3: ok

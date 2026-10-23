@@ -212,6 +212,30 @@ pages. Every Appearance and Layout choice applies at once and is remembered.
 `THEME dark|light|system` on the command line switches the theme (no argument toggles dark and
 light). The settings are stored with QSettings under `ui/*` (`~/.config/FabriCAD/FabriCAD.conf`).
 
+## Installing
+
+**Arch Linux (AUR)**: `fabricad` (latest release) or `fabricad-git` (latest commit), e.g.
+`yay -S fabricad`. The PKGBUILDs live in `packaging/aur/`; to build one by hand:
+
+```sh
+git clone https://aur.archlinux.org/fabricad.git && cd fabricad && makepkg -si
+```
+
+**From source, any distribution** (Qt >= 6.5 with Svg, OpenCASCADE 7.9, Eigen 3/5, CMake >= 3.25,
+a C++20 compiler; `rsvg-convert` or ImageMagick for the PNG icons):
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DFABRICAD_BUILD_TESTS=OFF
+cmake --build build -j2
+sudo cmake --install build        # or: DESTDIR=/tmp/stage cmake --install build
+```
+
+`cmake --install` puts in place `bin/fabricad` (icons, theme and fonts are compiled into it), the
+desktop entry `io.github.maxdtm.FabriCAD.desktop`, AppStream metainfo, the
+`application/x-fabricad` MIME type for `*.fcad` files, hicolor icons (scalable + 16..512 px,
+all rendered from `resources/icons/app/fabricad-app.svg` by `packaging/linux/render-icons.sh`)
+and the licence notices (`share/licenses/fabricad/`). Release notes: `CHANGELOG.md`.
+
 ## Building (Arch Linux dev box)
 
 Requirements (all system packages, nothing is downloaded): `cmake >= 3.25`, `g++ >= 13`

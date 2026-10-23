@@ -45,7 +45,10 @@ mkdir -p "$logdir" "$cfg" "$data"
 case $cmd in
   start)
     bin=${3:--}
-    [ "$bin" = - ] && bin=${UI_BIN:-/home/user/Documents/projects/fabricad/build/bin/fabricad}
+    # default: the MAIN checkout's build (also when ui.sh runs from a worktree)
+    main_root=$(cd "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/.." 2>/dev/null && pwd) \
+      || main_root=$(cd "$here/../.." && pwd)
+    [ "$bin" = - ] && bin=${UI_BIN:-$main_root/build/bin/fabricad}
     size=${4:-1600x1000}
     scale=${5:-1}
     if ! xdotool getdisplaygeometry >/dev/null 2>&1; then

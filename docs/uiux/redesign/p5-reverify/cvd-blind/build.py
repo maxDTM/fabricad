@@ -1,7 +1,7 @@
 import json, random, subprocess, os, shutil
-W='/tmp/claude-1000/-home-user-tmp/75fdb322-cdb4-476f-821c-92e962712276/scratchpad/w'
+W=os.environ.get('CVD_WORK','/tmp/cvd-blind')  # scratch dir with the raw grabs
 R=W+'/raw'
-CVD='/home/user/Documents/projects/fabricad/tools/uitest/cvd.py'
+CVD=os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../../../../tools/uitest/cvd.py')
 # name, raw prefix, box, marks (description), truth list
 C=[
 ('live-row','off-{t}-live',(0,204,320,30),['the Extrude1 row'],['live']),

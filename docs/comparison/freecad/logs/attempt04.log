@@ -31,4 +31,4 @@ MbD: Convergence = 6.4173044189273131e-06
 MbD: Convergence = 2.4095563799719795e-21
 Time = 0
     after Fixed joint solve: LegFrame plc=Placement [Pos=(7.58653e-30,5.68434e-14,-6.95996e-14), Yaw-Pitch-Roll=(0,0,0)]  Seat plc=Placement [Pos=(380,-360,-2.8026e-45), Yaw-Pitch-Roll=(180,0,0)]  moved=True
-Exception while processing file: /home/user/Documents/projects/fabricad/docs/comparison/freecad/chair_freecad.py [rigid joint moved a part (not as-built)]
+Exception while processing file: docs/comparison/freecad/chair_freecad.py [rigid joint moved a part (not as-built)]

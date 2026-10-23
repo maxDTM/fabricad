@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FabriCAD document MIME type (shared-mime-info). Installed to share/mime/packages/. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-fabricad">
+    <comment>FabriCAD design</comment>
+    <sub-class-of type="application/json"/>
+    <generic-icon name="application-x-generic"/>
+    <icon name="application-x-fabricad"/>
+    <glob pattern="*.fcad"/>
+  </mime-type>
+</mime-info>

@@ -76,7 +76,7 @@ Material and Mass are empty in both although the title block was filled (`Al 606
 Evidence: `asm-v2-bom.csv`.
 
 ### DRW2-ASM-OUTPUT-8 (low) export dialog directory
-Repro: any PDF / SVG / DXF export, also a second one after exporting elsewhere. The dialog opens in `/home/user/Documents/projects/fabricad` (the process cwd) with `asm.pdf`; the document lives elsewhere.
+Repro: any PDF / SVG / DXF export, also a second one after exporting elsewhere. The dialog opens in `<repo>` (the process cwd) with `asm.pdf`; the document lives elsewhere.
 Expected: the document's folder, or the last export folder. Risk: a quick Enter writes the file into a source tree.
 Evidence: `10-export-dialog-default-dir-project-root.png`.
 

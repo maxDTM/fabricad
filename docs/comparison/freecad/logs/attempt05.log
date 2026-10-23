@@ -35,7 +35,7 @@ Time = 0
 MbD: Convergence = 0
 Time = 0
     HoleSketch: solve=0 FullyConstrained=True constraints=3 malformed=[] redundant=[] conflicting=[]
-Looking for thread definitions in: /home/user/Documents/projects/fabricad-ref/freecad-app/squashfs-root/usr/share/Mod/PartDesign/Resources/Hole /tmp/claude-1000/-home-user-tmp/75fdb322-cdb4-476f-821c-92e962712276/scratchpad/fchome/PartDesign/Hole 
+Looking for thread definitions in: ../fabricad-ref/freecad-app/squashfs-root/usr/share/Mod/PartDesign/Resources/Hole $SCRATCH/fchome/PartDesign/Hole 
 MbD: Convergence = 0
 Time = 0
     stage C volumes: {'Seat': 8565975.689974846, 'LegLeft': 1718632.0000000005, 'LegRight': 1716808.2593204097}
@@ -62,7 +62,7 @@ Recompute......
 ******        Transfer Mode = 0  I.E.  As Is       ******[0m
 [32;1m******        Transferring Shape, ShapeType = 0                      ******[0m
 [32;1m** WorkSession : Sending all data[0m
-[32;1m Step File Name : /home/user/Documents/projects/fabricad/docs/comparison/freecad/out/chair.step(2231 ents)  Write  Done[0m
+[32;1m Step File Name : docs/comparison/freecad/out/chair.step(2231 ents)  Write  Done[0m
 saving......
   1 [A_seat] File > New
   2 [A_seat] Workbench: PartDesign

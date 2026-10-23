@@ -471,7 +471,7 @@
  296  ok    LIST tabs                                              1.6 ms
         info: Tabs (2):
         info:   1. chair  [design]  out/chair.fcad
-        info:   2. chair  [design]  /home/user/Documents/projects/fabricad/docs/comparison/fabricad/out/chair.fcad  (active)
+        info:   2. chair  [design]  docs/comparison/fabricad/out/chair.fcad  (active)
  297  ok    CHECK components == 3                                  1.6 ms
         info: CHECK components == 3: ok
  298  ok    CHECK body:Seat volume ~ 8565976 0.05%                 3.5 ms

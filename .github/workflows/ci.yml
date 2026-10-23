@@ -1,0 +1,69 @@
+# Build FabriCAD on Arch Linux (Qt 6, OpenCASCADE 7.9 from the official repos) and run the
+# headless test suite. `timing` tests are skipped (shared runners), `gui` needs a GL display.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arch:
+    name: Arch Linux (Release, ctest offscreen)
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 120
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git cmake ninja ccache lld \
+            qt6-base qt6-svg opencascade eigen onetbb \
+            python librsvg desktop-file-utils appstream
+      - uses: actions/checkout@v4
+      - name: ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-arch-${{ github.sha }}
+          restore-keys: ccache-arch-
+      - name: Configure
+        run: |
+          echo "CCACHE_DIR=$PWD/.ccache" >> "$GITHUB_ENV"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DFABRICAD_WERROR=OFF
+      - name: Build
+        # ~1 GB per compile job (OCCT + Qt headers); the hosted runner has 16 GB
+        run: cmake --build build -j4
+      - name: Test
+        run: |
+          export HOME="$RUNNER_TEMP/home" XDG_RUNTIME_DIR="$RUNNER_TEMP/run"
+          mkdir -p "$HOME" "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          ctest --test-dir build --output-on-failure -LE 'timing|gui' -j4
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Install (staging) and validate desktop metadata
+        run: |
+          DESTDIR="$PWD/stage" cmake --install build
+          desktop-file-validate stage/usr/share/applications/io.github.maxdtm.FabriCAD.desktop
+          appstreamcli validate --no-net stage/usr/share/metainfo/io.github.maxdtm.FabriCAD.metainfo.xml
+          test -x stage/usr/bin/fabricad
+          test -f stage/usr/share/icons/hicolor/512x512/apps/io.github.maxdtm.FabriCAD.png
+          ws=$PWD; mkdir -p "$RUNNER_TEMP/smoke" && cd "$RUNNER_TEMP/smoke"
+          QT_QPA_PLATFORM=offscreen FABRICAD_NO_RECOVERY=1 \
+            "$ws/stage/usr/bin/fabricad" --script "$ws/tests/scripts/chair.fcs" --offscreen --quiet
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-log
+          path: build/Testing/Temporary/LastTest.log
