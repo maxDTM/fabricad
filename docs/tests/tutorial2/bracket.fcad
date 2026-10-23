@@ -1,0 +1,2879 @@
+{
+    "activeComponent": 1,
+    "bodies": [
+        {
+            "color": [
+                0.7300000190734863,
+                0.7400000095367432,
+                0.7699999809265137,
+                1
+            ],
+            "component": 1,
+            "creator": 17,
+            "id": 18,
+            "name": "Body1",
+            "visible": true
+        }
+    ],
+    "components": [
+        {
+            "children": [
+            ],
+            "grounded": true,
+            "id": 1,
+            "name": "bracket",
+            "parent": 0,
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0,
+                    1
+                ],
+                "t": [
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "visible": true
+        }
+    ],
+    "extensions": {
+        "ui": {
+            "displayMode": "shaded-edges",
+            "folders": {
+                "Construction": true,
+                "Joints": true,
+                "Sketches": true
+            },
+            "hiddenFeatures": [
+                16,
+                19,
+                22,
+                26
+            ],
+            "projection": "orthographic",
+            "showOrigin": false
+        }
+    },
+    "features": [
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "start"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "id": 3,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 5,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 7,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 8,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "c": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "id": 9,
+                    "type": "Symmetric"
+                },
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "c": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "id": 10,
+                    "type": "Symmetric"
+                },
+                {
+                    "a": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "id": 11,
+                    "name": "origin",
+                    "type": "Fix"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 12,
+                    "label": [
+                        0,
+                        -20
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 80
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 13,
+                    "label": [
+                        35,
+                        0
+                    ],
+                    "name": "d2",
+                    "type": "Distance",
+                    "value": 50
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        -40,
+                        -25,
+                        40,
+                        -25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        40,
+                        -25,
+                        40,
+                        25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        40,
+                        25,
+                        -40,
+                        25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        -40,
+                        25,
+                        -40,
+                        -25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "construction": true,
+                    "id": 5,
+                    "p": [
+                        0,
+                        0
+                    ],
+                    "type": "Point"
+                }
+            ],
+            "id": 16,
+            "name": "Sketch1",
+            "nextConstraintId": 14,
+            "nextGeoId": 6,
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "XY",
+                        "owner": 2,
+                        "pt": [
+                            20.622568299403625,
+                            59.377431700596375,
+                            0
+                        ]
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "createdBodies": [
+                18
+            ],
+            "id": 17,
+            "name": "Extrude1",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "New Body",
+                    "type": "Enum",
+                    "value": 3
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1,2,3,4",
+                            "owner": 16,
+                            "pt": [
+                                -1.387778780781446e-16,
+                                7.105427357601003e-16,
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 5,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 5
+                    },
+                    "id": 2,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 5
+                    },
+                    "id": 3,
+                    "label": [
+                        -35,
+                        20
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 10
+                },
+                {
+                    "a": {
+                        "g": 6,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 5,
+                        "pos": "end"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 6,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 3
+                    },
+                    "id": 5,
+                    "type": "PointOnCurve"
+                },
+                {
+                    "a": {
+                        "g": 6
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 7,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 6,
+                        "pos": "end"
+                    },
+                    "id": 7,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 7,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 8,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 7
+                    },
+                    "id": 9,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 8,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 7,
+                        "pos": "end"
+                    },
+                    "id": 10,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 8,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 11,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 8
+                    },
+                    "id": 12,
+                    "type": "Horizontal"
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        -40,
+                        25,
+                        -40,
+                        -25
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 4,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            -40,
+                            0,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                -39.9999999,
+                                25.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                -40,
+                                0,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 50,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        40,
+                        25,
+                        -40,
+                        25
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 7,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            0,
+                            25,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                25.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                24.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                0,
+                                25,
+                                10
+                            ],
+                            "d": [
+                                1,
+                                0,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 80,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        40,
+                        -25,
+                        40,
+                        25
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 10,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            0,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                25.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                40,
+                                0,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                -1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 50,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        -40,
+                        -25,
+                        40,
+                        -25
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 12,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            0,
+                            -25,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                -24.9999999,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                0,
+                                -25,
+                                10
+                            ],
+                            "d": [
+                                -1,
+                                0,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 80,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 5,
+                    "p": [
+                        -40,
+                        25,
+                        -40,
+                        15
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 6,
+                    "p": [
+                        -40,
+                        15,
+                        40,
+                        15
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 7,
+                    "p": [
+                        40,
+                        15,
+                        40,
+                        25
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 8,
+                    "p": [
+                        40,
+                        25,
+                        -40,
+                        25
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 19,
+            "name": "Sketch2",
+            "nextConstraintId": 13,
+            "nextGeoId": 9,
+            "planeAxes": [
+                0,
+                0,
+                1,
+                1,
+                0,
+                0
+            ],
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 6,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            -11.529202011220624,
+                            11.048493175946666,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                25.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                -1.387778780781446e-16,
+                                7.105427357601003e-16,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 4,
+                            "r": 0,
+                            "size": 3999.999999999999,
+                            "type": 0
+                        }
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 20,
+            "name": "Extrude2",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 40
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "Join",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "5,6,7,8",
+                            "owner": 19,
+                            "pt": [
+                                -1.387778780781446e-16,
+                                20,
+                                8
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 21,
+            "name": "Fillet1",
+            "properties": {
+                "edges": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 5,
+                            "kind": "Edge",
+                            "name": "{Extrude1/Side/c1|Extrude1/Side/c4}",
+                            "owner": 18,
+                            "pt": [
+                                -40,
+                                -25,
+                                5.738515586906258
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    -39.9999999,
+                                    -24.9999999,
+                                    10.0000001
+                                ],
+                                "bmin": [
+                                    -40.0000001,
+                                    -25.0000001,
+                                    -1e-07
+                                ],
+                                "c": [
+                                    -40,
+                                    -25,
+                                    5
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "nv": 2,
+                                "r": 0,
+                                "size": 10,
+                                "type": 0
+                            }
+                        },
+                        {
+                            "index": 10,
+                            "kind": "Edge",
+                            "name": "{Extrude1/Side/c1|Extrude1/Side/c2}",
+                            "owner": 18,
+                            "pt": [
+                                40,
+                                -25,
+                                5.12914044315623
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    40.0000001,
+                                    -24.9999999,
+                                    10.0000001
+                                ],
+                                "bmin": [
+                                    39.9999999,
+                                    -25.0000001,
+                                    -1e-07
+                                ],
+                                "c": [
+                                    40,
+                                    -25,
+                                    5
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    -1
+                                ],
+                                "nv": 2,
+                                "r": 0,
+                                "size": 10,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "endRadius": {
+                    "type": "Length",
+                    "value": 4
+                },
+                "flipVariable": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "radius": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "radiusPoints": {
+                    "type": "String",
+                    "value": ""
+                },
+                "radiusType": {
+                    "name": "Constant",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "tangentChain": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Fillet"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 7,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 10,
+                        "pos": "end"
+                    },
+                    "id": 2,
+                    "type": "Tangent"
+                },
+                {
+                    "a": {
+                        "g": 8,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 10,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Tangent"
+                },
+                {
+                    "a": {
+                        "g": 7,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 9,
+                        "pos": "start"
+                    },
+                    "id": 6,
+                    "type": "Tangent"
+                },
+                {
+                    "a": {
+                        "g": 8,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 9,
+                        "pos": "end"
+                    },
+                    "id": 8,
+                    "type": "Tangent"
+                },
+                {
+                    "a": {
+                        "g": 9
+                    },
+                    "b": {
+                        "g": 10
+                    },
+                    "id": 9,
+                    "type": "Equal"
+                },
+                {
+                    "a": {
+                        "g": 11,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 9,
+                        "pos": "center"
+                    },
+                    "id": 10,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 11,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 10,
+                        "pos": "center"
+                    },
+                    "id": 11,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 11
+                    },
+                    "id": 12,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 11
+                    },
+                    "id": 13,
+                    "label": [
+                        -12.09097629807011,
+                        -10.000000000000007
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 30
+                },
+                {
+                    "a": {
+                        "g": 9
+                    },
+                    "id": 14,
+                    "label": [
+                        -19.878487129967326,
+                        -7.787510831897223
+                    ],
+                    "name": "d2",
+                    "type": "Diameter",
+                    "value": 8
+                },
+                {
+                    "a": {
+                        "g": 9,
+                        "pos": "center"
+                    },
+                    "b": {
+                        "g": 4
+                    },
+                    "id": 15,
+                    "label": [
+                        -17.14375151052513,
+                        -28.281908352596947
+                    ],
+                    "name": "d3",
+                    "type": "Distance",
+                    "value": 10
+                },
+                {
+                    "a": {
+                        "g": 9,
+                        "pos": "center"
+                    },
+                    "b": {
+                        "g": 5
+                    },
+                    "id": 16,
+                    "label": [
+                        -33.72245948976677,
+                        3.217636807962161
+                    ],
+                    "name": "d4",
+                    "type": "Distance",
+                    "value": 25
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        40,
+                        -15.000000000000002,
+                        40,
+                        15
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 7,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            0,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                -15.000000100000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                40,
+                                0,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 30,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        30.00000000000001,
+                        -15.000000000000005,
+                        9.99999999999999,
+                        4.712388980384689,
+                        6.283185307179586
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 8,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            30,
+                            -15.000000000000002,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                -14.9999999,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                29.999999900000002,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                30,
+                                -15.000000000000002,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                -1
+                            ],
+                            "nv": 2,
+                            "r": 10,
+                            "size": 15.707963267948966,
+                            "type": 1
+                        }
+                    },
+                    "type": "Arc"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        -40,
+                        15,
+                        40,
+                        15
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 9,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            0,
+                            15,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                14.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                0,
+                                15,
+                                10
+                            ],
+                            "d": [
+                                -1,
+                                0,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 80,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        -30,
+                        -25,
+                        30,
+                        -25
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 10,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            0,
+                            -25,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                30.0000001,
+                                -24.9999999,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -30.0000001,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                0,
+                                -25,
+                                10
+                            ],
+                            "d": [
+                                1,
+                                0,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 60,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 5,
+                    "p": [
+                        -40,
+                        15,
+                        -40,
+                        -15
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 1,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            -40,
+                            0,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                -39.9999999,
+                                15.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                -15.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                -40,
+                                0,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 30,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 6,
+                    "p": [
+                        -30.00000000000001,
+                        -15.000000000000005,
+                        9.99999999999999,
+                        3.1415926535897927,
+                        4.71238898038469
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 11,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            -30,
+                            -15.000000000000002,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                -29.999999900000002,
+                                -14.9999999,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                -30,
+                                -15.000000000000002,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 2,
+                            "r": 10,
+                            "size": 15.707963267948966,
+                            "type": 1
+                        }
+                    },
+                    "type": "Arc"
+                },
+                {
+                    "id": 7,
+                    "p": [
+                        -14.999999999999941,
+                        -11,
+                        15.000000000000005,
+                        -11
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 8,
+                    "p": [
+                        15.000000000000004,
+                        -19,
+                        -14.99999999999994,
+                        -19
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 9,
+                    "p": [
+                        -15,
+                        -15,
+                        4,
+                        1.570796326794882,
+                        4.712388980384705
+                    ],
+                    "type": "Arc"
+                },
+                {
+                    "id": 10,
+                    "p": [
+                        15,
+                        -15,
+                        4,
+                        4.712388980384691,
+                        7.853981633974482
+                    ],
+                    "type": "Arc"
+                },
+                {
+                    "construction": true,
+                    "id": 11,
+                    "p": [
+                        -15,
+                        -15,
+                        15,
+                        -15
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 22,
+            "name": "Sketch3",
+            "nextConstraintId": 17,
+            "nextGeoId": 12,
+            "planeAxes": [
+                0,
+                0,
+                1,
+                1,
+                0,
+                0
+            ],
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 2,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            -30.124161690325828,
+                            -3.4033804590133707,
+                            8.000000000000016
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                -25.0000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                0,
+                                -4.758467604476845,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 6,
+                            "r": 0,
+                            "size": 3157.0796326794894,
+                            "type": 0
+                        }
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 23,
+            "name": "Extrude3",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "All",
+                    "type": "Enum",
+                    "value": 2
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "operation": {
+                    "name": "Cut",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "7,8,9,10",
+                            "owner": 22,
+                            "pt": [
+                                -4.1657780822792387e-16,
+                                -15.000000000000002,
+                                8
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 24,
+            "name": "Hole1",
+            "properties": {
+                "ansiSize": {
+                    "name": "1/4-20",
+                    "type": "Enum",
+                    "value": 19
+                },
+                "cboreDepth": {
+                    "type": "Length",
+                    "value": 4
+                },
+                "cboreDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "clearanceFit": {
+                    "name": "Normal",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "csinkAngle": {
+                    "type": "Angle",
+                    "value": 90
+                },
+                "csinkDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "diameter": {
+                    "type": "Length",
+                    "value": 6.6
+                },
+                "drillAngle": {
+                    "type": "Angle",
+                    "value": 118
+                },
+                "drillPoint": {
+                    "name": "Flat",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType": {
+                    "name": "All",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "face": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "fastener": {
+                    "name": "Custom",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "headClearance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "headOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "holeType": {
+                    "name": "Counterbore",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "points": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 8,
+                            "kind": "Edge",
+                            "name": "{Extrude1/End|Fillet1/{Extrude1/Side/c1|Extrude1/Side/c2}}",
+                            "owner": 18,
+                            "pt": [
+                                38.64785433929586,
+                                -20.017710594890552,
+                                8
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    40.0000001,
+                                    -14.9999999,
+                                    10.0000001
+                                ],
+                                "bmin": [
+                                    29.999999900000002,
+                                    -25.0000001,
+                                    9.9999999
+                                ],
+                                "c": [
+                                    30,
+                                    -15.000000000000002,
+                                    10
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    -1
+                                ],
+                                "nv": 2,
+                                "r": 10,
+                                "size": 15.707963267948966,
+                                "type": 1
+                            }
+                        }
+                    ]
+                },
+                "standard": {
+                    "name": "ISO metric",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "tapType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "threadClass": {
+                    "type": "String",
+                    "value": ""
+                },
+                "threadDepth": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "threadFullDepth": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "threadInfo": {
+                    "type": "String",
+                    "value": ""
+                },
+                "threadModeled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "threadSize": {
+                    "name": "M6x1",
+                    "type": "Enum",
+                    "value": 20
+                }
+            },
+            "type": "Hole"
+        },
+        {
+            "component": 1,
+            "id": 25,
+            "name": "Mirror1",
+            "properties": {
+                "instances": {
+                    "type": "Json",
+                    "value": [
+                    ]
+                },
+                "mirrorPlane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "YZ",
+                        "owner": 2,
+                        "pt": [
+                            1.992582131984037e-14,
+                            23.59480250919216,
+                            73.6465264243256
+                        ]
+                    }
+                },
+                "objects": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Feature",
+                            "owner": 24
+                        }
+                    ]
+                },
+                "operation": {
+                    "name": "Join",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "patternType": {
+                    "name": "Features",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "suppressed": {
+                    "type": "Json",
+                    "value": [
+                    ]
+                }
+            },
+            "type": "Mirror"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 5
+                    },
+                    "id": 1,
+                    "label": [
+                        9.05096679918781,
+                        45.47128306635885
+                    ],
+                    "name": "d1",
+                    "type": "Diameter",
+                    "value": 12
+                },
+                {
+                    "a": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "b": {
+                        "g": 4
+                    },
+                    "id": 2,
+                    "label": [
+                        22.675650869113483,
+                        44.72083609553284
+                    ],
+                    "name": "d2",
+                    "type": "Distance",
+                    "value": 10
+                },
+                {
+                    "a": {
+                        "g": 5,
+                        "pos": "center"
+                    },
+                    "b": {
+                        "g": 1
+                    },
+                    "id": 3,
+                    "label": [
+                        -20.48705223836781,
+                        22.30943255895601
+                    ],
+                    "name": "d3",
+                    "type": "Distance",
+                    "value": 40
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        -40,
+                        10,
+                        -40,
+                        50
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 3,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            -40,
+                            15,
+                            28
+                        ],
+                        "sig": {
+                            "bmax": [
+                                -39.9999999,
+                                15.0000001,
+                                50.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                14.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                -40,
+                                15,
+                                30
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 40,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        40,
+                        10,
+                        40,
+                        50
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 20,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            15,
+                            28
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                50.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                14.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                40,
+                                15,
+                                30
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 40,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        -40,
+                        10,
+                        40,
+                        10
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 9,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            0,
+                            15,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                14.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                0,
+                                15,
+                                10
+                            ],
+                            "d": [
+                                -1,
+                                0,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 80,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        -40,
+                        50,
+                        40,
+                        50
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 21,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            0,
+                            15,
+                            48
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                50.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                14.9999999,
+                                49.9999999
+                            ],
+                            "c": [
+                                0,
+                                15,
+                                50
+                            ],
+                            "d": [
+                                -1,
+                                0,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 80,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 5,
+                    "p": [
+                        0,
+                        40,
+                        6
+                    ],
+                    "type": "Circle"
+                }
+            ],
+            "id": 26,
+            "name": "Sketch4",
+            "nextConstraintId": 4,
+            "nextGeoId": 6,
+            "planeAxes": [
+                0,
+                -1,
+                0,
+                1,
+                0,
+                0
+            ],
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 4,
+                        "kind": "Face",
+                        "name": "Extrude2/Side/c6",
+                        "owner": 18,
+                        "pt": [
+                            -6.313356290148095,
+                            14.999999999999993,
+                            39.57165110627531
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                50.0000001
+                            ],
+                            "bmin": [
+                                -40.0000001,
+                                14.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                -5.551115123125784e-17,
+                                15,
+                                30
+                            ],
+                            "d": [
+                                0,
+                                -1,
+                                0
+                            ],
+                            "nv": 4,
+                            "r": 0,
+                            "size": 3199.9999999999995,
+                            "type": 0
+                        }
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 27,
+            "name": "Extrude4",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "All",
+                    "type": "Enum",
+                    "value": 2
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "operation": {
+                    "name": "Cut",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "5",
+                            "owner": 26,
+                            "pt": [
+                                2.6645352591003757e-15,
+                                15,
+                                38
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 28,
+            "name": "Chamfer1",
+            "properties": {
+                "angle": {
+                    "type": "Angle",
+                    "value": 45
+                },
+                "chamferType": {
+                    "name": "Equal Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 2
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 1
+                },
+                "edges": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 20,
+                            "kind": "Edge",
+                            "name": "{Extrude2/End|Extrude2/Side/c6}",
+                            "owner": 18,
+                            "pt": [
+                                28.508218110568293,
+                                15,
+                                48
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    40.0000001,
+                                    15.0000001,
+                                    50.0000001
+                                ],
+                                "bmin": [
+                                    -40.0000001,
+                                    14.9999999,
+                                    49.9999999
+                                ],
+                                "c": [
+                                    0,
+                                    15,
+                                    50
+                                ],
+                                "d": [
+                                    -1,
+                                    0,
+                                    0
+                                ],
+                                "nv": 2,
+                                "r": 0,
+                                "size": 80,
+                                "type": 0
+                            }
+                        },
+                        {
+                            "index": 33,
+                            "kind": "Edge",
+                            "name": "{Extrude1/Side/c3|Extrude2/End}",
+                            "owner": 18,
+                            "pt": [
+                                -9.61735830407151,
+                                25,
+                                48
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    40.0000001,
+                                    25.0000001,
+                                    50.0000001
+                                ],
+                                "bmin": [
+                                    -40.0000001,
+                                    24.9999999,
+                                    49.9999999
+                                ],
+                                "c": [
+                                    0,
+                                    25,
+                                    50
+                                ],
+                                "d": [
+                                    -1,
+                                    0,
+                                    0
+                                ],
+                                "nv": 2,
+                                "r": 0,
+                                "size": 80,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                }
+            },
+            "type": "Chamfer"
+        },
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 9,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "mid"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 9,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "mid"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        15,
+                        10,
+                        15,
+                        48
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 11,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            15,
+                            27
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                48.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                14.9999999,
+                                9.9999999
+                            ],
+                            "c": [
+                                40,
+                                15,
+                                29
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 38,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        15.000000000000002,
+                        48,
+                        17.000000000000007,
+                        50.00000000000001
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 14,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            39.99999999999999,
+                            16.000000000000004,
+                            47
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.000000099999994,
+                                17.00000010000001,
+                                50.00000010000001
+                            ],
+                            "bmin": [
+                                39.99999989999999,
+                                14.999999900000002,
+                                47.9999999
+                            ],
+                            "c": [
+                                39.99999999999999,
+                                16.000000000000004,
+                                49
+                            ],
+                            "d": [
+                                0,
+                                0.7071067811865476,
+                                0.7071067811865476
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 2.828427124746195,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        -15.000000000000002,
+                        10,
+                        15,
+                        10
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 15,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            0,
+                            8
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                15.0000001,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                -15.000000100000001,
+                                9.9999999
+                            ],
+                            "c": [
+                                40,
+                                0,
+                                10
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 30,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        17,
+                        50,
+                        23,
+                        50
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 25,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            20,
+                            48
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                23.0000001,
+                                50.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                16.9999999,
+                                49.9999999
+                            ],
+                            "c": [
+                                40,
+                                20,
+                                50
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 6,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 5,
+                    "p": [
+                        -15.000000000000002,
+                        0,
+                        -15.000000000000002,
+                        10
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 43,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            -15.000000000000002,
+                            4
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                -14.999999900000002,
+                                10.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                -15.000000100000001,
+                                -1e-07
+                            ],
+                            "c": [
+                                40,
+                                -15.000000000000002,
+                                5
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                -1
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 10,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 6,
+                    "p": [
+                        22.999999999999996,
+                        50,
+                        24.999999999999996,
+                        47.99999999999999
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 29,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            24,
+                            47
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                25.000000099999998,
+                                50.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                22.999999899999995,
+                                47.99999989999999
+                            ],
+                            "c": [
+                                40,
+                                23.999999999999996,
+                                48.99999999999999
+                            ],
+                            "d": [
+                                0,
+                                0.7071067811865476,
+                                -0.7071067811865476
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 2.8284271247461903,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 7,
+                    "p": [
+                        -15.000000000000002,
+                        0,
+                        25,
+                        0
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 33,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            5,
+                            0
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                25.0000001,
+                                1e-07
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                -15.000000100000001,
+                                -1e-07
+                            ],
+                            "c": [
+                                40,
+                                5,
+                                0
+                            ],
+                            "d": [
+                                0,
+                                -1,
+                                0
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 40,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 8,
+                    "p": [
+                        25,
+                        48,
+                        25,
+                        0
+                    ],
+                    "projected": true,
+                    "source": {
+                        "index": 41,
+                        "kind": "Edge",
+                        "owner": 18,
+                        "pt": [
+                            40,
+                            25,
+                            23
+                        ],
+                        "sig": {
+                            "bmax": [
+                                40.0000001,
+                                25.0000001,
+                                48.0000001
+                            ],
+                            "bmin": [
+                                39.9999999,
+                                24.9999999,
+                                -1e-07
+                            ],
+                            "c": [
+                                40,
+                                25,
+                                24
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                -1
+                            ],
+                            "nv": 2,
+                            "r": 0,
+                            "size": 48,
+                            "type": 0
+                        }
+                    },
+                    "type": "Line"
+                },
+                {
+                    "id": 9,
+                    "p": [
+                        -8.881784197001252e-16,
+                        10.000000000000002,
+                        15,
+                        29
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 29,
+            "name": "Sketch5",
+            "nextConstraintId": 3,
+            "nextGeoId": 10,
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "YZ",
+                        "owner": 2,
+                        "pt": [
+                            -5.138355068180986e-15,
+                            55.40670041959573,
+                            61.15585158229862
+                        ]
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "id": 30,
+            "name": "Rib1",
+            "properties": {
+                "curves": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 9,
+                            "kind": "SketchCurve",
+                            "owner": 29,
+                            "pt": [
+                                0,
+                                10.117609685415767,
+                                20.815638934859972
+                            ]
+                        }
+                    ]
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "depthType": {
+                    "name": "To Next",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "thickness": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "thicknessType": {
+                    "name": "Symmetric",
+                    "type": "Enum",
+                    "value": 0
+                }
+            },
+            "type": "Rib"
+        }
+    ],
+    "format": "fabricad",
+    "name": "bracket",
+    "nextId": 31,
+    "parameters": [
+    ],
+    "rollbackIndex": 14,
+    "units": {
+        "angle": "deg",
+        "length": "mm",
+        "precision": 3
+    },
+    "version": 1
+}
