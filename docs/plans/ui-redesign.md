@@ -341,6 +341,12 @@ warning stays orange-red. Dimensions and projected curves then leave cyan for ne
 teal is not confused with cyan. Teal vs success green is only 6.4 in tritan, so success keeps its check icon.
 After a fallback, re-run gate G.
 
+**Result (phase 5, 2026-10-22, `docs/uiux/redesign/p5-summary.md`).** Numeric: green. Perception: live vs warning
+40/40; overall 90.3 % strict on the first pass. All 14 misses were *errors* shown by colour alone (red text,
+status cells, the conflict curve), not live-colour confusions, so the teal fallback could not help. The error shape
+cues were added (octagon `theme::StatusGlyph` on every error message and cell, conflict curves 2x wide), giving
+97.2 % on re-score. Gold stays. A blind tester re-run is still open.
+
 ---
 
 ## 5. Component inventory

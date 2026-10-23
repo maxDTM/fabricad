@@ -50,6 +50,10 @@ class SelectionPanel : public QWidget {
   core::Document* document() const { return doc_; }
   const std::vector<SelectionFact>& facts() const { return facts_; }
   int selectionCount() const;
+  /// What the running command has picked (its highlighted inputs): listed while the selection
+  /// itself is empty, because a command consumes the clicks (P5-MOCKUP-6, P5-LIGHT-3).
+  void setPicked(const std::vector<core::ShapeRef>& refs);
+  const std::vector<core::ShapeRef>& picked() const { return picked_; }
   /// Rebuild now (normally coalesced).
   void refresh();
   QSize sizeHint() const override;
@@ -66,6 +70,7 @@ class SelectionPanel : public QWidget {
   QPointer<core::Document> doc_;
   std::vector<QMetaObject::Connection> conns_;
   std::vector<SelectionFact> facts_;
+  std::vector<core::ShapeRef> picked_;
   bool pending_ = false;
 };
 

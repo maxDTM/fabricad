@@ -76,6 +76,9 @@ class ValueInputOverlay : public QObject {
   /// Enter pressed inside a box / Tab inside a box: forwarded here (key, modifiers, text).
   void setKeyForwarder(std::function<void(int key, int modifiers, const std::string& text)> fn) { forward_ = std::move(fn); }
 
+  /// The ▴▾ stepper of a box was clicked: (field index, +1 / -1, x10 with Shift).
+  void setStepper(std::function<void(int fieldIndex, int steps)> fn) { stepper_ = std::move(fn); }
+
   /// Rebuild widgets from the model (called from the model's change callback).
   void sync();
   /// Recompute positions from the anchors (camera moved, widget resized).
@@ -105,6 +108,8 @@ class ValueInputOverlay : public QObject {
     QPointer<QLabel> label;
     QPointer<QLineEdit> edit;
     QPointer<QLabel> lock;
+    QPointer<QLabel> unit;
+    QPointer<QWidget> steps;
     int fieldIndex = -1;
   };
   void ensureBoxes();
@@ -117,6 +122,7 @@ class ValueInputOverlay : public QObject {
   std::vector<Box> boxes_;
   QPointer<ValueLeader> leader_;
   std::function<void(int, int, const std::string&)> forward_;
+  std::function<void(int, int)> stepper_;
   QTimer repositionTimer_;
   bool visible_ = true;
   bool syncing_ = false;

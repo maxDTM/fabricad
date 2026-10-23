@@ -61,7 +61,31 @@ KeyRoute routeKey(int key, int modifiers, const KeyContext& ctx) {
   const int seqKey = key == Qt::Key_Enter ? Qt::Key_Return : key;
   r.sequence = keySequenceText(seqKey, mods);
 
-  if (!ctx.canvasFocus) {
+  // Ctrl+K: the command search, wherever the focus is (not in a text field, where it is
+  // "delete to the end of the line")
+  if (key == Qt::Key_K && mods == Qt::ControlModifier && !ctx.textInput) {
+    r.action = KeyAction::OpenSearch;
+    return r;
+  }
+  if (ctx.widgetKeys && mods == 0) {
+    switch (key) {
+      case Qt::Key_Space:
+      case Qt::Key_Return:
+      case Qt::Key_Enter:
+      case Qt::Key_Up:
+      case Qt::Key_Down:
+      case Qt::Key_Left:
+      case Qt::Key_Right:
+      case Qt::Key_Home:
+      case Qt::Key_End:
+      case Qt::Key_Tab:
+      case Qt::Key_Backtab: return r;  // the focused control operates itself
+      default: break;
+    }
+  }
+  if (ctx.widgetKeys && (key == Qt::Key_Backtab || key == Qt::Key_Tab)) return r;
+
+  if (!ctx.canvasFocus && !ctx.widgetKeys) {
     // text fields and other widgets keep their keys; global combos still work
     if (combo && !(ctx.textInput && isStandardEditKey(key, mods))) {
       r.action = KeyAction::Shortcut;

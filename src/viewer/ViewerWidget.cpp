@@ -2286,8 +2286,10 @@ void ViewerWidget::clearPreviews() {
 
 void ViewerWidget::setHighlighted(const std::vector<ShapeRef>& refs) {
   null_.setHighlighted(refs);
+  const bool changed = highlighted_ != refs;
   highlighted_ = refs;
   scheduleOverlaySync();
+  if (changed) emit highlightedChanged();
 }
 
 // ---------------------------------------------------------------------------------------

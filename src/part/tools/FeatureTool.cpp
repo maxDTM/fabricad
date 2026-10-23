@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <string_view>
 #include <charconv>
 #include <format>
 #include <map>
@@ -258,6 +259,18 @@ void FeatureTool::setActiveInput(core::ToolContext& ctx, const std::string& prop
   updatePrompt(ctx);
 }
 
+bool FeatureTool::awaitingFirstPick() const {
+  // P5-MOCKUP-12: a new feature whose selection input is still empty is not an error yet; the
+  // prompt and the step indicator ask for the pick (Apply stays disabled)
+  if (editing_ || (panel_ && panel_->hasInvalid())) return false;
+  const PartFeature* f = feature();
+  const core::Property* p = f ? f->property(activeInput_) : nullptr;
+  if (!p) return false;
+  if (p->type() == core::PropertyType::Ref) return !p->ref().isValid();
+  if (p->type() == core::PropertyType::RefList) return p->refs().empty();
+  return false;
+}
+
 void FeatureTool::updatePrompt(core::ToolContext& ctx) {
   PartFeature* f = feature();
   if (!f) return;
@@ -270,8 +283,17 @@ void FeatureTool::updatePrompt(core::ToolContext& ctx) {
                                    : std::format("Editing {}", editing_->name()));
     return;
   }
+  // P5-MOCKUP-2: once the selection input is filled, the next step is the value: say how to
+  // give it (the handle, or typing into the on-canvas value box)
+  const std::string num = primaryNumeric();
+  const core::Property* np = num.empty() ? nullptr : f->property(num);
+  std::string valueName = np ? np->label() : std::string();
+  for (char& c : valueName) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  const char* article = !valueName.empty() && std::string_view("aeiou").find(valueName.front()) != std::string_view::npos ? "an" : "a";
   if (!p) ctx.setPrompt("Set the parameters");
   else if (picked == 0) ctx.setPrompt(std::format("Select {}", p->label()));
+  else if (np && manipulatorFor(num)) ctx.setPrompt(std::format("Drag the handle or type {} {}.", article, valueName));
+  else if (np) ctx.setPrompt(std::format("Type {} {} \u00B7 Enter to finish", article, valueName));
   else ctx.setPrompt(std::format("{}: {} selected \u00B7 Enter to finish", p->label(), picked));
 }
 
@@ -367,7 +389,10 @@ void FeatureTool::syncManipulators(core::ToolContext& ctx, core::RecomputeContex
       if (n.id == old.id) kept = true;
     if (!kept) viewer.removeManipulator(old.id);
   }
+  const bool hadHandle = manipulatorFor(primaryNumeric()) != nullptr;
   manipulators_ = std::move(next);
+  // the prompt names the handle once it exists (P5-MOCKUP-2)
+  if (hadHandle != (manipulatorFor(primaryNumeric()) != nullptr)) updatePrompt(*pctx);
 }
 
 void FeatureTool::onManipulatorEvent(core::ToolContext& ctx, const core::ManipulatorEvent& e) {
@@ -654,7 +679,7 @@ void FeatureTool::computePreview(core::ToolContext& ctx) {
     rebuildPanelIfNeeded();
     inPreview_ = false;
     panel_->refresh();
-    panel_->setMessage(message_, !valid_);
+    panel_->setMessage(awaitingFirstPick() ? std::string() : message_, !valid_);
   }
   if (!valueBox_) valueBox_ = std::make_unique<FeatureValueBox>(ctx, *this);
   else valueBox_->update(ctx);
@@ -693,7 +718,10 @@ bool FeatureTool::keyPress(core::ToolContext& ctx, const core::ViewerKeyEvent& e
     if (!focus && panel_->window()) focus = panel_->window()->focusWidget();
     if (focus && (focus == panel_ || panel_->isAncestorOf(focus))) return false;
   }
-  return valueBox_ && valueBox_->keyPress(ctx, e);
+  const bool used = valueBox_ && valueBox_->keyPress(ctx, e);
+  // the card's field follows the typing with the live (gold) border (P5-MOCKUP-5, P5-KEYBOARD-3)
+  if (panel_ && valueBox_) panel_->setLiveField(valueBox_->model().isTyping() ? valueBox_->propertyName() : std::string());
+  return used;
 }
 
 bool FeatureTool::setNumeric(core::ToolContext& ctx, const std::string& propName, const std::string& text) {
@@ -828,7 +856,7 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   QObject::connect(panel, &PropertyPanel::validityChanged, panel, [this, pctx] {
     if (!inPreview_) updatePreview(*pctx);
   });
-  panel->setMessage(message_, !valid_);
+  panel->setMessage(awaitingFirstPick() ? std::string() : message_, !valid_);
   return panel;
 }
 

@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include <QLabel>
+#include <QPointer>
 #include <QTimer>
 #include <QWidget>
 
@@ -16,6 +18,7 @@
 class QCheckBox;
 class QComboBox;
 class QFormLayout;
+class QHBoxLayout;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -33,6 +36,7 @@ class PropertyPanel : public QWidget {
   Q_OBJECT
  public:
   PropertyPanel(core::Document& doc, PartFeature& feature, QWidget* parent = nullptr);
+  ~PropertyPanel() override;
 
   /// Recreate all rows (after PropertyFlags::hidden changed).
   void rebuild();
@@ -41,6 +45,10 @@ class PropertyPanel : public QWidget {
   const std::string& activeInput() const { return active_; }
   void setActiveInput(const std::string& propName);
   void setMessage(const std::string& text, bool error);
+  /// The on-canvas value box is typing into this numeric field: gold border (5.4 "live-edited",
+  /// P5-MOCKUP-5 / P5-KEYBOARD-3). Empty name clears it.
+  void setLiveField(const std::string& propName);
+  const std::string& liveField() const { return live_; }
   /// Debounce typed numeric values: valueChanged is emitted `ms` after typing stops instead of
   /// on every keystroke (editingFinished still flushes immediately). 0 disables.
   void setValueChangeDelay(int ms);
@@ -72,6 +80,9 @@ class PropertyPanel : public QWidget {
   void applyNumericText(core::Property& p, QLineEdit* edit, bool immediate);
   void flushPending();
   QString refText(const core::Property& p) const;
+  /// Where the picked entities come from ("Sketch3", "Bracket"): the chip's sub-label (5.4).
+  QString refSource(const core::Property& p) const;
+  void updateExpression(const std::string& name);
   std::vector<std::string> visibleRows() const;
   void setInvalid(const std::string& name, const std::string& text, const std::string& error);
   void clearInvalid(const std::string& name);
@@ -90,6 +101,10 @@ class PropertyPanel : public QWidget {
   std::map<std::string, QLineEdit*> numericEdits_;
   std::map<std::string, QComboBox*> enumCombos_;  ///< synced by refresh() (automatic operation)
   std::map<std::string, QCheckBox*> boolChecks_;  ///< synced by refresh() (automatic flip)
+  std::map<std::string, QPointer<QLabel>> refSources_;  ///< chip sub-labels
+  std::map<std::string, QPointer<QLabel>> exprLabels_;  ///< `fx` lines under numeric fields
+  std::map<std::string, QHBoxLayout*> trailSlots_;  ///< numeric field rows (trailing actions)
+  std::string live_;
   bool rebuilding_ = false;
   int delayMs_ = 0;
   QTimer debounce_;

@@ -468,12 +468,15 @@ class ManipulatorsTest : public QObject {
     QVERIFY(tool->valueBox() && tool->valueBox()->isActive());
     QCOMPARE(tool->valueBox()->propertyName(), std::string("height"));
     const core::Vec3 anchor = tool->valueBox()->model().field(0).anchor;
-    QVERIFY(near(gp_Pnt(anchor.x, anchor.y, anchor.z), gp_Pnt(0, 0, h0)));  // at the arrow tip
+    // at the arrow tip: the handle point (arrow base, at the value) plus the arrow length (P5-MOCKUP-4)
+    QVERIFY(near(gp_Pnt(anchor.x, anchor.y, 0), gp_Pnt(0, 0, 0)));
+    QVERIFY(anchor.z > h0 + 1e-6);
     QVERIFY(rig.drag(gp_Pnt(0, 0, h0), gp_Pnt(0, 0, h0 + 5)));
     QVERIFY(near(tool->feature()->length("height"), h0 + 5));
     QVERIFY(tool->isValid());
     const core::Vec3 moved = tool->valueBox()->model().field(0).anchor;
-    QVERIFY(near(gp_Pnt(moved.x, moved.y, moved.z), gp_Pnt(0, 0, h0 + 5)));
+    QVERIFY(near(gp_Pnt(moved.x, moved.y, 0), gp_Pnt(0, 0, 0)));
+    QVERIFY(near(moved.z - anchor.z, 5.0));  // follows the handle
     QVERIFY(rig.manager.runCommandLine("x=30"));
     QVERIFY(near(rig.gizmo("height")->spec().frame.Location(), gp_Pnt(30, 0, 0)));
     QVERIFY(rig.manager.runCommandLine("direction=Symmetric"));

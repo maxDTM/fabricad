@@ -1,0 +1,36 @@
+REGION                   LAYOUT  EDGES l,t,r,b (px)         COLOUR dE00       SSIM
+Viewer                   FAIL    +6,+0,+0,+0                  6.3! #292C32    0.574
+fcValueBox               FAIL    +114.6,+4.7,+160.6,+8.7     42.6! #8A8F97    0.148
+CoordReadout             FAIL    +6,+0,+6,+0                  0.7  #171A20    0.418
+ScaleBar                 ok      +0,+0,+0,+2                  1.9  #1B1E22    0.089
+Breadcrumb               FAIL    +6,+0,-94.6,+0               4.3! #181C21    0.371
+SelectionFilterBar       FAIL    -94.6,+0,-215,+0             7.0! #2A2E33    0.325
+OrientationDial          FAIL    -14,+0,+14,+30               1.7  #272B32    0.631
+ViewButtons              missing -                            0.3  #181B21    0.584
+ViewToolColumn           ok      -2,+0,+0,-2                  1.8  #181B21    0.565
+StepIndicator            FAIL    +16,+0,-16,+0                2.8  #1D2128    0.259
+CommandDialog            FAIL    +0,+0,+0,-75                 2.8  #1D2128    0.355
+OkButton                 FAIL    -6.3,-75,+0,-75             23.1! #7E8289    0.478
+WorkspaceSwitcher        FAIL    -3,+0,-28.5,+0               0.0  #1D2128    0.38
+DocumentTabs             FAIL    -32.5,-4,-253.5,+0           0.0  #101217    0.577
+NewTabButton             FAIL    -255.5,+0,-242.5,-5          0.0  #101217    0.569
+SearchBox                FAIL    +66,+0,+66,+0                0.0  #101217    0.246
+AppBar                   ok      +0,+0,+0,+0                  0.0  #101217    0.686
+RibbonGroup:SKETCH       FAIL    -4,+0,-40.2,+2               0.0  #171A20    0.401
+RibbonGroup:CREATE       FAIL    -49.2,+0,-129,+2             0.0  #171A20    0.377
+RibbonGroup:MODIFY       FAIL    -138,+0,-94.4,+2             0.0  #171A20    0.435
+RibbonGroup:ASSEMBLE     FAIL    -103.4,+0,-29.9,+2           0.0  #171A20    0.388
+RibbonGroup:CONSTRUCT    FAIL    -38.9,+0,+74.1,+2            0.0  #171A20    0.4
+RibbonGroup:INSPECT      FAIL    +65.1,+0,+93.3,+2            0.0  #171A20    0.452
+RibbonGroup:MORE         FAIL    +84.3,+0,+150.4,+2           0.0  #171A20    0.482
+RibbonGroup:DOCUMENT     FAIL    -10.2,+0,+4,+2               0.0  #171A20    0.495
+MainToolbarHost          ok      +0,+0,+0,+0                  0.0  #171A20    0.57
+RollbackBar              missing -                           18.3! #3A3018    -0.259
+FeatureList              FAIL    +0,+36,+0,-7                 0.0  #171A20    0.514
+Browser                  FAIL    +0,+26,+0,+31                0.0  #171A20    0.58
+SelectionPanel           FAIL    +0,+18,+0,+0                 0.0  #171A20    0.561
+SidebarHost              ok      +0,+0,+0,+0                  0.0  #171A20    0.54
+CommandLine              FAIL    +445.2,+1,+335.2,-2          0.0  #101217    0.324
+StatusBar                ok      +0,+0,+0,+0                  0.0  #101217    0.418
+layout: 6 of 31 matched regions within 4 px
+report: cmp-dark/index.html

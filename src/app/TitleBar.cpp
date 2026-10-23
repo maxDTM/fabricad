@@ -138,6 +138,12 @@ void DocumentTabBar::paintEvent(QPaintEvent* e) {
     const QString shown = fontMetrics().elidedText(text, elideMode() == Qt::ElideNone ? Qt::ElideRight : elideMode(),
                                                    textRect.width());
     p.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, shown);
+    if (active && hasFocus()) {
+      // keyboard focus (P5-KEYBOARD-5): the 2 px focus ring along the tab outline (5)
+      p.setPen(QPen(theme::color(Tok::AccentFocus), 2));
+      p.setBrush(Qt::NoBrush);
+      p.drawPath(path);
+    }
     if (modified) {
       // neutral unsaved marker (decision 11): gold stays reserved for live operations
       const int x = textRect.left() + fontMetrics().horizontalAdvance(shown) + 8;
@@ -195,7 +201,7 @@ void DocumentTabBar::leaveEvent(QEvent* e) {
 WorkspaceSelector::WorkspaceSelector(QWidget* parent) : QToolButton(parent) {
   setObjectName("WorkspaceSwitcher");
   setPopupMode(QToolButton::InstantPopup);
-  setFocusPolicy(Qt::NoFocus);
+  setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
   setToolTip("Workspace");
   setAccessibleName("Workspace");
   auto* h = new QHBoxLayout(this);

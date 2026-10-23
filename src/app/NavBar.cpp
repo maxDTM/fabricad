@@ -81,7 +81,7 @@ QToolButton* NavBar::button(const char* icon, const QString& tip) {
   b->setFixedSize(32, 32);
   b->setToolTip(tip);
   b->setAutoRaise(true);
-  b->setFocusPolicy(Qt::NoFocus);
+  b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
   return b;
 }
 

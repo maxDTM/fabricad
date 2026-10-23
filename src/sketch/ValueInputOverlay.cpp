@@ -4,7 +4,9 @@
 
 #include "core/ViewerContext.h"
 
+#include <QApplication>
 #include <QEvent>
+#include <QToolButton>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QStyle>
@@ -182,8 +184,38 @@ void ValueInputOverlay::ensureBoxes() {
     b.edit->setFrame(false);
     b.lock = new QLabel(QString::fromUtf8("\xF0\x9F\x94\x92"), field);  // lock mark
     b.lock->hide();
+    b.unit = new QLabel(field);
+    b.unit->setObjectName("fcValueUnit");
+    b.unit->setProperty("textStyle", "value");  // "mm", not "MM" (units keep their case)
+    b.unit->hide();
+    // ▴▾ stepper, 14 px wide (5.3)
+    auto* steps = new QWidget(field);
+    steps->setObjectName("fcValueSteps");
+    steps->setFixedWidth(14);
+    auto* sl = new QVBoxLayout(steps);
+    sl->setContentsMargins(0, 0, 0, 0);
+    sl->setSpacing(0);
+    const int idx0 = b.fieldIndex;
+    for (int dir : {1, -1}) {
+      auto* sb = new QToolButton(steps);
+      sb->setObjectName(dir > 0 ? "fcValueStepUp" : "fcValueStepDown");
+      sb->setText(dir > 0 ? QString::fromUtf8("\u25B4") : QString::fromUtf8("\u25BE"));
+      sb->setFocusPolicy(Qt::NoFocus);
+      sb->setAutoRepeat(true);
+      sb->setFixedSize(14, 11);
+      sb->setToolTip(dir > 0 ? "Increase (Shift: x10)" : "Decrease (Shift: x10)");
+      connect(sb, &QToolButton::clicked, this, [this, idx0, dir] {
+        const int n = (QApplication::keyboardModifiers() & Qt::ShiftModifier) ? 10 : 1;
+        if (stepper_) stepper_(idx0, dir * n);
+      });
+      sl->addWidget(sb);
+    }
+    steps->hide();
+    b.steps = steps;
     lay->addWidget(b.edit);
+    lay->addWidget(b.unit);
     lay->addWidget(b.lock);
+    lay->addWidget(steps);
     b.frame = frame;
     const int idx = b.fieldIndex;
     connect(b.edit, &QLineEdit::textEdited, this, [this, idx](const QString& t) {
@@ -223,6 +255,19 @@ void ValueInputOverlay::sync() {
     if (b.edit->text() != t) {
       b.edit->setText(t);
       b.edit->setCursorPosition(t.size());
+    }
+    b.unit->setText(QString::fromStdString(f.unit));
+    if (b.unit->font().capitalization() != QFont::MixedCase) {  // "mm", never "MM" (the caps UI font)
+      QFont uf = b.unit->font();
+      uf.setCapitalization(QFont::MixedCase);
+      b.unit->setFont(uf);
+    }
+    b.unit->setVisible(!f.unit.empty());
+    const bool stepper = f.stepper && stepper_ != nullptr;
+    b.steps->setVisible(stepper);
+    if (b.frame->property("stepper").toBool() != stepper) {
+      b.frame->setProperty("stepper", stepper);  // narrower value text: the unit and stepper follow it
+      repolish(b.frame);
     }
     applyStyle(b, f, b.fieldIndex == model_.activeIndex());
     b.frame->adjustSize();

@@ -119,6 +119,25 @@ class TestAppLogic : public QObject {
     QCOMPARE(app::routeKey(Qt::Key_Enter, Qt::ControlModifier, field).sequence, app::normalizeShortcut("Ctrl+Return"));
   }
 
+  void routeSearchAndChromeKeys() {
+    // Ctrl+K opens the command search from anywhere but a text field (P5-KEYBOARD-7)
+    app::KeyContext canvas{true, false, false};
+    app::KeyContext other{false, false, false};
+    app::KeyContext text{false, true, false};
+    QCOMPARE(app::routeKey(Qt::Key_K, Qt::ControlModifier, canvas).action, app::KeyAction::OpenSearch);
+    QCOMPARE(app::routeKey(Qt::Key_K, Qt::ControlModifier, other).action, app::KeyAction::OpenSearch);
+    QCOMPARE(app::routeKey(Qt::Key_K, Qt::ControlModifier, text).action, app::KeyAction::Shortcut);
+    // a focused chrome control (panel header, tool button): S, letters and Esc work as on the
+    // canvas, the control keeps Space / Enter / arrows / Tab (P5-KEYBOARD-5/7)
+    app::KeyContext chrome{false, false, false, true};
+    QCOMPARE(app::routeKey(Qt::Key_S, 0, chrome).action, app::KeyAction::OpenSearch);
+    QCOMPARE(app::routeKey(Qt::Key_E, 0, chrome).action, app::KeyAction::Shortcut);
+    QCOMPARE(app::routeKey(Qt::Key_Escape, 0, chrome).action, app::KeyAction::Cancel);
+    for (int k : {int(Qt::Key_Space), int(Qt::Key_Return), int(Qt::Key_Up), int(Qt::Key_Left), int(Qt::Key_Tab)})
+      QCOMPARE(app::routeKey(k, 0, chrome).action, app::KeyAction::None);
+    QCOMPARE(app::routeKey(Qt::Key_Backtab, Qt::ShiftModifier, chrome).action, app::KeyAction::None);
+  }
+
   void routeTextFieldKeys() {
     app::KeyContext text{false, true, true};
     // single letters stay in text fields; global combos still work; edit keys stay local

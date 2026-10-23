@@ -116,7 +116,7 @@ QToolButton* MainToolbar::toolButton(core::ITool* tool, QWidget* parent, bool sm
   b->setIcon(toolIcon(info));
   b->setToolTip(core::qs(toolTooltip(info)));
   b->setAutoRaise(true);
-  b->setFocusPolicy(Qt::NoFocus);
+  b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
   if (small) {
     b->setIconSize(QSize(kSmallIcon, kSmallIcon));
     b->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -199,7 +199,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
       b->setText("Finish Sketch");
       b->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
       b->setToolTip(core::qs(toolTooltip(model.all.front()->info())));
-      b->setFocusPolicy(Qt::NoFocus);
+      b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
       connect(b, &QToolButton::clicked, this, [this] { emit toolTriggered("sketch.finish"); });
       addAction(p, "sketch.finish", b);
       v->addWidget(b, 0, Qt::AlignVCenter);
@@ -253,7 +253,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
           b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
           b->setPopupMode(QToolButton::InstantPopup);
           b->setAutoRaise(true);
-          b->setFocusPolicy(Qt::NoFocus);
+          b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
           b->setFixedHeight(kButtonHeight);
           b->setMinimumWidth(kMinButtonWidth);
           b->setToolTip(core::qs(e.label));
@@ -290,7 +290,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
     caption->setProperty("toolbarGroup", core::qs(model.toolbarGroup));
     caption->setText(core::qs(model.name) + QString::fromUtf8(" ▾"));
     caption->setToolTip(core::qs(model.name));
-    caption->setFocusPolicy(Qt::NoFocus);
+    caption->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
     caption->setPopupMode(QToolButton::InstantPopup);
     caption->setAutoRaise(true);
     caption->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -302,7 +302,7 @@ MainToolbar::Page* MainToolbar::buildPage(bool sketch) {
     folded->setProperty("toolbarTab", core::qs(model.toolbarTab));
     folded->setProperty("toolbarGroup", core::qs(model.toolbarGroup));
     folded->setToolTip(core::qs(model.name));
-    folded->setFocusPolicy(Qt::NoFocus);
+    folded->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
     folded->setPopupMode(QToolButton::InstantPopup);
     folded->setAutoRaise(true);
     folded->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -414,7 +414,7 @@ MainToolbar::Page* MainToolbar::buildVerticalPage(bool sketch) {
       b->setObjectName("FinishSketchButton");
       b->setIcon(resourceIcon("finish-sketch"));
       b->setToolTip(core::qs(toolTooltip(model.all.front()->info())));
-      b->setFocusPolicy(Qt::NoFocus);
+      b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
       styleButton(b, "Finish");
       connect(b, &QToolButton::clicked, this, [this] { emit toolTriggered("sketch.finish"); });
       addAction(p, "sketch.finish", b);
@@ -431,7 +431,7 @@ MainToolbar::Page* MainToolbar::buildVerticalPage(bool sketch) {
     caption->setProperty("toolbarGroup", core::qs(model.toolbarGroup));
     caption->setProperty("vertical", true);
     caption->setToolTip(core::qs(model.name));
-    caption->setFocusPolicy(Qt::NoFocus);
+    caption->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
     caption->setPopupMode(QToolButton::InstantPopup);
     caption->setAutoRaise(true);
     caption->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -477,7 +477,7 @@ MainToolbar::Page* MainToolbar::buildVerticalPage(bool sketch) {
           b->setIcon(moreIcon(e));
           b->setPopupMode(QToolButton::InstantPopup);
           b->setAutoRaise(true);
-          b->setFocusPolicy(Qt::NoFocus);
+          b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5: reachable by Tab, a click keeps the canvas focus
           b->setToolTip(core::qs(e.label));
           styleButton(b, core::qs(e.label));
           auto* menu = new QMenu(b);

@@ -110,7 +110,7 @@ QDockWidget#BrowserDock[side="right"] #SidebarHost { border-left: 1px solid @{ed
 #PanelHeader QToolButton:hover { background: @{row.hover.bg}; }
 #PanelHeader QToolButton:checked { background: @{row.selected.bg}; }
 #PanelHeader QToolButton::menu-indicator { image: none; width: 0; }
-#PanelHeader QToolButton:focus { border: 2px solid @{accent.focus}; }
+#PanelHeader QToolButton:focus { border: 2px solid @{accent.focus}; padding: 1px; }
 QLineEdit#FeatureSearch { min-height: 24px; }
 QLineEdit#FeatureListRename { border: 2px solid @{accent.focus}; padding: 0 4px; }
 #FeatureList, #FeatureListViewport { background: @{panel.bg}; border: none; }
@@ -136,7 +136,8 @@ QLabel#CardContext, QLabel#CardDocName { color: @{text.tertiary}; }
 #CardBody QLabel#SegmentedLabel { color: @{text.secondary}; }
 #CardBody QLineEdit, #CardBody QComboBox, #CardBody QSpinBox, #CardBody QDoubleSpinBox { min-height: 24px; background: @{surface.input}; border: 1px solid @{border.control}; padding: 1px 6px; }
 #CardBody QLineEdit:focus { border: 2px solid @{live.base}; padding: 0 5px; }
-#CardBody QComboBox:focus, #CardBody QSpinBox:focus, #CardBody QDoubleSpinBox:focus { border-color: @{accent.focus}; }
+#CardBody QSpinBox:focus, #CardBody QDoubleSpinBox:focus { border: 2px solid @{accent.focus}; padding: 0 5px; }
+#CardBody QComboBox:focus { border: 2px solid @{accent.focus}; padding: 0 27px 0 5px; }
 #CardBody QComboBox { padding-right: 28px; }
 #CardBody QComboBox::drop-down { width: 24px; border-left: 1px solid @{border.control}; }
 QPushButton[selectionInput="true"] { background: @{surface.input}; border: 1px solid @{border.control}; border-radius: 1px; color: @{text.primary}; text-align: left; padding: 5px 8px; }
@@ -155,7 +156,7 @@ QLabel#CardButtonText:disabled, QLabel#Keycap[primary="true"]:disabled { color: 
 QPushButton { background: @{button.bg}; border: 1px solid @{button.border}; border-radius: 1px; padding: 4px 14px; color: @{text.primary}; }
 QPushButton:hover { background: @{button.hover.bg}; border-color: @{accent.text}; }
 QPushButton:pressed { background: @{button.pressed.bg}; }
-QPushButton:focus { border-color: @{input.border.focus}; }
+QPushButton:focus { border: 2px solid @{input.border.focus}; padding: 3px 13px; }
 QPushButton:disabled { color: @{text.disabled}; border-color: @{edge}; background: @{panel.bg}; }
 QPushButton#OkButton, QPushButton:default { background: @{button.primary.bg}; border-color: @{button.primary.bg}; color: @{button.primary.text}; }
 QPushButton#OkButton:hover, QPushButton:default:hover { background: @{button.primary.hover}; border-color: @{button.primary.hover}; }
@@ -181,7 +182,7 @@ QCheckBox::indicator, QRadioButton::indicator { width: 13px; height: 13px; backg
 QCheckBox::indicator { border-radius: 1px; }
 QRadioButton::indicator { border-radius: 7px; }
 QCheckBox::indicator:hover, QRadioButton::indicator:hover { border-color: @{accent.text}; }
-QCheckBox::indicator:focus, QRadioButton::indicator:focus { border-color: @{accent.focus}; }
+QCheckBox::indicator:focus, QRadioButton::indicator:focus { border: 2px solid @{accent.focus}; width: 11px; height: 11px; }
 QCheckBox::indicator:checked { background: @{accent.solid}; border-color: @{accent.solid}; image: url(:/ui/@{theme}/check.svg); }
 QCheckBox::indicator:indeterminate { background: @{accent.selFill}; border-color: @{accent.indicator}; }
 QRadioButton::indicator:checked { background: @{accent.solid}; border-color: @{accent.solid}; image: url(:/ui/@{theme}/radio-dot.svg); }
@@ -297,3 +298,34 @@ QPlainTextEdit#CommandHistory { background: @{surface.panel}; border: none; colo
 #fcValueField QLabel { background: transparent; border: none; color: @{text.secondary}; }
 /* leader from the value box to its handle (5.3): gold with a dark-ink halo in both themes (4.7: never a thin gold line alone) */
 #fcValueLeader { background: transparent; qproperty-lineColor: @{live.base}; qproperty-haloColor: @{live.ink}; }
+
+/* keyboard focus on chrome controls (P5-KEYBOARD-5/6): always the 2 px accent.focus ring of 5, never
+   a tint only. Last in the file so it wins over the per-area resets above. */
+#AppBar QToolButton:focus, #AppBar QToolButton#SearchBox:focus, #AppBar QToolButton#WorkspaceSwitcher:focus,
+QToolButton#RibbonTool:focus, QToolButton#RibbonGroupLabel:focus, QToolButton#RibbonCollapsedTool:focus,
+QToolButton#FinishSketchButton:focus, #NavBar QToolButton:focus, #QuickToolbar QToolButton:focus,
+#PanelHeader QToolButton:focus, QToolButton#CardPin:focus, QToolButton#CardClose:focus { border: 2px solid @{accent.focus}; }
+QTabBar::tab:selected:focus { border: 2px solid @{accent.focus}; }
+QCheckBox:focus, QRadioButton:focus { color: @{accent.text}; }
+QPushButton[selectionInput="true"]:focus { border: 2px solid @{accent.focus}; padding: 4px 7px; }
+/* value box unit suffix and the ▴▾ stepper (5.3, P5-MOCKUP-4) */
+#fcValueBox[stepper="true"] #fcValueField QLineEdit { min-width: 52px; }
+#fcValueSteps QToolButton { background: transparent; border: none; padding: 0; color: @{text.secondary}; }
+#fcValueSteps QToolButton:hover { color: @{live.base}; }
+#fcValueSteps QToolButton:pressed { color: @{text.primary}; }
+/* status bar message by level: the #StatusMessage id would otherwise keep errors grey (P5-CVD-2);
+   the StatusGlyph (octagon / triangle) goes with it */
+#StatusMessage[messageLevel="error"] { color: @{message.error}; }
+#StatusMessage[messageLevel="warning"] { color: @{message.warning}; }
+#CardBody QLabel[messageLevel="error"] { color: @{message.error}; }
+#CardBody QLabel[messageLevel="warning"] { color: @{message.warning}; }
+/* card body (5.4): chip sub-label, `fx` expression line, live-edited value field, flip action */
+#CardBody QLabel#SelectionSource { color: @{text.tertiary}; padding-left: 6px; }
+#CardBody QLabel#PropertyExpression { color: @{text.secondary}; padding-left: 2px; }
+#CardBody QLineEdit[live="true"] { border: 2px solid @{live.base}; padding: 0 5px; background: @{live.fill}; color: @{live.text}; }
+#CardBody QLineEdit[invalid="true"] { border: 2px solid @{status.error}; padding: 0 5px; background: @{status.errorFill}; }
+QToolButton#prop_flip_toggle { min-width: 24px; max-width: 24px; min-height: 24px; background: @{surface.input}; border: 1px solid @{border.control}; border-left: none; color: @{text.secondary}; padding: 0; }
+QToolButton#prop_flip_toggle:hover { color: @{accent.text}; }
+QToolButton#prop_flip_toggle:checked { background: @{accent.selFill}; border-color: @{accent.indicator}; color: @{text.primary}; }
+QToolButton#prop_flip_toggle:focus { border: 2px solid @{accent.focus}; }
+#CardBody QToolButton:focus { border: 2px solid @{accent.focus}; }

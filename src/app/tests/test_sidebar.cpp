@@ -8,6 +8,7 @@
 #include "app/FeatureListModel.h"
 #include "app/FeatureListWidget.h"
 #include "app/InlineTip.h"
+#include "app/CommandSearch.h"
 #include "app/MainWindow.h"
 #include "app/SelectionPanel.h"
 #include "app/SidebarHost.h"
@@ -20,6 +21,7 @@
 #include "core/GroupCommands.h"
 #include "core/Selection.h"
 #include "core/UndoStack.h"
+#include "part/tools/FeatureTool.h"
 #include "theme/Tokens.h"
 
 #include <QDockWidget>
@@ -351,6 +353,43 @@ class TestSidebar : public QObject {
     disconnect(list(), &FeatureListWidget::deleteRequested, w_.get(), nullptr);
     QTest::keyClick(list(), Qt::Key_Delete);
     QCOMPARE(del.count(), 1);
+  }
+
+  void spacePicksForARunningCommand() {
+    // P5-KEYBOARD-4/9: during a command the arrows only move the cursor and Space gives the row
+    // to the command (as a click does); nothing is suppressed
+    QVERIFY(w_->runCommand("part.extrude"));
+    settle();
+    auto* tool = dynamic_cast<part::FeatureTool*>(w_->toolManager().activeTool());
+    QVERIFY(tool && tool->feature());
+    QVERIFY(tool->feature()->refs("profiles").empty());
+    list()->setFocus();
+    list()->setCurrentRow(rowOf("Sketch1"));
+    const std::vector<core::ShapeRef> before = doc().selection().items();
+    QTest::keyClick(list(), Qt::Key_Down);
+    settle();
+    QCOMPARE(doc().selection().items(), before);  // moving is not picking
+    list()->setCurrentRow(rowOf("Sketch3"));
+    QTest::keyClick(list(), Qt::Key_Space);
+    settle();
+    QCOMPARE(tool->feature()->refs("profiles").size(), size_t(1));
+    QVERIFY(!doc().feature(feature("Sketch3"))->isSuppressed());
+    // the SELECTION panel lists the command's pick (P5-MOCKUP-6)
+    QVERIFY(host()->selectionPanel()->selectionCount() >= 1);
+    w_->toolManager().cancel();
+    settle();
+  }
+
+  void searchKeyFromAPanelHeader() {
+    // P5-KEYBOARD-7: S opens the command search with a panel header focused; Return stays the
+    // header's own key (collapse)
+    app::PanelHeader* header = host()->panel(SidebarHost::Panel::Features)->header();
+    QVERIFY(header);
+    QVERIFY(w_->handleKeyPress(Qt::Key_S, 0, "s", false, header));
+    settle();
+    QVERIFY(w_->commandSearch()->isVisible());
+    w_->commandSearch()->hide();
+    QVERIFY(!w_->handleKeyPress(Qt::Key_Return, 0, "\r", false, header));
   }
 
   // --- rollback bar -------------------------------------------------------------------------

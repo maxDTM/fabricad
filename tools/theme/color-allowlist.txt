@@ -17,8 +17,7 @@ src/core/Body.h                            1  core     default body colour (docu
 #
 # --- sketch: none since redesign phase 5 (sketch session colours are core::ColorRole values resolved by ViewerPalette)
 #
-# --- part: PropertyPanel styling through QSS properties (request)
-src/part/tools/PropertyPanel.cpp           9  part     inline error/message styles (SELECT button done in phase 3) -> dynamic properties (invalid, messageLevel) styled by app.qss.tmpl
+# --- part: PropertyPanel is clean since p5fix (invalid / messageLevel / live properties styled by app.qss.tmpl)
 src/part/tools/FeatureTool.cpp             1  part     preview colour -> ColorRole Live
 src/part/tools/MeasureTool.cpp             1  part     measure line colour -> ColorRole (Dimension)
 #

@@ -260,7 +260,17 @@ void SelectionPanel::setDocument(core::Document* doc) {
   refresh();
 }
 
-int SelectionPanel::selectionCount() const { return doc_ ? doc_->selection().count() : 0; }
+int SelectionPanel::selectionCount() const {
+  if (!doc_) return 0;
+  const int n = doc_->selection().count();
+  return n > 0 ? n : static_cast<int>(picked_.size());
+}
+
+void SelectionPanel::setPicked(const std::vector<core::ShapeRef>& refs) {
+  if (refs == picked_) return;
+  picked_ = refs;
+  scheduleRefresh();
+}
 
 void SelectionPanel::scheduleRefresh() {
   if (pending_) return;
@@ -272,7 +282,9 @@ void SelectionPanel::scheduleRefresh() {
 
 void SelectionPanel::refresh() {
   pending_ = false;
-  facts_ = doc_ ? selectionFacts(*doc_, doc_->selection().items()) : std::vector<SelectionFact>{};
+  if (!doc_) facts_.clear();
+  else if (!doc_->selection().items().empty()) facts_ = selectionFacts(*doc_, doc_->selection().items());
+  else facts_ = selectionFacts(*doc_, picked_);
   updateGeometry();
   update();
   emit countChanged(selectionCount());

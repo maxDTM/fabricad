@@ -990,7 +990,8 @@ void FeatureListWidget::keyPressEvent(QKeyEvent* e) {
       }
       const int next = nextFocusable(current_ < 0 ? (step > 0 ? -1 : model_.rowCount()) : current_, step);
       if (next != current_ || current_ < 0) {
-        if (model_.row(next) && model_.row(next)->isItem()) selectRow(next, shift ? Qt::ShiftModifier : Qt::NoModifier);
+        if (!pickMode_ && model_.row(next) && model_.row(next)->isItem())
+          selectRow(next, shift ? Qt::ShiftModifier : Qt::NoModifier);
         current_ = next;
         ensureVisible(next);
         viewport()->update();
@@ -1005,7 +1006,8 @@ void FeatureListWidget::keyPressEvent(QKeyEvent* e) {
       const int n = e->key() == Qt::Key_PageUp || e->key() == Qt::Key_PageDown ? std::max(1, viewport()->height() / kRowH) : model_.rowCount();
       const int step = e->key() == Qt::Key_Home || e->key() == Qt::Key_PageUp ? -1 : 1;
       for (int k = 0; k < n; ++k) next = nextFocusable(next, step);
-      if (model_.row(next) && model_.row(next)->isItem()) selectRow(next, shift ? Qt::ShiftModifier : Qt::NoModifier);
+      if (!pickMode_ && model_.row(next) && model_.row(next)->isItem())
+        selectRow(next, shift ? Qt::ShiftModifier : Qt::NoModifier);
       current_ = next;
       ensureVisible(next);
       viewport()->update();
@@ -1023,6 +1025,11 @@ void FeatureListWidget::keyPressEvent(QKeyEvent* e) {
       if (r && r->isItem()) startRename(r->id);
       return;
     case Qt::Key_Space:
+      if (pickMode_) {
+        // the running command takes the row (a sketch's profiles, a feature...) like a click
+        if (r && r->isItem()) selectRow(current_, {});
+        return;
+      }
       if (r && r->kind == Kind::Origin) return;
       actions_->toggleSuppress(selectionOrCurrent());
       return;

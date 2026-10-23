@@ -34,6 +34,8 @@ struct ValueField {
   bool visible = true;         ///< relevant in the tool's current phase (Tab skips hidden fields)
   core::Vec3 anchor;           ///< world point the box is attached to
   bool hasAnchor = false;
+  std::string unit;            ///< unit suffix shown after the value ("mm", "°"); empty = none
+  bool stepper = false;        ///< the box shows a ▴▾ stepper (feature value boxes, 5.3)
 };
 
 class ValueInputModel {
@@ -81,6 +83,8 @@ class ValueInputModel {
   /// Live value from the cursor; ignored for locked fields.
   void setMeasured(const std::string& id, double value);
   void setAnchor(const std::string& id, const core::Vec3& world);
+  /// Unit suffix and stepper of a field (the formatter then gives the bare number).
+  void setPresentation(const std::string& id, const std::string& unit, bool stepper);
   bool isLocked(const std::string& id) const;
   /// The locked value of a field, nullopt if it is following the cursor.
   std::optional<double> lockedValue(const std::string& id) const;

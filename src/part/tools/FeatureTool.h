@@ -135,6 +135,8 @@ class FeatureTool : public core::ToolBase {
   void rollbackToFeature(core::ToolContext& ctx);
   void restoreRollback(core::ToolContext& ctx);
   std::string primaryNumeric() const;
+  /// A new feature still waits for its first selection (no error message yet).
+  bool awaitingFirstPick() const;
   /// Fresh per-command state (activate of every feature command, Press Pull included).
   void resetState();
   /// The dialog's rows no longer match the visible properties: rebuild, keeping the focus (PART-06).

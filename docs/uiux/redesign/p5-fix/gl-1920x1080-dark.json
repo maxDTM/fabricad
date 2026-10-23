@@ -1,0 +1,1253 @@
+{
+    "dpr": 1,
+    "widgets": [
+        {
+            "class": "QWidget",
+            "h": 36,
+            "name": "AppBar",
+            "w": 1920,
+            "x": 0,
+            "y": 0
+        },
+        {
+            "class": "QToolButton",
+            "h": 27,
+            "name": "AppMenuButton",
+            "w": 121,
+            "x": 8,
+            "y": 4
+        },
+        {
+            "class": "fabricad::app::WorkspaceSelector",
+            "h": 28,
+            "name": "WorkspaceSwitcher",
+            "w": 128,
+            "x": 137,
+            "y": 4
+        },
+        {
+            "class": "QLabel",
+            "h": 16,
+            "name": "WorkspaceIcon",
+            "w": 16,
+            "x": 145,
+            "y": 10
+        },
+        {
+            "class": "QLabel",
+            "h": 16,
+            "name": "WorkspaceName",
+            "w": 29,
+            "x": 167,
+            "y": 10
+        },
+        {
+            "class": "fabricad::app::Keycap",
+            "h": 16,
+            "name": "Keycap",
+            "w": 43,
+            "x": 202,
+            "y": 10
+        },
+        {
+            "class": "QLabel",
+            "h": 16,
+            "name": "WorkspaceArrow",
+            "w": 8,
+            "x": 251,
+            "y": 10
+        },
+        {
+            "class": "fabricad::app::DocumentTabBar",
+            "h": 36,
+            "name": "DocumentTabs",
+            "w": 142,
+            "x": 277,
+            "y": 0
+        },
+        {
+            "class": "QToolButton",
+            "h": 23,
+            "name": "NewTabButton",
+            "w": 41,
+            "x": 423,
+            "y": 6
+        },
+        {
+            "class": "QToolButton",
+            "h": 26,
+            "name": "SearchBox",
+            "w": 260,
+            "x": 1520,
+            "y": 5
+        },
+        {
+            "class": "QLabel",
+            "h": 18,
+            "name": "SearchGlyph",
+            "w": 15,
+            "x": 1528,
+            "y": 9
+        },
+        {
+            "class": "QLabel",
+            "h": 18,
+            "name": "SearchBoxText",
+            "w": 171,
+            "x": 1549,
+            "y": 9
+        },
+        {
+            "class": "fabricad::app::Keycap",
+            "h": 16,
+            "name": "Keycap",
+            "w": 49,
+            "x": 1726,
+            "y": 10
+        },
+        {
+            "class": "fabricad::viewer::ViewerWidget",
+            "h": 946,
+            "name": "",
+            "w": 1594,
+            "x": 326,
+            "y": 106
+        },
+        {
+            "class": "fabricad::viewer::OrientationDial",
+            "h": 192,
+            "name": "OrientationDial",
+            "w": 168,
+            "x": 1702,
+            "y": 122
+        },
+        {
+            "class": "fabricad::viewer::Breadcrumb",
+            "h": 28,
+            "name": "Breadcrumb",
+            "w": 282,
+            "x": 342,
+            "y": 122
+        },
+        {
+            "class": "fabricad::viewer::SelectionFilterBar",
+            "h": 28,
+            "name": "SelectionFilterBar",
+            "w": 203,
+            "x": 636,
+            "y": 122
+        },
+        {
+            "class": "fabricad::viewer::CoordReadout",
+            "h": 26,
+            "name": "CoordReadout",
+            "w": 320,
+            "x": 342,
+            "y": 1010
+        },
+        {
+            "class": "fabricad::viewer::ScaleBar",
+            "h": 18,
+            "name": "ScaleBar",
+            "w": 200,
+            "x": 1704,
+            "y": 1018
+        },
+        {
+            "class": "fabricad::sketch::ValueLeader",
+            "h": 21,
+            "name": "fcValueLeader",
+            "w": 24,
+            "x": 1200,
+            "y": 519
+        },
+        {
+            "class": "fabricad::app::CommandCard",
+            "h": 473,
+            "name": "CommandDialog",
+            "w": 376,
+            "x": 1278,
+            "y": 174
+        },
+        {
+            "class": "QWidget",
+            "h": 40,
+            "name": "CommandDialogTitle",
+            "w": 360,
+            "x": 1286,
+            "y": 182
+        },
+        {
+            "class": "QLabel",
+            "h": 40,
+            "name": "CardTitle",
+            "w": 51,
+            "x": 1328,
+            "y": 182
+        },
+        {
+            "class": "fabricad::app::Keycap",
+            "h": 18,
+            "name": "Keycap",
+            "w": 18,
+            "x": 1387,
+            "y": 193
+        },
+        {
+            "class": "QLabel",
+            "h": 40,
+            "name": "CardContext",
+            "w": 44,
+            "x": 1415,
+            "y": 182
+        },
+        {
+            "class": "QLabel",
+            "h": 40,
+            "name": "CardDocName",
+            "w": 107,
+            "x": 1467,
+            "y": 182
+        },
+        {
+            "class": "QToolButton",
+            "h": 24,
+            "name": "CardPin",
+            "w": 24,
+            "x": 1582,
+            "y": 190
+        },
+        {
+            "class": "QToolButton",
+            "h": 24,
+            "name": "CardClose",
+            "w": 24,
+            "x": 1614,
+            "y": 190
+        },
+        {
+            "class": "QWidget",
+            "h": 30,
+            "name": "CardSteps",
+            "w": 360,
+            "x": 1286,
+            "y": 222
+        },
+        {
+            "class": "fabricad::app::StepIndicator",
+            "h": 22,
+            "name": "StepIndicator",
+            "w": 328,
+            "x": 1302,
+            "y": 222
+        },
+        {
+            "class": "QScrollArea",
+            "h": 335,
+            "name": "CommandDialogScroll",
+            "w": 360,
+            "x": 1286,
+            "y": 252
+        },
+        {
+            "class": "QWidget",
+            "h": 335,
+            "name": "qt_scrollarea_viewport",
+            "w": 360,
+            "x": 1286,
+            "y": 252
+        },
+        {
+            "class": "QWidget",
+            "h": 335,
+            "name": "CardBody",
+            "w": 360,
+            "x": 1286,
+            "y": 252
+        },
+        {
+            "class": "QPushButton",
+            "h": 28,
+            "name": "prop_profiles",
+            "w": 115,
+            "x": 1404,
+            "y": 262
+        },
+        {
+            "class": "QLabel",
+            "h": 28,
+            "name": "SelectionSource",
+            "w": 69,
+            "x": 1561,
+            "y": 262
+        },
+        {
+            "class": "QWidget",
+            "h": 28,
+            "name": "cell_startOffset",
+            "w": 226,
+            "x": 1404,
+            "y": 296
+        },
+        {
+            "class": "QLineEdit",
+            "h": 28,
+            "name": "prop_startOffset",
+            "w": 226,
+            "x": 1404,
+            "y": 296
+        },
+        {
+            "class": "QComboBox",
+            "h": 28,
+            "name": "prop_extentType",
+            "w": 128,
+            "x": 1404,
+            "y": 386
+        },
+        {
+            "class": "QWidget",
+            "h": 29,
+            "name": "cell_distance",
+            "w": 226,
+            "x": 1404,
+            "y": 420
+        },
+        {
+            "class": "QLineEdit",
+            "h": 28,
+            "name": "prop_distance",
+            "w": 201,
+            "x": 1404,
+            "y": 420
+        },
+        {
+            "class": "QToolButton",
+            "h": 29,
+            "name": "prop_flip_toggle",
+            "w": 25,
+            "x": 1605,
+            "y": 420
+        },
+        {
+            "class": "QWidget",
+            "h": 28,
+            "name": "cell_taperAngle",
+            "w": 226,
+            "x": 1404,
+            "y": 455
+        },
+        {
+            "class": "QLineEdit",
+            "h": 28,
+            "name": "prop_taperAngle",
+            "w": 226,
+            "x": 1404,
+            "y": 455
+        },
+        {
+            "class": "QPushButton",
+            "h": 28,
+            "name": "prop_targets",
+            "w": 190,
+            "x": 1404,
+            "y": 547
+        },
+        {
+            "class": "QWidget",
+            "h": 50,
+            "name": "SegmentedRow",
+            "w": 328,
+            "x": 1302,
+            "y": 330
+        },
+        {
+            "class": "QLabel",
+            "h": 12,
+            "name": "SegmentedLabel",
+            "w": 328,
+            "x": 1302,
+            "y": 334
+        },
+        {
+            "class": "fabricad::app::SegmentedControl",
+            "h": 28,
+            "name": "prop_direction",
+            "w": 328,
+            "x": 1302,
+            "y": 350
+        },
+        {
+            "class": "QWidget",
+            "h": 50,
+            "name": "SegmentedRow",
+            "w": 328,
+            "x": 1302,
+            "y": 489
+        },
+        {
+            "class": "QLabel",
+            "h": 12,
+            "name": "SegmentedLabel",
+            "w": 328,
+            "x": 1302,
+            "y": 493
+        },
+        {
+            "class": "fabricad::app::SegmentedControl",
+            "h": 28,
+            "name": "prop_operation",
+            "w": 328,
+            "x": 1302,
+            "y": 509
+        },
+        {
+            "class": "QWidget",
+            "h": 52,
+            "name": "CardFooter",
+            "w": 360,
+            "x": 1286,
+            "y": 587
+        },
+        {
+            "class": "QPushButton",
+            "h": 32,
+            "name": "CancelButton",
+            "w": 107,
+            "x": 1302,
+            "y": 597
+        },
+        {
+            "class": "QLabel",
+            "h": 32,
+            "name": "CardButtonText",
+            "w": 44,
+            "x": 1314,
+            "y": 597
+        },
+        {
+            "class": "fabricad::app::Keycap",
+            "h": 18,
+            "name": "Keycap",
+            "w": 30,
+            "x": 1371,
+            "y": 604
+        },
+        {
+            "class": "QPushButton",
+            "h": 32,
+            "name": "OkButton",
+            "w": 213,
+            "x": 1417,
+            "y": 597
+        },
+        {
+            "class": "QLabel",
+            "h": 32,
+            "name": "CardButtonText",
+            "w": 36,
+            "x": 1453,
+            "y": 597
+        },
+        {
+            "class": "fabricad::app::Keycap",
+            "h": 18,
+            "name": "Keycap",
+            "w": 43,
+            "x": 1579,
+            "y": 604
+        },
+        {
+            "class": "fabricad::app::NavBar",
+            "h": 218,
+            "name": "NavBar",
+            "overlay": "ViewToolColumn",
+            "w": 38,
+            "x": 1866,
+            "y": 330
+        },
+        {
+            "class": "QFrame",
+            "h": 50,
+            "name": "fcValueBox",
+            "w": 164,
+            "x": 1039,
+            "y": 536
+        },
+        {
+            "class": "QLabel",
+            "h": 17,
+            "name": "fcValueTag",
+            "w": 50,
+            "x": 1039,
+            "y": 536
+        },
+        {
+            "class": "QFrame",
+            "h": 33,
+            "name": "fcValueField",
+            "w": 164,
+            "x": 1039,
+            "y": 553
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "fcValueUnit",
+            "w": 15,
+            "x": 1162,
+            "y": 558
+        },
+        {
+            "class": "QWidget",
+            "h": 23,
+            "name": "fcValueSteps",
+            "w": 14,
+            "x": 1181,
+            "y": 558
+        },
+        {
+            "class": "QToolButton",
+            "h": 11,
+            "name": "fcValueStepUp",
+            "w": 14,
+            "x": 1181,
+            "y": 558
+        },
+        {
+            "class": "QToolButton",
+            "h": 11,
+            "name": "fcValueStepDown",
+            "w": 14,
+            "x": 1181,
+            "y": 569
+        },
+        {
+            "class": "QDockWidget",
+            "h": 946,
+            "name": "BrowserDock",
+            "w": 320,
+            "x": 0,
+            "y": 106
+        },
+        {
+            "class": "fabricad::app::SidebarHost",
+            "h": 946,
+            "name": "SidebarHost",
+            "w": 320,
+            "x": 0,
+            "y": 106
+        },
+        {
+            "class": "QSplitter",
+            "h": 946,
+            "name": "SidebarSplitter",
+            "w": 320,
+            "x": 0,
+            "y": 106
+        },
+        {
+            "class": "fabricad::app::SidebarPanel",
+            "h": 170,
+            "name": "SidebarPanel_selection",
+            "w": 320,
+            "x": 0,
+            "y": 882
+        },
+        {
+            "class": "fabricad::app::PanelHeader",
+            "h": 36,
+            "name": "PanelHeader_selection",
+            "w": 320,
+            "x": 0,
+            "y": 882
+        },
+        {
+            "class": "fabricad::app::SelectionPanel",
+            "h": 134,
+            "name": "SelectionPanel",
+            "w": 320,
+            "x": 0,
+            "y": 918
+        },
+        {
+            "class": "fabricad::app::SidebarPanel",
+            "h": 301,
+            "name": "SidebarPanel_model",
+            "w": 320,
+            "x": 0,
+            "y": 574
+        },
+        {
+            "class": "fabricad::app::PanelHeader",
+            "h": 36,
+            "name": "PanelHeader_model",
+            "w": 320,
+            "x": 0,
+            "y": 574
+        },
+        {
+            "class": "QToolButton",
+            "h": 26,
+            "name": "ModelMasterEye",
+            "w": 26,
+            "x": 268,
+            "y": 579
+        },
+        {
+            "class": "QStackedWidget",
+            "h": 265,
+            "name": "ModelStack",
+            "w": 320,
+            "x": 0,
+            "y": 610
+        },
+        {
+            "class": "fabricad::app::BrowserTree",
+            "h": 265,
+            "name": "Browser",
+            "w": 320,
+            "x": 0,
+            "y": 610
+        },
+        {
+            "class": "QWidget",
+            "h": 265,
+            "name": "qt_scrollarea_viewport",
+            "w": 320,
+            "x": 0,
+            "y": 610
+        },
+        {
+            "class": "fabricad::app::SidebarPanel",
+            "h": 461,
+            "name": "SidebarPanel_features",
+            "w": 320,
+            "x": 0,
+            "y": 106
+        },
+        {
+            "class": "fabricad::app::PanelHeader",
+            "h": 36,
+            "name": "PanelHeader_features",
+            "w": 320,
+            "x": 0,
+            "y": 106
+        },
+        {
+            "class": "QToolButton",
+            "h": 26,
+            "name": "FeatureSearchButton",
+            "w": 26,
+            "x": 240,
+            "y": 111
+        },
+        {
+            "class": "QToolButton",
+            "h": 26,
+            "name": "FeatureFilterButton",
+            "w": 26,
+            "x": 268,
+            "y": 111
+        },
+        {
+            "class": "QWidget",
+            "h": 425,
+            "name": "FeaturesBody",
+            "w": 320,
+            "x": 0,
+            "y": 142
+        },
+        {
+            "class": "QStackedWidget",
+            "h": 425,
+            "name": "FeatureStack",
+            "w": 320,
+            "x": 0,
+            "y": 142
+        },
+        {
+            "class": "fabricad::app::FeatureListWidget",
+            "h": 425,
+            "name": "FeatureList",
+            "w": 320,
+            "x": 0,
+            "y": 142
+        },
+        {
+            "class": "QWidget",
+            "h": 425,
+            "name": "FeatureListViewport",
+            "w": 310,
+            "x": 0,
+            "y": 142
+        },
+        {
+            "class": "QWidget",
+            "h": 425,
+            "name": "qt_scrollarea_vcontainer",
+            "w": 10,
+            "x": 310,
+            "y": 142
+        },
+        {
+            "class": "QSplitterHandle",
+            "h": 7,
+            "name": "qt_splithandle_",
+            "w": 320,
+            "x": 0,
+            "y": 567
+        },
+        {
+            "class": "QSplitterHandle",
+            "h": 7,
+            "name": "qt_splithandle_",
+            "w": 320,
+            "x": 0,
+            "y": 875
+        },
+        {
+            "class": "QStatusBar",
+            "h": 28,
+            "name": "",
+            "w": 1920,
+            "x": 0,
+            "y": 1052
+        },
+        {
+            "class": "fabricad::app::StatusCommandCell",
+            "h": 23,
+            "name": "StatusCommand",
+            "w": 83,
+            "x": 2,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::ElideLabel",
+            "h": 23,
+            "name": "StatusPrompt",
+            "w": 265,
+            "x": 91,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::KeyHints",
+            "h": 23,
+            "name": "StatusHints",
+            "w": 310,
+            "x": 362,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusDim",
+            "w": 23,
+            "x": 1897,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusDim",
+            "w": 37,
+            "x": 1556,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::StatusCell",
+            "h": 23,
+            "name": "StatusCellBox",
+            "w": 73,
+            "x": 1477,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusCell",
+            "w": 28,
+            "x": 1485,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusValue",
+            "w": 24,
+            "x": 1518,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::StatusCell",
+            "h": 23,
+            "name": "StatusCellBox",
+            "w": 81,
+            "x": 1599,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusCell",
+            "w": 28,
+            "x": 1607,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusValue",
+            "w": 32,
+            "x": 1640,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::StatusCell",
+            "h": 23,
+            "name": "StatusCellBox",
+            "w": 44,
+            "x": 1686,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 23,
+            "name": "StatusCell",
+            "w": 28,
+            "x": 1694,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::RebuildMeter",
+            "h": 23,
+            "name": "StatusRebuild",
+            "w": 155,
+            "x": 1736,
+            "y": 1055
+        },
+        {
+            "class": "fabricad::app::CommandLine",
+            "h": 22,
+            "name": "CommandLineBox",
+            "w": 396,
+            "x": 1075,
+            "y": 1055
+        },
+        {
+            "class": "QLabel",
+            "h": 22,
+            "name": "CommandLinePrompt",
+            "w": 22,
+            "x": 1075,
+            "y": 1055
+        },
+        {
+            "class": "QLineEdit",
+            "h": 19,
+            "name": "CommandLine",
+            "w": 290,
+            "x": 1097,
+            "y": 1056
+        },
+        {
+            "class": "QToolButton",
+            "h": 15,
+            "name": "CommandLineHistory",
+            "w": 84,
+            "x": 1387,
+            "y": 1058
+        },
+        {
+            "class": "QToolBar",
+            "h": 70,
+            "name": "MainToolbarHost",
+            "w": 1920,
+            "x": 0,
+            "y": 36
+        },
+        {
+            "class": "fabricad::app::MainToolbar",
+            "h": 70,
+            "name": "RibbonRow",
+            "w": 1920,
+            "x": 0,
+            "y": 36
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "SKETCH",
+            "toolbarGroup": "SKETCH",
+            "toolbarTab": "SOLID",
+            "w": 81,
+            "x": 4,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "sketch.create",
+            "w": 53,
+            "x": 8,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarGroup": "SKETCH",
+            "toolbarTab": "SOLID",
+            "w": 73,
+            "x": 8,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "CREATE",
+            "toolbarGroup": "CREATE",
+            "toolbarTab": "SOLID",
+            "w": 180,
+            "x": 85,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.extrude",
+            "w": 60,
+            "x": 89,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.revolve",
+            "w": 60,
+            "x": 151,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.hole",
+            "w": 48,
+            "x": 213,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarGroup": "CREATE",
+            "toolbarTab": "SOLID",
+            "w": 172,
+            "x": 89,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "MODIFY",
+            "toolbarGroup": "MODIFY",
+            "toolbarTab": "SOLID",
+            "w": 318,
+            "x": 265,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.press-pull",
+            "w": 81,
+            "x": 269,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.fillet",
+            "w": 53,
+            "x": 352,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.chamfer",
+            "w": 60,
+            "x": 407,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.shell",
+            "w": 48,
+            "x": 469,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "part.combine",
+            "w": 60,
+            "x": 519,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarGroup": "MODIFY",
+            "toolbarTab": "SOLID",
+            "w": 310,
+            "x": 269,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "ASSEMBLE",
+            "toolbarGroup": "ASSEMBLE",
+            "toolbarTab": "SOLID",
+            "w": 194,
+            "x": 583,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "assembly.new-component",
+            "w": 67,
+            "x": 587,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "assembly.joint",
+            "w": 48,
+            "x": 656,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "assembly.as-built-joint",
+            "w": 67,
+            "x": 706,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarGroup": "ASSEMBLE",
+            "toolbarTab": "SOLID",
+            "w": 186,
+            "x": 587,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "CONSTRUCT",
+            "toolbarGroup": "CONSTRUCT",
+            "toolbarTab": "SOLID",
+            "w": 225,
+            "x": 777,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "construct.offset-plane",
+            "w": 48,
+            "x": 781,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "construct.plane-at-angle",
+            "w": 48,
+            "x": 831,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "construct.midplane",
+            "w": 67,
+            "x": 881,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "construct.axis",
+            "w": 48,
+            "x": 950,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarGroup": "CONSTRUCT",
+            "toolbarTab": "SOLID",
+            "w": 217,
+            "x": 781,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "INSPECT",
+            "toolbarGroup": "INSPECT",
+            "toolbarTab": "SOLID",
+            "w": 144,
+            "x": 1002,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "inspect.measure",
+            "w": 60,
+            "x": 1006,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "assembly.interference",
+            "w": 74,
+            "x": 1068,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarGroup": "INSPECT",
+            "toolbarTab": "SOLID",
+            "w": 136,
+            "x": 1006,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "MORE",
+            "toolbarTab": "MORE",
+            "w": 188,
+            "x": 1146,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolbarTab": "SOLID",
+            "w": 61,
+            "x": 1150,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolbarTab": "SOLID",
+            "w": 61,
+            "x": 1213,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolbarTab": "TOOLS",
+            "w": 54,
+            "x": 1276,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarTab": "MORE",
+            "w": 180,
+            "x": 1150,
+            "y": 90
+        },
+        {
+            "class": "QWidget",
+            "h": 70,
+            "name": "RibbonGroup",
+            "section": "DOCUMENT",
+            "toolbarTab": "DOCUMENT",
+            "w": 130,
+            "x": 1786,
+            "y": 36
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "app.parameters",
+            "w": 53,
+            "x": 1790,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 50,
+            "name": "RibbonTool",
+            "toolId": "app.preferences",
+            "w": 67,
+            "x": 1845,
+            "y": 39
+        },
+        {
+            "class": "QToolButton",
+            "h": 16,
+            "name": "RibbonGroupLabel",
+            "toolbarTab": "DOCUMENT",
+            "w": 122,
+            "x": 1790,
+            "y": 90
+        }
+    ],
+    "window": {
+        "h": 1080,
+        "w": 1920
+    }
+}

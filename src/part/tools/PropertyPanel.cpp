@@ -3,8 +3,12 @@
 
 #include "core/Document.h"
 #include "core/Json.h"
+#include "core/Body.h"
+#include "core/Feature.h"
 #include "core/Property.h"
+#include "core/Units.h"
 #include "part/PartFeature.h"
+#include "theme/StatusGlyph.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -14,6 +18,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -27,6 +32,16 @@ namespace fabricad::part {
 using core::qs;
 using core::ss;
 
+namespace {
+/// Invalid text (PART-02): the theme QSS draws QLineEdit[invalid="true"] in status.error.
+void markInvalid(QLineEdit* edit, bool invalid) {
+  if (edit->property("invalid").toBool() == invalid) return;
+  edit->setProperty("invalid", invalid);
+  edit->style()->unpolish(edit);
+  edit->style()->polish(edit);
+}
+}  // namespace
+
 PropertyPanel::PropertyPanel(core::Document& doc, PartFeature& feature, QWidget* parent)
     : QWidget(parent), doc_(doc), feature_(feature) {
   auto* outer = new QVBoxLayout(this);
@@ -39,10 +54,17 @@ PropertyPanel::PropertyPanel(core::Document& doc, PartFeature& feature, QWidget*
   message_->setWordWrap(true);
   message_->setObjectName("messageLabel");
   outer->addWidget(message_);
-  setMinimumWidth(280);
+  // fits a docked card in the narrowest sidebar (260 - card padding; P5-TOGGLES-1)
+  setMinimumWidth(220);
   debounce_.setSingleShot(true);
   connect(&debounce_, &QTimer::timeout, this, &PropertyPanel::flushPending);
   rebuild();
+}
+
+PropertyPanel::~PropertyPanel() {
+  // the children outlive this object's members: a field losing the focus while the widget tree
+  // is torn down must not reach the (destroyed) maps through its editingFinished handler
+  for (QLineEdit* e : findChildren<QLineEdit*>()) e->disconnect(this);
 }
 
 void PropertyPanel::setValueChangeDelay(int ms) {
@@ -59,9 +81,63 @@ void PropertyPanel::flushPending() {
 }
 
 QString PropertyPanel::refText(const core::Property& p) const {
-  if (p.type() == core::PropertyType::Ref) return p.ref().isValid() ? tr("1 selected") : tr("Select");
-  int n = static_cast<int>(p.refs().size());
-  return n == 0 ? tr("Select") : tr("%n selected", nullptr, n);
+  // selection chip (5.4): "1 PROFILE", "2 FACES"; mixed kinds: "3 SELECTED"
+  std::vector<core::ShapeRef> refs;
+  if (p.type() == core::PropertyType::Ref) {
+    if (p.ref().isValid()) refs.push_back(p.ref());
+  } else {
+    refs = p.refs();
+  }
+  const int n = static_cast<int>(refs.size());
+  if (n == 0) return tr("Select");
+  core::ShapeKind kind = refs.front().kind;
+  for (const auto& r : refs)
+    if (r.kind != kind) kind = core::ShapeKind::None;
+  const char* one = nullptr;
+  const char* many = nullptr;
+  switch (kind) {
+    case core::ShapeKind::Profile: one = "profile"; many = "profiles"; break;
+    case core::ShapeKind::Face: one = "face"; many = "faces"; break;
+    case core::ShapeKind::Edge: one = "edge"; many = "edges"; break;
+    case core::ShapeKind::Vertex: one = "vertex"; many = "vertices"; break;
+    case core::ShapeKind::Body: one = "body"; many = "bodies"; break;
+    case core::ShapeKind::Sketch: one = "sketch"; many = "sketches"; break;
+    default: break;
+  }
+  if (!one) return n == 1 ? tr("1 selected") : tr("%n selected", nullptr, n);
+  return QString("%1 %2").arg(n).arg(QString::fromLatin1(n == 1 ? one : many));
+}
+
+QString PropertyPanel::refSource(const core::Property& p) const {
+  std::vector<core::ShapeRef> refs;
+  if (p.type() == core::PropertyType::Ref) {
+    if (p.ref().isValid()) refs.push_back(p.ref());
+  } else {
+    refs = p.refs();
+  }
+  QStringList names;
+  for (const auto& r : refs) {
+    std::string name;
+    if (r.isBrep() || r.kind == core::ShapeKind::Body) {
+      if (const core::Body* b = doc_.body(r.owner)) name = b->name;
+    } else if (const core::Feature* f = doc_.feature(r.owner)) {
+      name = f->name();
+    }
+    if (!name.empty() && !names.contains(qs(name))) names << qs(name);
+  }
+  return names.join(", ");
+}
+
+void PropertyPanel::updateExpression(const std::string& name) {
+  auto it = exprLabels_.find(name);
+  const core::Property* p = feature_.property(name);
+  if (it == exprLabels_.end() || !it->second || !p) return;  // the label may be gone (panel teardown)
+  // the `fx` line (5.4): the expression behind the value, in the value font
+  const bool show = p->hasExpression() && !invalid_.count(name);
+  if (show)
+    it->second->setText(qs(std::format("fx  {} = {}", p->expression(),
+                                       core::formatQuantity(core::Quantity{p->toDouble(), p->dimension()}, doc_.units()))));
+  it->second->setVisible(show);
 }
 
 void PropertyPanel::retireFormRows(QFormLayout* form) {
@@ -127,6 +203,9 @@ void PropertyPanel::rebuild() {
   numericEdits_.clear();
   enumCombos_.clear();
   boolChecks_.clear();
+  refSources_.clear();
+  exprLabels_.clear();
+  trailSlots_.clear();
   rows_ = visibleRows();
   for (const auto& name : rows_)
     if (core::Property* p = feature_.property(name)) addRow(*p);
@@ -140,7 +219,7 @@ void PropertyPanel::rebuild() {
       continue;
     }
     e->second->setText(qs(it->second.text));
-    e->second->setStyleSheet("border: 1px solid #D93025;");
+    markInvalid(e->second, true);
     e->second->setToolTip(qs(it->second.error));
     ++it;
   }
@@ -164,9 +243,16 @@ void PropertyPanel::rebuild() {
 
 void PropertyPanel::refresh() {
   for (auto& [name, btn] : refButtons_) {
-    if (const core::Property* p = feature_.property(name)) btn->setText(refText(*p));
+    if (const core::Property* p = feature_.property(name)) {
+      btn->setText(refText(*p));
+      if (QLabel* src = refSources_.count(name) ? refSources_[name].data() : nullptr) {
+        src->setText(refSource(*p));
+        src->setVisible(!src->text().isEmpty());
+      }
+    }
     btn->setChecked(name == active_);
   }
+  for (auto& [name, lbl] : exprLabels_) updateExpression(name);
   for (auto& [name, edit] : numericEdits_) {
     if (invalid_.count(name)) continue;  // keep the user's (invalid) text until it is fixed
     if (const core::Property* p = feature_.property(name); p && !edit->hasFocus()) edit->setText(qs(p->displayText(doc_.units())));
@@ -192,9 +278,31 @@ void PropertyPanel::setActiveInput(const std::string& propName) {
   emit activeInputChanged(active_);
 }
 
+void PropertyPanel::setLiveField(const std::string& propName) {
+  if (propName == live_) return;
+  live_ = propName;
+  for (auto& [name, edit] : numericEdits_) {
+    const bool on = name == live_;
+    if (edit->property("live").toBool() == on) continue;
+    edit->setProperty("live", on);
+    edit->style()->unpolish(edit);
+    edit->style()->polish(edit);
+  }
+}
+
 void PropertyPanel::setMessage(const std::string& text, bool error) {
   message_->setText(qs(text));
-  message_->setStyleSheet(error ? "color: #D93025;" : "color: #6B7079;");
+  // colour from the theme QSS (QLabel[messageLevel=...]) and the shape glyph: an error is never
+  // colour alone (decision 9, P5-CVD-1)
+  const char* level = text.empty() ? "" : error ? "error" : "warning";
+  if (message_->property("messageLevel").toString() != QLatin1StringView(level)) {
+    message_->setProperty("messageLevel", level);
+    message_->style()->unpolish(message_);
+    message_->style()->polish(message_);
+  }
+  theme::setStatusGlyph(message_, text.empty() ? theme::StatusLevel::None
+                                  : error      ? theme::StatusLevel::Error
+                                               : theme::StatusLevel::Warning);
   message_->setVisible(!text.empty());
 }
 
@@ -202,20 +310,20 @@ void PropertyPanel::applyNumericText(core::Property& p, QLineEdit* edit, bool im
   std::string text = ss(edit->text().trimmed());
   if (text.empty()) {
     // an emptied field is not an expression; editingFinished restores the value
-    edit->setStyleSheet({});
+    markInvalid(edit, false);
     edit->setToolTip(qs(p.tooltip()));
     clearInvalid(p.name());
     return;
   }
   core::EvalResult r = doc_.evaluate(text, p.dimension());
   if (!r.ok) {
-    edit->setStyleSheet("border: 1px solid #D93025;");
+    markInvalid(edit, true);
     edit->setToolTip(qs(r.error));
     setInvalid(p.name(), text, r.error.empty() ? std::string("invalid expression") : r.error);
     return;
   }
   clearInvalid(p.name());
-  edit->setStyleSheet({});
+  markInvalid(edit, false);
   edit->setToolTip(qs(p.tooltip()));
   // plain numbers are stored as values, anything else as an expression
   bool plain = true;
@@ -244,9 +352,28 @@ void PropertyPanel::addRow(core::Property& p) {
     case core::PropertyType::Length:
     case core::PropertyType::Angle:
     case core::PropertyType::Double: {
-      auto* edit = new QLineEdit(qs(p.displayText(doc_.units())), this);
+      // value field (5.4): the edit with room for a trailing action (Flip), and the `fx` line
+      auto* cell = new QWidget(this);
+      cell->setObjectName(qs("cell_" + name));
+      auto* cv = new QVBoxLayout(cell);
+      cv->setContentsMargins(0, 0, 0, 0);
+      cv->setSpacing(2);
+      auto* line = new QHBoxLayout();
+      line->setContentsMargins(0, 0, 0, 0);
+      line->setSpacing(0);
+      cv->addLayout(line);
+      auto* edit = new QLineEdit(qs(p.displayText(doc_.units())), cell);
       edit->setToolTip(qs(p.tooltip()));
       edit->setObjectName(qs("prop_" + name));
+      edit->setProperty("live", name == live_);
+      line->addWidget(edit, 1);
+      trailSlots_[name] = line;
+      auto* fx = new QLabel(cell);
+      fx->setObjectName("PropertyExpression");
+      fx->setProperty("textStyle", "value");
+      fx->hide();
+      cv->addWidget(fx);
+      exprLabels_[name] = fx;
       numericEdits_[name] = edit;
       connect(edit, &QLineEdit::textEdited, this, [this, name, edit] {
         if (auto* prop = feature_.property(name)) applyNumericText(*prop, edit, false);
@@ -256,9 +383,11 @@ void PropertyPanel::addRow(core::Property& p) {
           applyNumericText(*prop, edit, true);
           // PART-02: invalid text stays (red) instead of silently snapping back to the last value
           if (!invalid_.count(name)) edit->setText(qs(prop->displayText(doc_.units())));
+          updateExpression(name);
         }
       });
-      form_->addRow(label, edit);
+      form_->addRow(label, cell);
+      updateExpression(name);
       break;
     }
     case core::PropertyType::Int: {
@@ -289,6 +418,26 @@ void PropertyPanel::addRow(core::Property& p) {
         }
       });
       form_->addRow(label, box);
+      // Flip: the value field's trailing ⇄ action (5.4) instead of a row of its own; the
+      // check box stays (hidden) as the model, so scripts and tests drive it as before
+      const std::string primary = feature_.primaryNumeric();
+      if (name == "flip" && trailSlots_.count(primary)) {
+        auto* flip = new QToolButton(this);
+        flip->setObjectName("prop_flip_toggle");
+        flip->setCheckable(true);
+        flip->setChecked(p.toBool());
+        flip->setText(QString::fromUtf8("\u21C4"));
+        flip->setToolTip(label);
+        flip->setFocusPolicy(Qt::TabFocus);
+        trailSlots_[primary]->addWidget(flip);
+        connect(flip, &QToolButton::toggled, box, [box](bool v) {
+          if (box->isChecked() != v) box->setChecked(v);
+        });
+        connect(box, &QCheckBox::toggled, flip, [flip](bool v) {
+          if (flip->isChecked() != v) flip->setChecked(v);
+        });
+        form_->setRowVisible(box, false);
+      }
       break;
     }
     case core::PropertyType::Enum: {
@@ -333,8 +482,15 @@ void PropertyPanel::addRow(core::Property& p) {
       clear->setText(QString::fromUtf8("\xC3\x97"));  // multiplication sign as "x"
       clear->setToolTip(tr("Clear selection"));
       clear->setAutoRaise(true);
+      // chip + sub-label (5.4): "■ 1 PROFILE ×  Sketch3"
+      auto* src = new QLabel(refSource(p), row);
+      src->setObjectName("SelectionSource");
+      src->setProperty("textStyle", "value");  // names as typed (decision 3)
+      src->setVisible(!src->text().isEmpty());
       h->addWidget(btn, 1);
       h->addWidget(clear);
+      h->addWidget(src);
+      refSources_[name] = src;
       refButtons_[name] = btn;
       connect(btn, &QPushButton::clicked, this, [this, name] { setActiveInput(name); });
       connect(clear, &QToolButton::clicked, this, [this, name] {

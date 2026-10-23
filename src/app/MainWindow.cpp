@@ -13,6 +13,8 @@
 #include "app/CommandDialog.h"
 #include "app/CommandLine.h"
 #include "app/CommandSearch.h"
+#include "app/SelectionPanel.h"
+#include "theme/StatusGlyph.h"
 #include "app/Icons.h"
 #include "app/MarkingMenu.h"
 #include "app/MarkingMenuModel.h"
@@ -75,6 +77,7 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
+#include <QAbstractButton>
 #include <QTabBar>
 #include <QTextEdit>
 #include <QDateTime>
@@ -108,7 +111,7 @@ QToolButton* appBarButton(QWidget* parent, const char* icon, const QString& tip)
   b->setIconSize(QSize(18, 18));
   b->setToolTip(tip);
   b->setAutoRaise(true);
-  b->setFocusPolicy(Qt::NoFocus);
+  b->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5
   return b;
 }
 
@@ -257,7 +260,10 @@ void MainWindow::applyQuickToolbar() {
 void MainWindow::applySidebarSide() {
   const Qt::DockWidgetArea area =
       UiSettings::instance().string("ui/sidebarSide") == "right" ? Qt::RightDockWidgetArea : Qt::LeftDockWidgetArea;
-  const int width = browserDock_->width() >= SidebarHost::kMinWidth ? browserDock_->width() : SidebarHost::kDefaultWidth;
+  // before the window is shown the dock reports its 260 px minimum, not a width the user chose
+  // (P5-TOGGLES-1: a right sidebar started at 260 and clipped the docked card)
+  const int width = isVisible() && browserDock_->width() >= SidebarHost::kMinWidth ? browserDock_->width()
+                                                                                    : SidebarHost::kDefaultWidth;
   const bool moved = dockWidgetArea(browserDock_) != area;
   if (moved) {
     const bool wanted = browserDockWanted_;
@@ -268,7 +274,15 @@ void MainWindow::applySidebarSide() {
   browserDock_->setProperty("side", area == Qt::RightDockWidgetArea ? "right" : "left");
   browserDock_->style()->unpolish(browserDock_);
   browserDock_->style()->polish(browserDock_);
-  if (moved || browserDock_->width() < SidebarHost::kMinWidth) resizeDocks({browserDock_}, {width}, Qt::Horizontal);
+  if (moved || browserDock_->width() < SidebarHost::kMinWidth) {
+    resizeDocks({browserDock_}, {width}, Qt::Horizontal);
+    // P5-TOGGLES-1: before the window is laid out (start-up with ui/sidebarSide=right) the dock
+    // area ignores the request and the sidebar ends at its 260 px minimum; ask again once laid out
+    QTimer::singleShot(0, this, [this, width] {
+      if (browserDock_->width() < width) resizeDocks({browserDock_}, {width}, Qt::Horizontal);
+      if (dialog_ && dialog_->isPresenting()) dialog_->reposition();
+    });
+  }
 }
 
 void MainWindow::applyTimelineStyle() {
@@ -493,6 +507,13 @@ void MainWindow::buildUi() {
           [this] { handleKeyPress(Qt::Key_Return, 0, "\r", false, viewer_); });
   search_ = new CommandSearch(m, this);
   marking_ = new MarkingMenu(this);
+  // P5-KEYBOARD-1: the focus ring of the control that lost the focus must go at once. Under
+  // Xwayland with the GL-composed window (the 3D view) a partial flush can leave the old ring on
+  // screen (verified on a private Xwayland: region repaints kept stale rings, a full repaint did
+  // not). Focus changes are rare, so the window's widgets repaint in full.
+  connect(qApp, &QApplication::focusChanged, this, [this](QWidget* old, QWidget* now) {
+    if ((old && old->window() == this) || (now && now->window() == this)) update();
+  });
 }
 
 QWidget* MainWindow::buildAppBar() {
@@ -514,7 +535,7 @@ QWidget* MainWindow::buildAppBar() {
   appMenu->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
   appMenu->setPopupMode(QToolButton::InstantPopup);
   appMenu->setToolTip("File");
-  appMenu->setFocusPolicy(Qt::NoFocus);
+  appMenu->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5
   appMenu->setAutoRaise(true);
   auto* fileMenu = new QMenu(appMenu);
   buildFileMenu(fileMenu);
@@ -536,7 +557,7 @@ QWidget* MainWindow::buildAppBar() {
   tabBar_->setMovable(true);
   tabBar_->setElideMode(Qt::ElideRight);
   tabBar_->setUsesScrollButtons(true);
-  tabBar_->setFocusPolicy(Qt::NoFocus);
+  tabBar_->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5
   connect(tabBar_, &QTabBar::currentChanged, this, [this](int index) {
     if (switchingTabs_ || index < 0) return;
     activateTab(index);
@@ -555,7 +576,7 @@ QWidget* MainWindow::buildAppBar() {
   newTab->setText("+");
   newTab->setToolTip("New Design (Ctrl+N)");
   newTab->setAutoRaise(true);
-  newTab->setFocusPolicy(Qt::NoFocus);
+  newTab->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5
   connect(newTab, &QToolButton::clicked, this, [this] { manager_->run("app.new"); });
   h->addWidget(newTab);
   h->addStretch(1);
@@ -564,23 +585,26 @@ QWidget* MainWindow::buildAppBar() {
   auto* searchBox = new QToolButton(bar);
   searchBox_ = searchBox;
   searchBox->setObjectName("SearchBox");
-  searchBox->setFocusPolicy(Qt::NoFocus);
-  searchBox->setToolTip("Search commands (S)");
+  searchBox->setFocusPolicy(Qt::TabFocus);  // P5-KEYBOARD-5
+  searchBox->setToolTip("Search commands (S or Ctrl+K)");
   searchBox->setFixedSize(260, 26);
   {
+    // P5-MOCKUP-1: the keycap is a 16 px chip inside the box (it used to fill the box height
+    // and cover the right border); it shows the global shortcut, Ctrl+K (S works on the canvas)
     auto* sh = new QHBoxLayout(searchBox);
-    sh->setContentsMargins(8, 0, 4, 0);
+    sh->setContentsMargins(8, 4, 5, 4);
     sh->setSpacing(6);
     auto* glyph = new QLabel(">_", searchBox);
     glyph->setObjectName("SearchGlyph");
     auto* text = new QLabel("Search commands", searchBox);
     text->setObjectName("SearchBoxText");
-    auto* key = new Keycap("S", searchBox);
+    auto* key = new Keycap("Ctrl+K", searchBox);
+    key->setFixedHeight(16);
     for (QWidget* w : {static_cast<QWidget*>(glyph), static_cast<QWidget*>(text), static_cast<QWidget*>(key)})
       w->setAttribute(Qt::WA_TransparentForMouseEvents);
     sh->addWidget(glyph);
     sh->addWidget(text, 1);
-    sh->addWidget(key);
+    sh->addWidget(key, 0, Qt::AlignVCenter);
   }
   connect(searchBox, &QToolButton::clicked, this, [this] { openCommandSearch(); });
   h->addWidget(searchBox, 0, Qt::AlignVCenter);
@@ -941,6 +965,11 @@ void MainWindow::activateTab(DocumentTab* tab) {
   if (tab->isDesign()) browserDock_->setVisible(browserDockWanted_);
   else browserDock_->hide();
   sidebar_->setActive(tab->isDesign() ? &tab->document() : nullptr, tab->featureList(), tab->browser());
+  if (SelectionPanel* sp = sidebar_->selectionPanel())
+    sp->setPicked(tab->viewer() ? tab->viewer()->highlightedRefs() : std::vector<ShapeRef>{});
+  // the keyboard starts on the canvas: with tool buttons in the Tab order (P5-KEYBOARD-5) the
+  // window would otherwise give its first focus to the logo button (and show its focus ring)
+  if (viewer_ && (!focusWidget() || isChromeControl(focusWidget()))) viewer_->setFocus(Qt::OtherFocusReason);
   updateTimelineDock();
   updateCardDockAvailability();
   if (tab->isDesign() && glEnabled_ && isVisible()) tab->initializeViewer();
@@ -1579,6 +1608,11 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
               else showMarkingMenu(press);
             });
     connect(viewer, &viewer::ViewerWidget::viewCubeMenuRequested, this, &MainWindow::viewCubeMenu);
+    // the command's picks (profile, faces...) in the SELECTION panel (P5-MOCKUP-6)
+    connect(viewer, &viewer::ViewerWidget::highlightedChanged, this, [this, tab, viewer] {
+      if (tab != active_) return;
+      if (SelectionPanel* sp = sidebar_->selectionPanel()) sp->setPicked(viewer->highlightedRefs());
+    });
     // phase 4 overlays: the card, palette and view-tool column follow the viewer's overlays
     connect(viewer, &viewer::ViewerWidget::overlayGeometryChanged, this, [this, tab] {
       if (NavBar* nb = tab->navBar()) nb->reposition();
@@ -1908,6 +1942,10 @@ void MainWindow::setStatusMessage(const QString& q, core::MessageLevel level) {
   messageLabel_->style()->unpolish(messageLabel_);
   messageLabel_->style()->polish(messageLabel_);
   messageLabel_->setText(shown);
+  // errors and warnings carry their shape, not only their colour (4.7 gate G, P5-CVD-2)
+  theme::setStatusGlyph(messageLabel_, level == core::MessageLevel::Error     ? theme::StatusLevel::Error
+                                       : level == core::MessageLevel::Warning ? theme::StatusLevel::Warning
+                                                                              : theme::StatusLevel::None);
   messageLabel_->setVisible(!shown.isEmpty());
   messageLabel_->setCursor(more > 0 ? Qt::PointingHandCursor : Qt::ArrowCursor);
   messageLevel_ = level;
@@ -2047,6 +2085,7 @@ void MainWindow::updateSketchStatus() {
   const char* state = lower.contains("over") || lower.contains("conflict") ? "conflict"
                       : lower.contains("fully")                             ? "full"
                                                                             : "free";
+  theme::setStatusGlyph(sketchLabel_, std::string_view(state) == "conflict" ? theme::StatusLevel::Error : theme::StatusLevel::None);
   if (sketchLabel_->property("sketchState").toString() != QLatin1StringView(state)) {
     sketchLabel_->setProperty("sketchState", state);
     sketchLabel_->style()->unpolish(sketchLabel_);
@@ -2383,7 +2422,7 @@ void MainWindow::applyResponsiveChrome() {
   if (keyHints_) keyHints_->setVisible(w >= 1350 && !keyHints_->hints().empty());
   if (searchBox_) {
     const bool compact = w < 1100;
-    searchBox_->setFixedWidth(compact ? 64 : 260);
+    searchBox_->setFixedWidth(compact ? 96 : 260);
     if (QWidget* t = searchBox_->findChild<QWidget*>("SearchBoxText")) t->setVisible(!compact);
   }
   if (commandLine_) commandLine_->setMinimumWidth(w < 1100 ? 200 : 300);
@@ -2651,15 +2690,27 @@ bool MainWindow::isCanvasFocus(QWidget* focus) const {
   return false;
 }
 
+bool MainWindow::isChromeControl(QWidget* focus) const {
+  // a tool button, tab bar or panel header of this window (toolbar, title bar, sidebar headers,
+  // view column...) outside the card and outside modal dialogs: P5-KEYBOARD-5/7
+  if (!focus || focus->window() != this || isTextInput(focus)) return false;
+  if (dialog_ && (focus == dialog_ || dialog_->isAncestorOf(focus))) return false;
+  return qobject_cast<QAbstractButton*>(focus) || qobject_cast<QTabBar*>(focus) || qobject_cast<PanelHeader*>(focus);
+}
+
 bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, bool autoRepeat, QWidget* focus) {
   // the FEATURES list keeps its own keys (arrows, F2, Space = suppress, Enter = edit, Del);
   // p2p3-check 1: while a command runs, Enter belongs to the command (Apply), never to the list
   if (featureList_ && focus && (focus == featureList_ || featureList_->isAncestorOf(focus)) && !isTextInput(focus) &&
-      FeatureListWidget::handlesKey(key, modifiers) && !(isEnterKey(key) && manager_->isActive() && !isIdleTool()))
+      FeatureListWidget::handlesKey(key, modifiers) && !(isEnterKey(key) && manager_->isActive() && !isIdleTool())) {
+    // while a command runs, Space picks the row for it (P5-KEYBOARD-4/9)
+    featureList_->setPickMode(manager_->isActive() && !isIdleTool());
     return false;
+  }
   KeyContext kc;
   kc.canvasFocus = isCanvasFocus(focus);
   kc.textInput = isTextInput(focus);
+  kc.widgetKeys = !kc.canvasFocus && isChromeControl(focus);
   kc.toolActive = manager_->isActive();
   const KeyRoute route = routeKey(key, modifiers, kc);
   if (route.action == KeyAction::None) return false;
@@ -2673,6 +2724,10 @@ bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, boo
     if (manager_->keyPress(ev)) return true;
   }
   const bool idle = isIdleTool();
+  // P5-KEYBOARD-2: Tab / Shift+Tab on the canvas that the tool did not use walk into the card
+  if (route.action == KeyAction::ForwardOnly && (key == Qt::Key_Tab || key == Qt::Key_Backtab) && dialog_ &&
+      dialog_->isVisible() && dialog_->focusInput(key == Qt::Key_Backtab || (modifiers & Qt::ShiftModifier)))
+    return true;
   switch (route.action) {
     case KeyAction::None: return false;
     case KeyAction::ForwardOnly: return true;
