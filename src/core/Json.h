@@ -29,8 +29,13 @@ QJsonArray toJson(const std::vector<ObjectId>& ids);
 std::vector<ObjectId> idsFromJson(const QJsonValue& v);
 /// ObjectId round-trips through JSON as a double; this is exact below 2^53.
 inline QJsonValue idToJson(ObjectId id) { return static_cast<double>(id); }
+/// Anything that is not a whole number in [0, 2^53) (negative, huge, fractional: a damaged file)
+/// gives `fallback`; a plain cast of such a double is undefined behaviour.
 inline ObjectId idFromJson(const QJsonValue& v, ObjectId fallback = kInvalidId) {
-  return v.isDouble() ? static_cast<ObjectId>(v.toDouble()) : fallback;
+  if (!v.isDouble()) return fallback;
+  const double d = v.toDouble();
+  if (!(d >= 0.0 && d < 9007199254740992.0) || d != static_cast<double>(static_cast<ObjectId>(d))) return fallback;
+  return static_cast<ObjectId>(d);
 }
 
 /// gp_Trsf as {"t":[x,y,z],"q":[x,y,z,w]} (translation + unit quaternion).

@@ -7,9 +7,20 @@
 #include <QJsonObject>
 
 #include <algorithm>
+#include <cmath>
 #include <array>
 
 namespace fabricad::core {
+
+namespace {
+/// double -> int64 without UB: NaN keeps `fallback`, out-of-range values saturate (files and
+/// typed values can hold 1e300; a plain static_cast is undefined behaviour there).
+std::int64_t toInt64(double v, std::int64_t fallback) {
+  if (std::isnan(v)) return fallback;
+  constexpr double kMax = 9.0e18;
+  return static_cast<std::int64_t>(std::clamp(v, -kMax, kMax));
+}
+}  // namespace
 
 namespace {
 constexpr std::array<std::pair<PropertyType, const char*>, 11> kTypeNames{{
@@ -63,7 +74,7 @@ double Property::toDouble() const {
 }
 
 Property& Property::setDouble(double v) {
-  if (type_ == PropertyType::Int || type_ == PropertyType::Enum) int_ = static_cast<std::int64_t>(v);
+  if (type_ == PropertyType::Int || type_ == PropertyType::Enum) int_ = toInt64(v, int_);
   else if (type_ == PropertyType::Bool) bool_ = v != 0.0;
   else number_ = v;
   expression_.clear();
@@ -98,7 +109,7 @@ Property& Property::setBool(bool v) { bool_ = v; set_ = true; return *this; }
 
 std::int64_t Property::toInt() const {
   if (type_ == PropertyType::Int || type_ == PropertyType::Enum) return int_;
-  return static_cast<std::int64_t>(toDouble());
+  return toInt64(toDouble(), 0);
 }
 Property& Property::setInt(std::int64_t v) { int_ = v; set_ = true; return *this; }
 
@@ -108,7 +119,7 @@ Property& Property::setString(std::string s) { string_ = std::move(s); set_ = tr
 Vec3 Property::toVec3() const { return vec_; }
 Property& Property::setVec3(const Vec3& v) { vec_ = v; set_ = true; return *this; }
 
-int Property::enumIndex() const { return static_cast<int>(int_); }
+int Property::enumIndex() const { return static_cast<int>(std::clamp<std::int64_t>(int_, -1, 1 << 30)); }
 
 const std::string& Property::enumName() const {
   if (int_ >= 0 && static_cast<size_t>(int_) < options_.size()) return options_[static_cast<size_t>(int_)];
@@ -203,7 +214,7 @@ void Property::fromJson(const QJsonValue& v) {
   set_ = true;
   switch (type_) {
     case PropertyType::Bool: bool_ = val.toBool(bool_); break;
-    case PropertyType::Int: int_ = static_cast<std::int64_t>(val.toDouble(static_cast<double>(int_))); break;
+    case PropertyType::Int: int_ = toInt64(val.toDouble(static_cast<double>(int_)), int_); break;
     case PropertyType::Enum: {
       // prefer the option name (robust against reordering)
       if (o.contains("name")) {
@@ -214,7 +225,10 @@ void Property::fromJson(const QJsonValue& v) {
           break;
         }
       }
-      int_ = static_cast<std::int64_t>(val.toDouble(static_cast<double>(int_)));
+      // an index outside the options (damaged or hand-edited file) keeps the default: tools
+      // index tables with enumIndex()
+      const std::int64_t idx = toInt64(val.toDouble(static_cast<double>(int_)), int_);
+      if (options_.empty() || (idx >= 0 && static_cast<size_t>(idx) < options_.size())) int_ = idx;
       break;
     }
     case PropertyType::Double:
