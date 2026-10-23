@@ -55,7 +55,8 @@ class AnchorResolver {
   ResolvedAnchor toolAnchor(const QString& id) const;
   ResolvedAnchor groupAnchor(const QString& spec) const;
   ResolvedAnchor menuAnchor(const QString& spec) const;
-  ResolvedAnchor propAnchor(const QString& name) const;
+  ResolvedAnchor propAnchor(const QString& spec) const;
+  ResolvedAnchor propWidget(const QString& name) const;
   ResolvedAnchor valueBoxAnchor(const QString& caption) const;
   ResolvedAnchor browserAnchor(const QString& path) const;
   ResolvedAnchor timelineAnchor(const QString& name) const;

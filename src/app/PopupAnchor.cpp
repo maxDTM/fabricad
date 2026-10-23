@@ -1,5 +1,6 @@
 #include "app/PopupAnchor.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -85,6 +86,24 @@ void PopupAnchor::place(QWidget* popup, QWidget* anchor) {
   QScreen* s = QGuiApplication::screenAt(a.center());
   if (!s) s = anchor->screen();
   const QRect avail = s ? s->availableGeometry() : QRect();
+  if (auto* combo = qobject_cast<QComboBox*>(anchor); combo && combo->view()) {
+    // the list opens under the combo now, not where Qt first put it: make sure all its rows
+    // (up to maxVisibleItems) fit (the theme uses plain list popups, combobox-popup: 0)
+    QAbstractItemView* view = combo->view();
+    const int rows = std::min(combo->count(), std::max(1, combo->maxVisibleItems()));
+    int rowsH = 0;
+    for (int i = 0; i < rows; ++i) rowsH += std::max(1, view->sizeHintForRow(i));
+    const int chrome = std::max(0, popup->height() - view->viewport()->height());
+    int want = rowsH + chrome;
+    if (avail.isValid()) want = std::min(want, avail.height());
+    if (debugOn())
+      qInfo().noquote() << "combo popup rowsH" << rowsH << "chrome" << chrome << "popup" << popup->size() << "viewport"
+                        << view->viewport()->size() << "row0" << view->visualRect(combo->model()->index(0, 0));
+    if (want > size.height()) {
+      size.setHeight(want);
+      popup->resize(size);
+    }
+  }
   const QPoint pos = popupPosUnder(a, size, avail, anchor->layoutDirection() == Qt::RightToLeft);
   if (debugOn())
     qInfo().noquote() << "popup" << popup->metaObject()->className() << "anchor" << anchor->objectName() << a << "qt pos"

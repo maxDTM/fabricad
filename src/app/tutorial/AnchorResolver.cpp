@@ -6,11 +6,14 @@
 #include "app/FeatureListModel.h"
 #include "app/FeatureListWidget.h"
 #include "app/MainWindow.h"
+#include "app/SegmentedControl.h"
 #include "app/Selectors.h"
 #include "app/TimelineLayout.h"
 #include "app/TimelineWidget.h"
 #include "core/Json.h"
 #include "core/ShapeUtils.h"
+#include "sketch/SketchFeature.h"
+#include "sketch/SketchProfiles.h"
 #include "viewer/ViewerWidget.h"
 
 #include <BRepAdaptor_Curve.hxx>
@@ -22,13 +25,16 @@
 #include <TopoDS.hxx>
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QApplication>
+#include <QComboBox>
 #include <QLabel>
 #include <QMenu>
 #include <QTabBar>
 #include <QToolButton>
 #include <QTreeWidget>
 
+#include <algorithm>
 #include <cmath>
 
 namespace fabricad::app::tutorial {
@@ -269,7 +275,49 @@ ResolvedAnchor AnchorResolver::menuAnchor(const QString& spec) const {
   return last;
 }
 
-ResolvedAnchor AnchorResolver::propAnchor(const QString& name) const {
+ResolvedAnchor AnchorResolver::propAnchor(const QString& spec) const {
+  // "name" or "name/Option": one cell of a segmented row, or one item of a combo (its popup row
+  // while it is open, else the closed combo with via "menu": a click opens it)
+  const int slash = spec.indexOf('/');
+  const QString name = slash < 0 ? spec : spec.left(slash);
+  const QString option = slash < 0 ? QString() : spec.mid(slash + 1);
+  ResolvedAnchor r = propWidget(name);
+  if (option.isEmpty() || !r.widget) return r;
+  if (auto* seg = qobject_cast<SegmentedControl*>(r.widget)) {
+    const QStringList opts = seg->options();
+    for (int i = 0; i < opts.size(); ++i)
+      if (textMatches(opts[i], option)) {
+        const QRect cell = seg->cellRect(i);
+        r.rect = QRect(seg->mapToGlobal(cell.topLeft()), cell.size());
+        r.point = r.rect.center();
+        return r;
+      }
+    r.found = false;
+    r.why = "no option '" + option + "' in " + name;
+    return r;
+  }
+  if (auto* combo = qobject_cast<QComboBox*>(r.widget)) {
+    for (int i = 0; i < combo->count(); ++i)
+      if (textMatches(combo->itemText(i), option)) {
+        QAbstractItemView* view = combo->view();
+        if (view && reallyVisible(view)) {
+          const QRect vr = view->visualRect(combo->model()->index(i, combo->modelColumn()));
+          r.widget = view;
+          r.rect = QRect(view->viewport()->mapToGlobal(vr.topLeft()), vr.size());
+          r.point = r.rect.center();
+          r.via.clear();
+        } else {
+          r.via = "menu";
+        }
+        return r;
+      }
+    r.found = false;
+    r.why = "no option '" + option + "' in " + name;
+  }
+  return r;
+}
+
+ResolvedAnchor AnchorResolver::propWidget(const QString& name) const {
   const QString obj = name.startsWith("prop_") ? name : "prop_" + name;
   QWidget* card = w_.commandCard();
   QWidget* hit = nullptr;
@@ -427,9 +475,30 @@ ResolvedAnchor AnchorResolver::tabCloseAnchor(const QString& which) const {
 
 namespace {
 
+/// Interior UV grid of a face, centre first; only points inside the trimmed face.
+void faceGrid(const TopoDS_Face& face, std::vector<gp_Pnt>& pts) {
+  try {
+    BRepAdaptor_Surface sf(face);
+    const double u0 = sf.FirstUParameter(), u1 = sf.LastUParameter(), v0 = sf.FirstVParameter(), v1 = sf.LastVParameter();
+    for (double fu : {0.5, 0.3, 0.7, 0.15, 0.85}) {
+      for (double fv : {0.5, 0.3, 0.7, 0.15, 0.85}) {
+        const gp_Pnt2d uv(u0 + fu * (u1 - u0), v0 + fv * (v1 - v0));
+        BRepClass_FaceClassifier cls(face, uv, 1e-6);
+        if (cls.State() == TopAbs_IN) pts.push_back(sf.Value(uv.X(), uv.Y()));
+      }
+    }
+  } catch (...) {
+  }
+}
+
 std::vector<gp_Pnt> samplePoints(const core::Document& doc, const core::ShapeRef& ref, double originSize) {
   std::vector<gp_Pnt> pts;
   if (ref.hasPoint) pts.emplace_back(ref.point.x, ref.point.y, ref.point.z);
+  if (ref.kind == core::ShapeKind::Profile && ref.hasPoint) {
+    // a sketch region: its face, so a point the floating card does not cover can be found
+    if (const auto* sk = dynamic_cast<const sketch::SketchFeature*>(doc.feature(ref.owner)))
+      if (const sketch::ProfileRegion* reg = sk->regionAt(sk->toLocal(ref.point)); reg && !reg->face.IsNull()) faceGrid(reg->face, pts);
+  }
   if (ref.isBrep() && ref.kind != core::ShapeKind::Body) {
     const TopoDS_Shape body = worldBodyShape(doc, ref.owner);
     if (!body.IsNull()) {
@@ -445,17 +514,7 @@ std::vector<gp_Pnt> samplePoints(const core::Document& doc, const core::ShapeRef
             BRepAdaptor_Curve c(TopoDS::Edge(s));
             for (double t : {0.5, 0.25, 0.75}) pts.push_back(c.Value(c.FirstParameter() + t * (c.LastParameter() - c.FirstParameter())));
           } else {
-            const TopoDS_Face face = TopoDS::Face(s);
-            BRepAdaptor_Surface sf(face);
-            const double u0 = sf.FirstUParameter(), u1 = sf.LastUParameter(), v0 = sf.FirstVParameter(), v1 = sf.LastVParameter();
-            // interior UV grid, centre first; keep points inside the trimmed face
-            for (double fu : {0.5, 0.3, 0.7}) {
-              for (double fv : {0.5, 0.3, 0.7}) {
-                const gp_Pnt2d uv(u0 + fu * (u1 - u0), v0 + fv * (v1 - v0));
-                BRepClass_FaceClassifier cls(face, uv, 1e-6);
-                if (cls.State() == TopAbs_IN) pts.push_back(sf.Value(uv.X(), uv.Y()));
-              }
-            }
+            faceGrid(TopoDS::Face(s), pts);
           }
         } catch (...) {
         }
@@ -530,15 +589,34 @@ ResolvedAnchor AnchorResolver::modelAnchor(const QString& selector, bool sketchP
     // floating command card or a value box, covers the point)
     if (QWidget* top = QApplication::widgetAt(gp); top && top != v && !(v->isAncestorOf(top) && top->inherits("QOpenGLWidget")))
       continue;
+    // the viewer's own pick, with the filter a real click uses now (a Hole accepts faces too, so
+    // a point on a fillet's rim edge may click the fillet face): the point itself, else the
+    // nearest pixel around it where the pick returns the target
     bool verified = false;
+    QPoint at = lp;
     if (!r.refs.empty()) {
-      core::ShapeRef hit;
-      if (v->pick(lp.x(), lp.y(), core::mask(r.refs.front().kind), hit)) verified = std::find(r.refs.begin(), r.refs.end(), hit) != r.refs.end();
+      const core::ShapeKindMask kinds = v->effectiveFilter() ? v->effectiveFilter() : core::mask(r.refs.front().kind);
+      auto hits = [&](QPoint q) {
+        core::ShapeRef hit;
+        if (!vr.contains(q) || !v->pick(q.x(), q.y(), kinds, hit)) return false;
+        // same entity: B-rep refs from the selector carry history names the viewer's do not
+        return std::any_of(r.refs.begin(), r.refs.end(), [&](const core::ShapeRef& t) {
+          return t.isBrep() ? t.owner == hit.owner && t.kind == hit.kind && t.index == hit.index : t == hit;
+        });
+      };
+      verified = hits(lp);
+      for (int rad = 1; !verified && rad <= 4; ++rad)
+        for (const QPoint& o : {QPoint(0, -rad), QPoint(0, rad), QPoint(-rad, 0), QPoint(rad, 0), QPoint(-rad, -rad), QPoint(rad, rad),
+                                QPoint(-rad, rad), QPoint(rad, -rad)})
+          if (!verified && hits(lp + o)) {
+            verified = true;
+            at = lp + o;
+          }
     }
-    const double d = std::hypot(lp.x() - c.x(), lp.y() - c.y()) - (verified ? 1e9 : 0);
+    const double d = std::hypot(at.x() - c.x(), at.y() - c.y()) - (verified ? 1e9 : 0);
     if (d < best) {
       best = d;
-      r.point = gp;
+      r.point = v->mapToGlobal(at);
       r.pickVerified = verified;
       r.visible = true;
     }

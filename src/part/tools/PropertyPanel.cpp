@@ -12,6 +12,9 @@
 #include "theme/Tokens.h"
 
 #include <QCheckBox>
+#include <QApplication>
+#include <QTimer>
+#include <QPointer>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -262,6 +265,19 @@ void PropertyPanel::clearInvalid(const std::string& name) {
 
 void PropertyPanel::rebuild() {
   rebuilding_ = true;
+  // the focused field (a combo whose pick triggered this rebuild) is about to be retired: hiding
+  // it would hand the focus to the next widget of the window (the title bar's app menu button,
+  // so Enter opened that menu instead of applying the command); give it to the new field instead
+  QString focusName;
+  QWidget* focus = QApplication::focusWidget();
+  // a combo's open list (its own popup window, parented to the combo) counts as that combo
+  if (focus && focus->window() != window() && focus->window()->parentWidget()) focus = focus->window()->parentWidget();
+  // (the card hosts the fields: they need not be children of this panel)
+  for (QWidget* f = focus; f && f->window() == window(); f = f->parentWidget())
+    if (f->objectName().startsWith("prop_")) {
+      focusName = f->objectName();
+      break;
+    }
   retireFormRows(form_);
   refButtons_.clear();
   numericEdits_.clear();
@@ -309,6 +325,28 @@ void PropertyPanel::rebuild() {
     if (active_.empty()) active_ = refButtons_.begin()->first;
   }
   for (auto& [name, btn] : refButtons_) btn->setChecked(name == active_);
+  if (!focusName.isEmpty() && pendingFocus_.isEmpty()) {
+    // after the event loop turn (the new rows are shown then, and a combo's list closes after
+    // the pick, Qt first handing the focus back to the retired combo); a second rebuild in the
+    // same turn keeps the name
+    pendingFocus_ = focusName;
+    QPointer<QWidget> win(window());
+    auto refocus = [this, win](bool last) {
+      const QString name = pendingFocus_;
+      if (last) pendingFocus_.clear();
+      if (!win || name.isEmpty()) return;
+      QWidget* f = QApplication::focusWidget();
+      if (f && f->objectName() == name && f->isVisible()) return;  // already there
+      if (f && f->window() != win) return;  // a popup or dialog is up: leave it
+      for (QWidget* w : win->findChildren<QWidget*>(name))
+        if (w->isVisible() && w->focusPolicy() != Qt::NoFocus) {
+          w->setFocus(Qt::OtherFocusReason);
+          break;
+        }
+    };
+    QTimer::singleShot(0, this, [refocus] { refocus(false); });
+    QTimer::singleShot(250, this, [refocus] { refocus(true); });  // the list may close (fade) later
+  }
   rebuilding_ = false;
   if (dropped) emit validityChanged();
 }
