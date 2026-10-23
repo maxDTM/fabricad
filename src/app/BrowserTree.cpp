@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/BrowserTree.h"
 
+#include "assembly/tools/ComponentPropertiesTool.h"
+
 #include "app/ThemeManager.h"
 #include "theme/Tokens.h"
 
@@ -608,7 +610,7 @@ void BrowserTree::contextMenuEvent(QContextMenuEvent* e) {
       emit runToolRequested("assembly.paste-new");
     });
     pasteNew->setEnabled(canPaste);
-    menu.addAction("Properties...", this, [this, id] { editComponentProperties(id); });
+    menu.addAction("Properties...", this, [this, id] { editComponentProperties(id); });  // COMPPROPS card when registered
   }
   if (kind == KindBody) {
     menu.addAction(resourceIcon("component"), "Create Components from Bodies", this,
@@ -685,6 +687,7 @@ void BrowserTree::keyboardSearch(const QString&) {
 }
 
 void BrowserTree::editComponentProperties(ObjectId componentId) {
+  // the fields of the COMPPROPS card (assembly/tools/ComponentPropertiesTool.h) as a dialog
   const core::Component* c = doc_.component(componentId);
   if (!c) return;
   QDialog dlg(this);
@@ -699,17 +702,32 @@ void BrowserTree::editComponentProperties(ObjectId componentId) {
   mat->addItem("");
   for (const core::Material& m : core::materialLibrary()) mat->addItem(core::qs(m.name));
   mat->setCurrentText(core::qs(c->material));
+  auto* rev = new QLineEdit(core::qs(c->revision), &dlg);
+  rev->setPlaceholderText("e.g. B");
+  auto* vendor = new QLineEdit(core::qs(c->vendor), &dlg);
+  auto* cost = new QLineEdit(c->cost > 0 ? QString::number(c->cost) : QString(), &dlg);
+  cost->setPlaceholderText("unit cost");
   form->addRow("Part number", pn);
   form->addRow("Description", desc);
   form->addRow("Material (BOM)", mat);
+  form->addRow("Revision", rev);
+  form->addRow("Vendor", vendor);
+  form->addRow("Cost", cost);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
   connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
   form->addRow(buttons);
   if (dlg.exec() != QDialog::Accepted) return;
-  if (auto cmd = makeSetComponentProperties(doc_, componentId, core::ss(pn->text().trimmed()), core::ss(desc->text().trimmed()),
-                                            core::ss(mat->currentText().trimmed())))
-    doc_.undoStack().push(std::move(cmd));
+  assembly::ComponentProps p;
+  p.partNumber = core::ss(pn->text().trimmed());
+  p.description = core::ss(desc->text().trimmed());
+  p.material = core::ss(mat->currentText().trimmed());
+  p.revision = core::ss(rev->text().trimmed());
+  p.vendor = core::ss(vendor->text().trimmed());
+  bool ok = false;
+  const double v = cost->text().trimmed().toDouble(&ok);
+  p.cost = ok && v > 0 ? v : 0.0;
+  if (auto cmd = assembly::makeSetComponentProps(doc_, componentId, p)) doc_.undoStack().push(std::move(cmd));
 }
 
 void BrowserTree::keyPressEvent(QKeyEvent* e) {

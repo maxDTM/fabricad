@@ -9,6 +9,7 @@
 #include "assembly/ComponentOps.h"
 #include "assembly/JointFeature.h"
 #include "assembly/PasteNew.h"
+#include "assembly/tools/ComponentPropertiesTool.h"
 #include "assembly/tools/ComponentTools.h"
 #include "assembly/tools/DriveJointTool.h"
 #include "assembly/tools/InterferenceTool.h"
@@ -26,6 +27,7 @@
 #include <QSaveFile>
 #include <QWidget>
 
+#include <cctype>
 #include <memory>
 
 namespace fabricad::assembly {
@@ -200,12 +202,31 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
     i.group = "EXPORT";
     i.icon = "export-bom";
     ctx.tools.registerTool(std::make_unique<LambdaTool>(i, [](ToolContext& c) {
+      // EXPORTBOM a.csv [flat|structured] [columns=item,name,partNumber,qty,mass,massTotal]
+      BomOptions opt;
+      std::vector<BomColumn> columns = defaultBomColumns();
+      std::vector<std::string> rest;
+      for (const std::string& a : c.args) {
+        std::string low = a;
+        for (char& ch : low) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        if (low == "flat" || low == "flattened") opt.structured = false;
+        else if (low == "structured" || low == "indented") opt.structured = true;
+        else if (low.rfind("columns=", 0) == 0 || low.rfind("cols=", 0) == 0) {
+          std::string err;
+          if (!parseBomColumns(a.substr(a.find('=') + 1), columns, &err)) {
+            c.showMessage(err, true);
+            return;
+          }
+        } else rest.push_back(a);
+      }
+      c.args = rest;
       std::string path = pathArgument(c, true, "Export BOM", "CSV files (*.csv)", ".csv");
       if (path.empty() || !c.document) return;
-      BomOptions opt;
       std::vector<core::ObjectId> comps = componentsOf(*c.document, c.preselection);
       if (comps.size() == 1) opt.root = comps.front();
-      std::string csv = bomToCsv(buildBom(*c.document, opt));
+      const BomTable table = buildBom(*c.document, opt);
+      // default flat seven-column output stays byte-identical to the original exporter
+      std::string csv = !opt.structured && columns == defaultBomColumns() ? bomToCsv(table) : bomToCsv(table, columns, opt.structured);
       QSaveFile f(core::qs(path));
       if (!f.open(QIODevice::WriteOnly | QIODevice::Text) || f.write(csv.data(), static_cast<qint64>(csv.size())) < 0 ||
           !f.commit()) {
@@ -215,6 +236,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
       c.showMessage("BOM written to " + path);
     }));
   }
+  registerComponentPropertiesTools(ctx.tools);  // production-features P1: COMPPROPS, MATERIAL
   FC_DEBUG("assembly module registered");
 }
 

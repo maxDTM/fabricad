@@ -15,6 +15,7 @@
 #include "core/ShapeUtils.h"
 #include "core/UndoStack.h"
 #include "core/ViewerContext.h"
+#include "part/MassProperties.h"
 #include "part/tools/FeatureTool.h"
 #include "sketch/SketchFeature.h"
 #include "sketch/SketchSession.h"
@@ -33,6 +34,7 @@
 #include <format>
 #include <functional>
 #include <optional>
+#include <sstream>
 
 namespace fabricad::app {
 
@@ -193,6 +195,9 @@ bool parseComparison(const std::vector<std::string>& args, size_t i, std::string
   tol = (op == "~" || op == "~=" || op == "approx") ? std::abs(value) * 0.001 : 0.0;
   if (i + 1 < args.size()) {
     std::string t = args[i + 1];
+    // "±0.1" / "+-0.1" as a tolerance (CHECK mass 47.1 ±0.1)
+    if (t.rfind("\xC2\xB1", 0) == 0) t = t.substr(2);
+    else if (t.rfind("+-", 0) == 0) t = t.substr(2);
     double tv;
     if (!t.empty() && t.back() == '%') {
       t.pop_back();
@@ -285,6 +290,36 @@ CheckResult evaluateCheck(const core::Document& doc, const CheckContext& ctx, co
       return finish(compare(static_cast<double>(fi.size()), op, value, tol, &why), why);
     }
     return finish(false, "unknown file check '" + what + "'");
+  }
+  // mass properties of the whole design (production-features P1):
+  //   CHECK mass 47.1 ±0.1   |   CHECK cog 5,10,15 0.01   (g, mm; tolerance absolute or n%)
+  if (first == "mass" || first == "cog" || first == "cg" || first == "centroid") {
+    const part::MassProperties mp = part::computeMassProperties(part::massItemsFor(doc, {}));
+    if (first == "mass") {
+      std::string op, err;
+      double value, tol;
+      if (!parseComparison(args, 1, op, value, tol, &err)) return finish(false, err);
+      if (op == "==" && tol == 0) tol = 1e-6 * std::max(1.0, std::abs(value));
+      std::string why;
+      return finish(compare(mp.mass, op == "==" ? "~" : op, value, tol, &why), why);
+    }
+    if (args.size() < 2) return finish(false, "usage: CHECK cog x,y,z [tolerance]");
+    std::vector<double> want;
+    std::string t = args[1];
+    for (char& ch : t)
+      if (ch == ',' || ch == ';') ch = ' ';
+    std::istringstream in(t);
+    for (double v; in >> v;) want.push_back(v);
+    if (want.size() != 3) return finish(false, "CHECK cog needs x,y,z");
+    double tol = 1e-3;
+    if (args.size() > 2) {
+      std::string tt = args[2];
+      if (tt.rfind("\xC2\xB1", 0) == 0) tt = tt.substr(2);
+      else if (tt.rfind("+-", 0) == 0) tt = tt.substr(2);
+      parseNumber(tt, tol);
+    }
+    const double d = std::hypot(mp.cog.x - want[0], mp.cog.y - want[1], mp.cog.z - want[2]);
+    return finish(d <= tol, std::format("got {}, {}, {}", fmt(mp.cog.x), fmt(mp.cog.y), fmt(mp.cog.z)));
   }
   // counts: CHECK bodies == 2
   if (auto n = countOf(doc, ctx, first)) {
