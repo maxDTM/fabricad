@@ -61,6 +61,12 @@ PropertyPanel::PropertyPanel(core::Document& doc, PartFeature& feature, QWidget*
   rebuild();
 }
 
+PropertyPanel::~PropertyPanel() {
+  // the children outlive this object's members: a field losing the focus while the widget tree
+  // is torn down must not reach the (destroyed) maps through its editingFinished handler
+  for (QLineEdit* e : findChildren<QLineEdit*>()) e->disconnect(this);
+}
+
 void PropertyPanel::setValueChangeDelay(int ms) {
   delayMs_ = std::max(0, ms);
   debounce_.setInterval(delayMs_);
@@ -125,7 +131,7 @@ QString PropertyPanel::refSource(const core::Property& p) const {
 void PropertyPanel::updateExpression(const std::string& name) {
   auto it = exprLabels_.find(name);
   const core::Property* p = feature_.property(name);
-  if (it == exprLabels_.end() || !p) return;
+  if (it == exprLabels_.end() || !it->second || !p) return;  // the label may be gone (panel teardown)
   // the `fx` line (5.4): the expression behind the value, in the value font
   const bool show = p->hasExpression() && !invalid_.count(name);
   if (show)
@@ -239,7 +245,7 @@ void PropertyPanel::refresh() {
   for (auto& [name, btn] : refButtons_) {
     if (const core::Property* p = feature_.property(name)) {
       btn->setText(refText(*p));
-      if (QLabel* src = refSources_.count(name) ? refSources_[name] : nullptr) {
+      if (QLabel* src = refSources_.count(name) ? refSources_[name].data() : nullptr) {
         src->setText(refSource(*p));
         src->setVisible(!src->text().isEmpty());
       }

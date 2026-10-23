@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
+#include <QLabel>
+#include <QPointer>
 #include <QTimer>
 #include <QWidget>
 
@@ -34,6 +36,7 @@ class PropertyPanel : public QWidget {
   Q_OBJECT
  public:
   PropertyPanel(core::Document& doc, PartFeature& feature, QWidget* parent = nullptr);
+  ~PropertyPanel() override;
 
   /// Recreate all rows (after PropertyFlags::hidden changed).
   void rebuild();
@@ -98,8 +101,8 @@ class PropertyPanel : public QWidget {
   std::map<std::string, QLineEdit*> numericEdits_;
   std::map<std::string, QComboBox*> enumCombos_;  ///< synced by refresh() (automatic operation)
   std::map<std::string, QCheckBox*> boolChecks_;  ///< synced by refresh() (automatic flip)
-  std::map<std::string, QLabel*> refSources_;     ///< chip sub-labels
-  std::map<std::string, QLabel*> exprLabels_;     ///< `fx` lines under numeric fields
+  std::map<std::string, QPointer<QLabel>> refSources_;  ///< chip sub-labels
+  std::map<std::string, QPointer<QLabel>> exprLabels_;  ///< `fx` lines under numeric fields
   std::map<std::string, QHBoxLayout*> trailSlots_;  ///< numeric field rows (trailing actions)
   std::string live_;
   bool rebuilding_ = false;
