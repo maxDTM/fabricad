@@ -634,8 +634,46 @@ bool CommandCard::focusInput(bool last) {
   return true;
 }
 
+namespace {
+// The focusable widgets of a layout in its visual order (form rows top to bottom, nested
+// layouts and widgets with their own layout in place).
+void layoutFocusOrder(QLayout* l, std::vector<QWidget*>& out) {
+  if (!l) return;
+  auto add = [&](QWidget* w) {
+    if (!w) return;
+    // hidden ones too (Tab skips them): the More options box keeps its place when it opens
+    if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy()) out.push_back(w);
+    else layoutFocusOrder(w->layout(), out);
+  };
+  if (auto* form = qobject_cast<QFormLayout*>(l)) {
+    for (int i = 0; i < form->rowCount(); ++i)
+      for (auto role : {QFormLayout::LabelRole, QFormLayout::FieldRole, QFormLayout::SpanningRole})
+        if (QLayoutItem* it = form->itemAt(i, role)) {
+          if (it->widget()) add(it->widget());
+          else layoutFocusOrder(it->layout(), out);
+        }
+    return;
+  }
+  for (int i = 0; i < l->count(); ++i) {
+    QLayoutItem* it = l->itemAt(i);
+    if (it->widget()) add(it->widget());
+    else layoutFocusOrder(it->layout(), out);
+  }
+}
+}  // namespace
+
 void CommandCard::orderFooterFocus() {
   if (!body_ || !cancel_ || !ok_) return;
+  // body rows in the order they are shown (UI2-USER-UI-FIXES-1): the segmented rows are made
+  // after the other fields (upgradeForms) and would otherwise come last in the focus chain
+  std::vector<QWidget*> order;
+  layoutFocusOrder(body_->layout(), order);
+  for (size_t i = 1; i < order.size(); ++i) QWidget::setTabOrder(order[i - 1], order[i]);
+  if (!order.empty()) {
+    QWidget::setTabOrder(order.back(), cancel_);
+    QWidget::setTabOrder(cancel_, ok_);
+    return;
+  }
   QWidget* last = nullptr;
   for (QWidget* w = body_->nextInFocusChain(); w && w != body_; w = w->nextInFocusChain()) {
     if (!body_->isAncestorOf(w)) break;
@@ -985,6 +1023,7 @@ bool CommandCard::eventFilter(QObject* o, QEvent* e) {
     QTimer::singleShot(0, this, [this] {
       if (!relayoutPending_) return;
       upgradeForms();
+      orderFooterFocus();
       updateSteps();
       relayout();
     });

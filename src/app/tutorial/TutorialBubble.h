@@ -41,7 +41,8 @@ class TutorialBubble : public QFrame {
     bool canRestore = false;
   };
   void setContent(const Content& c);
-  void setHint(const QString& text);  ///< empty hides the hint line
+  /// Empty hides the hint line. warning: a correction (status.warning); else help (text.secondary).
+  void setHint(const QString& text, bool warning = false);
   QString hint() const;
   QString plainText() const { return plain_; }
 
@@ -82,6 +83,7 @@ class TutorialBubble : public QFrame {
   bool floating_ = false;
   QString plain_;
   QString markup_;
+  bool hintWarning_ = false;
 };
 
 }  // namespace fabricad::app::tutorial

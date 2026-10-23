@@ -1,0 +1,14 @@
+SKETCH XY
+RECT
+0,0
+20,10
+FINISH
+SELECT profile:@10,5,0
+EXTRUDE 5
+OK
+SELECT body:Body1/face:top@1,1,5
+FILLET 1
+OK
+SAVE box.fcad
+EXPORTSTEP box.step pcurves=off
+EXPORTSTL box.stl quality=coarse ascii

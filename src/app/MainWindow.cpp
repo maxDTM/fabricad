@@ -2293,6 +2293,7 @@ bool MainWindow::open() {
   const QString dir = s.value("file/lastDir").toString();
   const QString path = QFileDialog::getOpenFileName(
       this, "Open", dir, "All supported (*.fcad *.step *.stp *.stl);;FabriCAD design (*.fcad);;STEP (*.step *.stp);;STL (*.stl)");
+  restoreKeyboardFocus();
   if (path.isEmpty()) return false;
   s.setValue("file/lastDir", QFileInfo(path).absolutePath());
   QString err;
@@ -2300,7 +2301,18 @@ bool MainWindow::open() {
     QMessageBox::warning(this, "Open", QString("Cannot open %1:\n%2").arg(path, err));
     return false;
   }
+  restoreKeyboardFocus();
   return true;
+}
+
+void MainWindow::restoreKeyboardFocus() {
+  // after a native / Qt file dialog the window may come back without a focus widget: typed
+  // letters then reach neither the command line nor the view's Esc (UI2-TUTORIAL-3)
+  activateWindow();
+  QWidget* f = QApplication::focusWidget();
+  if (f && f->window() == this) return;
+  if (viewer_) viewer_->setFocus(Qt::OtherFocusReason);
+  else setFocus(Qt::OtherFocusReason);
 }
 
 namespace {
@@ -2409,6 +2421,7 @@ bool MainWindow::saveAs() {
                       ? QDir(s.value("file/lastDir").toString()).filePath(core::qs(document_->name()) + ".fcad")
                       : core::qs(document_->filePath());
   QString path = QFileDialog::getSaveFileName(this, "Save As", start, "FabriCAD design (*.fcad)");
+  restoreKeyboardFocus();
   if (path.isEmpty()) return false;
   QString err;
   if (!saveTo(path, &err)) {
@@ -2614,8 +2627,14 @@ void MainWindow::openFeatureSearch() {
 }
 
 void MainWindow::toggleCommandLine() {
+  // shown but not focused (e.g. after a file dialog): Ctrl+9 focuses it instead of hiding it
+  if (commandLine_->isVisible() && (focusWidget() != commandLine_->edit() || !isActiveWindow())) {
+    activateWindow();
+    commandLine_->edit()->setFocus(Qt::ShortcutFocusReason);
+    return;
+  }
   commandLine_->setVisible(!commandLine_->isVisible());
-  if (commandLine_->isVisible()) commandLine_->edit()->setFocus();
+  if (commandLine_->isVisible()) commandLine_->edit()->setFocus(Qt::ShortcutFocusReason);
 }
 
 void MainWindow::focusCommandLine() {

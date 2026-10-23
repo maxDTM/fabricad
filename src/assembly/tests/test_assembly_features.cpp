@@ -527,8 +527,9 @@ class AssemblyFeaturesTest : public QObject {
     QVERIFY(restored);
     QCOMPARE(doc.body(t.bodyA)->component, restored->id);
     QCOMPARE(doc.featureCount(), featuresBefore + 1);  // the marker came back
+    const core::ObjectId restoredId = restored->id;  // `restored` is freed by the redo
     doc.undoStack().redo();
-    QVERIFY(!doc.component(restored->id));
+    QVERIFY(!doc.component(restoredId));
     QCOMPARE(doc.body(t.bodyA)->component, core::kRootComponentId);
   }
 
@@ -576,8 +577,9 @@ class AssemblyFeaturesTest : public QObject {
     QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
     QCOMPARE(doc.body(t.bodyB)->component, top->id);
     QCOMPARE(doc.featureCount(), features);
+    const ObjectId topId = top->id;  // `top` is freed by the redo
     doc.undoStack().redo();
-    QVERIFY(!doc.component(top->id));
+    QVERIFY(!doc.component(topId));
     QCOMPARE(doc.component(childId)->parent, core::kRootComponentId);
     QVERIFY(near(worldOrigin(doc, childId), gp_Pnt(41, 2, 3)));
   }

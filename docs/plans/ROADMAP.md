@@ -66,6 +66,10 @@ Open questions answered (tutorial.md §8). Needs steps 1–3 done (anchors on th
 10 runs in a row in the default preset, 3 each in the `alt` and `light` presets; testers report no blocker.
 Status 2026-10-23: part 1 (engine) and part 2 (the full bracket tour, its twin and checkpoints, the GUI runs in all
 three presets) are done (tutorial.md §9); open: Markdown export, off-script GUI scenario, tester rounds.
+Status 2026-10-23 (later): first mouse/keyboard tester run of the whole tour done (`docs/uiux/ui2/tutorial.md`,
+STL and reopened part match); its medium findings and the user-ui-fixes retest findings fixed in ui2/fix2, ui2/san
+(sanitizers, fuzzing) merged (`docs/uiux/ui2/SUMMARY.md`). Open: Markdown export, off-script GUI scenario, a
+second tester round, the real-Wayland popup check.
 
 ## Decisions (confirmed by the user, 2026-10-22)
 

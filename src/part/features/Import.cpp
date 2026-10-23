@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
+// OCC_CATCH_SIGNALS below turns a crash inside OCCT's STEP/STL readers into a Standard_Failure
+// (see ScopedOcctSignals); it must be defined before any OCCT header is included.
+#ifndef OCC_CONVERT_SIGNALS
+#define OCC_CONVERT_SIGNALS
+#endif
 #include "part/features/Import.h"
 
 #include "core/Document.h"
@@ -11,6 +16,7 @@
 #include "part/PartUtils.h"
 
 #include <QDateTime>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -25,8 +31,17 @@
 #include <STEPCAFControl_Reader.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
+#include <Interface_Check.hxx>
+#include <Interface_CheckIterator.hxx>
+#include <XSControl_WorkSession.hxx>
+#include <OSD.hxx>
+#include <OSD_Exception.hxx>
+#include <OSD_Signal.hxx>
+#include <Standard_ErrorHandler.hxx>
 #include <Standard_Failure.hxx>
-#include <StlAPI_Reader.hxx>
+#include <BRepBuilderAPI_MakeShapeOnMesh.hxx>
+#include <Poly_Triangulation.hxx>
+#include <RWStl.hxx>
 #include <StlAPI_Writer.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
@@ -44,15 +59,169 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstring>
 #include <cmath>
 #include <format>
 #include <functional>
 #include <mutex>
+
+#include <csignal>
+#include <pthread.h>
 #include <set>
 
 namespace fabricad::part {
 
 namespace {
+
+/// Damaged STEP files make OCCT's translators dereference null handles (an entity reference of the
+/// wrong type: StepToGeom::MakeDirection, StepGeom_Vector::Orientation ... found by fuzzing). While
+/// a reader runs, a fault signal (SIGSEGV/SIGBUS/SIGFPE/SIGILL) raised on a thread that is inside an
+/// OCCT try block (OCC_CATCH_SIGNALS here or in OCCT itself) goes to OCCT's handler, which turns it
+/// into a Standard_Failure: a clean "import failed" error, or OCCT skips the broken entity. Any
+/// other fault (another thread, our own code) goes to the previous handler (the default, Qt's or a
+/// sanitizer's) exactly as without the guard. Everything is restored afterwards; imports are
+/// serialised, the handlers being process-wide. FABRICAD_OCCT_SIGNALS=0 disables the guard.
+class ScopedOcctSignals {
+ public:
+  ScopedOcctSignals() : lock_(mutex()) {
+    if (depth()++ > 0 || qEnvironmentVariable("FABRICAD_OCCT_SIGNALS") == "0") return;
+    active_ = true;
+    pthread_sigmask(SIG_SETMASK, nullptr, &oldMask_);
+    // an alternate stack, so that a stack overflow (a STEP edge that refers to itself recurses in
+    // StepShape_OrientedEdge::EdgeStart until the stack is gone) can be handled too
+    static thread_local std::vector<char> altStack(256 * 1024);
+    stack_t ss = {};
+    ss.ss_sp = altStack.data();
+    ss.ss_size = altStack.size();
+    hasOldStack_ = sigaltstack(&ss, &oldStack_) == 0;
+    for (int s = 1; s < kSignals; ++s) saved_[s] = sigaction(s, nullptr, &old_[s]) == 0;
+    OSD::SetSignal(OSD_SignalMode_Set, false);
+    for (int s = 1; s < kSignals; ++s) {
+      if (!saved_[s]) continue;
+      if (isFault(s)) {
+        sigaction(s, nullptr, &occt()[s]);
+        previous()[s] = old_[s];
+        // SA_NODEFER: OCCT leaves its handler by longjmp, which does not restore the signal mask;
+        // a still-blocked SIGSEGV would make the next fault kill the process
+        struct sigaction a = {};
+        a.sa_sigaction = &trampoline;
+        sigemptyset(&a.sa_mask);
+        a.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
+        sigaction(s, &a, nullptr);
+      } else {
+        sigaction(s, &old_[s], nullptr);  // OSD also grabs SIGINT, SIGHUP, SIGALRM...: keep them
+      }
+    }
+  }
+  ~ScopedOcctSignals() {
+    --depth();
+    if (!active_) return;
+    for (int s = 1; s < kSignals; ++s)
+      if (saved_[s]) sigaction(s, &old_[s], nullptr);
+    if (hasOldStack_) sigaltstack(&oldStack_, nullptr);
+    pthread_sigmask(SIG_SETMASK, &oldMask_, nullptr);
+  }
+  ScopedOcctSignals(const ScopedOcctSignals&) = delete;
+  ScopedOcctSignals& operator=(const ScopedOcctSignals&) = delete;
+
+ private:
+  static constexpr int kSignals = 32;
+  static bool isFault(int s) { return s == SIGSEGV || s == SIGBUS || s == SIGFPE || s == SIGILL; }
+  static std::recursive_mutex& mutex() {
+    static std::recursive_mutex m;
+    return m;
+  }
+  static int& depth() {
+    static int d = 0;
+    return d;
+  }
+  static struct sigaction* occt() {
+    static struct sigaction a[kSignals];
+    return a;
+  }
+  static struct sigaction* previous() {
+    static struct sigaction a[kSignals];
+    return a;
+  }
+  static void trampoline(int sig, siginfo_t* info, void* context) {
+    const struct sigaction& a = Standard_ErrorHandler::IsInTryBlock() ? occt()[sig] : previous()[sig];
+    if (a.sa_flags & SA_SIGINFO) {
+      a.sa_sigaction(sig, info, context);
+    } else if (a.sa_handler != SIG_DFL && a.sa_handler != SIG_IGN) {
+      a.sa_handler(sig);
+    } else {
+      signal(sig, SIG_DFL);  // the default action: returning re-executes the fault and dies
+    }
+  }
+
+  std::lock_guard<std::recursive_mutex> lock_;
+  struct sigaction old_[kSignals] = {};
+  sigset_t oldMask_ = {};
+  stack_t oldStack_ = {};
+  bool hasOldStack_ = false;
+  bool active_ = false;
+  bool saved_[kSignals] = {};
+};
+
+/// ISO 10303-21 instance names (#12 = ...) must be unique. OCCT's parser does not refuse a file
+/// that repeats them, and with such a file StepData_StepReaderData::SetEntityNumbers can loop
+/// forever (seen by fuzzing, depending on what earlier reads left on the heap). Returns the first
+/// name defined twice, 0 when there is none. Deliberately naive: every "#<digits> =" counts as a
+/// definition, also inside a string (a damaged file can leave a quote open, so a string-aware scan
+/// would miss the duplicates; a parameter is never written "#12 =").
+long long stepDuplicateEntity(const std::string& path) {
+  QFile f(QString::fromStdString(path));
+  if (!f.open(QIODevice::ReadOnly)) return 0;
+  const QByteArray data = f.readAll();
+  const char* p = data.constData();
+  const char* const end = p + data.size();
+  std::set<long long> seen;
+  while ((p = static_cast<const char*>(std::memchr(p, '#', static_cast<size_t>(end - p)))) != nullptr) {
+    const char* q = p + 1;
+    long long id = 0;
+    while (q < end && std::isdigit(static_cast<unsigned char>(*q)) && id < (1LL << 50)) id = id * 10 + (*q++ - '0');
+    const bool digits = q > p + 1;
+    while (q < end && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n')) ++q;
+    if (digits && q < end && *q == '=' && !seen.insert(id).second) return id;
+    p = q;
+  }
+  return 0;
+}
+
+/// A STEP file whose parse left structural failures (a reference to a missing entity, a parameter
+/// of the wrong entity type or not an entity at all, a wrong parameter count) is refused before
+/// the transfer: OCCT's translators dereference those entities as null handles (fuzzing,
+/// docs/TESTING.md). Other load messages (an entity type OCCT does not know, ...) are left to
+/// OCCT as before. FABRICAD_STEP_CHECKS=1 prints the failures.
+bool stepLoadFailed(const Handle(XSControl_WorkSession)& ws) {
+  if (ws.IsNull()) return false;
+  static const char* const kStructural[] = {"unresolved", "illegal type", "not an Entity", "Count of Parameters"};
+  const bool print = qEnvironmentVariableIsSet("FABRICAD_STEP_CHECKS");
+  bool failed = false;
+  const Interface_CheckIterator checks = ws->ModelCheckList(false);
+  for (checks.Start(); checks.More(); checks.Next()) {
+    const Handle(Interface_Check)& check = checks.Value();
+    for (int i = 1; i <= check->NbFails(); ++i) {
+      const char* text = check->Fail(i, false)->ToCString();  // the message template
+      if (print) std::fprintf(stderr, "STEP_FAIL %s\n", text);
+      for (const char* k : kStructural)
+        if (std::strstr(text, k)) failed = true;
+    }
+  }
+  return failed;
+}
+
+/// A crash inside the reader that OCCT turned into an exception (SIGSEGV, stack overflow...).
+bool isSignal(const Standard_Failure& e) {
+  return e.IsKind(STANDARD_TYPE(OSD_Signal)) || e.IsKind(STANDARD_TYPE(OSD_Exception)) ||
+         (e.GetMessageString() && std::strstr(e.GetMessageString(), "Signal") != nullptr);
+}
+
+std::string failureText(const Standard_Failure& e) {
+  if (isSignal(e)) return "the file is damaged (the reader crashed)";
+  return e.GetMessageString() && *e.GetMessageString() ? e.GetMessageString() : "OCCT error";
+}
 
 std::string lowerExt(const std::string& path) {
   std::string ext = QFileInfo(QString::fromStdString(path)).suffix().toStdString();
@@ -90,7 +259,8 @@ bool isStepPath(const std::string& path) {
 
 long long fileStamp(const std::string& path) {
   QFileInfo fi(QString::fromStdString(path));
-  return fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : -2;
+  // modification time and size: a file rewritten within the timestamp granularity still changes
+  return fi.exists() ? fi.lastModified().toMSecsSinceEpoch() * 1000003LL + fi.size() : -2;
 }
 
 std::string labelName(const TDF_Label& label) {
@@ -190,14 +360,26 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
   auto result = std::make_shared<StepAssembly>();
   Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
   Handle(TDocStd_Document) xdoc;
+  ScopedOcctSignals signalGuard;
   try {
+    OCC_CATCH_SIGNALS
     app->NewDocument("BinXCAF", xdoc);
     STEPCAFControl_Reader reader;
     reader.SetNameMode(true);
     reader.SetColorMode(false);
     reader.SetLayerMode(false);
+    if (const long long dup = stepDuplicateEntity(path)) {
+      if (error) *error = std::format("could not read STEP file: the file is damaged (entity #{} is defined twice)", dup);
+      app->Close(xdoc);
+      return nullptr;
+    }
     if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
       if (error) *error = "could not read STEP file";
+      app->Close(xdoc);
+      return nullptr;
+    }
+    if (stepLoadFailed(reader.ChangeReader().WS())) {
+      if (error) *error = "could not read STEP file: the file is damaged (broken entity references)";
       app->Close(xdoc);
       return nullptr;
     }
@@ -230,8 +412,9 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
     }
     app->Close(xdoc);
   } catch (const Standard_Failure& e) {
-    if (error) *error = std::format("import failed: {}", e.GetMessageString() ? e.GetMessageString() : "OCCT error");
-    if (!xdoc.IsNull()) app->Close(xdoc);
+    if (error) *error = std::format("import failed: {}", failureText(e));
+    // after a crash inside the reader the document may be inconsistent: leak it rather than close
+    if (!isSignal(e) && !xdoc.IsNull()) app->Close(xdoc);
     return nullptr;
   }
   std::lock_guard lock(mutex);
@@ -366,11 +549,31 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
     return false;
   }
   std::string baseName = fi.completeBaseName().toStdString();
+  ScopedOcctSignals signalGuard;
   try {
+    OCC_CATCH_SIGNALS
     if (ext == "stl") {
-      StlAPI_Reader reader;
-      TopoDS_Shape s;
-      if (!reader.Read(s, path.c_str()) || s.IsNull()) {
+      // StlAPI_Reader::Read without its blind trust in the numbers: OCCT loops forever (or
+      // crashes) building faces from NaN / infinite / absurdly large vertex coordinates, which a
+      // damaged binary STL easily contains. Check the mesh first, then build the same shape.
+      Handle(Poly_Triangulation) mesh = RWStl::ReadFile(path.c_str());
+      if (mesh.IsNull() || mesh->NbTriangles() == 0) {
+        if (error) *error = "could not read STL file";
+        return false;
+      }
+      constexpr double kMaxCoord = 1e8;  // mm: 100 km
+      for (int i = 1; i <= mesh->NbNodes(); ++i) {
+        const gp_Pnt p = mesh->Node(i);
+        if (!std::isfinite(p.X()) || !std::isfinite(p.Y()) || !std::isfinite(p.Z()) || std::abs(p.X()) > kMaxCoord ||
+            std::abs(p.Y()) > kMaxCoord || std::abs(p.Z()) > kMaxCoord) {
+          if (error) *error = "could not read STL file: invalid vertex coordinates (damaged file?)";
+          return false;
+        }
+      }
+      BRepBuilderAPI_MakeShapeOnMesh converter(mesh);
+      converter.Build();
+      TopoDS_Shape s = converter.IsDone() ? converter.Shape() : TopoDS_Shape();
+      if (s.IsNull()) {
         if (error) *error = "could not read STL file";
         return false;
       }
@@ -379,9 +582,17 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
       return true;
     }
     if (ext == "step" || ext == "stp") {
+      if (const long long dup = stepDuplicateEntity(path)) {
+        if (error) *error = std::format("could not read STEP file: the file is damaged (entity #{} is defined twice)", dup);
+        return false;
+      }
       STEPControl_Reader reader;
       if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
         if (error) *error = "could not read STEP file";
+        return false;
+      }
+      if (stepLoadFailed(reader.WS())) {
+        if (error) *error = "could not read STEP file: the file is damaged (broken entity references)";
         return false;
       }
       reader.TransferRoots();
@@ -407,7 +618,8 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
       return !out.shapes.empty();
     }
   } catch (const Standard_Failure& e) {
-    if (error) *error = std::format("import failed: {}", e.GetMessageString() ? e.GetMessageString() : "OCCT error");
+    out = {};
+    if (error) *error = std::format("import failed: {}", failureText(e));
     return false;
   }
   if (error) *error = "unsupported file type: " + ext;
@@ -464,8 +676,7 @@ void ImportFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     }
     return;
   }
-  QFileInfo fi(QString::fromStdString(path));
-  long long stamp = fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : -2;
+  const long long stamp = fileStamp(path);
   if (path != cachedPath_ || stamp != cachedStamp_ || cache_.shapes.empty()) {
     std::string err;
     Imported imported;

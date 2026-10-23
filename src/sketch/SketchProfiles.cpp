@@ -131,21 +131,27 @@ std::vector<TopoDS_Shape> makeEdges(const Geometry& g, const gp_Ax3& plane) {
 }
 
 TopoDS_Shape makeEdge(const Geometry& g, const gp_Ax3& plane) {
+  // shorter than OCCT's confusion tolerance (1e-7): such an edge (left over by a failed solve)
+  // made the profile splitter crawl for 20+ seconds in BRepLib::FindValidRange
+  constexpr double kMinEdge = 1e-6;
+  // never hand NaN / infinite coordinates to OCCT (it loops in BRepLib::FindValidRange)
+  for (double v : g.p)
+    if (!std::isfinite(v)) return {};
   try {
     switch (g.type) {
       case GeomType::Point: return {};
       case GeomType::Line: {
-        if (g.length() < 1e-9) return {};
+        if (g.length() < kMinEdge) return {};
         return BRepBuilderAPI_MakeEdge(toWorld(plane, g.start()), toWorld(plane, g.end())).Edge();
       }
       case GeomType::Circle: {
-        if (g.radius() < 1e-9) return {};
+        if (g.radius() < kMinEdge) return {};
         bool mirrored = false;
         gp_Ax2 ax = circleAxes(plane, toWorld(plane, g.center()), mirrored);
         return BRepBuilderAPI_MakeEdge(gp_Circ(ax, g.radius())).Edge();
       }
       case GeomType::Arc: {
-        if (g.radius() < 1e-9 || g.sweep() < 1e-9) return {};
+        if (g.radius() < kMinEdge || g.sweep() < kMinEdge) return {};
         bool mirrored = false;
         gp_Ax2 ax = circleAxes(plane, toWorld(plane, g.center()), mirrored);
         gp_Circ circ(ax, g.radius());
@@ -233,6 +239,14 @@ std::vector<ProfileRegion> computeProfiles(const Sketch& sketch, const gp_Ax3& p
   std::vector<ProfileRegion> out;
   Pt2 mn, mx;
   if (!sketch.bbox(mn, mx, false)) return out;
+  // a sketch blown up by an unsolvable constraint set (or a damaged file) can hold NaN or
+  // astronomically large coordinates: OCCT's splitter then runs for tens of seconds or forever
+  constexpr double kMaxExtent = 1e7;  // mm
+  for (double v : {mn.x, mn.y, mx.x, mx.y})
+    if (!std::isfinite(v) || std::abs(v) > kMaxExtent) {
+      FC_WARN("sketch extent out of range, no profiles");
+      return out;
+    }
 
   // original edges, indexed by curve id
   TopTools_ListOfShape tools;

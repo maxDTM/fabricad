@@ -422,6 +422,35 @@ class ToolsTest : public QObject {
     QCOMPARE(rig.doc.featureCount(), 2);
   }
 
+  // UI2-USER-UI-FIXES-3: the text a field shows ("10 mm") is a value, not an expression, so tabbing
+  // through a field adds no `fx` line; a real expression still gets one
+  void numberWithUnitIsAValue() {
+    Rig rig;
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    rig.doc.selection().set(sk->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    core::ToolContext* ctx = rig.manager.activeContext();
+    std::unique_ptr<QWidget> w(tool->createDialog(*ctx, nullptr));
+    auto* panel = qobject_cast<PropertyPanel*>(w.get());
+    QVERIFY(panel);
+    auto* distance = panel->findChild<QLineEdit*>("prop_distance");
+    const core::Property* p = tool->feature()->property("distance");
+    QVERIFY(distance && p);
+    for (const char* text : {"10 mm", "12.5mm", "3 mm"}) {
+      distance->setText(text);
+      emit distance->textEdited(distance->text());
+      emit distance->editingFinished();
+      QVERIFY2(!p->hasExpression(), text);
+    }
+    QCOMPARE(p->toDouble(), 3.0);
+    distance->setText("10 mm * 2");
+    emit distance->textEdited(distance->text());
+    emit distance->editingFinished();
+    QVERIFY(p->hasExpression());
+    QCOMPARE(p->toDouble(), 20.0);
+  }
+
   // G3 PART-06: toggling a Bool that unhides rows (Thread Auto size, Full length) rebuilds the
   // dialog; Size / Designation / Class follow each other.
   void threadDialogShowsSizeFields() {

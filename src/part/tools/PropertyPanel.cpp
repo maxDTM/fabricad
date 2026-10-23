@@ -20,6 +20,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QRegularExpression>
 #include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
@@ -540,10 +541,11 @@ void PropertyPanel::applyNumericText(core::Property& p, QLineEdit* edit, bool im
   clearInvalid(p.name());
   markInvalid(edit, false);
   edit->setToolTip(qs(p.tooltip()));
-  // plain numbers are stored as values, anything else as an expression
-  bool plain = true;
-  for (char c : text)
-    if (!(std::isdigit(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E')) plain = false;
+  // plain numbers, also with a unit ("10 mm", the text a field shows), are stored as values,
+  // anything else as an expression: Tab through a field must not turn it into "fx 10 mm = 10 mm"
+  // and grow the card (UI2-USER-UI-FIXES-3)
+  static const QRegularExpression literal(QStringLiteral(R"(^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*(mm|cm|m|um|µm|in|ft|deg|rad|°|")?$)"));
+  const bool plain = literal.match(qs(text)).hasMatch();
   if (plain) p.setDouble(r.value.value);
   else {
     p.setExpression(text);

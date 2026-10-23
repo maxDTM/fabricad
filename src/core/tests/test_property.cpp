@@ -1,3 +1,4 @@
+#include "core/Json.h"
 #include "core/Property.h"
 
 #include <QtTest/QtTest>
@@ -37,6 +38,31 @@ class PropertyTest : public QObject {
     q.fromJson(j);
     QCOMPARE(q.enumName(), std::string("Cut"));
     QCOMPARE(q.enumIndex(), 2);
+  }
+
+  // damaged / hand-edited files (fuzzing, docs/TESTING.md): no UB, no out-of-range enum index
+  void damagedJsonValues() {
+    Property e("op", PropertyType::Enum);
+    e.setOptions({"Join", "Cut"});
+    e.setEnum("Cut");
+    e.fromJson(QJsonObject{{"value", 1e300}});
+    QCOMPARE(e.enumIndex(), 1);  // out of range: default kept
+    e.fromJson(QJsonObject{{"value", -5}});
+    QCOMPARE(e.enumIndex(), 1);
+    e.fromJson(QJsonObject{{"value", 0}});
+    QCOMPARE(e.enumIndex(), 0);
+    Property i("n", PropertyType::Int);
+    i.fromJson(QJsonObject{{"value", 1e300}});
+    QVERIFY(i.toInt() > 0);  // saturates
+    i.fromJson(QJsonObject{{"value", -1e300}});
+    QVERIFY(i.toInt() < 0);
+    Property d("d", PropertyType::Length);
+    d.setDouble(1e300);
+    QVERIFY(d.toInt() > 0);
+    QCOMPARE(idFromJson(QJsonValue(-1.0), 7), ObjectId(7));
+    QCOMPARE(idFromJson(QJsonValue(1e300), 7), ObjectId(7));
+    QCOMPARE(idFromJson(QJsonValue(2.5), 7), ObjectId(7));
+    QCOMPARE(idFromJson(QJsonValue(42.0), 7), ObjectId(42));
   }
 
   void refsRoundTrip() {

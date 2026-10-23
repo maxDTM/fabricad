@@ -98,13 +98,15 @@ void TutorialEngine::enter(int index, bool recordUndo) {
     });
   }
   emit stepChanged(index_);
-  emit hintChanged({});
+  hintWarning_ = false;
+  emit hintChanged({}, false);
 }
 
-void TutorialEngine::setHint(const QString& h) {
-  if (hint_ == h) return;
+void TutorialEngine::setHint(const QString& h, bool warning) {
+  if (hint_ == h && hintWarning_ == warning) return;
   hint_ = h;
-  emit hintChanged(h);
+  hintWarning_ = warning && !h.isEmpty();
+  emit hintChanged(h, hintWarning_);
 }
 
 void TutorialEngine::poll() {
@@ -123,16 +125,20 @@ void TutorialEngine::poll() {
     return;
   }
   wasTrue_ = false;
-  // off-script: the document changed and the step still waits a while later
+  // off-script: the document changed and the step still waits a while later. Not while a tool
+  // runs: a tool that commits early (Sketch Dimension commits the measured value, then its card
+  // waits for the typed one) is the user doing the step, not a detour.
+  const bool toolBusy = w_.toolManager().isActive();
   const int undo = query_.undoIndex();
   if (undo != lastUndo_) {
     lastUndo_ = undo;
     undoChangedAt_.start();
   }
-  if (undo > base_.undoIndex && undoChangedAt_.isValid() && undoChangedAt_.elapsed() > kOffScriptMs && hint_.isEmpty() && w_.hasDocument()) {
+  if (undo > base_.undoIndex && undoChangedAt_.isValid() && undoChangedAt_.elapsed() > kOffScriptMs && hint_.isEmpty() && !toolBusy && w_.hasDocument()) {
     const QString what = core::qs(w_.document().undoStack().undoText());
     setHint((what.isEmpty() ? QString("That changed the design.") : "That did **" + what + "**.") +
-            " Press [[Ctrl+Z]], or use ⋯ > Undo to step start.");
+            " Press [[Ctrl+Z]], or use ⋯ > Undo to step start.",
+            true);
   }
   if (!timeoutHintShown_ && s->timeoutMs > 0 && stepClock_.elapsed() > s->timeoutMs && hint_.isEmpty()) {
     timeoutHintShown_ = true;
@@ -187,7 +193,14 @@ bool TutorialEngine::undoToStepStart() {
 
 void TutorialEngine::back() {
   if (!tour_ || index_ <= 0) return;
-  const int prev = index_ - 1;
+  int prev = index_ - 1;
+  // a step that skips itself (skip_if, e.g. "the workspace is already Part") would bounce straight
+  // forward again: go back past it
+  while (prev > 0) {
+    const Step* p = tour_->stepAt(prev);
+    if (!p || !p->skipIf || !query_.eval(*p->skipIf, base_, facts_)) break;
+    --prev;
+  }
   if (w_.hasDocument() && undoAtStep_[prev] >= 0) {
     core::UndoStack& u = w_.document().undoStack();
     if (u.index() > undoAtStep_[prev]) {

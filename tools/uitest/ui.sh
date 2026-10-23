@@ -12,7 +12,7 @@
 #   ui.sh geom  <N> <file>                  widget geometry JSON of the running app (for compare.py)
 #   ui.sh compare <N> <mockup.svg> [dir]    shot + geom + compare.py (report in dir)
 #   ui.sh cvd   <in.png> <out.png> prot|deut|trit|all   colour-vision simulation (cvd.py)
-#   ui.sh stop  <N>                         kill FabriCAD and the Xwayland server for display :N
+#   ui.sh stop  <N>                         kill FabriCAD and the Xwayland server for display :N (drops its autosaves)
 #   ui.sh win   <N>                         print the FabriCAD main window id
 #
 # Each display has its own settings and data: XDG_CONFIG_HOME=$UI_LOGDIR/cfg-N and
@@ -113,7 +113,14 @@ PY
   win)   xdotool search --name FabriCAD | head -1 ;;
   stop)
     pkill -f "fabricad-ui-$n" 2>/dev/null || true
+    for _ in $(seq 20); do pgrep -f "fabricad-ui-$n" >/dev/null || break; sleep 0.1; done
     pkill -f "Xwayland :$n " 2>/dev/null || true
+    # the killed app leaves its autosaves behind; they are this display's private test data, and
+    # keeping them would show the recovery prompt on the next start (UI2-USER-UI-FIXES-5).
+    # KEEP_RECOVERY=1 keeps them (to test the recovery prompt itself).
+    if [ "${KEEP_RECOVERY:-0}" != 1 ] && [ -d "$data" ]; then
+      find "$data" -type d -name recovery -prune -exec rm -rf {} + 2>/dev/null || true
+    fi
     ;;
   *) echo "unknown command $cmd" >&2; exit 2 ;;
 esac
