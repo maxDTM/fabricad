@@ -228,6 +228,27 @@ class InspectExportTest : public QObject {
     QVERIFY(rig.hasMessage("STL mesh (fine)"));
   }
 
+  // a damaged STL (NaN / infinite / huge coordinates) is a clean error, not an endless OCCT loop
+  void stlWithInvalidCoordinates() {
+    QTemporaryDir dir;
+    auto write = [&](const char* name, const char* vertex) {
+      const QString path = dir.path() + "/" + name;
+      QFile f(path);
+      f.open(QIODevice::WriteOnly);
+      f.write(QByteArray("solid t\n facet normal 0 0 1\n  outer loop\n   vertex 0 0 0\n   vertex 1 0 0\n   vertex ") +
+              vertex + "\n  endloop\n endfacet\nendsolid t\n");
+      return path.toStdString();
+    };
+    ImportFeature::Imported out;
+    std::string err;
+    QVERIFY(ImportFeature::readFile(write("ok.stl", "0 1 0"), out, &err));
+    QCOMPARE(out.shapes.size(), size_t(1));
+    QVERIFY(!ImportFeature::readFile(write("nan.stl", "nan 1 0"), out, &err));
+    QVERIFY2(err.find("invalid vertex") != std::string::npos || err.find("could not read") != std::string::npos, err.c_str());
+    QVERIFY(!ImportFeature::readFile(write("huge.stl", "0 1e30 0"), out, &err));
+    QVERIFY(!ImportFeature::readFile(write("junk.stl", "x y z"), out, &err));
+  }
+
   // ---- STEP without pcurves (recommendation 8) ---------------------------------------------------
   void stepWithoutPcurves() {
     bool pc = true;
