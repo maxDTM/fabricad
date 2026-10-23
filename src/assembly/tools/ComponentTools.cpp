@@ -549,7 +549,8 @@ bool exportStep(ToolContext& ctx, const std::string& path) {
   }
   StepExportOptions opt;
   opt.pcurves = part::stepPcurvesDefault();
-  for (const std::string& a : ctx.args) part::applyStepOption(a, opt.pcurves);
+  opt.schema = part::io::stepSchemaDefault();
+  for (const std::string& a : ctx.args) part::applyStepOption(a, opt.pcurves, opt.schema);
   std::vector<ObjectId> comps = componentsOf(doc, ctx.preselection);
   if (comps.size() == 1) opt.root = comps.front();
   std::string err;

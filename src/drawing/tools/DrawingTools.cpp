@@ -13,6 +13,8 @@
 
 #include <QDir>
 #include <QFileDialog>
+#include "drawing/tools/ExportFaceDxfTool.h"
+
 #include <QFileInfo>
 #include <QString>
 
@@ -230,6 +232,9 @@ void registerDrawingTools(core::ToolRegistry& tools) {
   tools.registerTool(std::make_unique<ExportTool>(ExportTool::Format::Svg));
   tools.registerTool(std::make_unique<ExportTool>(ExportTool::Format::Dxf));
   tools.registerTool(std::make_unique<ExportTool>(ExportTool::Format::Csv));
+  // P3: 1:1 DXF of a face / sketch (Design workspace). Registered after the sheet export so that
+  // EXPORTDXF keeps meaning the sheet export wherever that one is enabled (drawing workspace).
+  tools.registerTool(std::make_unique<ExportFaceDxfTool>());
 }
 
 }  // namespace fabricad::drawing

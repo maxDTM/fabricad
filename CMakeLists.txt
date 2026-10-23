@@ -92,6 +92,7 @@ target_link_libraries(fabricad_occt INTERFACE
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim
   TKBO TKBool TKShHealing TKFillet TKOffset TKFeat TKMesh TKHLR
   TKXSBase TKDE TKDESTEP TKDESTL TKCDF TKLCAF TKCAF TKVCAF TKXCAF
+  TKDEIGES TKRWMesh TKDEOBJ TKDEGLTF  # P3 interop: IGES, OBJ / glTF writers (OCCT toolkits, already installed)
   Threads::Threads)
 target_include_directories(fabricad_occt INTERFACE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_definitions(fabricad_occt INTERFACE HAVE_OCCT=1)

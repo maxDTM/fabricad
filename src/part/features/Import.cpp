@@ -14,6 +14,8 @@
 #include "core/UndoStack.h"
 #include "part/ComponentCommands.h"
 #include "part/PartUtils.h"
+#include "part/io/IgesIO.h"
+#include "part/io/StepIO.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -29,6 +31,11 @@
 #include <Interface_Static.hxx>
 #include <QSettings>
 #include <STEPCAFControl_Reader.hxx>
+#include <STEPCAFControl_Writer.hxx>
+#include <StepData_StepModel.hxx>
+#include <Quantity_ColorRGBA.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
 #include <Interface_Check.hxx>
@@ -388,6 +395,7 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
       app->Close(xdoc);
       return nullptr;
     }
+    result->properties = io::readProductProperties(Handle(StepData_StepModel)::DownCast(reader.ChangeReader().Model()));
     StepAssemblyReader r{XCAFDoc_DocumentTool::ShapeTool(xdoc->Main()), *result};
     TDF_LabelSequence free;
     r.tool->GetFreeShapes(free);
@@ -425,16 +433,30 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
 
 ImportFeature::ImportFeature() : PartFeature(kType) {
   addString("filePath", "").setLabel("File");
-  addEnum("format", {"Auto", "STEP", "STL"}, 0).setLabel("Format");
+  addEnum("format", {"Auto", "STEP", "STL", "IGES"}, 0).setLabel("Format");
   addBool("oneBodyPerSolid", true).setLabel("One body per solid");
   addDouble("scale", 1.0).setLabel("Scale");
   addBool("keepStructure", true).setLabel("Keep assembly structure");
+  // STEP / IGES healing (P3): defaults off / on / off; "fix" repairs only shapes BRepCheck rejects,
+  // so valid files (and every .fcad saved before these options) keep their exact geometry
+  addBool("sew", false).setLabel("Sew faces");
+  addBool("fix", true).setLabel("Fix shape");
+  addBool("unify", false).setLabel("Unify same-domain faces");
+  addString("report", "").setLabel("Write report to");
   // STEP assembly import: the components created by prepareCommit and which part goes where
   core::Property structure("structure", core::PropertyType::Json);
   structure.setJson(QJsonObject());
   structure.setLabel("Assembly structure");
   structure.flags().hidden = true;
   addProperty(std::move(structure));
+}
+
+io::ImportOptions ImportFeature::importOptions() const {
+  io::ImportOptions o;
+  o.sew = flag("sew");
+  o.fix = flag("fix");
+  o.unify = flag("unify");
+  return o;
 }
 
 bool ImportFeature::usesStructureFile() const {
@@ -516,6 +538,11 @@ void ImportFeature::prepareCommit(core::Document& doc, core::UndoStack* undo) {
       core::Component c;
       c.name = child.name;
       c.parent = parent;
+      if (auto pp = a->properties.find(child.name); pp != a->properties.end()) {
+        c.partNumber = pp->second.partNumber;
+        c.description = pp->second.description;
+        c.material = pp->second.material;
+      }
       c.placement = scaledPlacement(child.placement, scale);
       auto def = child.part.empty() ? leafDefinitions.end() : leafDefinitions.find(child.part);
       if (def != leafDefinitions.end()) c.definition = def->second;  // another instance of a part: occurrence
@@ -541,6 +568,10 @@ void ImportFeature::prepareCommit(core::Document& doc, core::UndoStack* undo) {
 }
 
 bool ImportFeature::readFile(const std::string& path, Imported& out, std::string* error) {
+  return readFile(path, io::ImportOptions{}, out, error);
+}
+
+bool ImportFeature::readFile(const std::string& path, const io::ImportOptions& options, Imported& out, std::string* error) {
   out = {};
   std::string ext = lowerExt(path);
   QFileInfo fi(QString::fromStdString(path));
@@ -581,6 +612,22 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
       out.names.push_back(baseName);
       return true;
     }
+    if (ext == "igs" || ext == "iges") {
+      std::vector<TopoDS_Shape> shapes;
+      if (!io::readIges(path, options, shapes, &out.report, error)) return false;
+      for (const TopoDS_Shape& s : shapes) {
+        std::vector<TopoDS_Shape> solids = solidsOf(s);
+        if (solids.empty()) solids.push_back(s);
+        for (const TopoDS_Shape& x : solids) {
+          out.shapes.push_back(x);
+          out.names.push_back(baseName);
+        }
+      }
+      if (out.shapes.size() > 1)
+        for (size_t k = 0; k < out.names.size(); ++k) out.names[k] = std::format("{} {}", baseName, k + 1);
+      FC_INFO("{}", out.report.text());
+      return !out.shapes.empty();
+    }
     if (ext == "step" || ext == "stp") {
       if (const long long dup = stepDuplicateEntity(path)) {
         if (error) *error = std::format("could not read STEP file: the file is damaged (entity #{} is defined twice)", dup);
@@ -595,14 +642,33 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
         if (error) *error = "could not read STEP file: the file is damaged (broken entity references)";
         return false;
       }
+      out.report.file = path;
+      out.report.format = "STEP";
+      io::reportModel(reader.WS(), out.report);
+      out.report.roots = reader.NbRootsForTransfer();
       reader.TransferRoots();
       int n = reader.NbShapes();
       if (n == 0) {
         if (error) *error = "STEP file contains no shapes";
         return false;
       }
+      std::vector<TopoDS_Shape> roots;
+      for (int i = 1; i <= n; ++i) roots.push_back(reader.Shape(i));
+      {
+        // ShapeFix only where BRepCheck finds a problem: valid files keep their exact geometry
+        io::ImportOptions o = options;
+        if (o.fix) {
+          bool allValid = true;
+          for (const auto& r : roots)
+            if (!r.IsNull() && !BRepCheck_Analyzer(r).IsValid()) allValid = false;
+          if (allValid) o.fix = false;
+        }
+        io::healShapes(roots, o, out.report);
+        n = static_cast<int>(roots.size());
+      }
+      FC_INFO("{}", out.report.text());
       for (int i = 1; i <= n; ++i) {
-        TopoDS_Shape s = reader.Shape(i);
+        TopoDS_Shape s = roots[static_cast<size_t>(i - 1)];
         if (s.IsNull()) continue;
         std::vector<TopoDS_Shape> solids = solidsOf(s);
         if (solids.empty()) {
@@ -677,16 +743,23 @@ void ImportFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     return;
   }
   const long long stamp = fileStamp(path);
-  if (path != cachedPath_ || stamp != cachedStamp_ || cache_.shapes.empty()) {
+  const io::ImportOptions opts = importOptions();
+  if (path != cachedPath_ || stamp != cachedStamp_ || cache_.shapes.empty() || opts.sew != cachedOptions_.sew ||
+      opts.fix != cachedOptions_.fix || opts.unify != cachedOptions_.unify) {
     std::string err;
     Imported imported;
-    if (!readFile(path, imported, &err)) {
+    if (!readFile(path, opts, imported, &err)) {
       ctx.setError(err);
       return;
     }
     cache_ = std::move(imported);
     cachedPath_ = path;
     cachedStamp_ = stamp;
+    cachedOptions_ = opts;
+  }
+  if (const std::string rp = prop("report").toString(); !rp.empty() && !cache_.report.file.empty()) {
+    QFile f(QString::fromStdString(rp));
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) f.write(QByteArray::fromStdString(cache_.report.text()));
   }
   std::vector<TopoDS_Shape> shapes = cache_.shapes;
   if (std::abs(scale - 1.0) > 1e-12 && scale > 0) {
@@ -717,6 +790,11 @@ void ImportFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
 bool stepPcurvesDefault() { return QSettings().value("export/step/pcurves", true).toBool(); }
 void setStepPcurvesDefault(bool on) { QSettings().setValue("export/step/pcurves", on); }
 
+bool applyStepOption(const std::string& word, bool& pcurves, std::string& schema) {
+  if (io::applyStepSchemaOption(word, schema)) return true;
+  return applyStepOption(word, pcurves);
+}
+
 bool applyStepOption(const std::string& word, bool& pcurves) {
   std::string w = word;
   for (char& ch : w) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -728,7 +806,10 @@ bool applyStepOption(const std::string& word, bool& pcurves) {
     pcurves = true;
     return true;
   }
-  if (!w.starts_with("pcurves=")) return false;
+  if (!w.starts_with("pcurves=")) {
+    std::string schema;  // a schema word is an option too (callers that care use the 3-argument form)
+    return io::applyStepSchemaOption(word, schema);
+  }
   const std::string v = w.substr(8);
   pcurves = !(v == "off" || v == "0" || v == "no" || v == "false");
   return true;
@@ -738,24 +819,55 @@ void setStepWriterPcurves(bool pcurves) { Interface_Static::SetIVal("write.surfa
 
 bool exportStep(const std::vector<TopoDS_Shape>& shapes, const std::vector<std::string>& names, const std::string& path,
                 std::string* error, bool pcurves) {
-  (void)names;  // product names need XCAF; plain writer for now
+  StepBodyExport o;
+  o.pcurves = pcurves;
+  return exportStep(shapes, names, path, o, error);
+}
+
+bool exportStep(const std::vector<TopoDS_Shape>& shapes, const std::vector<std::string>& names, const std::string& path,
+                const StepBodyExport& opt, std::string* error) {
   if (shapes.empty()) {
     if (error) *error = "nothing to export";
     return false;
   }
   try {
-    Interface_Static::SetCVal("write.step.schema", "AP214");
-    Interface_Static::SetCVal("write.step.unit", "MM");
-    setStepWriterPcurves(pcurves);
-    STEPControl_Writer writer;
-    for (const auto& s : shapes) {
-      if (s.IsNull()) continue;
-      if (writer.Transfer(s, STEPControl_AsIs) != IFSelect_RetDone) {
-        if (error) *error = "STEP transfer failed";
-        return false;
+    // XCAF: one named product per body with its colour (the plain writer named every product
+    // "Open CASCADE STEP translator"); product properties go into the model after the transfer
+    Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+    Handle(TDocStd_Document) xdoc;
+    app->NewDocument("BinXCAF", xdoc);
+    Handle(XCAFDoc_ShapeTool) tool = XCAFDoc_DocumentTool::ShapeTool(xdoc->Main());
+    Handle(XCAFDoc_ColorTool) colors = XCAFDoc_DocumentTool::ColorTool(xdoc->Main());
+    int added = 0;
+    for (size_t i = 0; i < shapes.size(); ++i) {
+      if (shapes[i].IsNull()) continue;
+      TDF_Label l = tool->AddShape(shapes[i], Standard_False);
+      if (i < names.size() && !names[i].empty()) TDataStd_Name::Set(l, TCollection_ExtendedString(names[i].c_str(), true));
+      if (i < opt.colors.size()) {
+        const auto& c = opt.colors[i];
+        colors->SetColor(l, Quantity_ColorRGBA(c[0], c[1], c[2], c[3]), XCAFDoc_ColorSurf);
       }
+      ++added;
     }
-    if (writer.Write(path.c_str()) != IFSelect_RetDone) {
+    if (added == 0) {
+      if (error) *error = "nothing to export";
+      return false;
+    }
+    io::setStepWriterSchema(opt.schema);
+    Interface_Static::SetCVal("write.step.unit", "MM");
+    setStepWriterPcurves(opt.pcurves);
+    STEPCAFControl_Writer writer;
+    writer.SetColorMode(true);
+    writer.SetNameMode(true);
+    if (!writer.Transfer(xdoc, STEPControl_AsIs)) {
+      if (error) *error = "STEP transfer failed";
+      app->Close(xdoc);
+      return false;
+    }
+    if (!opt.properties.empty()) io::writeProductProperties(writer.ChangeWriter().Model(), opt.properties);
+    const bool ok = writer.Write(path.c_str()) == IFSelect_RetDone;
+    app->Close(xdoc);
+    if (!ok) {
       if (error) *error = "could not write " + path;
       return false;
     }

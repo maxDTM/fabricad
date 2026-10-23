@@ -13,11 +13,13 @@
 #include "part/features/Fillet.h"
 #include "part/features/Hole.h"
 #include "part/features/Import.h"
+#include "part/io/IgesIO.h"
+#include "part/io/MeshExport.h"
 #include "part/features/Pattern.h"
 #include "part/features/Revolve.h"
 #include "part/features/Shell.h"
 #include "part/features/SweepLoft.h"
-#include "part/tools/ExportStlTool.h"
+#include "part/tools/ExportMeshTool.h"
 #include "part/tools/FeatureTool.h"
 #include "part/tools/MeasureTool.h"
 #include "part/tools/SectionTool.h"
@@ -132,23 +134,87 @@ bool collectExportShapes(core::ToolContext& ctx, std::vector<TopoDS_Shape>& shap
   return !shapes.empty();
 }
 
+bool collectExportItems(core::ToolContext& ctx, std::vector<io::MeshItem>& items,
+                        std::map<std::string, io::ProductProperties>* properties) {
+  items.clear();
+  std::vector<TopoDS_Shape> shapes;
+  std::vector<std::string> names;
+  if (!collectExportShapes(ctx, shapes, names)) return false;
+  core::Document& doc = *ctx.document;
+  std::vector<core::ObjectId> bodies;
+  if (ctx.selection)
+    for (const auto& r : ctx.selection->itemsOfKind(core::mask(core::ShapeKind::Body))) bodies.push_back(r.owner);
+  if (bodies.empty()) bodies = doc.liveBodies(true);
+  size_t k = 0;
+  for (core::ObjectId id : bodies) {
+    if (doc.bodyShape(id).IsNull()) continue;
+    if (k >= shapes.size()) break;
+    io::MeshItem it;
+    it.shape = shapes[k];
+    it.name = names[k];
+    ++k;
+    if (const core::Body* b = doc.body(id)) {
+      it.color = b->color;
+      const core::Component* c = doc.component(b->component);
+      if (c && !c->isRoot()) it.component = c->name;
+      if (c && properties) {
+        io::ProductProperties p{c->partNumber, c->description, c->material.empty() ? b->material : c->material, {}};
+        if (!p.empty()) (*properties)[it.name] = p;
+      }
+    }
+    items.push_back(std::move(it));
+  }
+  return !items.empty();
+}
+
 bool exportBodies(core::ToolContext& ctx, const std::string& format) {
   std::vector<TopoDS_Shape> shapes;
   std::vector<std::string> names;
   if (!collectExportShapes(ctx, shapes, names)) return false;
   bool stl = format == "stl";
+  if (format == "iges") {
+    bool brep = true;
+    std::string path;
+    for (const std::string& a : ctx.args) {
+      if (io::applyIgesOption(a, brep)) continue;
+      if (path.empty()) path = a;
+    }
+    if (path.empty()) path = chooseFile(ctx, true, "IGES files (*.igs *.iges)", ".igs");
+    if (path.empty()) return false;
+    std::string err;
+    if (!io::exportIges(shapes, path, brep, &err)) {
+      ctx.showMessage("export failed: " + err, true);
+      return false;
+    }
+    ctx.showMessage(std::format("exported {} bod{} to {} (IGES, {})", shapes.size(), shapes.size() == 1 ? "y" : "ies", path,
+                                brep ? "BRep solids" : "trimmed surfaces"));
+    return true;
+  }
   // command line: EXPORTSTL out.stl [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad] [ascii]
   StlExportSettings st;  // built-in defaults unless options are typed
   std::string path;
-  bool pcurves = stepPcurvesDefault();  // EXPORTSTEP out.step [pcurves=off]
+  bool pcurves = stepPcurvesDefault();  // EXPORTSTEP out.step [pcurves=off] [schema=ap242]
+  std::string schema = io::stepSchemaDefault();
   for (const std::string& a : ctx.args) {
-    if (stl ? ExportStlTool::applyOption(a, st) : applyStepOption(a, pcurves)) continue;
+    if (stl ? ExportMeshTool::applyOption(a, st) : applyStepOption(a, pcurves, schema)) continue;
     if (path.empty()) path = a;
   }
   if (path.empty()) path = chooseFile(ctx, true, stl ? "STL files (*.stl)" : "STEP files (*.step *.stp)", stl ? ".stl" : ".step");
   if (path.empty()) return false;
   std::string err;
-  bool ok = stl ? exportStl(shapes, path, st.binary, st.linearDeflection, st.angularDeflectionDeg, &err) : exportStep(shapes, names, path, &err, pcurves);
+  bool ok = false;
+  if (stl) {
+    ok = exportStl(shapes, path, st.binary, st.linearDeflection, st.angularDeflectionDeg, &err);
+  } else {
+    StepBodyExport so;
+    so.schema = schema;
+    so.pcurves = pcurves;
+    std::vector<io::MeshItem> items;
+    collectExportItems(ctx, items, &so.properties);
+    for (const auto& it : items) so.colors.push_back(it.color);
+    if (so.colors.size() != shapes.size()) so.colors.clear();
+    ok = exportStep(shapes, names, path, so, &err);
+  }
   if (ok && stl)
     ctx.showMessage(std::format("STL mesh: linear deflection {} mm, angular deflection {} deg ({} rad), {}", st.linearDeflection,
                                 st.angularDeflectionDeg, st.angularDeflectionDeg * M_PI / 180.0, st.binary ? "binary" : "ascii"));
@@ -215,16 +281,16 @@ void registerPartTools(core::ModuleContext& ctx) {
 
   // INSERT / export
   {
-    auto importTool = std::make_unique<FeatureTool>(info("part.import", "Insert STEP/STL", "Import a STEP or STL file as bodies", SOLID, INSERT, 10, true, "", {"IMPORT", "INSERT"}),
+    auto importTool = std::make_unique<FeatureTool>(info("part.import", "Insert STEP/IGES/STL", "Import a STEP, IGES or STL file as bodies", SOLID, INSERT, 10, true, "", {"IMPORT", "INSERT"}),
                                                     ImportFeature::kType, [] { return std::make_unique<ImportFeature>(); });
     t.registerTool(std::move(importTool));
   }
   {
     // Import with a file chooser: picks the file, then opens the Import dialog prefilled.
-    core::ToolInfo i = info("part.import-file", "Import File...", "Choose a STEP/STL file to insert", SOLID, INSERT, 11, false, "", {"IMPORTFILE"});
+    core::ToolInfo i = info("part.import-file", "Import File...", "Choose a STEP/IGES/STL file to insert", SOLID, INSERT, 11, false, "", {"IMPORTFILE"});
     t.registerTool(std::make_unique<core::LambdaTool>(i, [](core::ToolContext& c) {
       if (!c.document) return;
-      std::string path = chooseFile(c, false, "CAD files (*.step *.stp *.stl);;STEP (*.step *.stp);;STL (*.stl)", "");
+      std::string path = chooseFile(c, false, "CAD files (*.step *.stp *.igs *.iges *.stl);;STEP (*.step *.stp);;IGES (*.igs *.iges);;STL (*.stl)", "");
       if (path.empty()) return;
       auto f = std::make_unique<ImportFeature>();
       f->prop("filePath").setString(path);
@@ -248,7 +314,35 @@ void registerPartTools(core::ModuleContext& ctx) {
     core::ToolInfo j = info("part.export-stl", "Export STL", "Export selected bodies (or all) to STL with tessellation settings",
                             "TOOLS", "EXPORT", 20, true, "", {"EXPORTSTL", "STL"});
     j.repeatable = false;
-    t.registerTool(std::make_unique<ExportStlTool>(j));
+    t.registerTool(std::make_unique<ExportMeshTool>(j));
+  }
+  {
+    // P3 interop: one Export Mesh card for every mesh format (the format from the extension), the
+    // per-format verbs on the same card, IGES and the 1:1 DXF of a face or sketch
+    core::ToolInfo i = info("part.export-mesh", "Export Mesh", "Export selected bodies (or all) as STL, OBJ, glTF/GLB or 3MF (format from the file name)",
+                            "TOOLS", "EXPORT", 21, true, "", {"EXPORTMESH", "MESH"});
+    i.repeatable = false;
+    t.registerTool(std::make_unique<ExportMeshTool>(i, std::nullopt));
+    struct Fixed {
+      const char* id;
+      const char* name;
+      const char* tip;
+      const char* verb;
+      io::MeshFormat format;
+    };
+    for (const Fixed& f : {Fixed{"part.export-obj", "Export OBJ", "Export bodies as Wavefront OBJ with an .mtl of the body colours", "EXPORTOBJ", io::MeshFormat::Obj},
+                           Fixed{"part.export-gltf", "Export glTF", "Export bodies as glTF 2.0 (binary .glb or .gltf), one node per body and component", "EXPORTGLTF", io::MeshFormat::Glb},
+                           Fixed{"part.export-3mf", "Export 3MF", "Export bodies as 3MF for 3D printing (mm, colour and name per object, components kept)", "EXPORT3MF", io::MeshFormat::ThreeMf}}) {
+      core::ToolInfo j = info(f.id, f.name, f.tip, "TOOLS", "EXPORT", 22, false, "", {f.verb});
+      j.icon = "part.export-mesh";
+      j.repeatable = false;
+      t.registerTool(std::make_unique<ExportMeshTool>(j, f.format));
+    }
+    core::ToolInfo g = info("part.export-iges", "Export IGES", "Export selected bodies (or all) to IGES (BRep solids, or trimmed surfaces with 'faces')",
+                            "TOOLS", "EXPORT", 15, false, "", {"EXPORTIGES", "IGES"});
+    g.repeatable = false;
+    t.registerTool(std::make_unique<core::LambdaTool>(g, [](core::ToolContext& c) { exportBodies(c, "iges"); }));
+    // part.export-face-dxf (EXPORTDXF in the design workspace) is registered by the drawing module: it writes via DxfWriter
   }
   {
     core::ToolInfo i = info("part.edit-feature", "Edit Feature", "Edit the selected feature", SOLID, MODIFY, 1000, false, "", {"EDITFEATURE"});
