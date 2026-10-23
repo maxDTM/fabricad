@@ -17,6 +17,11 @@ QT_SCALE_FACTOR s (device px = s x logical) is compared with the regions scaled 
 
 Widget lookup for a region ID: objectName == ID; "RibbonGroup:NAME" = a RibbonGroup whose toolbarGroup
 or section is NAME; ViewToolColumn = property overlay; StatusBar = QStatusBar; Viewer = the ViewerWidget.
+A rect may name another widget with data-widget="objectName" (FeatureList -> SidebarPanel_features: the
+mockup box includes the panel header).
+data-gate on a rect says which edges gate the layout check: "ltrb" (default, every edge), a subset such as
+"ltb" (the right edge follows content: crumbs, tab count, card body rows), or "none" (reported only: the box
+depends on the scene, such as the value box at the 3D handle, or has no widget). data-why says why.
 SPDX-License-Identifier: LGPL-2.1-or-later
 """
 import argparse
@@ -50,8 +55,12 @@ def read_regions(svg_text):
     regions = []
     for m in RECT_RX.finditer(svg_text):
         tag = m.group(0)
+        gate = re.search(r"\bdata-gate=\"([^\"]*)\"", tag)
+        widget = re.search(r"\bdata-widget=\"([^\"]*)\"", tag)
+        g = gate.group(1) if gate else "ltrb"
         regions.append({"id": m.group(1), "x": attr(tag, "x"), "y": attr(tag, "y"),
-                        "w": attr(tag, "width"), "h": attr(tag, "height")})
+                        "w": attr(tag, "width"), "h": attr(tag, "height"),
+                        "gate": "" if g == "none" else g, "widget": widget.group(1) if widget else None})
     samples = [{"token": m.group(1), "x": attr(m.group(0), "cx"), "y": attr(m.group(0), "cy")}
                for m in SAMPLE_RX.finditer(svg_text)]
     return regions, samples
@@ -67,6 +76,9 @@ def mockup_png(svg_path):
 
 
 def match_widget(rid, region, widgets):
+    if region.get("widget"):
+        rid = region["widget"]
+
     def ok(w):
         if rid.startswith("RibbonGroup:"):
             name = rid.split(":", 1)[1].upper()
@@ -209,7 +221,8 @@ def main(argv=None):
         if widgets is not None:
             w = match_widget(r["id"], r, widgets)
             if w is None:
-                res["layout"] = "missing"
+                res["layout"] = "missing" if r["gate"] else "info"
+                layout_fail += res["layout"] == "missing"
             else:
                 i = insets.get(r["id"], 0)
                 w = dict(w, x=w["x"] + i, y=w["y"] + i, w=w["w"] - 2 * i, h=w["h"] - 2 * i)
@@ -217,7 +230,12 @@ def main(argv=None):
                      (w["y"] + w["h"]) - (r["y"] + r["h"])]
                 res["widget"] = [w["x"], w["y"], w["w"], w["h"]]
                 res["edges"] = [round(v, 1) for v in d]
-                res["layout"] = "ok" if max(abs(v) for v in d) <= a.tol else "FAIL"
+                res["gate"] = r["gate"] or "none"
+                gated = [v for v, e in zip(d, "ltrb") if e in r["gate"]]
+                if not gated:
+                    res["layout"] = "info"
+                else:
+                    res["layout"] = "ok" if max(abs(v) for v in gated) <= a.tol else "FAIL"
                 layout_fail += res["layout"] == "FAIL"
         cs = shot.crop(r["x"] * sx, r["y"] * sy, r["w"] * sx, r["h"] * sy)
         cm = mock.crop(r["x"] * mx, r["y"] * my, r["w"] * mx, r["h"] * my)
@@ -243,20 +261,23 @@ def main(argv=None):
                            "mockup": "#%02X%02X%02X" % pm, "dE00": round(de(ps, pm), 2)})
 
     # text table
-    print("%-24s %-7s %-26s %-17s %s" % ("REGION", "LAYOUT", "EDGES l,t,r,b (px)", "COLOUR dE00", "SSIM"))
+    print("%-24s %-7s %-5s %-26s %-17s %s" % ("REGION", "LAYOUT", "GATE", "EDGES l,t,r,b (px)", "COLOUR dE00", "SSIM"))
     for res in results:
         c = res.get("colour", {})
         flag = "!" if c.get("dE00", 0) > 3 else " "
-        print("%-24s %-7s %-26s %-17s %s" % (
-            res["id"], res.get("layout", "-"), ",".join("%+g" % v for v in res.get("edges", [])) or "-",
+        print("%-24s %-7s %-5s %-26s %-17s %s" % (
+            res["id"], res.get("layout", "-"), res.get("gate", "-"),
+            ",".join("%+g" % v for v in res.get("edges", [])) or "-",
             ("%5.1f%s %s" % (c["dE00"], flag, c["shot"])) if c else "-",
             res.get("ssim", "-")))
     for s in sample_res:
         print("sample %-20s %s vs %s  dE00 %.1f%s" % (s["token"], s["shot"], s["mockup"], s["dE00"],
                                                      " !" if s["dE00"] > 3 else ""))
     if widgets is not None:
-        n = sum(1 for r in results if r.get("layout") in ("ok", "FAIL"))
-        print("layout: %d of %d matched regions within %g px" % (n - layout_fail, n, a.tol))
+        n = sum(1 for r in results if r.get("layout") in ("ok", "FAIL", "missing"))
+        info = sum(1 for r in results if r.get("layout") == "info")
+        print("layout: %d of %d gated regions within %g px on their gated edges (%d informative)"
+              % (n - layout_fail, n, a.tol, info))
 
     if a.json:
         with open(a.json, "w", encoding="utf-8") as f:
@@ -272,7 +293,7 @@ def write_report(a, results, samples):
     rows = []
     for r in results:
         c = r.get("colour", {})
-        bad = r.get("layout") == "FAIL"
+        bad = r.get("layout") in ("FAIL", "missing")
         crop = r.get("crop")
         imgs = ('<td><img src="%s-shot.png"></td><td><img src="%s-mockup.png"></td>' % (crop, crop)) if crop else "<td></td><td></td>"
         rows.append(

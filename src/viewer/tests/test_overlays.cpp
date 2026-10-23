@@ -5,6 +5,7 @@
 #include "viewer/ViewerWidget.h"
 
 #include "core/Document.h"
+#include "core/Selection.h"
 #include "viewer/OverlayLayout.h"
 #include "viewer/ViewportOverlays.h"
 
@@ -151,6 +152,17 @@ class OverlaysTest : public QObject {
     QCOMPARE(d->readoutText(), QString("AZ 315°  EL 35°"));
     QTest::mouseClick(d, Qt::LeftButton, {}, d->buttonRect(3).center());
     QCOMPARE(d->currentButton(), 3);  // RIGHT
+    // P5-KEYBOARD-8: arrow keys step the readout by exactly 15 degrees from ISO
+    QTest::mouseClick(d, Qt::LeftButton, {}, d->buttonRect(0).center());
+    QTest::keyClick(d, Qt::Key_Right);
+    QTest::keyClick(d, Qt::Key_Right);
+    QCOMPARE(d->readoutText(), QString("AZ 345°  EL 35°"));
+    QTest::keyClick(d, Qt::Key_Up);
+    QCOMPARE(d->readoutText(), QString("AZ 345°  EL 45°"));
+    QTest::keyClick(d, Qt::Key_Left);
+    QTest::keyClick(d, Qt::Key_Down);
+    QTest::keyClick(d, Qt::Key_Down);
+    QCOMPARE(d->readoutText(), QString("AZ 330°  EL 15°"));
   }
 
   void dialAxisTipsAndVertices() {
@@ -256,6 +268,17 @@ class OverlaysTest : public QObject {
     QVERIFY(f->segmentVisible(SelectionFilterBar::Profiles));
     QVERIFY(f->segmentActive(SelectionFilterBar::Profiles));
     QVERIFY(f->segmentRect(SelectionFilterBar::Faces).isEmpty());
+    // Extrude takes profiles and faces: none lights until something is picked, then its segment does
+    w.setSelectionFilter(core::ShapeKindMask(core::ShapeKind::Profile) | core::ShapeKind::Face);
+    QVERIFY(!f->segmentActive(SelectionFilterBar::Profiles) && !f->segmentActive(SelectionFilterBar::Faces));
+    core::ShapeRef profile;
+    profile.owner = 7;
+    profile.kind = core::ShapeKind::Profile;
+    doc.selection().set(profile);
+    QVERIFY(f->segmentActive(SelectionFilterBar::Profiles));
+    QVERIFY(!f->segmentActive(SelectionFilterBar::Faces));
+    doc.selection().set(std::vector<core::ShapeRef>{});
+    QVERIFY(!f->segmentActive(SelectionFilterBar::Profiles));
     w.setSelectionFilter(core::kAllKinds);
     QVERIFY(f->segmentVisible(SelectionFilterBar::Faces));
   }

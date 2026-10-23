@@ -23,10 +23,13 @@
 #include "core/UndoStack.h"
 #include "part/tools/FeatureTool.h"
 #include "theme/Tokens.h"
+#include "viewer/ViewerWidget.h"
+#include "viewer/ViewportOverlays.h"
 
 #include <QDockWidget>
 #include <QLineEdit>
 #include <QMenu>
+#include <QScrollBar>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QSplitter>
@@ -88,7 +91,15 @@ class TestSidebar : public QObject {
     list()->refresh();
     QCOMPARE(doc().featureCount(), 13);
   }
-  QPoint center(int r) { return list()->rowRect(r).center(); }
+  // the row scrolled into view first (the insert button is pinned over the last rows of a short list)
+  QPoint center(int r) {
+    list()->ensureVisible(r);
+    return list()->rowRect(r).center();
+  }
+  QRect rect(int r) {
+    list()->ensureVisible(r);
+    return list()->rowRect(r);
+  }
 
  private slots:
   void initTestCase() {
@@ -397,7 +408,7 @@ class TestSidebar : public QObject {
     const int before = doc().rollbackIndex();
     const int bar = list()->model().rollbackRow();
     const QPoint from = center(bar);
-    const QPoint to = list()->rowRect(rowOf("Sketch3")).topLeft() + QPoint(60, 1);
+    const QPoint to = rect(rowOf("Sketch3")).topLeft() + QPoint(60, 1);
     QTest::mousePress(list()->viewport(), Qt::LeftButton, {}, from);
     QMouseEvent move(QEvent::MouseMove, to, list()->viewport()->mapToGlobal(to), Qt::NoButton, Qt::LeftButton, {});
     QCoreApplication::sendEvent(list()->viewport(), &move);
@@ -459,12 +470,13 @@ class TestSidebar : public QObject {
     };
     // refused: Extrude1 above Sketch1
     const int count = doc().undoStack().count();
-    drag(rowOf("Extrude1"), list()->rowRect(rowOf("Sketch1")).topLeft() + QPoint(80, 2));
+    drag(rowOf("Extrude1"), rect(rowOf("Sketch1")).topLeft() + QPoint(80, 2));
     QCOMPARE(doc().undoStack().count(), count);
     QCOMPARE(msg.count(), 1);
     QVERIFY(msg.takeFirst().at(0).toString().startsWith("Cannot move Extrude1"));
     // allowed: Chamfer1 (rolled back, no dependants) up before Fillet2
     const int chamferBefore = doc().indexOf(feature("Chamfer1"));
+    list()->ensureVisible(rowOf("Chamfer1"));
     drag(rowOf("Chamfer1"), list()->rowRect(rowOf("Fillet2")).topLeft() + QPoint(80, 2));
     QCOMPARE(doc().indexOf(feature("Chamfer1")), chamferBefore - 1);
     doc().undoStack().undo();
@@ -504,6 +516,26 @@ class TestSidebar : public QObject {
     disconnect(list(), &FeatureListWidget::insertRequested, w_.get(), nullptr);
     QTest::mouseClick(list()->viewport(), Qt::LeftButton, {}, center(list()->model().insertRow()));
     QCOMPARE(ins.count(), 1);
+    // P5-MOCKUP-14: a short list keeps the insert button at its bottom, clickable, while the rows
+    // overflow; the last row scrolls into view above it
+    list()->setFixedHeight(app::FeatureListWidget::kRowH * 5);
+    settle();
+    if (list()->contentHeight() > list()->viewport()->height()) {
+      const QRect insRect = list()->rowRect(list()->model().insertRow());
+      QVERIFY(insRect.bottom() < list()->viewport()->height());
+      QVERIFY(insRect.top() >= 0);
+      QCOMPARE(list()->rowAt(insRect.center()), list()->model().insertRow());
+      QTest::mouseClick(list()->viewport(), Qt::LeftButton, {}, insRect.center());
+      QCOMPARE(ins.count(), 2);
+      // scrolled to the end, the button is back in its own place under the last row
+      list()->verticalScrollBar()->setValue(list()->verticalScrollBar()->maximum());
+      const int last = list()->model().insertRow() - 1;
+      QVERIFY(list()->rowRect(last).bottom() < list()->rowRect(list()->model().insertRow()).top());
+      list()->verticalScrollBar()->setValue(0);
+    }
+    list()->setMinimumHeight(0);
+    list()->setMaximumHeight(QWIDGETSIZE_MAX);
+    settle();
   }
 
   // --- toggles: sidebar side, timeline style ---------------------------------------------------
@@ -665,6 +697,27 @@ class TestSidebar : public QObject {
     }
   }
 
+  // EDITFEATURE (part.edit-feature) starts the editor as "<tool> edit <id>" without editFeature():
+  // the edited row turns live and no second, pending live row appears; the chip reads EDITING <name>
+  void liveRowFollowsScriptedEdit() {
+    w_->toolManager().run("part.edit-feature", {std::to_string(feature("Extrude1"))});
+    settle();
+    QTimer::singleShot(0, [] {});
+    settle();
+    if (w_->toolManager().isActive()) {
+      QCOMPARE(list()->model().liveRow(), rowOf("Extrude1"));
+      int liveRows = 0;
+      for (int r = 0; r < list()->model().rowCount(); ++r) liveRows += row(r).live;
+      QCOMPARE(liveRows, 1);
+      if (viewer::Breadcrumb* bc = w_->viewer() ? w_->viewer()->breadcrumb() : nullptr)
+        QCOMPARE(bc->chipText(), QString("EDITING Extrude1"));
+      w_->toolManager().cancel();
+      settle();
+      settle();
+      QCOMPARE(list()->model().liveRow(), -1);
+    }
+  }
+
   // --- MODEL and SELECTION ------------------------------------------------------------------
   void modelRestyle() {
     app::BrowserTree* tree = w_->browser();
@@ -677,6 +730,9 @@ class TestSidebar : public QObject {
       if (!doc().bodyShape(b->id).IsNull()) body = tree->itemForKey(QString("body:%1").arg(b->id));
     QVERIFY(body);
     QCOMPARE(body->data(0, app::BrowserTree::RoleMeta).toString(), QString("Solid"));
+    // a part with one body: that body is ACTIVE (v6 mockup, the breadcrumb's last crumb)
+    if (doc().liveBodies().size() == 1 && doc().rootComponent().children.empty())
+      QCOMPARE(body->data(0, app::BrowserTree::RoleBadge).toString(), QString("Active"));
     QCOMPARE(tree->visualItemRect(body).height(), app::BrowserTree::kRowH);
     QVERIFY(!body->icon(1).isNull());  // the eye
     QTreeWidgetItem* sketches = tree->itemForKey(QString("folder:%1:Sketches").arg(core::kRootComponentId));

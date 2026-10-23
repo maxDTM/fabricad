@@ -580,9 +580,9 @@ Double-clicking the header returns the card to the chosen placement. The positio
 HiDPI pass (phase 5, offscreen grabs at 1, 1.25, 1.5 and 2, both themes): icons are rendered at device size
 and sharp at every scale; title-bar tabs, status cells, the dial and the drawing sheet are clean. Fixed: the
 segmented control lost its top and left frame edges at 1.25 (widget origin half-way into a device pixel), now
-drawn with the hairline helpers. Open (card files, other owner): the card's `live.base` hairline is 2 device px
-at 1.5 (a 1 px `fillRect`), and the card border is a `QPen` 1 px (2 device px at 2×); both should move to
-`hairlineFrame`/`hairlineH`.
+drawn with the hairline helpers. The card border (1 device px, `hairlineFrame`) and its `live.base` hairline
+(`liveHairline()` device px, `hairlineH`) followed after phase 5 (they were 2 device px at 2× and 1.5×); the
+ctest `fabricad_app_test_command_card` checks both at 1, 1.25, 1.5 and 2 with whole and odd origins.
 
 ---
 

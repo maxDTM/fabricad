@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/CardFrame.h"
 
+#include "theme/Hairline.h"
 #include "theme/Tokens.h"
 
 #include <QPainter>
@@ -29,13 +30,12 @@ void paint(QPainter& p, const QRect& card, const Style& style) {
   p.setBrush(theme::color(Tok::SurfaceRaised));
   p.setPen(Qt::NoPen);
   p.drawRect(card);
-  p.setBrush(Qt::NoBrush);
-  p.setPen(QPen(theme::color(Tok::BorderDefault), 1));
-  p.drawRect(card.adjusted(0, 0, -1, -1));
-  if (style.live) {
-    const int w = liveHairline();
-    p.fillRect(QRect(card.left(), card.top(), card.width(), w), theme::color(Tok::LiveBase));
-  }
+  // 7.4: the border is 1 device px and the live hairline liveHairline() device px at any scale, both
+  // whole device pixels inside the card (a 1 px QPen was 2 device px at 2x, the fillRect 2 at 1.5x)
+  const QRectF cardF(card);
+  theme::hairlineFrame(p, cardF, theme::color(Tok::BorderDefault), 1);
+  if (style.live)
+    theme::hairlineH(p, cardF.top(), cardF.left(), cardF.right(), theme::color(Tok::LiveBase), liveHairline());
   if (style.brackets) {
     p.setRenderHint(QPainter::Antialiasing, true);
     QPen pen(theme::color(Tok::AccentIndicator), 1.5);

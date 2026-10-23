@@ -36,6 +36,11 @@ namespace fabricad::app {
 QString themedIconPath(const QString& logicalPath, theme::Theme th);
 /// Resource icon by bare name ("save") or path; null QIcon if it does not exist.
 QIcon resourceIcon(const QString& nameOrPath);
+/// The same artwork with its cyan accent strokes in icon.ink: neutral, monochrome app-bar actions
+/// (undo, redo, save, find; v6 mockup, P5-MOCKUP-9).
+QIcon neutralIcon(const QString& nameOrPath);
+/// The app-bar mark: an accent.solid hexagon with an accent.on F, painted from the tokens.
+QIcon appBarLogoIcon();
 /// Resource path for a bare name or path (":/icons/save.svg"); empty if it does not exist.
 QString resourceIconPath(const QString& nameOrPath);
 /// Icon for `nameOrPath`, falling back to a generated badge showing `label`'s initials.

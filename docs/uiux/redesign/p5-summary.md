@@ -72,9 +72,30 @@ How the fixes were checked:
 | Gate G blind re-run | One Sonnet T-cvd pass on the new build: crisp 1x crops, plus a conflict-curve scene and a warning-toast scene (no toast exists yet). |
 | Card body vs mockup (rest of P5-MOCKUP-3, P5-LIGHT-6) | MERGE WITH combo (today the OBJECTS TO CUT/JOIN selection input), PREVIEW switch (the tool needs a preview on/off), segment icons, DIRECTION order (mockup ONE SIDE · SYMMETRIC · TWO SIDES; the app uses the enum order), and START OFFSET (a real property the mockup omits). The plan owner should decide. |
 | Toolbar vs mockup (P5-MOCKUP-10, P5-LIGHT-6) | PROJECT, SWEEP, LOFT, PATTERN, MIRROR, SURFACE, SECTION and split arrows. These are mostly backend scope (`backend-deferred.md`). |
-| `compare.py` layout gate (P5-MOCKUP-15) | 25 of 31 fails are systematic: sidebar 326 vs 320, the mockup boxes include panel headers, and tab/tool counts differ. Regenerate the mockup `data-region` boxes from the app geometry or relax those regions. |
-| Partial-flush staleness under Xwayland | Fixed for focus changes only. Other partial repaints may show late in the same setup (P5-KEYBOARD-1 "some state changes"). This needs a Qt/driver-level look (buffer age with the GL-composed window). |
-| Low mockup gaps | P5-MOCKUP-7 (`EDITING …` chip and active filter segment), P5-MOCKUP-8 (status grid/snap icons, selection cell), P5-MOCKUP-9 (neutral app-bar icons, find button, logo), P5-MOCKUP-11 (`ACTIVE` badge), P5-MOCKUP-13 (ring around the handle, fill artefact, `ø 40` chip), P5-MOCKUP-14 (insert row hidden until scrolled), P5-LIGHT-7 (light body about 10 L darker). |
-| Low behaviour gaps | P5-TOGGLES-2 (short sidebar slot scrolls the card), P5-KEYBOARD-8 (dial arrows orbit about the view axes, not exact AZ/EL steps), dial view buttons are not separate Tab stops (Ctrl+1..7 are the keys), P5-LIGHT-2 (a rejected face stays in the PROFILES count), P5-LIGHT-4 (a just-placed drawing view stays purple until deselected), P5-LIGHT-8 (unverified). |
+| `compare.py` layout gate (P5-MOCKUP-15) | Done (section 5). |
+| Partial-flush staleness under Xwayland | Done (section 5): the root cause was a blocking vsync swap. |
+| Low mockup gaps | Done except the `ø 40` dimension chip and the taper ring (section 5). |
+| Low behaviour gaps | P5-TOGGLES-2, P5-KEYBOARD-8, P5-LIGHT-2, P5-LIGHT-4 done, P5-LIGHT-8 not reproduced (section 5). Open: dial view buttons are not separate Tab stops (Ctrl+1..7 are the keys). |
 | Value box offscreen | Without GL the box falls back near the top-left (p4 M3). It only affects headless grabs. |
 | Tester passes not yet repeated | T-keyboard and T-toggles should be re-run on the merged build (one display at a time). This includes persistence after restart and completing Extrude by keyboard only. T-tutorial waits for the tutorial. |
+
+## 5. Follow-up after the merge (branch `rm/ui`)
+
+| Item | Result |
+|---|---|
+| Card hairlines (7.4) | Card border 1 device px (`hairlineFrame`), live hairline `liveHairline()` device px (`hairlineH`) at any scale; ctest at 1, 1.25, 1.5, 2 with odd origins. |
+| Extra live row during EDITFEATURE | `EDITFEATURE` (and any `<tool> edit <id>` run) now makes the edited row live (`MainWindow::editedFeature`); no second pending row. A feature being created shows its working copy in the live row (`Extrude4  25 mm`, its feature icon) and the chip reads `EDITING Extrude4` (P5-MOCKUP-7). |
+| P5-MOCKUP-7 filter segment | With several kinds allowed, the segment of what is picked lights (the selection or the command's picks): SKETCH PROFILES while Extrude holds a profile. |
+| P5-MOCKUP-8 status bar | Grid and magnet glyphs on GRID and SNAP (caption colour, follow the on state); the right cell shows the command's picks (`PROFILE OF SKETCH3`) when the selection is empty; the command line follows the key hints. |
+| P5-MOCKUP-9 app bar | Undo, redo, save, find and help are monochrome (`neutralIcon`: the cyan accent drawn in `icon.ink`); a find button (Ctrl+F) opens the FEATURES search; the app-bar mark is the v6 accent hexagon with an F (window icon unchanged). |
+| P5-MOCKUP-11 | A part with one body marks it `ACTIVE` in MODEL (the breadcrumb's last crumb). |
+| P5-MOCKUP-13 | Shaded previews get a polygon offset toward the eye (no z-fight with the face they grow from or the profile tint). Kept: the taper ring at the end face is the taper handle (tested in `fabricad_part_test_manipulators`), the mockup omits it. Open: the `ø 40` dimension chip of the profile. |
+| P5-MOCKUP-14 | When FEATURES overflows, `+ INSERT FEATURE AT ROLLBACK` stays pinned at the bottom of the list (rows scroll under it; keyboard and `ensureVisible` stop above it). |
+| P5-MOCKUP-15 | `compare.py` reads `data-gate` (edges that gate: `ltrb`, a subset, or `none` = info) and `data-widget` (another widget, e.g. the panel with its header). The v6 regions were regenerated from the app geometry where the app is the agreed layout. A 1920x1080 GL grab of the v6 scene: 29 of 29 gated regions pass (4 informative). |
+| P5-LIGHT-7 | Light theme material reflectance x1.25: lit top `#BDC1C6` (mockup `#BFC3C8`), wall `#ACB0B4` (`#ADB0B5`). |
+| P5-KEYBOARD-1 remainder | Root cause: OCCT set swap interval 1 on the top-level window that Qt composes with GL, so every swap waited for a frame callback; under Xwayland a hidden or unfocused display then froze the window or showed input one step late (the testers' `vblank_mode=0`). The default format and OCCT now use swap interval 0 (`FABRICAD_VSYNC=1` restores vsync). Verified on :92 without `vblank_mode`: Escape, Space and F2 states show within 0.4 s. The focus-change full repaint stays. |
+| P5-TOGGLES-2 | Docked beside the expanded FEATURES, the card gets its full height while FEATURES keeps its header and four rows (1600x1000: card 473 px, no scroll); the slot follows the card's hint once its body settles. |
+| P5-KEYBOARD-8 | Dial arrows step the AZ / EL readout by exactly 15 degrees (Right twice from ISO: AZ 345 EL 35). |
+| P5-LIGHT-2 | A curved face picked for a profile input is refused at the pick with `Only planar faces can be used as profiles`; it never joins the count. |
+| P5-LIGHT-4 | A selected or highlighted drawing view keeps its lines in ink; the dashed frame in the selection colour shows the state. |
+| P5-LIGHT-8 | Not reproduced on :92: the New Drawing card draws at once (the tester's lag matches the vsync stall above). |

@@ -19,6 +19,8 @@
 #include <QWheelEvent>
 #include <Standard_WarningsRestore.hxx>
 
+#include <algorithm>
+
 #include <AIS_AnimationCamera.hxx>
 #include <AIS_ViewCube.hxx>
 #include <Aspect_DisplayConnection.hxx>
@@ -64,6 +66,9 @@ OcctView::OcctView(OcctViewListener* listener, QWidget* parent) : QOpenGLWidget(
   aDriver->ChangeOptions().buffersOpaqueAlpha = true;
   // offscreen FBOs should be always used
   aDriver->ChangeOptions().useSystemBuffer = false;
+  // FabriCAD: OCCT would set its own swap interval (1) on the top-level window's drawable, which Qt
+  // composes and swaps: keep Qt's (setupGlPlatform: 0, P5-KEYBOARD-1 stale frames under Xwayland)
+  aDriver->ChangeOptions().swapInterval = std::max(0, QSurfaceFormat::defaultFormat().swapInterval());
 
   // create viewer
   myViewer = new V3d_Viewer(aDriver);

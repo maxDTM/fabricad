@@ -44,6 +44,7 @@
 #include "core/UndoStack.h"
 #include "drawing/DrawingModule.h"
 #include "part/PartModule.h"
+#include "part/tools/FeatureTool.h"
 #include "sketch/SketchModule.h"
 #include "sketch/SketchSession.h"
 #include "viewer/OverlayHost.h"
@@ -107,7 +108,7 @@ MainWindow::WorkspaceFactory& drawingFactory() {
 
 QToolButton* appBarButton(QWidget* parent, const char* icon, const QString& tip) {
   auto* b = new QToolButton(parent);
-  b->setIcon(resourceIcon(icon));
+  b->setIcon(neutralIcon(icon));  // monochrome app-bar actions (v6, P5-MOCKUP-9)
   b->setIconSize(QSize(18, 18));
   b->setToolTip(tip);
   b->setAutoRaise(true);
@@ -301,12 +302,27 @@ void MainWindow::updateCardDockAvailability() {
   sidebar_->setCardDockAllowed(active_ && active_->isDesign() && browserDockWanted_ && !browserDock_->isHidden());
 }
 
+core::ObjectId MainWindow::editedFeature() const {
+  if (!manager_ || !manager_->isActive() || !document_) return core::kInvalidId;
+  if (editingFeature_ != core::kInvalidId && document_->feature(editingFeature_)) return editingFeature_;
+  // EDITFEATURE and other routes start the editor as "<tool> edit <id>" without editFeature(): the
+  // edited row must turn live instead of a second, pending row being added (p5 open item)
+  if (const auto* ft = dynamic_cast<const part::FeatureTool*>(manager_->activeTool()); ft && ft->isEditing())
+    if (const core::Feature* f = ft->feature(); f && document_->feature(f->id())) return f->id();
+  if (core::ToolContext* c = manager_->activeContext(); c && c->args.size() >= 2 && c->args[0] == "edit") {
+    bool ok = false;
+    const qulonglong id = QString::fromStdString(c->args[1]).toULongLong(&ok);
+    if (ok && document_->feature(static_cast<core::ObjectId>(id))) return static_cast<core::ObjectId>(id);
+  }
+  return core::kInvalidId;
+}
+
 void MainWindow::updateLiveRow() {
   if (!featureList_ || !manager_) return;
   core::ObjectId live = core::kInvalidId;
   std::optional<FeatureListModel::PendingLive> pending;
   if (manager_->isActive()) {
-    if (editingFeature_ != core::kInvalidId && document_->feature(editingFeature_)) live = editingFeature_;
+    live = editedFeature();
     if (sketch::SketchSession* s = sketch::SketchSession::current(); live == core::kInvalidId && s && s->manager() == manager_)
       live = s->sketchId();
     const core::ITool* t = manager_->activeTool();
@@ -315,7 +331,18 @@ void MainWindow::updateLiveRow() {
       const bool creates = !i.hidden && !i.keepsActiveTool && !i.checked && i.workspace == core::Workspace::Design &&
                            i.tab != "SKETCH" && i.tab != "TOOLS" && i.tab != "INSPECT" && i.group != "INSPECT" &&
                            !i.id.starts_with("app.") && !i.id.starts_with("view.");
-      if (creates) pending = FeatureListModel::PendingLive{core::qs(i.name), i.icon, {}};
+      if (creates) {
+        pending = FeatureListModel::PendingLive{core::qs(i.name), i.icon, {}};
+        // a feature tool's working copy already has its name, icon and value (v6: `Extrude 3  25 mm`)
+        if (const auto* ft = dynamic_cast<const part::FeatureTool*>(t))
+          if (const core::Feature* f = ft->feature()) {
+            pending->name = core::qs(f->name());
+            if (std::string icon = f->iconName(); !icon.empty()) pending->icon = std::move(icon);
+            pending->value = featureValueText(*document_, *f);
+            pending->type = f->type();
+            pending->folder = f->browserFolder();
+          }
+      }
     }
   }
   featureList_->setLiveFeature(live);
@@ -345,7 +372,7 @@ void MainWindow::updateBreadcrumb() {
   bc->setCrumbs(crumbs);
   QString caption, name;
   const bool command = manager_ && manager_->isActive() && !isIdleTool();
-  core::ObjectId live = command ? editingFeature_ : core::kInvalidId;
+  core::ObjectId live = command ? editedFeature() : core::kInvalidId;
   // an open sketch is being edited even while its own idle tool runs
   if (sketch::SketchSession* s = sketch::SketchSession::current(); live == core::kInvalidId && s && s->manager() == manager_)
     live = s->sketchId();
@@ -354,6 +381,11 @@ void MainWindow::updateBreadcrumb() {
     name = core::qs(f->name());
   } else if (const core::ITool* t = command ? manager_->activeTool() : nullptr; t && !t->info().hidden) {
     caption = core::qs(t->info().name);
+    // a feature being created is edited too: EDITING <its name> (5.3, v6 mockup `EDITING Extrude 3`)
+    if (const auto* ft = dynamic_cast<const part::FeatureTool*>(t); ft && ft->feature()) {
+      caption = "EDITING";
+      name = core::qs(ft->feature()->name());
+    }
   }
   bc->setLiveChip(caption, name);
   viewer_->layoutOverlayWidgets();
@@ -529,7 +561,7 @@ QWidget* MainWindow::buildAppBar() {
   auto* appMenu = new QToolButton(bar);
   appMenu->setObjectName("AppMenuButton");
   appMenu->setProperty("textStyle", "header");
-  appMenu->setIcon(resourceIcon("fabricad"));
+  appMenu->setIcon(appBarLogoIcon());  // the v6 mark; the window icon stays the application logo
   appMenu->setIconSize(QSize(18, 18));
   appMenu->setText("FabriCAD");
   appMenu->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -618,6 +650,11 @@ QWidget* MainWindow::buildAppBar() {
   auto* saveButton = appBarButton(bar, "save", "Save (Ctrl+S)");
   connect(saveButton, &QToolButton::clicked, this, [this] { save(); });
   h->addWidget(saveButton);
+  // find (v6 app bar: undo, redo, save, find, help): searches the FEATURES list by name or type
+  auto* find = appBarButton(bar, "search", "Find in features (Ctrl+F)");
+  find->setObjectName("FindButton");
+  connect(find, &QToolButton::clicked, this, [this] { openFeatureSearch(); });
+  h->addWidget(find);
   auto* help = appBarButton(bar, "help", "Help");
   help->setPopupMode(QToolButton::InstantPopup);
   auto* helpMenu = new QMenu(help);
@@ -640,7 +677,9 @@ QWidget* MainWindow::buildAppBar() {
 
 void MainWindow::addStatusCells() {
   QStatusBar* sb = statusBar();
-  sb->addPermanentWidget(commandLine_);
+  // the command line follows the key hints (v6: `ENTER APPLY ESC CANCEL TAB NEXT FIELD | > extrude 25`,
+  // P5-MOCKUP-8); the fixed cells stay at the right
+  sb->insertWidget(3, commandLine_);
   sb->addPermanentWidget(sketchLabel_);
   sb->addPermanentWidget(occtCell_);
   sb->addPermanentWidget(unitsLabel_);
@@ -774,9 +813,11 @@ void MainWindow::buildStatusBar() {
   occtCell_->setValue(QString(OCC_VERSION_STRING));
   occtCell_->setToolTip(QString("Open CASCADE Technology %1").arg(OCC_VERSION_COMPLETE));
   gridCell_ = new StatusCell("Grid", sb);
+  gridCell_->setGlyph(StatusCell::Glyph::Grid);
   gridCell_->setToolTip("Layout grid (click to show or hide)");
   gridCell_->setClickAction([this] { runCommand("view.grid"); QTimer::singleShot(0, this, &MainWindow::updateViewCells); });
   snapCell_ = new StatusCell("Snap", sb);
+  snapCell_->setGlyph(StatusCell::Glyph::Snap);
   snapCell_->setToolTip("Snap to grid in sketches (click to toggle)");
   snapCell_->setClickAction([this] { runCommand("view.snap"); QTimer::singleShot(0, this, &MainWindow::updateViewCells); });
   rebuildMeter_ = new RebuildMeter(sb);
@@ -1612,6 +1653,7 @@ void MainWindow::connectTabSignals(DocumentTab& tabRef) {
     connect(viewer, &viewer::ViewerWidget::highlightedChanged, this, [this, tab, viewer] {
       if (tab != active_) return;
       if (SelectionPanel* sp = sidebar_->selectionPanel()) sp->setPicked(viewer->highlightedRefs());
+      scheduleSelectionStatus();
     });
     // phase 4 overlays: the card, palette and view-tool column follow the viewer's overlays
     connect(viewer, &viewer::ViewerWidget::overlayGeometryChanged, this, [this, tab] {
@@ -2061,7 +2103,11 @@ void MainWindow::scheduleSelectionStatus() {
 
 void MainWindow::updateSelectionStatus() {
   if (!document_) return;
-  selectionLabel_->setText(core::qs(describeSelection(*document_, document_->selection().items())));
+  std::vector<ShapeRef> items = document_->selection().items();
+  // a command's picks (Extrude's profile) live in the tool, not in the selection: the cell at the
+  // right of the status bar shows them as the SELECTION panel does (v6 `1 PROFILE`, P5-MOCKUP-8)
+  if (items.empty() && viewer_ && manager_ && manager_->isActive()) items = viewer_->highlightedRefs();
+  selectionLabel_->setText(core::qs(describeSelection(*document_, items)));
 }
 
 void MainWindow::updateSketchStatus() {
@@ -2549,6 +2595,15 @@ void MainWindow::openCommandSearch() {
   }
 }
 
+void MainWindow::openFeatureSearch() {
+  if (!active_ || !active_->isDesign()) return;
+  if (browserDock_->isHidden()) {
+    browserDock_->show();
+    browserDockWanted_ = true;
+  }
+  sidebar_->openFeatureSearch();
+}
+
 void MainWindow::toggleCommandLine() {
   commandLine_->setVisible(!commandLine_->isVisible());
   if (commandLine_->isVisible()) commandLine_->edit()->setFocus();
@@ -2763,6 +2818,10 @@ bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, boo
           if (manager_->triggerShortcut(sc)) return true;
           break;
         }
+      }
+      if (route.sequence == "Ctrl+F") {  // the app bar's find (no tool owns it)
+        openFeatureSearch();
+        return true;
       }
       return false;
     }

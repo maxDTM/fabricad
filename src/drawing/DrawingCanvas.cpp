@@ -170,8 +170,13 @@ void DisplayListItem::paint(QPainter* p, const QStyleOptionGraphicsItem* opt, QW
   if (selected_) c = selectColor();
   if (busy_ && list_.curves.empty()) c = busyColor();
   p->setRenderHint(QPainter::Antialiasing, true);
-  SheetRenderer::paint(*p, list_, c, font_);
-  const bool frame = (kind_ == HitKind::View || kind_ == HitKind::PartsList) && (selected_ || hovered_ || highlighted_ || busy_);
+  // a selected (or highlighted) view keeps its lines in ink, black on the white sheet: the dashed
+  // frame in the selection colour shows the state (P5-LIGHT-4: a just-placed view drew every line
+  // purple until the sheet was clicked)
+  const bool block = kind_ == HitKind::View || kind_ == HitKind::PartsList;
+  const QColor lines = block && !hovered_ && !(busy_ && list_.curves.empty()) ? color_ : c;
+  SheetRenderer::paint(*p, list_, lines, font_);
+  const bool frame = block && (selected_ || hovered_ || highlighted_ || busy_);
   if (frame || !error_.empty()) {
     QPen pen(c, 0.25, Qt::DashLine);
     pen.setCosmetic(false);

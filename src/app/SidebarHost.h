@@ -67,6 +67,8 @@ class SidebarHost : public QWidget {
   SelectionPanel* selectionPanel() const { return selection_; }
   QSplitter* splitter() const { return splitter_; }
   QLineEdit* featureSearch() const { return search_; }
+  /// Show the FEATURES search field (expanding FEATURES) and focus it; its text is selected.
+  void openFeatureSearch();
 
   /// The active tab's widgets (null for a drawing tab): the stacks switch, the SELECTION panel
   /// and the feature-selection watch follow the document.
@@ -127,6 +129,7 @@ class SidebarHost : public QWidget {
  protected:
   void paintEvent(QPaintEvent* e) override;
   void resizeEvent(QResizeEvent* e) override;
+  bool eventFilter(QObject* o, QEvent* e) override;
 
  private:
   void applyLayout();
@@ -162,6 +165,8 @@ class SidebarHost : public QWidget {
   bool filterFeatureSelection_ = false;
   bool dropHighlight_ = false;
   bool applying_ = false;
+  int appliedCardHint_ = -1;  ///< card height hint the last applyLayout() used
+  bool cardRelayoutQueued_ = false;
 };
 
 }  // namespace fabricad::app
