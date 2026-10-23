@@ -494,7 +494,10 @@ void SketchSession::renderGeometry() {
     for (const auto& pl : g.polylines(72)) {
       std::vector<Vec3> pts;
       for (const Pt2& p : pl) pts.push_back(toWorld(p));
-      addPolyline(pts, lineStyle(color, selected ? 3.0f : 2.0f, dashed));
+      // a conflicting curve is also twice as wide: its crimson is lost under protan / deutan, and a
+      // dash would read as construction (P5-CVD-3, gate G)
+      const float width = selected ? 3.0f : st == GeometryStatus::Conflicting ? 4.0f : 2.0f;
+      addPolyline(pts, lineStyle(color, width, dashed));
     }
     if (g.isSpline() && g.type == GeomType::Spline) {
       // control polygon (thin dashed), Fusion shows it for control-point splines
