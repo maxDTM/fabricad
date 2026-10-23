@@ -83,7 +83,8 @@ SELECT profile:@75,240,0
 EXTRUDE 19
 operation=New Body
 OK
-RENAME body:Body3 Rail
+LIST bodies
+RENAME body:Body1 Rail
 SKETCH XY
 RECT
 150,200
