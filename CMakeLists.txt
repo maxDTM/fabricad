@@ -36,6 +36,7 @@ option(FABRICAD_BUILD_TESTS "Build unit tests" ON)
 option(FABRICAD_USE_LLD "Link with lld when available (faster, less RAM)" ON)
 option(FABRICAD_WERROR "Treat warnings as errors" OFF)
 option(FABRICAD_SANITIZE "Build with AddressSanitizer + UBSan (CI crash hunting; see scripts/asan-loop.sh)" OFF)
+option(FABRICAD_FUZZ "Build the fuzz drivers in tests/fuzz (libFuzzer with clang, else a mutation driver; docs/TESTING.md)" OFF)
 
 # ---------------------------------------------------------------------------
 # Dependencies (all system packages; nothing is downloaded or built here)
@@ -65,6 +66,15 @@ if(FABRICAD_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g)
   add_link_options(-fsanitize=address,undefined)
   message(STATUS "FabriCAD: AddressSanitizer + UBSan enabled")
+endif()
+if(FABRICAD_FUZZ AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  # coverage instrumentation for libFuzzer in every module; only the fuzz drivers link the runtime
+  add_compile_options(-fsanitize=fuzzer-no-link)
+  set(FABRICAD_LIBFUZZER ON)
+  message(STATUS "FabriCAD: fuzz drivers use libFuzzer")
+elseif(FABRICAD_FUZZ)
+  set(FABRICAD_LIBFUZZER OFF)
+  message(STATUS "FabriCAD: fuzz drivers use the built-in mutation driver (no clang)")
 endif()
 
 # Linker: lld if available (requested by option), otherwise system default.
@@ -118,6 +128,9 @@ if(FABRICAD_BUILD_TESTS)
   add_subdirectory(tests/scripts) # owner: ui agent (command scripts run by the real executable)
   add_subdirectory(tests/chair)   # chair benchmark regression (docs/comparison/CHAIR_SPEC.md)
   add_subdirectory(tests/tutorial) # headless twin of the guided bracket tour (docs/tutorials/BRACKET_SPEC.md)
+endif()
+if(FABRICAD_FUZZ)
+  add_subdirectory(tests/fuzz)    # fuzz drivers: .fcad loader, .fcs scripts, STEP/STL import (docs/TESTING.md)
 endif()
 
 # Install rules: binary, .desktop, MIME type, hicolor icons, licences (cmake/FabriCADInstall.cmake, packaging/)

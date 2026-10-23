@@ -79,7 +79,13 @@ class Builder {
     }
     if (res.ok()) {
       sys_.applySolution();
-      if (collapsed()) {
+      // a "successful" solve of contradictory constraints (e.g. a line coincident with itself
+      // end to end, from a damaged file) can leave NaN in the unknowns: keep the old geometry
+      if (!std::all_of(buf_.begin(), buf_.end(), [](double v) { return std::isfinite(v); })) {
+        sys_.undoSolution();
+        res.status = SolveResult::Status::Failed;
+        res.message = "solver failed to converge";
+      } else if (collapsed()) {
         // Degenerate solution (zero-length line, zero radius): the constraints are
         // inconsistent for real geometry. Keep the previous geometry and report a conflict.
         for (const auto& [id, slot] : slots_)

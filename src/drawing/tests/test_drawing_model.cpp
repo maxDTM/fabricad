@@ -113,15 +113,18 @@ class ModelTest : public QObject {
     DrawingView& base = fx.model->addBaseView(s, {core::ShapeRef::body(fx.bodyId)}, ViewOrientation::Front, 1.0, {100, 150});
     core::ObjectId baseId = base.id;
     DrawingView* right = fx.model->addProjectedView(s, baseId, ProjectionDirection::Right, {180, 142});
+    // each returned pointer is only valid until the next view is added (the views vector grows)
     QVERIFY(right);
     QCOMPARE(right->alignment, ViewAlignment::Horizontal);
     QVERIFY(near(right->position.y, 150));  // aligned with the parent
+    const core::ObjectId rightId = right->id;
     DrawingView* above = fx.model->addProjectedView(s, baseId, ProjectionDirection::Above, {103, 80});
     QCOMPARE(above->alignment, ViewAlignment::Vertical);
     QVERIFY(near(above->position.x, 100));
+    const core::ObjectId aboveId = above->id;
     DrawingView* iso = fx.model->addProjectedView(s, baseId, ProjectionDirection::AboveRight, {200, 80});
     QCOMPARE(iso->alignment, ViewAlignment::None);
-    core::ObjectId rightId = right->id, aboveId = above->id, isoId = iso->id;
+    const core::ObjectId isoId = iso->id;
     fx.model->updateGeometry();
     // third angle: right view shows Y x Z = 20 x 30, top view shows X x Y = 10 x 20
     QVERIFY(near(fx.model->view(rightId)->bbox.width(), 20.0, 1e-6));

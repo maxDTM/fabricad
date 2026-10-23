@@ -4,7 +4,11 @@
 #include "sketch/SketchCurves.h"
 #include "support/SketchTestHelpers.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QtTest/QtTest>
+
+#include <cmath>
 
 using namespace fabricad::sketch;
 using namespace fabricad::sketch::test;
@@ -82,6 +86,29 @@ class SolverTest : public QObject {
     QCOMPARE(r.status, SolveResult::Status::Conflicting);
     QVERIFY(sk.geometry(l)->length() > 1.0);  // geometry restored
     QCOMPARE(sk.statusOf(l), GeometryStatus::Conflicting);
+  }
+
+  // fuzzing (docs/TESTING.md): a line coincident end-to-start with itself plus a length left NaN
+  // in the geometry, which then made OCCT's profile splitter crawl for 20+ seconds
+  void contradictoryConstraintsNeverLeaveNaN() {
+    const char* json = R"({"geometry":[{"id":1,"p":[0,0,20,0],"type":"Line"},{"id":2,"p":[20,0,20,10],"type":"Line"},
+      {"id":3,"p":[20,10,0,10],"type":"Line"},{"id":4,"p":[0,10,0,0],"type":"Line"}],"constraints":[
+      {"a":{"g":1,"pos":"end"},"b":{"g":2,"pos":"start"},"id":1,"type":"Coincident"},
+      {"a":{"g":2,"pos":"end"},"b":{"g":2,"pos":"start"},"id":2,"type":"Coincident"},
+      {"a":{"g":3,"pos":"end"},"b":{"g":4,"pos":"start"},"id":3,"type":"Coincident"},
+      {"a":{"g":4,"pos":"end"},"b":{"g":1,"pos":"start"},"id":4,"type":"Coincident"},
+      {"a":{"g":1},"id":5,"type":"Horizontal"},{"a":{"g":3},"id":6,"type":"Horizontal"},
+      {"a":{"g":2},"id":7,"type":"Vertical"},{"a":{"g":4},"id":8,"type":"Vertical"},
+      {"a":{"g":1,"pos":"start"},"id":9,"name":"origin","type":"Fix"},
+      {"a":{"g":1},"id":10,"name":"d1","type":"Distance","value":20},
+      {"a":{"g":2},"id":11,"name":"d2","type":"Distance","value":10}]})";
+    Sketch sk;
+    sk.fromJson(QJsonDocument::fromJson(json).object());
+    QCOMPARE(sk.geometries().size(), size_t(4));
+    SolveResult r = sk.solve();
+    QVERIFY(!r.ok() || r.status == SolveResult::Status::Conflicting || r.status == SolveResult::Status::Success);
+    for (const Geometry& g : sk.geometries())
+      for (double v : g.p) QVERIFY2(std::isfinite(v), qPrintable(QString("geometry %1").arg(g.id)));
   }
 
   void redundantConstraintsDetected() {

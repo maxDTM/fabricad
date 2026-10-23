@@ -297,6 +297,7 @@ class CalloutToolsTest : public QObject {
     QCOMPARE(sec.type, ViewType::Section);
     QCOMPARE(sec.section.points.size(), size_t(4));
     QVERIFY(!sec.section.aligned);
+    const std::string secLabel = sec.label;  // `sec` dangles once the next view is added
     fx.model->updateGeometry();
     QVERIFY2(fx.sheet().views.back().geometryValid, fx.sheet().views.back().error.c_str());
     // aligned: arm through the countersink, bend at the counterbore, arm upwards
@@ -309,7 +310,7 @@ class CalloutToolsTest : public QObject {
     QCOMPARE(al.section.points.size(), size_t(3));
     fx.model->updateGeometry();
     QVERIFY2(fx.sheet().views.back().geometryValid, fx.sheet().views.back().error.c_str());
-    QVERIFY(fx.sheet().views.back().label != sec.label);
+    QVERIFY(fx.sheet().views.back().label != secLabel);
   }
 
   void revisionTools() {

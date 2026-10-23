@@ -1,0 +1,16 @@
+SET plate_t=10 mm
+SKETCH XY
+RECT
+0,0
+40,30
+CIRCLE
+70,15
+12
+DIMEDIT 10 plate_t
+FINISH
+SELECT profile:@5,5,0
+EXTRUDE plate_t
+OK
+SET plate_t=0
+LIST features
+INFO sketch:Sketch1

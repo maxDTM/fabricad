@@ -6,6 +6,8 @@
 
 #include <QJsonArray>
 
+#include <algorithm>
+
 namespace fabricad::core {
 
 QJsonObject Body::toJson() const {
@@ -30,7 +32,7 @@ Body Body::fromJson(const QJsonObject& o) {
   b.visible = o["visible"].toBool(true);
   QJsonArray c = o["color"].toArray();
   if (c.size() == 4)
-    for (int i = 0; i < 4; ++i) b.color[static_cast<size_t>(i)] = static_cast<float>(c[i].toDouble());
+    for (int i = 0; i < 4; ++i) b.color[static_cast<size_t>(i)] = static_cast<float>(std::clamp(c[i].toDouble(), 0.0, 1.0));
   b.material = ss(o["material"].toString());
   b.density = o["density"].toDouble(0.0);
   return b;

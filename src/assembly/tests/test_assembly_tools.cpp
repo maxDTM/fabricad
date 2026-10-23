@@ -132,8 +132,9 @@ class AssemblyToolsTest : public QObject {
     QCOMPARE(h.doc.activeComponent(), c->id);
     QCOMPARE(h.doc.featureCount(), features + 1);  // NewComponent timeline marker
     QCOMPARE(h.doc.featureAt(features)->type(), std::string("NewComponent"));
+    const core::ObjectId cid = c->id;  // `c` is freed by the undo
     h.doc.undoStack().undo();
-    QVERIFY(!h.doc.component(c->id));
+    QVERIFY(!h.doc.component(cid));
     QCOMPARE(h.doc.featureCount(), features);
   }
 

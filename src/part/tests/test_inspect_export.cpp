@@ -24,6 +24,8 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
@@ -228,6 +230,27 @@ class InspectExportTest : public QObject {
     QVERIFY(rig.hasMessage("STL mesh (fine)"));
   }
 
+  // a damaged STL (NaN / infinite / huge coordinates) is a clean error, not an endless OCCT loop
+  void stlWithInvalidCoordinates() {
+    QTemporaryDir dir;
+    auto write = [&](const char* name, const char* vertex) {
+      const QString path = dir.path() + "/" + name;
+      QFile f(path);
+      if (!f.open(QIODevice::WriteOnly)) return std::string();
+      f.write(QByteArray("solid t\n facet normal 0 0 1\n  outer loop\n   vertex 0 0 0\n   vertex 1 0 0\n   vertex ") +
+              vertex + "\n  endloop\n endfacet\nendsolid t\n");
+      return path.toStdString();
+    };
+    ImportFeature::Imported out;
+    std::string err;
+    QVERIFY(ImportFeature::readFile(write("ok.stl", "0 1 0"), out, &err));
+    QCOMPARE(out.shapes.size(), size_t(1));
+    QVERIFY(!ImportFeature::readFile(write("nan.stl", "nan 1 0"), out, &err));
+    QVERIFY2(err.find("invalid vertex") != std::string::npos || err.find("could not read") != std::string::npos, err.c_str());
+    QVERIFY(!ImportFeature::readFile(write("huge.stl", "0 1e30 0"), out, &err));
+    QVERIFY(!ImportFeature::readFile(write("junk.stl", "x y z"), out, &err));
+  }
+
   // ---- STEP without pcurves (recommendation 8) ---------------------------------------------------
   void stepWithoutPcurves() {
     bool pc = true;
@@ -267,6 +290,77 @@ class InspectExportTest : public QObject {
     doc2.recompute();
     QCOMPARE(f->status(), core::FeatureStatus::Ok);
     QVERIFY(near(core::volume(doc2.bodyShape(f->createdBodies().front())), 1000, 1e-6));
+  }
+
+  // a damaged STEP file whose LINE vectors refer to missing DIRECTION entities: OCCT's
+  // StepToGeom::MakeVectorWithMagnitude dereferenced a null handle and the app died with SIGSEGV
+  // (found by fuzzing). Now it is a clean error and the reader keeps working.
+  void damagedStepIsACleanError() {
+    Rig rig;
+    rig.box(0, 0, 10, 20, 5);
+    QTemporaryDir dir;
+    const std::string good = (dir.path() + "/good.step").toStdString();
+    QVERIFY(rig.manager.run("part.export-step", {good, "pcurves=off"}));
+    QFile f(QString::fromStdString(good));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QString text = QString::fromUtf8(f.readAll());
+    f.close();
+    QSet<QString> directions;  // VECTOR('',#dir,len): drop every #dir entity
+    static const QRegularExpression rx("VECTOR\\('[^']*',(#\\d+),");
+    for (auto it = rx.globalMatch(text); it.hasNext();) directions.insert(it.next().captured(1));
+    QVERIFY(!directions.isEmpty());
+    QStringList kept;
+    for (const QString& line : text.split('\n')) {
+      const QString id = line.section(' ', 0, 0);
+      if (!directions.contains(id)) kept << line;
+    }
+    const std::string bad = (dir.path() + "/bad.step").toStdString();
+    QFile g(QString::fromStdString(bad));
+    QVERIFY(g.open(QIODevice::WriteOnly));
+    g.write(kept.join('\n').toUtf8());
+    g.close();
+    ImportFeature::Imported out;
+    std::string err;
+    QVERIFY(!ImportFeature::readFile(bad, out, &err));
+    QVERIFY2(err.find("damaged") != std::string::npos, err.c_str());  // refused before the transfer
+    err.clear();
+    QVERIFY(!ImportFeature::readStepAssembly(bad, &err));
+    QVERIFY2(err.find("damaged") != std::string::npos, err.c_str());
+    // an instance name defined twice: OCCT's parser could loop forever on such a file
+    {
+      QStringList twice = text.split('\n');
+      for (int i = 0; i < twice.size(); ++i)
+        if (twice[i].startsWith("#5 ")) {
+          twice.insert(i + 1, twice[i]);
+          break;
+        }
+      const std::string dupPath = (dir.path() + "/dup.step").toStdString();
+      QFile d(QString::fromStdString(dupPath));
+      QVERIFY(d.open(QIODevice::WriteOnly));
+      d.write(twice.join('\n').toUtf8());
+      d.close();
+      err.clear();
+      QVERIFY(!ImportFeature::readFile(dupPath, out, &err));
+      QVERIFY2(err.find("#5 is defined twice") != std::string::npos, err.c_str());
+    }
+    // the fuzzer's file (a DIRECTION entity cut in half): SIGSEGV in StepToGeom under the XCAF
+    // reader (STEP import with structure) before the fix
+    const QString data = qEnvironmentVariable("FABRICAD_TEST_DATA");
+    if (!data.isEmpty()) {
+      const std::string crashed = (data + "/damaged-missing-direction.step").toStdString();
+      // with OCCT's signal handlers installed its own OCC_CATCH_SIGNALS blocks skip the broken
+      // face, so the result is a partial import or a clean error; what matters is that it returns
+      (void)ImportFeature::readFile(crashed, out, &err);
+      (void)ImportFeature::readStepAssembly(crashed, &err);
+      // an ORIENTED_EDGE whose edge is itself: endless recursion, stack overflow before the fix
+      const std::string selfRef = (data + "/self-referencing-edge.step").toStdString();
+      err.clear();
+      QVERIFY(!ImportFeature::readFile(selfRef, out, &err));
+      QVERIFY2(!err.empty(), "no error for the self-referencing edge");
+      (void)ImportFeature::readStepAssembly(selfRef, &err);
+    }
+    QVERIFY(ImportFeature::readFile(good, out, &err));  // the reader still works afterwards
+    QCOMPARE(out.shapes.size(), size_t(1));
   }
 
   // ---- cross-component notes (recommendation 6) --------------------------------------------------
