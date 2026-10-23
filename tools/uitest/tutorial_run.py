@@ -266,6 +266,11 @@ class Runner:
     def act1(self, a):
         verb = next(k for k in a if k in ("click", "dclick", "rclick", "move", "drag", "wheel", "type", "key", "wait", "shot", "assert"))
         v = a[verb]
+        if a.get("if_visible") and isinstance(v, (str, dict)):
+            # an input only some layouts need (scrolling the FEATURES list; the strip has none)
+            anchor = "@step" if v == "@anchor" else v
+            if not self.probe.ask(cmd="locate", anchor=anchor).get("visible"):
+                return
         if verb in ("click", "dclick", "rclick"):
             self.click(v, button=3 if verb == "rclick" else 1, count=2 if verb == "dclick" else 1, mods=a.get("mods", ""))
         elif verb == "move":

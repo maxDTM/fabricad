@@ -288,7 +288,7 @@
   },
   {
    "id": "flange",
-   "title": "The flange: a sketch on a face",
+   "title": "The flange",
    "checkpoint": "ch3.fcad",
    "steps": [
     {
@@ -554,7 +554,7 @@
   },
   {
    "id": "fillet",
-   "title": "Round corners",
+   "title": "Fillet",
    "checkpoint": "ch4.fcad",
    "steps": [
     {
@@ -625,7 +625,7 @@
   },
   {
    "id": "slot",
-   "title": "A slot, dimensions and a cut",
+   "title": "Slot and cut",
    "checkpoint": "ch5.fcad",
    "steps": [
     {
@@ -908,7 +908,7 @@
   },
   {
    "id": "holes",
-   "title": "Counterbored holes and a mirror",
+   "title": "Holes and mirror",
    "checkpoint": "ch6.fcad",
    "steps": [
     {
@@ -1047,7 +1047,7 @@
   },
   {
    "id": "flangehole",
-   "title": "A hole through the flange",
+   "title": "Flange hole",
    "checkpoint": "ch7.fcad",
    "steps": [
     {
@@ -1343,7 +1343,7 @@
   },
   {
    "id": "rib",
-   "title": "A rib",
+   "title": "Rib",
    "checkpoint": "ch9.fcad",
    "steps": [
     {
@@ -1530,7 +1530,7 @@
   },
   {
    "id": "history",
-   "title": "Change the past",
+   "title": "Edit the history",
    "checkpoint": "ch10.fcad",
    "steps": [
     {
@@ -1550,7 +1550,8 @@
      "do": [
       {
        "wheel": "widget:FeatureList",
-       "clicks": 8
+       "clicks": 8,
+       "if_visible": true
       },
       {
        "dclick": "@anchor"
@@ -1753,7 +1754,7 @@
   },
   {
    "id": "export",
-   "title": "Export for 3D printing",
+   "title": "Export STL",
    "steps": [
     {
      "id": "13.1",
