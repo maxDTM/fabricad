@@ -409,6 +409,10 @@ class TestTutorial : public QObject {
     auto* text = b->findChild<QLabel*>("TutorialText");
     QCOMPARE(text->font().capitalization(), QFont::MixedCase);
     QVERIFY(TutorialBubble::richText("Type **8**, [[Enter]]").contains("<b>8</b>"));
+    // UI2-TUTORIAL-4: `code` renders without the backticks
+    QVERIFY(TutorialBubble::richText("type `LIST features`").contains(">LIST features</code>"));
+    QVERIFY(!TutorialBubble::richText("type `LIST features`").contains('`'));
+    QCOMPARE(TutorialBubble::plain("type `LIST`"), QString("type LIST"));
     QCOMPARE(b->focusPolicy(), Qt::NoFocus);
     for (QPushButton* p : b->findChildren<QPushButton*>()) QCOMPARE(p->focusPolicy(), Qt::NoFocus);
     for (auto mode : {app::ThemeManager::Mode::Dark, app::ThemeManager::Mode::Light}) {

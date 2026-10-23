@@ -501,6 +501,21 @@ class TestCommandCard : public QObject {
     QCOMPARE(direction->count(), 3);
     QVERIFY(!c->body()->findChild<QComboBox*>("prop_direction")->isVisible());
     QVERIFY(c->body()->findChild<QComboBox*>("prop_extentType")->isVisible());  // EXTENT stays a combo (mockup)
+    {
+      // UI2-USER-UI-FIXES-1: Tab walks the rows top to bottom, then Cancel, Apply
+      QStringList order;
+      QWidget* start = profiles;
+      for (QWidget* w = start->nextInFocusChain(); w && w != start && order.size() < 60; w = w->nextInFocusChain())
+        if (c->isAncestorOf(w) && w->isVisibleTo(c) && w->isEnabled() && (w->focusPolicy() & Qt::TabFocus) && !w->focusProxy())
+          order << (w == c->okButton() ? QString("OK") : w->objectName());
+      const QStringList want = {"prop_direction", "prop_extentType", "prop_distance", "prop_operation", "prop_preview", "MoreOptions", "OK"};
+      int at = -1;
+      for (const QString& n : want) {
+        const int i = order.indexOf(n);
+        QVERIFY2(i > at, qPrintable(order.join(' ')));
+        at = i;
+      }
+    }
     shot(QString("card-%1-%2").arg(placement, light ? "light" : "dark"));
     // distance through the field, then Apply
     auto* distance = c->body()->findChild<QLineEdit*>("prop_distance");
