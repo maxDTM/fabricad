@@ -13,6 +13,7 @@ the X11 runs, `rsvg-convert` only when a mockup PNG is missing.
 | `selftest.py` | ctest `uitest_tools`: PNG round trip, CVD vs `colormath.py`, compare.py on the mockup itself |
 | `card-shots.sh` | offscreen grabs of the command card in every placement and theme |
 | `readme-shots.sh` | regenerates `docs/screenshots/fabricad-*.png` (dark, and `-light`) on a private display |
+| `tutorial_run.py` | real-input GUI run of a guided tour through the app's read-only TestProbe (opt-in, see below) |
 
 ## Safety
 
@@ -51,6 +52,27 @@ ui.sh stop 91
   `ui/timelineStyle=featureList|strip`, `ui/fontScale`, `ui/glow`, `ui/scanlines`.
 * The app is started with `FABRICAD_GEOMETRY_DUMP=$UI_LOGDIR/geo-N.json` and rewrites that file every second;
   `geom` and `compare` read it.
+
+`ui.sh start` sets `FABRICAD_NO_TUTORIAL=1` (fresh per-display settings would show the first-launch tour
+welcome card in every screenshot); export `FABRICAD_NO_TUTORIAL=0` to see it.
+
+## tutorial_run.py (guided tours, docs/plans/tutorial.md section 5)
+
+```sh
+FABRICAD_GUI=1 tools/uitest/tutorial_run.py --bin build/bin/fabricad \
+    --tour resources/tutorials/sample/tutorial.json [--layout default|alt|light] [--out build/tutorial-out]
+FABRICAD_GUI=1 ctest --test-dir build -L gui --output-on-failure     # fabricad_tutorial_gui_sample
+```
+
+Opt-in: without `FABRICAD_GUI=1` (or `FABRICAD_GL_DISPLAY`) it exits 77 (ctest: skipped). Backends: an
+existing private display (`FABRICAD_GL_DISPLAY=:N`), else `Xvfb`, else a private rootful `Xwayland :N` only with
+`FABRICAD_GUI_ALLOW_DESKTOP=1`. It starts the app with temporary `XDG_*` folders and `FABRICAD_TEST_PROBE`,
+starts the tour by clicking the welcome card (or Help > Tutorials), and for each step moves the real cursor
+to the anchor the probe reports, sends the step's `do` input with xdotool, waits for each X event to reach
+the app (`inputSeq`) and for the tour to advance, runs the `assert` CHECKs and takes a step PNG. Artefacts:
+`<out>/<run>/` (report.json, app.log, probe.txt, step PNGs, checkpoints/, and `run.mp4` only on failure or
+with `FABRICAD_UITEST_VIDEO=1`). `--update-checkpoints` copies a passing run's chapter checkpoints into the
+tour folder.
 
 ## Offscreen grabs (exact size, any scale, no display)
 

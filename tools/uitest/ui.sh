@@ -18,7 +18,9 @@
 # Each display has its own settings and data: XDG_CONFIG_HOME=$UI_LOGDIR/cfg-N and
 # XDG_DATA_HOME=$UI_LOGDIR/data-N (UI_LOGDIR defaults to /tmp/fabricad-uitest). The binary defaults to
 # $UI_BIN or the main checkout's build/bin/fabricad; $UI_ARGS is appended to its command line
-# (e.g. UI_ARGS="--script scene.fcs --stay file.fcad").
+# (e.g. UI_ARGS="--script scene.fcs --stay file.fcad"). The first-launch tour welcome card is off
+# (FABRICAD_NO_TUTORIAL=1) unless FABRICAD_NO_TUTORIAL=0 is exported: fresh per-display settings would
+# otherwise show it in every screenshot.
 #
 # Input: use xdotool with DISPLAY=:N, e.g.
 #   DISPLAY=:N xdotool mousemove 640 400 click 1
@@ -53,7 +55,7 @@ case $cmd in
     pkill -f "fabricad-ui-$n" 2>/dev/null || true
     rm -f "$geo"
     XDG_CONFIG_HOME="$cfg" XDG_DATA_HOME="$data" QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$scale" \
-      FABRICAD_GEOMETRY_DUMP="$geo" \
+      FABRICAD_GEOMETRY_DUMP="$geo" FABRICAD_NO_TUTORIAL="${FABRICAD_NO_TUTORIAL:-1}" \
       setsid bash -c "exec -a fabricad-ui-$n '$bin' ${UI_ARGS:-}" >"$logdir/fabricad-$n.log" 2>&1 &
     w=
     for _ in $(seq 60); do

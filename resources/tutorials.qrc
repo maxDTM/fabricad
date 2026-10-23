@@ -1,0 +1,6 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<!-- Guided tours (docs/plans/tutorial.md): one folder per tour, read by app/tutorial/TutorialDefinition. -->
+<qresource prefix="/">
+  <file>tutorials/sample/tutorial.json</file>
+</qresource>
+</RCC>

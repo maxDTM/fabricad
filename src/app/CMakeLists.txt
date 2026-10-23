@@ -11,11 +11,12 @@ set(_app_lib_sources ${FABRICAD_APP_SOURCES})
 list(FILTER _app_lib_sources EXCLUDE REGEX "/main\\.cpp$")
 file(GLOB FABRICAD_APP_RESOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/resources/*.qrc")
 
+find_package(Qt6 REQUIRED COMPONENTS Network)  # QLocalServer: the tutorial TestProbe (FABRICAD_TEST_PROBE)
 add_library(fabricad_app_lib STATIC ${_app_lib_sources})
 target_include_directories(fabricad_app_lib PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(fabricad_app_lib PUBLIC
   fabricad_core fabricad_sketch fabricad_part fabricad_assembly fabricad_drawing fabricad_viewer fabricad_theme
-  Qt6::Widgets Qt6::Svg Qt6::SvgWidgets fabricad_warnings)
+  Qt6::Widgets Qt6::Svg Qt6::SvgWidgets Qt6::Network fabricad_warnings)
 set_target_properties(fabricad_app_lib PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON)
 
 # Resources are compiled into the executables (not the static lib), so no
@@ -39,6 +40,21 @@ if(FABRICAD_BUILD_TESTS)
     add_test(NAME fabricad_app_${_n} COMMAND fabricad_app_${_n})
     set_tests_properties(fabricad_app_${_n} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 300)
   endforeach()
+  # tutorial lint (docs/plans/tutorial.md 5.9): every tour file loads and validates and every anchor
+  # resolves on the current UI in the three layout presets (offscreen)
+  if(TARGET fabricad_app_test_tutorial)
+    set_tests_properties(fabricad_app_test_tutorial PROPERTIES LABELS tutorial)
+  endif()
+  # real-input GUI run of a tour (opt-in: FABRICAD_GUI=1, otherwise skipped with code 77; decision 2)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_EXECUTABLE)
+    add_test(NAME fabricad_tutorial_gui_sample
+      COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tools/uitest/tutorial_run.py"
+        --bin $<TARGET_FILE:fabricad> --tour "${CMAKE_SOURCE_DIR}/resources/tutorials/sample/tutorial.json"
+        --out "${CMAKE_BINARY_DIR}/tutorial-out")
+    set_tests_properties(fabricad_tutorial_gui_sample PROPERTIES LABELS "gui;tutorial" RUN_SERIAL TRUE
+      SKIP_RETURN_CODE 77 TIMEOUT 900)
+  endif()
   # timing checks run as their own entries with the label `timing` (`ctest -LE timing` skips them
   # on a busy machine); the main entries skip them through FABRICAD_SKIP_TIMING
   if(TARGET fabricad_app_test_theme_manager)

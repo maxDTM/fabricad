@@ -1,11 +1,15 @@
 # Plan: interactive "First part" tutorial (in-app guided tour + real-input GUI test)
 
-Status: planned, not started. No code yet. Section 8 questions answered by the user (2026-10-22). Starts after roadmap steps 1–3.
+Status: **engine built** (2026-10-23, roadmap step 4 part 1, see section 9): tour format, loader and validation,
+anchor resolution, conditions, overlay, bubble, welcome card, ghost cursor, shortcuts, recovery, checkpoints,
+Help > Tutorials, the offscreen lint ctest, the TestProbe and the opt-in GUI runner skeleton, with a 3-step sample
+tour. The bracket content (`resources/tutorials/bracket/`) is next. Section 8 questions answered by the user
+(2026-10-22).
 
 Reconciled on 2026-10-22 with the newer `docs/plans/ui-redesign.md` (it wins where they differ) and
 `docs/plans/feature-list-timeline.md`. The tour is built **on the redesigned UI**: no ribbon tab row, a sectioned
-main toolbar with a MORE ▾ section, the FEATURES list instead of the bottom timeline by default, the hex orientation
-dial instead of the ViewCube by default, a floating command card, dark theme by default, bold monospace caps.
+main toolbar with a MORE ▾ section, the FEATURES list instead of the bottom timeline by default, the ViewCube as the
+default orientation control (user decision 2026-10-23: the hex dial stays only as a non-default option), a floating command card, dark theme by default, bold monospace caps.
 Execution order: `docs/plans/ROADMAP.md` (this plan is step 4, after the redesign, the open-issue fixes and a
 drawing test round).
 
@@ -126,7 +130,7 @@ Columns:
 |---|---|---|---|---|---|
 | **Ch 0 Welcome** (first-launch card or Help > Tutorials) | | | | | |
 | 0.1 | "Welcome. We'll build a bracket and 3D-print it. Start?" | welcome card | click `TutorialStart` | tour running | |
-| 0.2 | "Orbit: Shift + middle-drag. Zoom: wheel. Home key resets the view." | viewport | Shift+MMB drag; Home | camera changed, then Home view | |
+| 0.2 | "Orbit: right-drag. Pan: middle-drag. Zoom: wheel. A right click without a drag opens the menu. Home resets the view." | viewport | RMB drag; Home | camera changed, then Home view | |
 | 0.3 | (only if the workspace selector does not show PART) "Open the workspace menu and choose **Part**." | `WorkspaceSwitcher` | click, click | toolbar filter = Part | |
 | **Ch 1 First sketch** | | | | | |
 | 1.1 | "Click **Create Sketch**." | `tool:sketch.create` | click | tool `sketch.create` active | |
@@ -415,13 +419,14 @@ saved step.
    - `QT_ENABLE_HIGHDPI_SCALING=0`, `QT_SCALE_FACTOR=1`, `QT_FONT_DPI=96`, `LANG=C.UTF-8`
    - `FABRICAD_TEST_PROBE=<socket>`
 
-   A first launch gets the redesign defaults (redesign 6.1): dark theme, `featureList`, `hexDial`, card
+   A first launch gets the redesign defaults (redesign 6.1): dark theme, `featureList`, `viewCube`, card
    `floatRight`, toolbar `top`, sidebar `left`. **Layout presets** (redesign 8.2): `--layout <preset>` writes the
    `ui/*` keys into the temporary `XDG_CONFIG_HOME` before launch, the same mechanism as `ui.sh prefs <N> key=value…`
    (redesign 8.3):
    - `default`: no keys written;
    - `alt`: `ui/cardPlacement=sidebar`, `ui/sidebarSide=right`, `ui/toolbarArea=left`;
-   - `light`: `ui/theme=light`, `ui/orientation=viewCube`, `ui/timelineStyle=strip`.
+   - `light`: `ui/theme=light`, `ui/orientation=hexDial` (the non-default option; the ViewCube is the default
+     since 2026-10-23), `ui/timelineStyle=strip`.
 3. **Start.** Launch the app and connect to the probe. Wait for `ready` (window exposed and `viewInitialized`). Size the
    window with `xdotool windowmove/windowsize` and wait until the probe reports the size. There are **no fixed sleeps**.
    The X server inside the backend has no window manager, so nothing re-tiles it.
@@ -477,7 +482,7 @@ saved step.
 | Risk (source) | Mitigation in the tutorial or runner | App change |
 |---|---|---|
 | Rectangle and other value boxes sit under the cursor and swallow the second click (NEW-SKETCH-1) | Never click a second corner. Type W, Tab, H, Enter. | Place boxes offset from the cursor, or make them mouse-transparent until focused |
-| Orientation-widget targets are small: hex dial tips (default), ViewCube corners in the `light` preset (UX-05, NEW-SKETCH-2) | Never use the dial or the ViewCube in a step. Use Home and Ctrl+1..7. | none required (the dial and the token-coloured ViewCube come with redesign phase 4) |
+| Orientation-widget targets: the ViewCube (default since 2026-10-23, big forgiving hitboxes), hex dial tips in the `light` preset (UX-05, NEW-SKETCH-2) | Never use the dial or the ViewCube in a step. Use Home and Ctrl+1..7. Orbit is a right-drag (a right click without a drag still opens the marking menu). | none required |
 | Layout variety: card placement, sidebar side, toolbar position, list vs strip, theme | Anchors resolve by name and property, never by position; `{timeline}`/`{orientation}` text placeholders; the tour runs in the 3 presets | `OverlayLayout` and `UiSettings::changed` (redesign) |
 | Origin planes win picks over bodies (NEW-ASSEMBLY-DRAWING-1); Create Sketch picks XZ instead of the top face (NEW-PART-CORE-3) | Select the face **first**, then Create Sketch. Pick YZ in the browser. Pick-check before every click. | Lower origin-plane pick priority below bodies |
 | Entering a sketch does not orient the view until the first click (NEW-SOLID-4); clicks during camera animation land wrong (SK-03) | Wait for `idle`, which includes the animation | Look At on sketch entry; expose `isAnimating()` and `cameraChanged` |
@@ -590,3 +595,55 @@ saved step.
 | 12 | More tours | **Design Help > Tutorials for multiple tours now; build only the bracket tour.** |
 
 Also confirmed: bubble body text is shown **as typed** (mixed case); bubble titles and buttons follow the caps rule. Workspace selector shortcuts are Alt+1/2/3, so the tour shortcuts above do not collide.
+
+---
+
+## 9. Engine as built (2026-10-23, roadmap step 4 part 1)
+
+Code in `src/app/tutorial/` (GLOBbed into `fabricad_app_lib`); the shell touches are three lines in `MainWindow.cpp`
+(`HelpButton` / `HelpMenu` objectNames, `TutorialController::install`) and one call in `main.cpp` (welcome card).
+
+| File | Role |
+|---|---|
+| `TutorialDefinition` | strict-JSON parser + validation (unknown keys, anchor kinds, condition types, actions, duplicate ids, placeholders; `validateTour` checks tool ids against the registry); `discoverTours()` reads `:/tutorials/*/tutorial.json` (`resources/tutorials.qrc`) and `FABRICAD_TUTORIAL_PATH` folders, sorted by `order` (multiple tours, decision 12) |
+| `StateQuery` | conditions from app state; `check` leaves call the script runner's `evaluateCheck()` (one evaluator for CHECK and tours; no refactor of the script code was needed) |
+| `AnchorResolver` | every anchor kind of section 3 to global geometry; model anchors sample face UV / edge points, project, drop covered points (`widgetAt`) and prefer points the viewer's own `pick` confirms; a tool inside a closed caption menu resolves to the caption with `via: "menu"`, a row in a collapsed MODEL folder with `via: "expand"`; `tab:TOOLS`/`SURFACE` resolve to the MORE section; `tabclose:` approximates the close glyph until the tab bar has `closeRect()` |
+| `TutorialEngine` | step state machine: polled every 100 ms, `stable_ms`, `skip_if`, timeout hint, off-script hint (an undo command that did not finish the step, after 4 s), Back (undo to the previous step's index), Undo to step start, Restore chapter (decision 9: new tab from `start` or the previous chapter's `checkpoint`), checkpoints written to `FABRICAD_TUTORIAL_CHECKPOINT_DIR` at each chapter end, position in QSettings `tutorial/<id>/step`, `done` |
+| `TutorialOverlay` | child of the MainWindow, mouse-transparent, re-raised on ChildAdded/ZOrderChange: light dim (token `tutorial.dim`, 30 %, Help > Tutorials > "Dim around the target"), even-odd cut-out, pulsing 2 px `accent.focus` ring, bubble notch, ghost cursor with click ripples and typed-text keycaps |
+| `TutorialBubble` | coach mark: chapter title + "STEP n / N" (caps), progress strip, body **as typed** (`**bold**`, `[[Key]]` keycaps), keycap row, hint line, BACK · SHOW ME · SKIP/NEXT/FINISH · ⋯ (Restore chapter, Undo to step start, Exit tour); `NoFocus` everywhere; floats as an opaque frameless tool window beside an open popup or modal dialog |
+| `TutorialController` | one per window: Help > Tutorials (every tour, resume, start over, exit, dim), welcome card (first tour with `welcome: true` not yet in `tutorial/offered`; never for scripts, offscreen, `FABRICAD_NO_TUTORIAL=1`, `FABRICAD_SCREENSHOT`), finish card, F7 / Alt+Left / Alt+Right (app event filter; Esc untouched), bubble placement avoiding the command card and the orientation control, a11y announcements |
+| `TestProbe` | `FABRICAD_TEST_PROBE=<socket>`: read-only JSON lines `ping state locate eval check docjson` |
+
+Tests: `fabricad_app_test_tutorial` (label `tutorial`, the plan's `fabricad_tutorial_lint`) loads and validates every
+tour file and resolves every anchor in the `default`, `alt` and `light` presets (model anchors: the entity must
+exist; offscreen has no GL), and runs the sample tour headless (manual and condition steps, skip_if, Back with undo,
+Esc never exits, shortcuts, show me sends nothing, Restore chapter opens a tab, checkpoint, welcome once, Help menu,
+probe). `fabricad_tutorial_gui_sample` (labels `gui;tutorial`) runs `tools/uitest/tutorial_run.py` on the sample
+tour; it exits 77 (skipped) unless `FABRICAD_GUI=1`.
+
+Developer aids: `FABRICAD_TUTORIAL_START=<tour>[:<step>]` starts a tour at launch (offscreen screenshots),
+`FABRICAD_TUTORIAL_WELCOME=1` forces the welcome card. `ui.sh start` sets `FABRICAD_NO_TUTORIAL=1` unless exported.
+
+### Step schema (as implemented; `TutorialDefinition.h` is the reference)
+
+```
+tour    { id, title, description, version, order, welcome, window: [w, h], finish, chapters: [chapter] }
+chapter { id, title, start?: "chN.fcad", checkpoint?: "chN.fcad", steps: [step] }
+step    { id, text, title?, anchor?, keys_shown?: [..], until? (default {"next": true}), skip_if?,
+          stable_ms? (150), timeout_ms? (20000), hint?, do?: [action], assert?: ["CHECK expr"],
+          context?: "idle" | "tool:<id>" (the lint resolves the anchor in that state) }
+anchor  "kind:target" | {"kind": "target"} | "ObjectName" (widget); kinds widget tool group menu prop valuebox
+        browser timeline tab tabclose model sketchpoint none; widget "viewport" = the active 3D view
+condition {"tool": id|"none"} {"dialog": "card"|"modal"|"popup"|objectName} {"selection": kind|"any",
+        "count"?, "selector"?} {"valuebox": caption|"any"} {"prompt": text} {"sketch": "active"|"none"|"dof == n"}
+        {"workspace": part|assembly|drawing} {"setting": "ui/key", "is": v} {"camera": "changed"}
+        {"document": "changed"|"unchanged"} {"visible": objectName} {"check": "CHECK expr"} {"next": true}
+        {"tour": stepId} {"all": [..]} {"any": [..]} {"not": c}
+action  {"click"|"dclick"|"rclick": target, "mods"?} {"move": target | {dx, dy}} {"drag": {from, to, button,
+        mods?, steps?}} {"wheel": target, "clicks"} {"type": text} {"key": chord} {"wait": condition}
+        {"shot": name} {"assert": [..]}; target "@anchor" or any anchor
+```
+
+Not done yet (next parts of step 4): the bracket content and checkpoints, the viewer's "tutorial" highlight style
+and `isAnimating`/frame counter for the probe's `idle`, `closeRect()` on the tab bar, value-box `field`
+properties, the Markdown export, the `alt`/`light` GUI entries and the off-script GUI scenario.

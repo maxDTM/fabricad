@@ -25,6 +25,7 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `text.tertiary` | `#8E96A2` | `#5E6675` |
 | `text.disabled` | `#6E7682` | `#8E96A2` |
 | `shadow.card` | `#0000008C` | `#1A1D222E` |
+| `tutorial.dim` | `#05060899` | `#1A1D2266` |
 | `accent.solid` | `#7C4DEB` | `#6D3FE0` |
 | `accent.hover` | `#6F42E0` | `#5B2FCC` |
 | `accent.pressed` | `#6236CF` | `#4A22B0` |
@@ -104,7 +105,6 @@ ratio (alpha colours composited over the background, or over `surface.panel` whe
 | `icon.orange` | `#FF9A3D` | `#B8560A` |
 | `icon.paper` | `#262B33` | `#FFFFFF` |
 | `icon.body` | `#5C6470` | `#C9CDD2` |
-| `tutorial.dim` | `#05060899` | `#1A1D2266` |
 
 ## Aliases
 

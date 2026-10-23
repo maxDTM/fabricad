@@ -21,6 +21,7 @@ enum class Tok : std::uint16_t {
   TextTertiary,  // text.tertiary
   TextDisabled,  // text.disabled
   ShadowCard,  // shadow.card
+  TutorialDim,  // tutorial.dim
   AccentSolid,  // accent.solid
   AccentHover,  // accent.hover
   AccentPressed,  // accent.pressed
@@ -100,7 +101,6 @@ enum class Tok : std::uint16_t {
   IconOrange,  // icon.orange
   IconPaper,  // icon.paper
   IconBody,  // icon.body
-  TutorialDim,  // tutorial.dim
   Count
 };
 
@@ -136,6 +136,7 @@ inline constexpr const char* kTokName[] = {
     "text.tertiary",
     "text.disabled",
     "shadow.card",
+    "tutorial.dim",
     "accent.solid",
     "accent.hover",
     "accent.pressed",
@@ -215,7 +216,6 @@ inline constexpr const char* kTokName[] = {
     "icon.orange",
     "icon.paper",
     "icon.body",
-    "tutorial.dim",
 };
 
 /// 0xRRGGBBAA, dark theme
@@ -237,6 +237,7 @@ inline constexpr std::uint32_t kDark[] = {
     0x8E96A2FFu,  // text.tertiary
     0x6E7682FFu,  // text.disabled
     0x0000008Cu,  // shadow.card
+    0x05060899u,  // tutorial.dim
     0x7C4DEBFFu,  // accent.solid
     0x6F42E0FFu,  // accent.hover
     0x6236CFFFu,  // accent.pressed
@@ -316,7 +317,6 @@ inline constexpr std::uint32_t kDark[] = {
     0xFF9A3DFFu,  // icon.orange
     0x262B33FFu,  // icon.paper
     0x5C6470FFu,  // icon.body
-    0x05060899u,  // tutorial.dim
 };
 
 /// 0xRRGGBBAA, light theme
@@ -338,6 +338,7 @@ inline constexpr std::uint32_t kLight[] = {
     0x5E6675FFu,  // text.tertiary
     0x8E96A2FFu,  // text.disabled
     0x1A1D222Eu,  // shadow.card
+    0x1A1D2266u,  // tutorial.dim
     0x6D3FE0FFu,  // accent.solid
     0x5B2FCCFFu,  // accent.hover
     0x4A22B0FFu,  // accent.pressed
@@ -417,7 +418,6 @@ inline constexpr std::uint32_t kLight[] = {
     0xB8560AFFu,  // icon.orange
     0xFFFFFFFFu,  // icon.paper
     0xC9CDD2FFu,  // icon.body
-    0x1A1D2266u,  // tutorial.dim
 };
 
 struct Alias {

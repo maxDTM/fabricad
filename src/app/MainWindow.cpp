@@ -36,6 +36,7 @@
 #include "app/ParametersDialog.h"
 #include "app/PreferencesDialog.h"
 #include "app/AppearancePicker.h"
+#include "app/tutorial/TutorialController.h"
 #include "assembly/AssemblyModule.h"
 #include "core/Commands.h"
 #include "core/Json.h"
@@ -184,6 +185,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
   // ui/* settings apply live (Preferences > Appearance / Layout, THEME command)
   connect(&UiSettings::instance(), &UiSettings::changed, this, &MainWindow::applyUiSetting);
+  // guided tours: Help > Tutorials, overlay, welcome card (docs/plans/tutorial.md; app/tutorial/)
+  tutorial::TutorialController::install(*this, findChild<QMenu*>("HelpMenu"));
 }
 
 void MainWindow::applyUiSetting(const QString& key) {
@@ -658,8 +661,10 @@ QWidget* MainWindow::buildAppBar() {
   connect(find, &QToolButton::clicked, this, [this] { openFeatureSearch(); });
   h->addWidget(find);
   auto* help = appBarButton(bar, "help", "Help");
+  help->setObjectName("HelpButton");  // tutorial anchor menu:Help/...
   help->setPopupMode(QToolButton::InstantPopup);
   auto* helpMenu = new QMenu(help);
+  helpMenu->setObjectName("HelpMenu");
   helpMenu->addAction("Keyboard Shortcuts", this, [this] { showShortcutsHelp(); });
   helpMenu->addAction("3D View Information", this, [this] {
     const QString info = viewer_ ? viewer_->glInfo() : QString();
