@@ -354,8 +354,9 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   // mouse state
   bool leftDown_ = false, leftConsumed_ = false, rubber_ = false, suppressRelease_ = false;
   bool rightDown_ = false, rightConsumed_ = false, rightDragged_ = false, rightOnCube_ = false;
+  bool rightOrbit_ = false;  ///< right drag past kRightOrbitThreshold: OCCT orbits, no menu
   bool navigating_ = false;
-  QPoint pressPos_, rubberEnd_, rightPressPos_;
+  QPoint pressPos_, rubberEnd_, rightPressPos_, rightPressGlobal_;
   bool cubePress_ = false, cubeDrag_ = false;  ///< LMB went down on the ViewCube / is orbiting
   bool ctlPress_ = false;  ///< LMB went down on a ViewCube overlay control
   QPoint cubeLast_;
@@ -363,7 +364,7 @@ class ViewerWidget : public QWidget, public fabricad::core::IViewerContext {
   CubeCtl hoverCtl_ = CubeCtl::None;
   QMargins insets_{0, 0, 0, 56};
 
-  OrientationWidget orientation_ = OrientationWidget::HexDial;
+  OrientationWidget orientation_ = OrientationWidget::ViewCube;  // default since 2026-10-23
   OrientationDial* dial_ = nullptr;
   Breadcrumb* breadcrumb_ = nullptr;
   SelectionFilterBar* filterBar_ = nullptr;

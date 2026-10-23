@@ -182,6 +182,20 @@ class ViewerMathTest : public QObject {
     QVERIFY(exceedsDragThreshold(5, 0));
   }
 
+  void pickPriorityOriginPlanesLast() {
+    using core::ShapeKind;
+    QCOMPARE(preferredPickIndex({}), -1);
+    // iso view: the XY origin plane is in front of a body face -> the face wins
+    QCOMPARE(preferredPickIndex({ShapeKind::OriginPlane, ShapeKind::Face}), 1);
+    QCOMPARE(preferredPickIndex({ShapeKind::OriginPlane, ShapeKind::OriginPlane, ShapeKind::Edge}), 2);
+    QCOMPARE(preferredPickIndex({ShapeKind::Face, ShapeKind::OriginPlane}), 0);
+    // nothing else under the cursor (or the filter allows planes only): the plane
+    QCOMPARE(preferredPickIndex({ShapeKind::OriginPlane}), 0);
+    QCOMPARE(preferredPickIndex({ShapeKind::OriginPlane, ShapeKind::OriginPlane}), 0);
+    // other origin geometry (axes, point) is not demoted
+    QCOMPARE(preferredPickIndex({ShapeKind::OriginAxis, ShapeKind::Face}), 0);
+  }
+
   void navigationPresets() {
     QCOMPARE(navActionFor(NavPreset::Fusion, 2, core::ModNone), NavAction::Pan);
     QCOMPARE(navActionFor(NavPreset::Fusion, 2, core::ModShift), NavAction::Orbit);
@@ -189,6 +203,13 @@ class ViewerMathTest : public QObject {
     QCOMPARE(navActionFor(NavPreset::SolidWorks, 2, core::ModNone), NavAction::Orbit);
     QCOMPARE(navActionFor(NavPreset::SolidWorks, 2, core::ModCtrl), NavAction::Pan);
     QCOMPARE(navActionFor(NavPreset::Fusion, 2, core::ModShift | core::ModAlt), NavAction::Orbit);
+    // right drag orbits in every preset; a small wobble is still a click (the menu)
+    for (NavPreset p : {NavPreset::Fusion, NavPreset::SolidWorks, NavPreset::AutoCAD, NavPreset::Inventor})
+      QCOMPARE(navActionFor(p, 4, core::ModNone), NavAction::Orbit);
+    QVERIFY(!rightDragStartsOrbit(3, 3));
+    QVERIFY(!rightDragStartsOrbit(0, kRightOrbitThreshold));
+    QVERIFY(rightDragStartsOrbit(kRightOrbitThreshold + 1, 0));
+    QVERIFY(rightDragStartsOrbit(-4, -4));
     QCOMPARE(navPresetFromName(navPresetName(NavPreset::SolidWorks)), NavPreset::SolidWorks);
     QCOMPARE(navPresetFromName("garbage"), NavPreset::Fusion);
   }

@@ -381,15 +381,18 @@ class TestMainWindow : public QObject {
     // document and the command; the view-tool column (#NavBar) sits below the orientation widget
     viewer::ViewerWidget* v = w_->viewer();
     QVERIFY(v);
-    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::HexDial);
-    QVERIFY(app::UiSettings::instance().set("ui/orientation", "viewCube"));
-    settle();
-    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::ViewCube);
+    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::ViewCube);  // the default (2026-10-23)
     QVERIFY(!v->orientationDial()->plateVisible());
     QVERIFY(app::UiSettings::instance().set("ui/orientation", "hexDial"));
     settle();
     QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::HexDial);
     QVERIFY(v->orientationDial()->plateVisible());
+    QVERIFY(app::UiSettings::instance().set("ui/orientation", "viewCube"));
+    settle();
+    QCOMPARE(v->orientationWidget(), viewer::OrientationWidget::ViewCube);
+    QVERIFY(!v->orientationDial()->plateVisible());
+    QVERIFY(app::UiSettings::instance().set("ui/orientation", "hexDial"));  // the rest of the test: the dial
+    settle();
     QWidget* column = v->findChild<QWidget*>("NavBar");
     QVERIFY(column && column->isVisible());
     QCOMPARE(column->property("overlay").toString(), QString("ViewToolColumn"));

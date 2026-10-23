@@ -23,7 +23,7 @@ const std::vector<UiSettings::Key>& UiSettings::keys() {
       {"ui/cardRememberDrag", true, {}, 0, 0, false},
       {"ui/cardFreePos", QString(), {}, 0, 0, false},
       {"ui/quickToolbar", "off", {"off", "left", "right"}, 0, 0, false},
-      {"ui/orientation", "hexDial", {"hexDial", "viewCube"}, 0, 0, false},
+      {"ui/orientation", "viewCube", {"viewCube", "hexDial"}, 0, 0, false},
       {"ui/edgeRuler", true, {}, 0, 0, false},
       {"ui/timelineStyle", "featureList", {"featureList", "strip"}, 0, 0, false},
       {"ui/fontScale", 100, {}, 90, 130, true},

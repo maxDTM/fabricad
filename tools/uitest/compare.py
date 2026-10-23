@@ -11,7 +11,8 @@ Regions are the <rect data-region="ID" x= y= width= height=> boxes in the mockup
   colour  dominant colour of the region in the shot vs the mockup PNG, as CIEDE2000 (reported; > 3 flagged).
           <circle data-sample="token.name" cx= cy=> points in the SVG, if any, are sampled too.
   ssim    mean SSIM of the luminance over 8x8 blocks (reported, never gating).
-The mockup raster is <mockup>.png next to the SVG (rsvg-convert renders it when missing). A shot taken at
+The mockup raster is <mockup>.png next to the SVG; it is current when mockup-png.sha256 lists the SVG's
+content hash (else rsvg-convert renders a temporary one; --refresh-mockup re-renders it in place). A shot taken at
 QT_SCALE_FACTOR s (device px = s x logical) is compared with the regions scaled by s; geometry stays logical.
 --report DIR writes index.html with side-by-side crops of every region.
 
@@ -25,6 +26,7 @@ depends on the scene, such as the value box at the 3D handle, or has no widget).
 SPDX-License-Identifier: LGPL-2.1-or-later
 """
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -66,11 +68,59 @@ def read_regions(svg_text):
     return regions, samples
 
 
-def mockup_png(svg_path):
+HASH_INDEX = "mockup-png.sha256"  # next to the mockups: "<sha256 of the SVG>  <name>.svg" per current PNG
+
+
+def svg_digest(svg_path):
+    with open(svg_path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def read_hash_index(mockup_dir):
+    idx = {}
+    try:
+        with open(os.path.join(mockup_dir, HASH_INDEX), encoding="utf-8") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) == 2 and not line.startswith("#"):
+                    idx[parts[1]] = parts[0]
+    except FileNotFoundError:
+        pass
+    return idx
+
+
+def write_hash_index(mockup_dir, idx):
+    with open(os.path.join(mockup_dir, HASH_INDEX), "w", encoding="utf-8") as f:
+        f.write("# sha256 of each mockup SVG its committed PNG was rendered from (compare.py --refresh-mockup)\n")
+        for name in sorted(idx):
+            f.write(f"{idx[name]}  {name}\n")
+
+
+def png_is_current(svg_path):
+    """True when <mockup>.png was rendered from this exact SVG content. Judged by content hash
+    (mockup-png.sha256), never by mtime: a checkout or merge rewrites mtimes in any order."""
     png = os.path.splitext(svg_path)[0] + ".png"
-    if os.path.exists(png) and os.path.getmtime(png) >= os.path.getmtime(svg_path) - 1:
+    if not os.path.exists(png):
+        return False
+    known = read_hash_index(os.path.dirname(os.path.abspath(svg_path))).get(os.path.basename(svg_path))
+    return known is not None and known == svg_digest(svg_path)
+
+
+def mockup_png(svg_path, refresh=False):
+    png = os.path.splitext(svg_path)[0] + ".png"
+    if not refresh and png_is_current(svg_path):
+        return png
+    if refresh:
+        # re-render next to the SVG and record the SVG's hash
+        subprocess.run(["rsvg-convert", "-o", png, svg_path], check=True)
+        d = os.path.dirname(os.path.abspath(svg_path))
+        idx = read_hash_index(d)
+        idx[os.path.basename(svg_path)] = svg_digest(svg_path)
+        write_hash_index(d, idx)
         return png
     out = os.path.join(os.environ.get("TMPDIR", "/tmp"), os.path.basename(png))
+    print(f"note: {os.path.basename(png)} is not the raster of the current SVG (hash); rendering a temporary one. "
+          "Run compare.py --refresh-mockup to update it.", file=sys.stderr)
     subprocess.run(["rsvg-convert", "-o", out, svg_path], check=True)
     return out
 
@@ -177,6 +227,8 @@ def main(argv=None):
     ap.add_argument("--json", help="write the results as JSON here")
     ap.add_argument("--inset", action="append", default=[], metavar="ID=PX",
                     help="visible box = widget rect inset by PX (default CommandDialog=8, the card's bleed)")
+    ap.add_argument("--refresh-mockup", action="store_true",
+                    help="re-render <mockup>.png from the SVG (rsvg-convert) and record its hash in mockup-png.sha256")
     a = ap.parse_args(argv)
 
     with open(a.mockup, encoding="utf-8") as f:
@@ -192,7 +244,7 @@ def main(argv=None):
     svg_w, svg_h = (float(m.group(1)), float(m.group(2))) if m else (1920.0, 1080.0)
 
     shot = pngio.read_png(a.shot)
-    mock = pngio.read_png(mockup_png(a.mockup))
+    mock = pngio.read_png(mockup_png(a.mockup, a.refresh_mockup))
     sx, sy = shot.width / svg_w, shot.height / svg_h
     mx, my = mock.width / svg_w, mock.height / svg_h
     if abs(sx - sy) > 0.02:

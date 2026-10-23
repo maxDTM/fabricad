@@ -70,6 +70,11 @@ tools/uitest/compare.py shot.png docs/mockups/custom-ui-extrude-v6-tokens-dark.s
     --geometry geo.json --report /tmp/cmp [--tol 4] [--only CommandDialog,OkButton] [--json out.json] [--no-ssim]
 ```
 
+The mockup raster `<mockup>.png` counts as current when `docs/mockups/mockup-png.sha256` lists the SVG's content
+hash (mtimes are ignored: a checkout or merge rewrites them). After editing a mockup SVG run `compare.py ...
+--refresh-mockup` (re-renders the PNG with `rsvg-convert` and records the hash); the `uitest_tools` ctest fails
+while a listed SVG no longer matches its hash.
+
 Regions are the `<rect data-region="ID">` boxes of the token mockups (`AppBar`, `RibbonGroup:CREATE`,
 `FeatureList`, `CommandDialog`, `OrientationDial`, `StatusBar` and so on). For each region it prints:
 

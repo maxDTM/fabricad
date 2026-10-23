@@ -37,8 +37,26 @@ def main():
         for p, q in zip(back.rows[0], sim.rows[0]):
             ref = colormath.simulate(tuple(v / 255.0 for v in p) + (1.0,), kind)
             check(all(abs(round(ref[i] * 255) - q[i]) <= 1 for i in range(3)), "cvd %s %s" % (kind, p))
+    # mockup PNG staleness is judged by the SVG's content hash, never by mtime (a merge or checkout
+    # rewrites mtimes in any order and made this test render a temporary PNG that did not match)
+    mockups = os.path.join(ROOT, "docs", "mockups")
+    for name, digest in compare.read_hash_index(mockups).items():
+        check(compare.svg_digest(os.path.join(mockups, name)) == digest,
+              "%s changed since its PNG was rendered (compare.py --refresh-mockup)" % name)
+    svg = os.path.join(mockups, "custom-ui-extrude-v6-tokens-dark.svg")
+    check(compare.png_is_current(svg), "token mockup PNG listed as current")
+    import shutil
+    stale = os.path.join(tmp, "m")
+    os.makedirs(stale)
+    for f in (os.path.basename(svg), os.path.basename(svg)[:-4] + ".png", compare.HASH_INDEX):
+        shutil.copy(os.path.join(mockups, f), stale)
+    tsvg = os.path.join(stale, os.path.basename(svg))
+    os.utime(tsvg[:-4] + ".png", (1000, 1000))  # PNG "older" than the SVG: still current
+    check(compare.png_is_current(tsvg), "old PNG mtime does not make it stale")
+    with open(tsvg, "a", encoding="utf-8") as f:
+        f.write("<!-- edited -->\n")
+    check(not compare.png_is_current(tsvg), "an edited SVG makes its PNG stale")
     # the mockup PNG is the mockup SVG's raster: SSIM 1 and dE 0 in every region
-    svg = os.path.join(ROOT, "docs", "mockups", "custom-ui-extrude-v6-tokens-dark.svg")
     out = os.path.join(tmp, "r.json")
     code = compare.main([os.path.splitext(svg)[0] + ".png", svg, "--only", "AppBar,OkButton,StatusBar", "--json", out])
     check(code == 0, "compare exit status")
