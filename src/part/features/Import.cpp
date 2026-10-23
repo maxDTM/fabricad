@@ -26,7 +26,9 @@
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
 #include <Standard_Failure.hxx>
-#include <StlAPI_Reader.hxx>
+#include <BRepBuilderAPI_MakeShapeOnMesh.hxx>
+#include <Poly_Triangulation.hxx>
+#include <RWStl.hxx>
 #include <StlAPI_Writer.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
@@ -368,9 +370,27 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
   std::string baseName = fi.completeBaseName().toStdString();
   try {
     if (ext == "stl") {
-      StlAPI_Reader reader;
-      TopoDS_Shape s;
-      if (!reader.Read(s, path.c_str()) || s.IsNull()) {
+      // StlAPI_Reader::Read without its blind trust in the numbers: OCCT loops forever (or
+      // crashes) building faces from NaN / infinite / absurdly large vertex coordinates, which a
+      // damaged binary STL easily contains. Check the mesh first, then build the same shape.
+      Handle(Poly_Triangulation) mesh = RWStl::ReadFile(path.c_str());
+      if (mesh.IsNull() || mesh->NbTriangles() == 0) {
+        if (error) *error = "could not read STL file";
+        return false;
+      }
+      constexpr double kMaxCoord = 1e8;  // mm: 100 km
+      for (int i = 1; i <= mesh->NbNodes(); ++i) {
+        const gp_Pnt p = mesh->Node(i);
+        if (!std::isfinite(p.X()) || !std::isfinite(p.Y()) || !std::isfinite(p.Z()) || std::abs(p.X()) > kMaxCoord ||
+            std::abs(p.Y()) > kMaxCoord || std::abs(p.Z()) > kMaxCoord) {
+          if (error) *error = "could not read STL file: invalid vertex coordinates (damaged file?)";
+          return false;
+        }
+      }
+      BRepBuilderAPI_MakeShapeOnMesh converter(mesh);
+      converter.Build();
+      TopoDS_Shape s = converter.IsDone() ? converter.Shape() : TopoDS_Shape();
+      if (s.IsNull()) {
         if (error) *error = "could not read STL file";
         return false;
       }

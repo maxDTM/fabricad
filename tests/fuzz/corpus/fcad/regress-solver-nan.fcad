@@ -1,0 +1,342 @@
+{
+    "activeComponent": 1,
+    "bodies": [
+        {
+            "color": [
+                0.7300000190734863,
+                0.7400000095367432,
+                0.7699999809265137,
+                1
+            ],
+            "component": 1,
+            "creator": 17,
+            "id": 18,
+            "name": "Body1",
+            "visible": true
+        }
+    ],
+    "components": [
+        {
+            "children": [
+            ],
+            "grounded": true,
+            "id": 1,
+            "name": "plain",
+            "parent": 0,
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0,
+                    1
+                ],
+                "t": [
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "visible": true
+        }
+    ],
+    "extensions": {
+        "ui": {
+            "displayMode": "shaded-edges",
+            "folders": {
+                "Construction": true,
+                "Joints": true,
+                "Sketches": true
+            },
+            "hiddenFeatures": [
+                16
+            ],
+            "projection": "orthographic",
+            "showOrigin": false
+        }
+    },
+    "features": [
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "id": 2,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "id": 3,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 4,
+                    "type": "Coi`cident"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 5,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 6,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 7,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 8,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 9,
+                    "name": "origin",
+                    "type": "Fix"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 10,
+                    "label": [
+                        10,
+                        5
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 20
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 11,
+                    "label": [
+                        15,
+                        5
+                    ],
+                    "name": "d2",
+                    "type": "Distance",
+                    "value": 10
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        0,
+                        0,
+                        20,
+                        0
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        20,
+                        0,
+                        20,
+                        10
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        20,
+                        10,
+                        0,
+                        10
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        0,
+                        10,
+                        0,
+                        0
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 16,
+            "name": "Sketch1",
+            "nextConstraintId": 12,
+            "nextGeoId": 5,
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "XY",
+                        "owner": 2
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "createdBodies": [
+                18
+            ],
+            "id": 17,
+            "name": "Extrude1",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 5
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "New Body",
+                    "type": "Enum",
+                    "value": 3
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1,2,3,4",
+                            "owner": 16,
+                            "pt": [
+                                10,
+                                5,
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        }
+    ],
+    "format": "fabricad",
+    "name": "plain",
+    "nextId": 19,
+    "parameters": [
+    ],
+    "rollbackIndex": 2,
+    "units": {
+        "angle": "deg",
+        "length": "mm",
+        "precision": 3
+    },
+    "version": 1
+}
