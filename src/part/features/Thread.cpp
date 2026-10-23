@@ -121,7 +121,9 @@ BoolResult threadCut(const TopoDS_Shape& body, const std::vector<TopoDS_Shape>& 
 }
 
 std::string ThreadInfo::callout() const {
-  const std::string cls = threadClass.empty() ? std::string(internal ? "6H" : "6g") : threadClass;
+  // ASME B1.1 inch threads (designation "1/4-20", "#10-32") default to 2B / 2A
+  const bool inch = !designation.empty() && designation[0] != 'M';
+  const std::string cls = !threadClass.empty() ? threadClass : inch ? std::string(internal ? "2B" : "2A") : std::string(internal ? "6H" : "6g");
   return std::format("{} - {}{}", designation, cls, leftHanded ? " LH" : "");
 }
 

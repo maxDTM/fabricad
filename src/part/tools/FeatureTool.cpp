@@ -819,6 +819,11 @@ bool FeatureTool::commandLineInput(core::ToolContext& ctx, const std::string& te
   if (eq != std::string::npos) {
     std::string name = t.substr(0, eq), value = t.substr(eq + 1);
     PartFeature* f = feature();
+    if (f && f->applyScriptOption(name, value)) {
+      updatePreview(ctx);
+      rebuildPanel();
+      return true;
+    }
     core::Property* p = f ? f->property(name) : nullptr;
     if (!p) return false;
     if (p->isNumeric()) return setNumeric(ctx, name, value);

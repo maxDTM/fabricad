@@ -7,6 +7,10 @@
 #include "core/Feature.h"
 #include "core/ShapeUtils.h"
 #include "part/PartUtils.h"
+#include "part/standards/Clearance.h"
+#include "part/standards/Threads.h"
+
+#include <QSettings>
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -43,14 +47,25 @@ HoleFeature::HoleFeature() : PartFeature(kType) {
   addLength("csinkDiameter", 12.0).setLabel("Countersink diameter");
   addAngle("csinkAngle", 90.0).setLabel("Countersink angle");
   addBool("flip", false).setLabel("Flip direction");
-  addEnum("tapType", {"Simple", "Clearance", "Tapped"}, Simple)
-      .setLabel("Hole tap type")
-      .setTooltip("Clearance / Tapped take the diameter from the ISO metric size");
+  addEnum("tapType", {"Simple", "Clearance", "Tapped", "Tap drill only"}, Simple)
+      .setLabel("Type")
+      .setTooltip("Simple: typed diameter. Clearance / Tapped / Tap drill only take the diameter from the size table");
+  addEnum("standard", {"ISO metric", "ANSI inch"}, Iso)
+      .setLabel("Standard")
+      .setTooltip("ISO metric (ISO 261 / 273) or ANSI unified inch (UNC / UNF, ASME B18.2.8)");
   addEnum("threadSize", isoMetricDesignations(), 0).setLabel("Size").setEnum("M6x1");
-  addEnum("clearanceFit", {"Close", "Normal", "Loose"}, 1).setLabel("Fit").setTooltip("ISO 273 clearance hole series");
+  addEnum("ansiSize", standards::inchDesignations(), 0).setLabel("Size").setEnum("1/4-20");
+  addEnum("clearanceFit", {"Close", "Normal", "Loose"}, 1).setLabel("Fit").setTooltip("ISO 273 / ASME B18.2.8 clearance hole series");
   addBool("threadModeled", false).setLabel("Modeled").setTooltip("Cut the real thread (slow); off = cosmetic thread");
   addBool("threadFullDepth", true).setLabel("Full tap depth");
   addLength("threadDepth", 8.0).setLabel("Thread depth");
+  addString("threadClass", "").setLabel("Thread class").setTooltip("Tolerance class; empty = 6H (ISO) / 2B (ANSI)");
+  addEnum("fastener", standards::headTypeNames(), 0)
+      .setLabel("Fastener")
+      .setTooltip("Size the counterbore / countersink from the screw head table; Custom = typed values");
+  addLength("headClearance", 0.0).setLabel("Head clearance").setTooltip("Extra counterbore depth above the head (0 / 0.5 / 1 mm)");
+  addLength("headOffset", 0.0).setLabel("Head below surface").setTooltip("Sink the head this far below the surface");
+  addString("threadInfo", "").setLabel("Thread").flags().readOnly = true;
   addRefs("targets", core::mask(core::ShapeKind::Body))
       .setLabel("Bodies to cut")
       .setTooltip("empty = the body the hole is placed on (else every body of the component the hole touches)");
@@ -68,30 +83,198 @@ void HoleFeature::updatePropertyFlags() {
   prop("csinkDiameter").flags().hidden = t != Countersink;
   prop("csinkAngle").flags().hidden = t != Countersink;
   const int tap = enumIndex("tapType");
+  const bool ansi = enumIndex("standard") == Ansi;
+  const bool headSized = (t == Counterbore || t == Countersink) && enumIndex("fastener") != 0;
+  const bool sized = tap != SimpleTap || headSized;
   prop("diameter").flags().hidden = tap != SimpleTap;
-  prop("threadSize").flags().hidden = tap == SimpleTap;
+  prop("threadSize").flags().hidden = !sized || ansi;
+  prop("ansiSize").flags().hidden = !sized || !ansi;
   prop("clearanceFit").flags().hidden = tap != Clearance;
   prop("threadModeled").flags().hidden = tap != Tapped;
   prop("threadFullDepth").flags().hidden = tap != Tapped;
   prop("threadDepth").flags().hidden = tap != Tapped || flag("threadFullDepth");
+  prop("threadClass").flags().hidden = tap != Tapped;
+  prop("fastener").flags().hidden = t != Counterbore && t != Countersink;
+  prop("headClearance").flags().hidden = !headSized;
+  prop("headOffset").flags().hidden = !headSized;
+  syncHeadValues();
+  prop("threadInfo").setString(threadDepthText());
+  prop("threadInfo").flags().hidden = tap != Tapped || all;
 }
 
 double HoleFeature::clearanceDiameter(const IsoThread& t, int fit) {
-  // ISO 273 fine / medium / coarse series for the common sizes, else 1.07 / 1.1 / 1.2 x d
-  struct Row {
-    double d, fine, medium, coarse;
+  return standards::clearanceDiameter(t, static_cast<standards::Fit>(std::clamp(fit, 0, 2)));
+}
+
+const IsoThread* HoleFeature::threadSpec() const {
+  if (enumIndex("standard") == Ansi) return standards::findInchThread(enumName("ansiSize"));
+  return findIsoThread(enumName("threadSize"));
+}
+
+std::optional<standards::HeadRecess> HoleFeature::tableRecess() const {
+  const int fast = enumIndex("fastener");
+  if (fast <= 0) return std::nullopt;
+  const IsoThread* t = threadSpec();
+  if (!t) return std::nullopt;
+  return standards::headRecess(static_cast<standards::HeadType>(fast), *t, prop("headClearance").toDouble(),
+                               prop("headOffset").toDouble());
+}
+
+double HoleFeature::effectiveDiameter() const {
+  const int tap = enumIndex("tapType");
+  const IsoThread* t = tap == SimpleTap ? nullptr : threadSpec();
+  if (!t) return prop("diameter").toDouble();
+  return tap == Clearance ? clearanceDiameter(*t, enumIndex("clearanceFit")) : t->tapDrill();
+}
+
+double HoleFeature::usableThreadDepth() const {
+  if (!flag("threadFullDepth")) return prop("threadDepth").toDouble();
+  return prop("depth").toDouble();
+}
+
+std::string HoleFeature::threadDepthText() const {
+  if (enumIndex("tapType") != Tapped) return {};
+  const bool inch = enumIndex("standard") == Ansi;
+  auto len = [inch](double mm) {
+    return inch ? std::format("{:.3f}\"", mm / standards::kInch) : std::format("{:.4g} mm", mm);
   };
-  static const Row kRows[] = {
-      {1.6, 1.7, 1.8, 2.0},  {2, 2.2, 2.4, 2.6},   {2.5, 2.7, 2.9, 3.1},  {3, 3.2, 3.4, 3.6},    {3.5, 3.7, 3.9, 4.2},
-      {4, 4.3, 4.5, 4.8},    {5, 5.3, 5.5, 5.8},   {6, 6.4, 6.6, 7},      {8, 8.4, 9, 10},       {10, 10.5, 11, 12},
-      {12, 13, 13.5, 14.5},  {14, 15, 15.5, 16.5}, {16, 17, 17.5, 18.5},  {18, 19, 20, 21},      {20, 21, 22, 24},
-      {22, 23, 24, 26},      {24, 25, 26, 28},     {27, 28, 30, 32},      {30, 31, 33, 35},      {33, 34, 36, 38},
-      {36, 37, 39, 42},      {39, 40, 42, 45},     {42, 43, 45, 48},      {45, 46, 48, 52},      {48, 50, 52, 56},
-      {52, 54, 56, 62},      {56, 58, 62, 66},     {60, 62, 66, 70},      {64, 66, 70, 74},
-  };
-  for (const Row& r : kRows)
-    if (std::abs(r.d - t.nominal) < 1e-9) return fit == 0 ? r.fine : fit == 2 ? r.coarse : r.medium;
-  return t.nominal * (fit == 0 ? 1.07 : fit == 2 ? 1.2 : 1.1);
+  std::string out = std::format("thread {}, drill {}", len(usableThreadDepth()), len(prop("depth").toDouble()));
+  if (enumIndex("drillPoint") == Angled) {
+    const double a = prop("drillAngle").toDouble();
+    if (a > 0 && a < 180) out += std::format(" + {} point", len(effectiveDiameter() / 2.0 / std::tan(a * M_PI / 360.0)));
+  }
+  return out;
+}
+
+void HoleFeature::syncHeadValues() {
+  const int t = enumIndex("holeType");
+  const int fast = enumIndex("fastener");
+  const std::string key = std::format("{}|{}|{}|{}|{}|{}|{}", t, fast, enumIndex("standard"), enumName("threadSize"),
+                                      enumName("ansiSize"), prop("headClearance").toDouble(), prop("headOffset").toDouble());
+  const char* names[4] = {"cboreDiameter", "cboreDepth", "csinkDiameter", "csinkAngle"};
+  double cur[4];
+  for (int i = 0; i < 4; ++i) cur[i] = prop(names[i]).toDouble();
+  auto rec = (t == Counterbore || t == Countersink) ? tableRecess() : std::nullopt;
+  if (!rec) {
+    headSynced_ = false;
+    lastHeadKey_ = key;
+    return;
+  }
+  if (headSynced_ && key == lastHeadKey_) {
+    for (int i = 0; i < 4; ++i)
+      if (std::abs(cur[i] - lastFill_[i]) > 1e-9) {
+        prop("fastener").setEnum(0);  // a hand-edited recess is a Custom head
+        headSynced_ = false;
+        prop("headClearance").flags().hidden = true;
+        prop("headOffset").flags().hidden = true;
+        return;
+      }
+    return;
+  }
+  prop("cboreDiameter").setDouble(rec->diameter);
+  prop("cboreDepth").setDouble(rec->depth);
+  prop("csinkDiameter").setDouble(rec->diameter);
+  if (rec->angle > 0) prop("csinkAngle").setDouble(rec->angle);
+  for (int i = 0; i < 4; ++i) lastFill_[i] = prop(names[i]).toDouble();
+  headSynced_ = true;
+  lastHeadKey_ = key;
+}
+
+void HoleFeature::fromJson(const QJsonObject& o) {
+  PartFeature::fromJson(o);
+  headSynced_ = false;
+  lastHeadKey_.clear();
+  updatePropertyFlags();
+}
+
+void HoleFeature::applyDefaultsForNewFeature(const core::Document& doc) {
+  PartFeature::applyDefaultsForNewFeature(doc);
+  prop("fastener").setEnum(static_cast<int>(standards::HeadType::SocketCap));
+  // preference hole/defaultStandard: auto (follows the document unit), iso or ansi
+  const std::string pref = QSettings().value("hole/defaultStandard", "auto").toString().toStdString();
+  const bool inchDoc = doc.units().length == core::LengthUnit::Inch || doc.units().length == core::LengthUnit::Foot;
+  const bool ansi = pref == "ansi" || (pref != "iso" && inchDoc);
+  prop("standard").setEnum(ansi ? Ansi : Iso);
+  if (ansi) {
+    prop("diameter").setDouble(0.281 * standards::kInch);
+    prop("depth").setDouble(0.5 * standards::kInch);
+  }
+  updatePropertyFlags();
+}
+
+namespace {
+std::string lower(std::string s) {
+  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+}  // namespace
+
+bool HoleFeature::applyScriptOption(const std::string& nameIn, const std::string& valueIn) {
+  const std::string name = lower(nameIn), v = lower(valueIn);
+  if (name == "standard") {
+    if (v == "iso" || v == "metric" || v == "iso metric") prop("standard").setEnum(Iso);
+    else if (v == "ansi" || v == "inch" || v == "ansi inch" || v == "unc" || v == "unf") prop("standard").setEnum(Ansi);
+    else return false;
+    return true;
+  }
+  if (name == "type") {
+    static const std::pair<const char*, int> kTypes[] = {{"simple", SimpleTap}, {"clearance", Clearance}, {"tapped", Tapped},
+                                                         {"tapdrill", TapDrillOnly}, {"tap drill only", TapDrillOnly}};
+    for (auto [k, i] : kTypes)
+      if (v == k) {
+        prop("tapType").setEnum(i);
+        return true;
+      }
+    return false;
+  }
+  if (name == "size") {
+    if (const IsoThread* iso = findIsoThread(valueIn)) {
+      prop("threadSize").setEnum(iso->designation);
+      prop("standard").setEnum(Iso);
+      return true;
+    }
+    if (const IsoThread* in = standards::findInchThread(valueIn)) {
+      prop("ansiSize").setEnum(in->designation);
+      prop("standard").setEnum(Ansi);
+      return true;
+    }
+    return false;
+  }
+  if (name == "fit") {
+    const int i = v == "close" ? 0 : v == "normal" ? 1 : v == "loose" ? 2 : -1;
+    if (i < 0) return false;
+    prop("clearanceFit").setEnum(i);
+    return true;
+  }
+  if (name == "fastener" || name == "head") {
+    const auto& keys = standards::headTypeKeys();
+    for (size_t i = 0; i < keys.size(); ++i)
+      if (v == keys[i] || v == lower(standards::headTypeNames()[i])) {
+        prop("fastener").setEnum(static_cast<int>(i));
+        return true;
+      }
+    return false;
+  }
+  if (name == "point") {
+    if (v == "flat") {
+      prop("drillPoint").setEnum(Flat);
+      return true;
+    }
+    try {
+      const double a = std::stod(v);
+      if (a <= 0 || a >= 180) return false;
+      prop("drillPoint").setEnum(Angled);
+      prop("drillAngle").setDouble(a);
+      return true;
+    } catch (...) {
+      return false;
+    }
+  }
+  if (name == "class") {
+    prop("threadClass").setString(valueIn);
+    return true;
+  }
+  return false;
 }
 
 TopoDS_Shape HoleFeature::makeProtoHole(const Params& p, std::string* error, std::vector<TopoDS_Shape>* namedFaces) {
@@ -205,13 +388,13 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   p.diameter = ctx.length("diameter");
   const int tap = enumIndex("tapType");
   const IsoThread* iso = nullptr;
-  if (tap != SimpleTap) {
-    iso = findIsoThread(enumName("threadSize"));
+  if (tap != SimpleTap || ((p.type == Counterbore || p.type == Countersink) && enumIndex("fastener") > 0)) {
+    iso = threadSpec();
     if (!iso) {
       ctx.setError("unknown thread size");
       return;
     }
-    p.diameter = tap == Tapped ? iso->tapDrill() : clearanceDiameter(*iso, enumIndex("clearanceFit"));
+    if (tap != SimpleTap) p.diameter = tap == Clearance ? clearanceDiameter(*iso, enumIndex("clearanceFit")) : iso->tapDrill();
   }
   p.depth = ctx.length("depth");
   p.drillPoint = enumIndex("drillPoint");
@@ -220,6 +403,17 @@ void HoleFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
   p.cboreDepth = ctx.length("cboreDepth");
   p.csinkDiameter = ctx.length("csinkDiameter");
   p.csinkAngle = ctx.angle("csinkAngle");
+  if (p.type == Counterbore || p.type == Countersink) {
+    if (auto rec = tableRecess()) {
+      p.cboreDiameter = rec->diameter;
+      p.cboreDepth = rec->depth;
+      p.csinkDiameter = rec->diameter;
+      if (rec->angle > 0) p.csinkAngle = rec->angle;
+    } else if (enumIndex("fastener") > 0) {
+      ctx.setWarning(std::format("no {} head for {} in the table: typed recess used", standards::headTypeKeys()[enumIndex("fastener")],
+                                 iso ? iso->designation : std::string("this size")));
+    }
+  }
   const bool all = enumIndex("extentType") == All;
   if (all) {
     p.depth = throughAllLength(ctx);
@@ -357,6 +551,8 @@ void HoleFeature::applyThreads(core::RecomputeContext& ctx, const IsoThread& iso
           ctx.setWarning("thread: " + err);
           continue;
         }
+        info.threadClass = prop("threadClass").toString();
+        if (info.threadClass.empty() && iso.isInch()) info.threadClass = standards::defaultThreadClass(iso, true);
         holeThreads_.push_back(info);
         if (!cutter.IsNull()) cutters.push_back(cutter);
       }

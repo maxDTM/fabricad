@@ -108,6 +108,14 @@ class PartFeature : public core::Feature {
   /// String property a bare typed value (or the first command-line argument) goes to when the
   /// feature has no primary numeric: "filePath" for Import. Empty by default.
   virtual std::string primaryText() const { return {}; }
+  /// Command-line `name=value` words the feature translates itself (short script keys such as
+  /// HOLE `standard=ansi size=1/4-20`), tried before the generic property assignment. True when
+  /// handled.
+  virtual bool applyScriptOption(const std::string& name, const std::string& value) {
+    (void)name;
+    (void)value;
+    return false;
+  }
   /// Inputs a preselected reference goes to when a new feature starts (empty = the default:
   /// the primary input, else the first input accepting the kind). Hole: a preselected face is the
   /// start face (and, with a pick point, also a placement point), COMPARISON.md recommendation 7.

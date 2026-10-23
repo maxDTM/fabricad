@@ -11,6 +11,7 @@
 #include "assembly/PasteNew.h"
 #include "assembly/tools/ComponentTools.h"
 #include "assembly/tools/DriveJointTool.h"
+#include "assembly/tools/InsertFastenerTool.h"
 #include "assembly/tools/InterferenceTool.h"
 #include "assembly/tools/JointTool.h"
 #include "assembly/tools/MoveComponentTool.h"
@@ -89,6 +90,7 @@ void registerModule(fabricad::core::ModuleContext& ctx) {
   ctx.tools.registerTool(std::make_unique<MoveComponentTool>());
   ctx.tools.registerTool(std::make_unique<DriveJointTool>());
   ctx.tools.registerTool(std::make_unique<InterferenceTool>());
+  ctx.tools.registerTool(std::make_unique<InsertFastenerTool>());  // production features P2
 
   // --- instant tools -------------------------------------------------------------------
   {
