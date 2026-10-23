@@ -18,6 +18,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace fabricad::app {
 
 namespace {
@@ -801,6 +803,18 @@ void MainToolbar::refreshStates() {
   Page* p = currentPage();
   if (!p) return;
   const core::ToolContext ctx = manager_->makeContext();
+  // the caption of the section holding the running command is highlighted (mockup v6 CREATE)
+  const std::string activeId = manager_->activeToolId();
+  for (Section& sec : p->sections) {
+    if (!sec.caption) continue;
+    const bool holds = !activeId.empty() && std::any_of(sec.model.all.begin(), sec.model.all.end(),
+                                                         [&](const core::ITool* t) { return t->info().id == activeId; });
+    if (sec.caption->property("activeSection").toBool() != holds) {
+      sec.caption->setProperty("activeSection", holds);
+      sec.caption->style()->unpolish(sec.caption);
+      sec.caption->style()->polish(sec.caption);
+    }
+  }
   std::map<std::string, bool> cache;
   for (auto& [id, obj] : p->actions) {
     auto it = cache.find(id);

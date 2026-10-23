@@ -1,6 +1,7 @@
 // FabriCAD app: Preferences dialog.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/PreferencesDialog.h"
+#include "part/features/Import.h"
 
 #include "app/AppActions.h"
 #include "app/ThemeManager.h"
@@ -182,6 +183,13 @@ PreferencesDialog::PreferencesDialog(core::Document& doc, viewer::ViewerWidget* 
   gf->addRow("Default length unit (new designs)", defLength_);
   gf->addRow("Default angle unit (new designs)", defAngle_);
   gf->addRow(reverseZoom_);
+  // COMPARISON.md recommendation 8: STEP files without pcurves are smaller
+  auto* pcurves = new QCheckBox("Write pcurves into STEP files (off: smaller files)", general);
+  pcurves->setObjectName("stepPcurves");
+  pcurves->setToolTip("Edge parameter curves (write.surfacecurve.mode). Most importers rebuild them; EXPORTSTEP pcurves=on|off overrides");
+  pcurves->setChecked(part::stepPcurvesDefault());
+  connect(pcurves, &QCheckBox::toggled, this, [](bool on) { part::setStepPcurvesDefault(on); });
+  gf->addRow(pcurves);
   tabs_->addTab(general, "General");
 
   auto* document = new QWidget(tabs_);

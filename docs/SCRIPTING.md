@@ -238,8 +238,11 @@ SPLIT            SELECT body:X first, then INPUT splitTool plane:YZ, OK
 MOVE / COPY      bodies: moveType=Translate dx= dy= dz= | moveType=Rotate INPUT axis <edge/axis> angle= |
                  Point to Point; createCopy=true for a copy
 COMBINE, OFFSETFACE, DRAFT, PRESSPULL / PP, RECTPATTERN, CIRCPATTERN, MIRROR
-OFFSETPLANE 430  with a plane selected (flip=true for the other side); PLANEANGLE, MIDPLANE, PLANE3, AXIS, POINT
-EDITFEATURE <id> opens the feature's command in edit mode (same inputs, OK pushes one undo step)
+OFFSETPLANE 430  with a plane selected (flip=true for the other side; direction=+Y makes the offset and
+                 the normal follow world +Y, e.g. on XZ whose own normal is -Y); PLANEANGLE, MIDPLANE, PLANE3, AXIS, POINT
+EDITFEATURE <id|name> opens the feature's command in edit mode (EDITFEATURE Extrude1; same inputs, OK pushes
+                 one undo step). A Join/Cut/Hole that changes or passes through a body of another component
+                 says so in the message line
 SET width=80 mm  create/change a parameter (undoable; the model follows; does not interrupt a command); PARAMETERS opens the dialog
                  SET width=  removes it (refused while features or parameters use it); invalid names are refused
 UNITS in [deg]   document units (mm cm m in ft, deg rad; undoable); plain-number parameters used as lengths keep
@@ -247,6 +250,11 @@ UNITS in [deg]   document units (mm cm m in ft, deg rad; undoable); plain-number
 ZOOM E | ZOOM 2 | ZOOM 0.5 | ZOOM W   fit, zoom about the centre by a factor, drag-to-zoom mode (view command)
 APPEARANCE #ff8800   colour of the selected/preselected bodies or components (A without a colour opens the picker)
 MEASURE          with one or two entities selected
+SECTION XZ 12    section analysis: a live clipping plane (XY/XZ/YZ, or a selected plane or planar face)
+                 moved 12 mm along its normal; FLIP keeps the other side, a number moves it, OK keeps it
+                 on after the command; SECTION OFF (or SECTIONOFF, INSPECT > Remove Section) removes it
+PROJECTSKETCH XY project selected edges/bodies from outside a sketch: creates the sketch on the plane,
+                 then runs PROJECT (inside a sketch it is PROJECT)
 UNDO / U, REDO, DELETE (selection), HIDE / SHOW, SHOWALL, COMPUTE
 ```
 
@@ -281,12 +289,15 @@ DRAWING / OK           create a drawing of the design: it opens in its own tab (
 BASEVIEW front 1:1 100,150 / OK      orientation, scale, sheet position (mm); hidden, tangent
 PROJECTEDVIEW / OK, SECTIONVIEW, DETAILVIEW, DIMENSION, TEXT, LEADER, PARTSLIST, BALLOON
 EXPORTPDF a.pdf, EXPORTSVG a.svg, EXPORTDXF a.dxf, EXPORTCSV a.csv
-EXPORTSTEP a.step                    selected bodies (or all) in their component placement
-assembly.export-step a.step          XCAF assembly: components, occurrences, names, colours
-EXPORTSTL a.stl [deflection=0.05] [angle=20|0.2rad] [ascii]      selected bodies or all (world placement);
-                 typed exports always start from the built-in 0.05 mm / 20 deg / binary; every export
-                 meshes afresh, so earlier exports or the display mesh never leak into the file.
-                 In the GUI, EXPORTSTL without arguments opens the dialog (file, deflections, format)
+EXPORTSTEP a.step [pcurves=off]      selected bodies (or all) in their component placement; pcurves=off
+                 (or nopcurves) omits the edge pcurves for a smaller file (default: Preferences, on)
+assembly.export-step a.step [pcurves=off]   XCAF assembly: components, occurrences, names, colours
+EXPORTSTL a.stl [quality=coarse|medium|fine] [deflection=0.05] [angle=11.5|0.2rad] [ascii]
+                 selected bodies or all (world placement). Presets: coarse 0.1 mm / 20 deg, medium
+                 0.05 mm / 0.2 rad (the default), fine 0.01 mm / 5 deg; deflection= / angle= override a
+                 preset. Typed exports always start from medium / binary; every export meshes afresh, so
+                 earlier exports or the display mesh never leak into the file. In the GUI, EXPORTSTL
+                 without arguments opens the dialog (file, quality, deflections, format)
 IMPORT part.step / OK  (or IMPORT, filePath=part.step, OK): insert a STEP/STL as bodies (string
                  properties are typed as name=value like the others); IMPORTFILE part.step inserts at once.
                  An assembly STEP becomes components and occurrences (keepStructure=false: flat bodies)

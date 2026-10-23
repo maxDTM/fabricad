@@ -538,7 +538,7 @@ class TestAppLogic : public QObject {
     const app::ToolbarGroup* surfCreate = group("SURFACE", "CREATE");
     QVERIFY(surfCreate && surfCreate->all.front() == reg.tool("part.thicken"));
     const app::ToolbarGroup* surfModify = group("SURFACE", "MODIFY");
-    QVERIFY2(!surfModify || surfModify->all.front() == reg.tool("part.split-face"), "split face");
+    QVERIFY(surfModify && surfModify->all.front() == reg.tool("part.split-face"));
   }
 
   void searchDropsDisabledFuzzyMatches() {

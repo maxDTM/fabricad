@@ -245,7 +245,8 @@ void SectionTool::syncDialog() {
     if (!base_) planeLabel_->setText("Select a plane or planar face");
     else {
       const gp_Dir n = base_->Direction();
-      planeLabel_->setText(QString::fromStdString(std::format("Normal ({:.3g}, {:.3g}, {:.3g})", n.X(), n.Y(), n.Z())));
+      auto c = [](double v) { return std::abs(v) < 1e-12 ? 0.0 : v; };  // no "-0"
+      planeLabel_->setText(QString::fromStdString(std::format("Normal ({:.3g}, {:.3g}, {:.3g})", c(n.X()), c(n.Y()), c(n.Z()))));
     }
   }
   if (offsetBox_) {

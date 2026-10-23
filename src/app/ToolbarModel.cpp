@@ -68,7 +68,15 @@ std::vector<ToolbarTab> buildToolbarModel(const core::ToolRegistry& registry, co
     ToolbarTab tab;
     tab.name = tabName;
     tab.contextual = isContextualTab(tabName);
-    for (const std::string& groupName : orderedGroups(registry.groups(ws, tabName))) {
+    std::vector<std::string> groupNames = registry.groups(ws, tabName);
+    // a group that only holds extra placements (SURFACE > MODIFY: Split Face)
+    for (const ExtraPlacement& e : kExtraPlacements) {
+      core::ITool* t = registry.tool(e.id);
+      if (tabName == e.tab && t && !t->info().hidden && t->info().workspace == ws &&
+          std::find(groupNames.begin(), groupNames.end(), e.group) == groupNames.end())
+        groupNames.push_back(e.group);
+    }
+    for (const std::string& groupName : orderedGroups(groupNames)) {
       ToolbarGroup g;
       g.name = groupName;
       g.all = registry.toolsFor(ws, tabName, groupName);

@@ -189,3 +189,54 @@ a skip/label (`timing`) so `ctest -LE timing` can exclude it on busy machines.
   same-named files apart (`chair.fcad (a/chair)` / `chair.fcad (b/chair)`).
 - Still open from this file for the app: APP-10 (disabled tools in fuzzy search) and NEW-ASM-CORE-2
   (Ground / Unground label).
+
+## rm/feat (2026-10-22): toolbar tools, COMPARISON recommendations 3-9, open backend items
+
+Done on `rm/feat` (tests in brackets):
+
+- **Toolbar vs mockup (P5-MOCKUP-10).** SKETCH: Sketch, **Project** (`sketch.project-start`: outside a sketch it asks
+  for the plane, creates the sketch and hands off to `sketch.project`; inside a sketch it is Project). CREATE: Extrude,
+  Revolve, **Sweep**, **Loft**, Hole. MODIFY: Fillet, Chamfer, Shell, **Pattern** (split: rectangular / circular),
+  **Mirror** (Press Pull `Q` and Combine stay in the MODIFY dropdown). CONSTRUCT: **Plane** (split: offset, angle,
+  tangent, midplane, three points), Axis. INSPECT: Measure, **Section** (new), Interference. MORE: **SURFACE**
+  (Thicken's home tab; Split Face listed too, Thicken also in SOLID > CREATE), TOOLS. Split buttons
+  (`ToolbarSection::variants`, `toolVariantFamilies()`) also on the sketch page (Rectangle, Circle, Arc, Polygon,
+  Slot, Project/Intersect). The caption of the section holding the running command is highlighted
+  (`activeSection`). [`test_app_logic` toolbarSplitButtons, toolbarExtraPlacementsForSurface; sketch
+  `projectFromTheDefaultPage`]
+- **Section Analysis** (`inspect.section`, `SECTION [XY|XZ|YZ] [offset] [FLIP] | SECTION OFF`,
+  `inspect.section-off`): `IViewerContext::setSectionPlane()`; `ViewerWidget` attaches one capped
+  `Graphic3d_ClipPlane` to the body presentations only. Arrow manipulator for the offset, card with offset / flip /
+  remove; OK keeps the section after the command, Esc restores the previous one. [`test_inspect_export`]
+- **Rec. 3 STL quality**: presets coarse 0.1 mm / 20 deg, medium 0.05 mm / 0.2 rad (new default, was 20 deg), fine
+  0.01 mm / 5 deg; `EXPORTSTL quality=...` and a Quality combo in the dialog. `tests/chair/chair.fcs` checks the
+  presets. [`stlQualityPresets`]
+- **Rec. 6 cross-component notes**: `applyTool` records a note when a Join/Cut/Intersect/Hole changes a body of
+  another component or passes through one it leaves alone; `FeatureTool` shows the notes in the message line after
+  OK. No feature warning (leaving other components alone is intended). [`crossComponentNotes`]
+- **Rec. 7 conventions**: Offset Plane `direction` = Plane normal | +-X | +-Y | +-Z (offset and normal follow the
+  world axis; error when not perpendicular). Hole: a preselected face becomes the start face (and, with its pick
+  point, the first placement). [`offsetPlaneWorldDirection`, `holePreselectedFaceIsTheStartFace`]
+- **Rec. 8 STEP without pcurves**: `EXPORTSTEP a.step pcurves=off` (both writers), preference "Write pcurves into
+  STEP files" (Preferences > General, `export/step/pcurves`). Filleted 40x40x10 box: 29.6 kB -> 11.0 kB, reads back
+  as the same solid. [`stepWithoutPcurves`]
+- **APP-10**: S search drops disabled commands from fuzzy (non-prefix) matches; a prefix of the name, a word of it,
+  an alias or the id keeps them listed last. [`searchDropsDisabledFuzzyMatches`]
+- **NEW-ASM-CORE-2**: `ToolInfo::dynamicName`; the Ground toggle reads "Unground" in the toolbar and menus while every
+  selected component is grounded. [`test_assembly_tools`]
+- **DRW-VIEWS-ANNOT-13**: with a top extension, a counterbore/countersink tool keeps only the drill radius above the
+  placement face (no notch in a neighbouring boss). Face names stay stable: the plain profile's faces keep F1..F5,
+  the two faces the trim adds are appended. [`protoHoleShapes`, `throughAllCounterboreLeavesMaterialAboveAlone`]
+- **Design workspace observations (be/drawing)**: CFB now selects the new components, so a following NEWCOMPONENT
+  no longer takes the bodies along (that was also why the first Extrude in the new component defaulted to Join);
+  `EDITFEATURE <name>` works without a selection. "Sketch on the plate's top face ended up at z = 0": not
+  reproduced (a sketch on the top face of a body in a component sits at z = 10, headless).
+
+Still open / not reproduced:
+
+- NEW-DOC-CORE-1 (`*` after undoing back to the saved state): not reproduced headlessly; feature and sketch-dimension
+  edits clear the flag at the save point (`INFO` reports "unmodified"). Snapshot commands (component edits) keep it
+  on purpose (DOC-05). Recheck in the GUI.
+- COMPARISON rec. 5 (typed sketch values create constraints) and rec. 9 (record a live GUI session) are not done here.
+- Origin planes still win picks over body faces in iso view (NEW-ASSEMBLY-DRAWING-1 / NEW-PART-CORE-3): Section and
+  Project picked XZ instead of the box face in the GUI check; preselecting the face works.

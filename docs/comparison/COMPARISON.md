@@ -383,3 +383,16 @@ differs only in its timestamp and in the order of the style entities, as between
 one build. The `tests/scripts/*.fcs` entries and `fabricad_chair_spec` now run headless. The
 new `fabricad_script_{bracket,chair}_window` entries run the same scripts through the window,
 so both shells stay in step.
+
+### Recommendations 3 and 6 to 8 (2026-10-22, branch rm/feat)
+
+* **3, STL quality.** The default is now 0.05 mm / 0.2 rad (11.46 deg), the `Medium` preset. `EXPORTSTL a.stl
+  quality=coarse|medium|fine` and the dialog's Quality combo pick Fusion-like refinement levels (coarse 0.1 mm / 20
+  deg, fine 0.01 mm / 5 deg); `deflection=` / `angle=` still override. `chair_default.stl` now equals `chair.stl`.
+* **6, cross-component effects.** A Join, Cut, Intersect or Hole that changes a body of another component, or whose
+  tool passes through one it leaves alone, says so in the message line after OK.
+* **7, conventions.** Offset Plane has a `direction` (Plane normal, +-X, +-Y, +-Z): `OFFSETPLANE 175 direction=+Y` on
+  XZ gives y = +175 without `flip`. A preselected face is the Hole's start face (U4).
+* **8, STEP size.** `EXPORTSTEP a.step pcurves=off` (and the Preferences > General checkbox) omits the pcurves:
+  a filleted 40 x 40 x 10 box goes from 29.6 kB to 11.0 kB and reads back as the same solid.
+* Not done: 5 (typed sketch values creating constraints), 9 (a recorded live GUI session).
