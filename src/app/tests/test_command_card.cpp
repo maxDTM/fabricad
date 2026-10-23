@@ -304,8 +304,13 @@ class TestCommandCard : public QObject {
     QVERIFY(card()->isDocked());
     auto* scroll = card()->findChild<QScrollArea*>("CommandDialogScroll");
     QVERIFY(scroll && scroll->widget());
-    QVERIFY2(scroll->viewport()->height() >= scroll->widget()->height(),
-             qPrintable(QString("%1 < %2").arg(scroll->viewport()->height()).arg(scroll->widget()->height())));
+    // the approved body (2026-10-23) ends with PREVIEW and the collapsed More options row, which may
+    // scroll in the docked slot; the rows up to OPERATION and MERGE WITH must not
+    auto* merge = scroll->widget()->findChild<QWidget*>("prop_targets");
+    QVERIFY(merge && merge->isVisible());
+    const int mergeBottom = merge->mapTo(scroll->widget(), QPoint(0, merge->height())).y();
+    QVERIFY2(scroll->viewport()->height() >= mergeBottom,
+             qPrintable(QString("%1 < %2").arg(scroll->viewport()->height()).arg(mergeBottom)));
     auto* list = w_->findChild<app::FeatureListWidget*>();
     QVERIFY(list && list->isVisible() && list->height() >= 2 * app::FeatureListWidget::kRowH);
     w_->toolManager().cancel();
