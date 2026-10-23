@@ -126,3 +126,75 @@ Outside the drawing area: the three design-workspace observations in views-annot
 asm-output tester's unverified note about sketches started on the plate's top face ending up
 at z = 0. Both are listed in backend-deferred.md for the design/app owners; none was
 investigated here.
+
+# Drawing round 2: issue status
+
+Findings of the two round-2 testers: [views and annotations](round2/views-annot.md) (DRW2-VIEWS-ANNOT-*)
+and [assembly and output](round2/asm-output.md) (DRW2-ASM-OUTPUT-*). Fixed on branch `rm/fix`.
+Regression tests: `src/drawing/tests/test_drawing_round2.cpp` (plus the updated tapped-hole order in
+`test_drawing_callouts.cpp`).
+
+| id | severity | title | status |
+|---|---|---|---|
+| DRW2-VIEWS-ANNOT-1 | high | Canvas shows every change 5 to 40 s late; stale band after a sheet switch | fixed (driver vsync off at start-up; full repaint on sheet switch) |
+| DRW2-VIEWS-ANNOT-2 | medium | Scale 2:1 pushes views off the sheet, no warning | partly fixed: warning in the card and the status bar; a family that cannot fit still extends past the frame (by design, round 1) |
+| DRW2-VIEWS-ANNOT-3 | medium | Third angle moves the left projected view off the sheet | fixed |
+| DRW2-VIEWS-ANNOT-4 | medium | Fit typed while Tolerance is None is ignored | fixed |
+| DRW2-VIEWS-ANNOT-5 | medium | Shaft fit `g6` printed as `G6` | fixed |
+| DRW2-VIEWS-ANNOT-6 | low | Leader starts inside its note text | fixed |
+| DRW2-VIEWS-ANNOT-7 | low | Parts List default position over the A-A label and view | fixed |
+| DRW2-VIEWS-ANNOT-8 | low | Several commands only in the command search | fixed (Break View, Edit Sheet, Ordinate, Baseline on the ribbon; the rest in the group caption menus) |
+| DRW2-VIEWS-ANNOT-9 | low | Cards clip their content on the right | partly fixed (long rows wrap, shorter Edit View check box text) |
+| DRW2-VIEWS-ANNOT-10 | low | Combo popups cut to 1.5 to 7 rows | not fixed (the popups are limited by the 490 px display; revision row combo shows 12) |
+| DRW2-VIEWS-ANNOT-11 | low | Legacy sheet: vertical 60/42 texts and A-A label overprint | deferred (vertical chain case of round-1 VIEWS-ANNOT-4) |
+| DRW2-VIEWS-ANNOT-12 | low | Aligned dimension text on its own extension line | fixed |
+| DRW2-VIEWS-ANNOT-13 | low | Tapped-hole callout lists the drill first | fixed |
+| DRW2-VIEWS-ANNOT-14 | low | Sheets panel unstyled and unlabelled | fixed |
+| DRW2-VIEWS-ANNOT-15 | low | Tool survives a sheet switch; zoom and pan reset | fixed; `New Drawing` adding a sheet is kept (one drawing per document) |
+| DRW2-ASM-OUTPUT-1 | medium | Scale combo auto-completes `1:1` to `1:100` | fixed |
+| DRW2-ASM-OUTPUT-2 | medium | A4 portrait: view on the frame, balloon outside, revision table over balloon 2 | partly fixed: balloons kept in the frame, a revision table over a view or balloon moves to the clear top corner, the warning tells when views do not fit |
+| DRW2-ASM-OUTPUT-3 | low | Second Parts List on top of the first | fixed (placed clear, with a message) |
+| DRW2-ASM-OUTPUT-4 | low | Double-click on revision row A or B edits row C | fixed |
+| DRW2-ASM-OUTPUT-5 | low | PDF and canvas print text in capitals; `APPROVED` overflows | fixed |
+| DRW2-ASM-OUTPUT-6 | low | Title block Date is the render date | fixed for new sheets (the date is stored); older files keep the fallback until a Date is entered |
+| DRW2-ASM-OUTPUT-7 | low | BOM CSV Part Number empty | partly fixed (falls back to the name, as the parts list); Material and Mass per component stay deferred (round-1 ASM-OUTPUT-11) |
+| DRW2-ASM-OUTPUT-8 | low | Export dialogs open in the working directory | fixed |
+| DRW2-ASM-OUTPUT-9 | low | Raw internal names; PDF Author empty | fixed |
+
+## What changed, per issue (round 2)
+
+* **VIEWS-ANNOT-1**: `setupGlPlatform` also sets `vblank_mode=0` (Mesa) and `__GL_SYNC_TO_VBLANK=0`
+  (NVIDIA) before any GL context exists, unless the user set them or `FABRICAD_VSYNC=1`. The testers
+  found that `vblank_mode=0` cured the lag; the requested swap interval alone did not reach every
+  context. A sheet switch repaints the whole viewport.
+* **VIEWS-ANNOT-2**: `DrawingToolBase::warnIfOutsideFrame` runs on every live Edit View change, after
+  Edit View OK and after Edit Sheet OK (the old check only ran on OK and was hidden by the card closing).
+* **VIEWS-ANNOT-3**: `fitFamilyInFrame` moved nothing when the block (projected and aligned views) was
+  wider than the frame. Then the projected views alone form the block and aligned sections are fitted
+  like free views.
+* **VIEWS-ANNOT-4**: typing in FIT while Tolerance is None selects Fit (the combo used to put None back).
+* **VIEWS-ANNOT-5, ASM-OUTPUT-5**: the drawing fonts set `MixedCase` explicitly. They inherited the
+  app font's `AllUppercase` from the canvas widget and the PDF writer, while the text was measured in
+  mixed case (hence the overflow). Text keeps the typed case in every output.
+* **VIEWS-ANNOT-6**: the leader starts 0.3 text heights outside the widest line, measured with the
+  real font.
+* **VIEWS-ANNOT-7, ASM-OUTPUT-3**: Enter places the parts list with `PartsListTool::clearPosition`:
+  above the title block when clear of views, tables and other lists, else the nearest clear spot up the
+  right, then the left frame edge. A second list for the same view says so.
+* **VIEWS-ANNOT-8**: Break View, Edit Sheet, Ordinate and Baseline Dimension are promoted.
+* **VIEWS-ANNOT-9**: drawing card forms use `newForm` (wrap long rows).
+* **VIEWS-ANNOT-12**: text placed beyond an extension line goes outside it (half the text plus an
+  arrow length) on an extended dimension line, instead of being clamped onto the line.
+* **VIEWS-ANNOT-13**: a plain hole with thread data reads thread first, then the tap drill.
+* **VIEWS-ANNOT-14**: themed sheet rows, labelled `+ New` / `- Delete` panel buttons.
+* **VIEWS-ANNOT-15**: a sheet tab or list click cancels a running drawing command; each sheet keeps
+  its zoom and pan.
+* **ASM-OUTPUT-1**: the scale combo has no completer (and no insert policy).
+* **ASM-OUTPUT-2**: `changeSheetFormat` clamps balloons into the new frame and moves a revision table
+  that lies over a view or balloon to the clear top corner.
+* **ASM-OUTPUT-4**: the canvas double-click passes `--row=<n>` for the row under the pointer.
+* **ASM-OUTPUT-6**: `addSheet` stores today's date in the title block.
+* **ASM-OUTPUT-7**: `bomToCsv` writes the name when the part number is empty.
+* **ASM-OUTPUT-8**: export dialogs start in the last export folder, else the document's folder, else home.
+* **ASM-OUTPUT-9**: orientation and title block labels are spaced (`Iso Top Right`, `Part Number`);
+  the PDF Author is the Drawn By field.

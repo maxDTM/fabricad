@@ -99,3 +99,32 @@ How the fixes were checked:
 | P5-LIGHT-2 | A curved face picked for a profile input is refused at the pick with `Only planar faces can be used as profiles`; it never joins the count. |
 | P5-LIGHT-4 | A selected or highlighted drawing view keeps its lines in ink; the dashed frame in the selection colour shows the state. |
 | P5-LIGHT-8 | Not reproduced on :92: the New Drawing card draws at once (the tester's lag matches the vsync stall above). |
+
+## 6. Re-verification (merged build, branch `rm/fix`)
+
+Three passes ran on the merged build (main `c3fbdc3`): T-keyboard (`p5-reverify/keyboard.md`), T-toggles
+(`p5-reverify/toggles.md`) and the gate G blind CVD re-run (`p5-reverify/cvd-blind.md`).
+
+**Gate G blind re-run: PASS.** Live vs warning 64/64 (100 %, needs 100 %); overall, strict scoring,
+174/176 = 98.9 % (needs 95 %). 32 crops in normal, protan, deutan and tritan, both themes, labelled from a
+mark description only and scored against the key afterwards (not fully blind: the scorer built the scenes).
+The two misses were the conflict-curve rectangle read as a warning under deutan (b28 light, b32 dark). This
+closes the open "Gate G blind re-run" item of section 4.
+
+| Finding | Severity | Result on `rm/fix` |
+|---|---|---|
+| P5R-KBD-1 first `E` after a command ignored | medium | Not reproduced on :95 (box by S + Enter, Esc on the card, Tab into the card then Esc: the first `E` opens Extrude, old and new build). It matches the one-step-late paint of KBD-2, which is addressed below. |
+| P5R-KBD-2 stale paint after keyboard input | medium | The swap interval alone did not reach every context (round-2 drawing testers still needed `vblank_mode=0`). `setupGlPlatform` now also sets `vblank_mode=0` and `__GL_SYNC_TO_VBLANK=0` before any GL context, unless set or `FABRICAD_VSYNC=1`. On :95 the drawing canvas zoom, hover and the FEATURES focus ring showed within 0.4 s. |
+| P5R-KBD-3 faint focus on panel header buttons | medium | Fixed: the QSS rules used `#PanelHeader`, but the headers are named `PanelHeader_<key>`; they now match `QToolButton[panelTool="true"]`. FEATURES search and filter show the 2 px accent ring (:95). |
+| P5R-KBD-4 Light Preferences CLOSE ring | medium | Fixed: a focused filled (default / OK) button gets an `accent.onSolid` ring (`accent.focus` equals the fill in light). Seen on :95. |
+| P5R-KBD-5 card CANCEL not a Tab stop | low | Fixed: the body's fields, then CANCEL, then APPLY (`CommandCard::orderFooterFocus`); card layout unchanged. |
+| P5R-KBD-6 dial readout at the pole | low | Fixed: at EL ±90 the azimuth comes from the camera up direction (`azimuthElevation(toEye, up)`). TOP reads AZ 270 (from the front), Right gives 285, 300 (ctest). |
+| P5R-KBD-7 plane chips mouse-only | low | Fixed: on the Origin row Left / Right move a ring over XY / XZ / YZ and Space picks the plane (SKETCH's plane prompt takes it). |
+| P5R-KBD-8 weak focus on dialog check boxes, radios | low | Fixed: a 2 px ring round the whole control in dialogs (transparent border when not focused, so nothing moves); the default + focused button is now told apart by the ring. The light PROFILES field ring is unchanged. |
+| P5-TOGGLES-R1 docked card over the MODEL header at 490 px | low | Fixed: the sidebar layout used a 400 px floor instead of the real height. |
+| P5-CVD-B1 conflict curve without a shape cue | low | Fixed: a conflicting sketch curve carries a `!` mark at its middle besides the double width. |
+| P5-CVD-B2..B5 | info | Kept as noted (tritan gold is told apart by shape; X/Y by letters; origin axes grey in the sketch grid; no script error line). |
+
+Not changed (awaiting the plan owner): the Extrude card body (section 4). Still open: the dial view buttons
+are not separate Tab stops (Ctrl+1..7), exact-size GUI runs (the compositor tiles the private displays to
+1900x490; offscreen grabs cover exact sizes).

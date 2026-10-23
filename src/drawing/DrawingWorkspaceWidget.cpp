@@ -52,15 +52,21 @@ DrawingWorkspaceWidget::DrawingWorkspaceWidget(QWidget* parent) : QWidget(parent
   title->setFont(theme::font(theme::TextStyle::Header));
   bl->addWidget(title);
   sheetList_ = new QListWidget(browser_);
+  sheetList_->setObjectName("DrawingSheetList");  // themed rows (app.qss.tmpl, DRW2-VIEWS-ANNOT-14)
   sheetList_->setSelectionMode(QAbstractItemView::SingleSelection);
   bl->addWidget(sheetList_, 1);
   auto* buttons = new QHBoxLayout();
+  // labelled, themed buttons like the other panels' tools (DRW2-VIEWS-ANNOT-14)
   addSheet_ = new QToolButton(browser_);
-  addSheet_->setText("+");
+  addSheet_->setObjectName("DrawingAddSheet");
+  addSheet_->setText(tr("+ New"));
   addSheet_->setToolTip(tr("New sheet"));
+  addSheet_->setProperty("panelTool", true);
   removeSheet_ = new QToolButton(browser_);
-  removeSheet_->setText("-");
-  removeSheet_->setToolTip(tr("Delete sheet"));
+  removeSheet_->setObjectName("DrawingRemoveSheet");
+  removeSheet_->setText(tr("- Delete"));
+  removeSheet_->setToolTip(tr("Delete the selected sheet"));
+  removeSheet_->setProperty("panelTool", true);
   buttons->addWidget(addSheet_);
   buttons->addWidget(removeSheet_);
   buttons->addStretch(1);
@@ -103,6 +109,8 @@ DrawingWorkspaceWidget::DrawingWorkspaceWidget(QWidget* parent) : QWidget(parent
   tabs_->setMovable(false);
   bottom->addWidget(tabs_, 0);
   auto* plus = new QToolButton(centre);
+  plus->setObjectName("DrawingAddSheetTab");
+  plus->setProperty("panelTool", true);
   plus->setText("+");
   plus->setToolTip(tr("New sheet"));
   plus->setAutoRaise(true);
@@ -268,6 +276,9 @@ void DrawingWorkspaceWidget::onSheetTabChanged(int index) {
   if (src == tabs_) id = tabs_->tabData(index).toULongLong();
   else if (QListWidgetItem* item = sheetList_->item(index)) id = item->data(Qt::UserRole).toULongLong();
   if (id == 0 || id == canvas_->sheetId()) return;
+  // a drawing command belongs to the sheet it started on: switching sheets ends it
+  // (DRW2-VIEWS-ANNOT-15: Projected View then asked for a parent view on the other sheet)
+  if (manager_ && manager_->isActive() && manager_->activeToolId().rfind("drawing.", 0) == 0) manager_->cancel();
   setActiveSheet(static_cast<ObjectId>(id));
 }
 

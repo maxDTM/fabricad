@@ -163,6 +163,15 @@ class OverlaysTest : public QObject {
     QTest::keyClick(d, Qt::Key_Down);
     QTest::keyClick(d, Qt::Key_Down);
     QCOMPARE(d->readoutText(), QString("AZ 330°  EL 15°"));
+    // P5R-KBD-6: at the pole the readout follows the steps too (TOP reads AZ 270, from the front)
+    QTest::mouseClick(d, Qt::LeftButton, {}, d->buttonRect(1).center());
+    QCOMPARE(d->readoutText(), QString("AZ 270°  EL 90°"));
+    QTest::keyClick(d, Qt::Key_Right);
+    QCOMPARE(d->readoutText(), QString("AZ 285°  EL 90°"));
+    QTest::keyClick(d, Qt::Key_Right);
+    QCOMPARE(d->readoutText(), QString("AZ 300°  EL 90°"));
+    QTest::keyClick(d, Qt::Key_Down);
+    QCOMPARE(d->readoutText(), QString("AZ 300°  EL 75°"));
   }
 
   void dialAxisTipsAndVertices() {

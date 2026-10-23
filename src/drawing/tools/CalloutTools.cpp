@@ -430,7 +430,7 @@ std::string FeatureControlFrameTool::prompt() const {
 QWidget* FeatureControlFrameTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   rowEdit_ = new QLineEdit(w);
   rowEdit_->setPlaceholderText(tr("position dia 0.05 M A B C ; position dia 0.02 A"));
   if (rowsSet_) {
@@ -604,7 +604,7 @@ std::string SurfaceTextureTool::prompt() const {
 
 OrdinateTool::OrdinateTool()
     : ClickSequenceTool(drawingToolInfo("drawing.dimension-ordinate", "Ordinate Dimension",
-                                        "Ordinate dimensions from an origin", "DIMENSIONS", 30, false, {},
+                                        "Ordinate dimensions from an origin", "DIMENSIONS", 30, true, {},
                                         {"ORDINATE", "DIMORDINATE"})) {}
 
 void OrdinateTool::reset() {
@@ -725,7 +725,7 @@ BaselineChainTool::BaselineChainTool(bool chain)
                                                 {"CHAIN", "DIMCONTINUE"})
                               : drawingToolInfo("drawing.dimension-baseline", "Baseline Dimension",
                                                 "Stacked dimensions from the base of a linear dimension", "DIMENSIONS",
-                                                40, false, {}, {"BASELINE", "DIMBASELINE"})),
+                                                40, true, {}, {"BASELINE", "DIMBASELINE"})),
       chain_(chain) {}
 
 void BaselineChainTool::reset() {
@@ -858,7 +858,7 @@ std::string BaselineChainTool::prompt() const {
 
 BreakViewTool::BreakViewTool()
     : ClickSequenceTool(drawingToolInfo("drawing.break-view", "Break View", "Remove a band of a long view", "MODIFY", 60,
-                                        false, {}, {"BREAKVIEW", "BREAK"})) {}
+                                        true, {}, {"BREAKVIEW", "BREAK"})) {}
 
 void BreakViewTool::reset() {
   viewId_ = core::kInvalidId;
@@ -1207,10 +1207,16 @@ void EditCalloutTool::activate(core::ToolContext& ctx) {
   }
   before_ = m->toJson();
   attachCanvas(ctx);
+  revRow_ = -1;
   bool any = false;
-  for (const auto& a : ctx.args) {
+  for (size_t i = 0; i < ctx.args.size(); ++i) {
+    // --row=<n>: open the revision form on row n (1-based; a double-click on that row)
+    if (ctx.args[i].rfind("--row=", 0) == 0) {
+      applySetting(ctx, "row", ctx.args[i].substr(6));
+      continue;
+    }
     std::string k, v;
-    if (parseKeyValue(a, k, v)) any = applySetting(ctx, lower(k), v) || any;
+    if (parseKeyValue(ctx.args[i], k, v)) any = applySetting(ctx, lower(k), v) || any;
   }
   ctx.setPrompt("Edit the annotation (key=value; ...), then OK");
   if (any || !hasDialogShell(ctx)) accept(ctx);
@@ -1351,11 +1357,13 @@ void EditCalloutTool::addFrameFields(QWidget* w, QFormLayout* form, const Featur
 
 QWidget* EditCalloutTool::createRevisionForm(QWidget* parent, const RevisionTable& t) {
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   rowCombo_ = new QComboBox(w);
   for (size_t i = 0; i < t.rows.size(); ++i)
     rowCombo_->addItem(QString::fromStdString(t.rows[i].rev.empty() ? std::to_string(i + 1) : t.rows[i].rev), static_cast<int>(i));
-  rowCombo_->setCurrentIndex(static_cast<int>(t.rows.size()) - 1);
+  rowCombo_->setCurrentIndex(revRow_ >= 0 && revRow_ < static_cast<int>(t.rows.size()) ? revRow_
+                                                                                       : static_cast<int>(t.rows.size()) - 1);
+  rowCombo_->setMaxVisibleItems(12);
   form->addRow(tr("Revision"), rowCombo_);
   revEdit_ = new QLineEdit(w);
   descEdit_ = new QLineEdit(w);
@@ -1409,7 +1417,7 @@ QWidget* EditCalloutTool::createDialog(core::ToolContext& ctx, QWidget* parent) 
       return createRevisionForm(parent, *t);
   }
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   {
     DrawingModel* m = model(ctx);
     Sheet* s = m ? m->sheetOf(id_) : nullptr;

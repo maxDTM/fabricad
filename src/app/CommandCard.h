@@ -144,6 +144,9 @@ class CommandCard : public QFrame {
   void clearBody();
   void adoptBody(QWidget* body);
   void upgradeForms();
+  /// Tab order: the body's fields, then Cancel, then Apply (P5R-KBD-5; the body is adopted after
+  /// the footer was built, so Qt's creation order put the footer first).
+  void orderFooterFocus();
   void updateSteps();
   void focusStep(int index);
   int chromeHeight() const;

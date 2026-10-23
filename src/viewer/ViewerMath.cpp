@@ -152,6 +152,18 @@ AzEl azimuthElevation(const gp_Dir& toEye) {
   return r;
 }
 
+AzEl azimuthElevation(const gp_Dir& toEye, const gp_Dir& up) {
+  AzEl r = azimuthElevation(toEye);
+  if (std::hypot(toEye.X(), toEye.Y()) > 1e-6) return r;
+  const double s = toEye.Z() > 0 ? -1.0 : 1.0;  // see azElOrientation
+  const double x = s * up.X(), y = s * up.Y();
+  if (std::hypot(x, y) < 1e-9) return r;
+  r.az = std::atan2(y, x) / kDeg;
+  if (r.az < 0) r.az += 360.0;
+  if (r.az >= 360.0 - 1e-9) r.az = 0.0;
+  return r;
+}
+
 ViewOrientation azElOrientation(double azDeg, double elDeg) {
   elDeg = std::clamp(elDeg, -90.0, 90.0);
   const double a = azDeg * kDeg, e = elDeg * kDeg;

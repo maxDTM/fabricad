@@ -629,7 +629,18 @@ DimLayout layoutDimension(const Dimension& dim, const DrawingView& view, const D
   }
   // text above the line (towards the offset side), centred, clamped to the user's position
   // along the line
-  double t = std::clamp((dim.textPos - q1).dot(along), 0.0, span);
+  // along the line; text placed beyond an extension line goes outside it, clear of it, on an
+  // extended dimension line (it was clamped onto the extension line: DRW2-VIEWS-ANNOT-12)
+  const double rawT = (dim.textPos - q1).dot(along);
+  double t = std::clamp(rawT, 0.0, span);
+  const double clearT = textW * 0.5 + style.arrowLength;
+  if (rawT > span) {
+    t = std::max(rawT, span + clearT);
+    line(q2, q1 + along * (t + textW * 0.5));
+  } else if (rawT < 0) {
+    t = std::min(rawT, -clearT);
+    line(q1, q1 + along * (t - textW * 0.5));
+  }
   Point2 textOnLine = q1 + along * t;
   Point2 up = along.perp();
   if (up.y > 0) up = -up;  // "above" in sheet space is -y; for vertical lines prefer left

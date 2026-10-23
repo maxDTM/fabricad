@@ -147,7 +147,9 @@ BomTable buildBom(const Document& doc, const BomOptions& opt) {
 std::string bomToCsv(const BomTable& table) {
   std::string out = "Item,Name,Part Number,Description,Material,Qty,Mass [g]\n";
   for (const BomRow& r : table.rows) {
-    out += std::format("{},{},{},{},{},{},{}\n", r.item, csvCell(r.name), csvCell(r.partNumber), csvCell(r.description),
+    out += std::format("{},{},{},{},{},{},{}\n", r.item, csvCell(r.name),
+                       // no part number given: the name, as the on-sheet parts list prints it (DRW2-ASM-OUTPUT-7)
+                       csvCell(r.partNumber.empty() ? r.name : r.partNumber), csvCell(r.description),
                        csvCell(r.material), r.quantity, r.mass > 0 ? std::format("{:.3f}", r.mass) : std::string());
   }
   return out;

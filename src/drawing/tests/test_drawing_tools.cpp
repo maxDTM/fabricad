@@ -627,9 +627,7 @@ class ToolsTest : public QObject {
       const QSignalBlocker b(list);
       list->setCurrentRow(1);
     }
-    QToolButton* minus = nullptr;
-    for (QToolButton* t : fx.widget->findChildren<QToolButton*>())
-      if (t->text() == "-") minus = t;
+    QToolButton* minus = fx.widget->findChild<QToolButton*>("DrawingRemoveSheet");  // "- Delete"
     QVERIFY(minus);
     minus->click();
     QCOMPARE(fx.model->sheets().size(), size_t(2));

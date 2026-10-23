@@ -246,10 +246,46 @@ void DrawingToolBase::addPlaceholder(DisplayList& out, const BBox2& r) {
   out.curves.push_back(Curve2D::polyline({r.min, {r.max.x, r.min.y}, r.max, {r.min.x, r.max.y}, r.min}, LineClass::Detail));
 }
 
+QString DrawingToolBase::spacedName(const std::string& id) {
+  // "IsoTopRight" -> "Iso Top Right" (DRW2-ASM-OUTPUT-9: no raw enum names in the UI)
+  QString out;
+  const QString s = QString::fromStdString(id);
+  for (int i = 0; i < s.size(); ++i) {
+    if (i > 0 && s[i].isUpper() && !s[i - 1].isUpper() && s[i - 1] != ' ') out += ' ';
+    out += s[i];
+  }
+  return out;
+}
+
+bool DrawingToolBase::viewsOutsideFrame(const Sheet& s) {
+  const BBox2 f = s.frameRect();
+  for (const auto& v : s.views)
+    if (v.geometryValid) {
+      const BBox2 b = v.sheetBBox();
+      if (b.min.x < f.min.x - 0.5 || b.max.x > f.max.x + 0.5 || b.min.y < f.min.y - 0.5 || b.max.y > f.max.y + 0.5) return true;
+    }
+  return false;
+}
+
+bool DrawingToolBase::warnIfOutsideFrame(core::ToolContext& ctx, const Sheet& s, bool cardOpen) {
+  if (!viewsOutsideFrame(s)) return false;
+  const std::string text = "The views no longer fit inside the frame: use a smaller scale or a larger sheet";
+  ctx.showMessage(text, true);
+  if (cardOpen) ctx.setPrompt(text);
+  return true;
+}
+
+QFormLayout* DrawingToolBase::newForm(QWidget* parent) {
+  auto* form = new QFormLayout(parent);
+  form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  return form;
+}
+
 QComboBox* DrawingToolBase::addOrientationCombo(QFormLayout* form, ViewOrientation current) {
   auto* combo = new QComboBox();
   for (ViewOrientation o : standardOrientations()) {
-    combo->addItem(QString::fromStdString(viewOrientationName(o)), static_cast<int>(o));
+    combo->addItem(spacedName(viewOrientationName(o)), static_cast<int>(o));
     if (o == current) combo->setCurrentIndex(combo->count() - 1);
   }
   form->addRow(QObject::tr("Orientation"), combo);
@@ -259,6 +295,9 @@ QComboBox* DrawingToolBase::addOrientationCombo(QFormLayout* form, ViewOrientati
 QComboBox* DrawingToolBase::addScaleCombo(QFormLayout* form, double current) {
   auto* combo = new QComboBox();
   combo->setEditable(true);
+  // DRW2-ASM-OUTPUT-1: no inline completion: typing "1:1" must not become "1:100" on Enter
+  combo->setCompleter(nullptr);
+  combo->setInsertPolicy(QComboBox::NoInsert);
   int match = -1;
   for (const auto& p : scalePresets()) {
     combo->addItem(QString::fromUtf8(p.label), p.value);

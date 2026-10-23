@@ -293,6 +293,7 @@ double measureText(const std::string& text, double height, const std::string& fo
   static std::mutex mutex;
   std::lock_guard<std::mutex> lock(mutex);
   QFont font(QString::fromStdString(fontFamily));
+  font.setCapitalization(QFont::MixedCase);  // typed case on every device (DRW2-ASM-OUTPUT-5, DRW2-VIEWS-ANNOT-5)
   font.setPixelSize(100);
   QFontMetricsF fm(font);
   double cap = fm.capHeight() > 0 ? fm.capHeight() : fm.ascent() * 0.72;

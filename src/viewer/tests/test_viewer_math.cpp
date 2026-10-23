@@ -217,6 +217,15 @@ class ViewerMathTest : public QObject {
     ViewOrientation top = azElOrientation(270.0, 90.0);
     QVERIFY(top.toEye.IsEqual(gp_Dir(0, 0, 1), 1e-9));
     QVERIFY(top.up.IsEqual(gp_Dir(0, 1, 0), 1e-9));
+    // P5R-KBD-6: at the poles the azimuth comes back from the up direction (TOP + Right = +15)
+    for (double az : {0.0, 15.0, 30.0, 270.0, 345.0})
+      for (double el : {-90.0, 90.0}) {
+        const ViewOrientation o = azElOrientation(az, el);
+        const AzEl back = azimuthElevation(o.toEye, o.up);
+        QVERIFY2(std::abs(std::remainder(back.az - az, 360.0)) < 1e-6, qPrintable(QString::number(back.az)));
+        QVERIFY(std::abs(back.el - el) < 1e-6);
+      }
+    QVERIFY(std::abs(azimuthElevation(top.toEye, top.up).az - 270.0) < 1e-9);
     // dial projection: in the front view X points right, Z up, Y into the screen
     double x = 0, y = 0, depth = 0;
     projectAxis(gp_Dir(1, 0, 0), gp_Dir(0, -1, 0), gp_Dir(0, 0, 1), x, y, &depth);

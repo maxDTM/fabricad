@@ -163,6 +163,7 @@ class FeatureListWidget : public QAbstractScrollArea {
   bool pending_ = false;
   bool compact_ = false;
   int current_ = -1;
+  int originChip_ = 0;               ///< XY / XZ / YZ chip of the Origin row under the keyboard (P5R-KBD-7)
   int anchor_ = -1;
   int hover_ = -1;
   std::set<core::ObjectId> selectedGroups_;

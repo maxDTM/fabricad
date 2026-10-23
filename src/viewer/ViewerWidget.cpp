@@ -201,6 +201,12 @@ void setupGlPlatform() {
   // state until some later event, or the GUI hangs (the uitest harness needed vblank_mode=0). The
   // widgets repaint on demand only, so no throttling is lost; FABRICAD_VSYNC=1 restores it.
   if (qEnvironmentVariableIntValue("FABRICAD_VSYNC") == 0) {
+    // DRW2-VIEWS-ANNOT-1 / P5R-KBD-2: the requested interval alone did not reach every context
+    // (the drawing canvas and keyboard focus rings still showed 5-40 s late on a hidden Xwayland
+    // display, while vblank_mode=0 cured it). Ask the drivers too, before any GL context exists;
+    // a value the user set is kept.
+    if (qEnvironmentVariableIsEmpty("vblank_mode")) qputenv("vblank_mode", "0");                   // Mesa
+    if (qEnvironmentVariableIsEmpty("__GL_SYNC_TO_VBLANK")) qputenv("__GL_SYNC_TO_VBLANK", "0");  // NVIDIA
     QSurfaceFormat f = QSurfaceFormat::defaultFormat();
     f.setSwapInterval(0);
     QSurfaceFormat::setDefaultFormat(f);

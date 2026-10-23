@@ -319,9 +319,13 @@ void SheetRenderer::addNote(DisplayList& out, const TextNote& note) const {
     out.texts.push_back({p, lines[i], note.height, note.angle, HAlign::Left, VAlign::Top, LineClass::Annotation});
   }
   if (note.leader) {
-    double w = lines.empty() ? 0 : textWidth(lines.front(), note.height);
-    Point2 anchor = note.position + Point2{0, note.height * 0.6};
-    if (note.leaderTo.x > note.position.x + w) anchor = note.position + Point2{w, note.height * 0.6};
+    // the leader starts just outside the text box, measured with the real font (the estimate
+    // was narrower than the text and the line struck through it: DRW2-VIEWS-ANNOT-6)
+    double w = 0;
+    for (const auto& l : lines) w = std::max(w, measureText(l, note.height, style_.fontFamily));
+    const double gap = 0.3 * note.height;
+    Point2 anchor = note.position + Point2{-gap, note.height * 0.6};
+    if (note.leaderTo.x > note.position.x + w * 0.5) anchor = note.position + Point2{w + gap, note.height * 0.6};
     Point2 shoulder = anchor + Point2{note.leaderTo.x > anchor.x ? 2.0 : -2.0, 0};
     out.curves.push_back(Curve2D::segment(anchor, shoulder, LineClass::Dimension));
     out.curves.push_back(Curve2D::segment(shoulder, note.leaderTo, LineClass::Dimension));
@@ -493,6 +497,7 @@ void SheetRenderer::paintCurve(QPainter& p, const Curve2D& c) {
 void SheetRenderer::paintText(QPainter& p, const DisplayText& t, const std::string& fontFamily) {
   if (t.text.empty() || t.height <= 0) return;
   QFont font(QString::fromStdString(fontFamily));
+  font.setCapitalization(QFont::MixedCase);  // typed case on every device (DRW2-ASM-OUTPUT-5, DRW2-VIEWS-ANNOT-5)
   font.setPixelSize(100);
   font.setBold(t.bold);
   QFontMetricsF fm(font);

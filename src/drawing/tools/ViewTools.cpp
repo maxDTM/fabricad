@@ -151,7 +151,7 @@ void NewDrawingTool::activate(core::ToolContext& ctx) {
 QWidget* NewDrawingTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   standardCombo_ = new QComboBox(w);
   fillStandardCombo(standardCombo_, standard_);
   form->addRow(tr("Standard"), standardCombo_);
@@ -315,7 +315,7 @@ bool BaseViewTool::commandLineInput(core::ToolContext& ctx, const std::string& t
 QWidget* BaseViewTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   (void)ctx;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   std::string src = sources_.empty() ? "All visible bodies" : std::to_string(sources_.size()) + " selected";
   form->addRow(tr("Design"), new QLabel(QString::fromStdString(src), w));
   orientationCombo_ = addOrientationCombo(form, orientation_);
@@ -1192,7 +1192,7 @@ QWidget* EditViewTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   const DrawingView* v = m ? m->view(viewId_) : nullptr;
   if (!v) return nullptr;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   labelEdit_ = new QLineEdit(QString::fromStdString(v->type == ViewType::Section ? v->section.label
                                                     : v->type == ViewType::Detail ? v->detail.label : v->label), w);
   form->addRow(tr("Label"), labelEdit_);
@@ -1219,7 +1219,7 @@ QWidget* EditViewTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     radiusSpin_->setValue(v->detail.radius);
     form->addRow(tr("Radius"), radiusSpin_);
   }
-  exactCheck_ = new QCheckBox(tr("Exact hidden-line removal (slower)"), w);
+  exactCheck_ = new QCheckBox(tr("Exact hidden lines (slow)"), w);
   exactCheck_->setChecked(v->exact);
   form->addRow(QString(), exactCheck_);
 
@@ -1275,6 +1275,8 @@ void EditViewTool::applyDialog() {
   if (changed) {
     m->viewDefinitionChanged(viewId_);
     m->updateGeometry();
+    // a scale change re-flows the cached geometry at once: tell while the card is still open
+    if (const Sheet* s = m->sheetOf(viewId_)) warnIfOutsideFrame(*ctx_, *s, true);
   }
 }
 
@@ -1285,17 +1287,11 @@ void EditViewTool::accept(core::ToolContext& ctx) {
     // after a scale change the automatic layout keeps the views apart; when they no longer fit
     // the sheet, say so rather than leaving it to be noticed (DRW-VIEWS-ANNOT-8)
     m->waitForIdle(30000);
-    if (Sheet* s = m->sheetOf(viewId_)) {
-      const BBox2 f = s->frameRect();
-      for (const auto& v : s->views)
-        if (v.geometryValid) {
-          const BBox2 b = v.sheetBBox();
-          if (b.min.x < f.min.x - 0.5 || b.max.x > f.max.x + 0.5 || b.min.y < f.min.y - 0.5 || b.max.y > f.max.y + 0.5) {
-            ctx.showMessage("The views no longer fit inside the frame: use a smaller scale or a larger sheet", true);
-            break;
-          }
-        }
-    }
+    const Sheet* s = m->sheetOf(viewId_);
+    committed_ = true;
+    ctx.finish();
+    if (s) warnIfOutsideFrame(ctx, *s);  // after finish, so the card's end does not hide it
+    return;
   }
   committed_ = true;
   ctx.finish();
@@ -1313,7 +1309,7 @@ void EditViewTool::cancel(core::ToolContext& ctx) {
 
 EditSheetTool::EditSheetTool()
     : DrawingToolBase(drawingToolInfo("drawing.edit-sheet", "Edit Sheet", "Sheet name, size, standard and scale",
-                                      "MODIFY", 20, false, {}, {"EDITSHEET", "SHEETSETTINGS"})) {}
+                                      "MODIFY", 20, true, {}, {"EDITSHEET", "SHEETSETTINGS"})) {}
 
 void EditSheetTool::activate(core::ToolContext& ctx) {
   ctx_ = &ctx;
@@ -1411,7 +1407,7 @@ QWidget* EditSheetTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   const Sheet* s = m ? m->sheet(sheetId_) : nullptr;
   if (!s) return nullptr;
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   nameEdit_ = new QLineEdit(QString::fromStdString(s->name), w);
   form->addRow(tr("Name"), nameEdit_);
   formatCombo_ = new QComboBox(w);
@@ -1457,9 +1453,12 @@ void EditSheetTool::applyDialog() {
 
 void EditSheetTool::accept(core::ToolContext& ctx) {
   applyDialog();
-  if (DrawingModel* m = model(ctx)) m->commitSnapshot("Edit sheet", ctx.undo, before_);
+  DrawingModel* m = model(ctx);
+  if (m) m->commitSnapshot("Edit sheet", ctx.undo, before_);
   if (DrawingCanvas* c = canvas(ctx)) c->zoomToFit();
+  const Sheet* s = m ? m->sheet(sheetId_) : nullptr;
   ctx.finish();
+  if (s) warnIfOutsideFrame(ctx, *s);
 }
 
 void EditSheetTool::cancel(core::ToolContext& ctx) {
@@ -1523,12 +1522,12 @@ QWidget* EditTitleBlockTool::createDialog(core::ToolContext& ctx, QWidget* paren
   if (!s) return nullptr;
   auto values = titleBlockValues(*m, *s);
   auto* w = new QWidget(parent);
-  auto* form = new QFormLayout(w);
+  auto* form = newForm(w);
   edits_.clear();
   for (const auto& name : TitleBlock::fieldNames()) {
     auto* e = new QLineEdit(QString::fromStdString(s->titleBlock.field(name)), w);
     e->setPlaceholderText(QString::fromStdString(values[name]));
-    form->addRow(QString::fromStdString(name), e);
+    form->addRow(spacedName(name), e);  // "Part Number", not PARTNUMBER (DRW2-ASM-OUTPUT-9)
     edits_[name] = e;
     connect(e, &QLineEdit::editingFinished, this, [this]() { applyDialog(); });
   }

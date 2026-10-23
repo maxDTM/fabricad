@@ -499,6 +499,16 @@ void SketchSession::renderGeometry() {
       const float width = selected ? 3.0f : st == GeometryStatus::Conflicting ? 4.0f : 2.0f;
       addPolyline(pts, lineStyle(color, width, dashed));
     }
+    // ...and it carries an error mark at its middle, a shape cue that needs no hue at all (under
+    // deutan the thick olive line read as a warning: P5-CVD-B1)
+    if (st == GeometryStatus::Conflicting && !selected) {
+      const auto pls = g.polylines(72);
+      if (!pls.empty() && !pls.front().empty()) {
+        const auto& pl = pls.front();
+        const Pt2 mid = pl.size() == 2 ? (pl[0] + pl[1]) * 0.5 : pl[pl.size() / 2];
+        addText(toWorld(mid), "!", textStyle(core::ColorRole::SketchConflict, 16.0f));
+      }
+    }
     if (g.isSpline() && g.type == GeomType::Spline) {
       // control polygon (thin dashed), Fusion shows it for control-point splines
       std::vector<Vec3> poly;

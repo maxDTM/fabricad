@@ -113,11 +113,11 @@ QDockWidget#BrowserDock[side="right"] #SidebarHost { border-left: 1px solid @{ed
 #SidebarSplitter::handle { background: @{panel.bg}; }
 #SidebarSplitter::handle:vertical { height: 6px; border-top: 1px solid @{divider}; }
 #SidebarSplitter::handle:hover { border-top: 1px solid @{accent.indicator}; }
-#PanelHeader QToolButton { border: none; padding: 3px; border-radius: 1px; background: transparent; }
-#PanelHeader QToolButton:hover { background: @{row.hover.bg}; }
-#PanelHeader QToolButton:checked { background: @{row.selected.bg}; }
-#PanelHeader QToolButton::menu-indicator { image: none; width: 0; }
-#PanelHeader QToolButton:focus { border: 2px solid @{accent.focus}; padding: 1px; }
+QToolButton[panelTool="true"] { border: none; padding: 3px; border-radius: 1px; background: transparent; }
+QToolButton[panelTool="true"]:hover { background: @{row.hover.bg}; }
+QToolButton[panelTool="true"]:checked { background: @{row.selected.bg}; }
+QToolButton[panelTool="true"]::menu-indicator { image: none; width: 0; }
+QToolButton[panelTool="true"]:focus { border: 2px solid @{accent.focus}; padding: 1px; }
 QLineEdit#FeatureSearch { min-height: 24px; }
 QLineEdit#FeatureListRename { border: 2px solid @{accent.focus}; padding: 0 4px; }
 #FeatureList, #FeatureListViewport { background: @{panel.bg}; border: none; }
@@ -168,7 +168,8 @@ QPushButton:disabled { color: @{text.disabled}; border-color: @{edge}; backgroun
 QPushButton#OkButton, QPushButton:default { background: @{button.primary.bg}; border-color: @{button.primary.bg}; color: @{button.primary.text}; }
 QPushButton#OkButton:hover, QPushButton:default:hover { background: @{button.primary.hover}; border-color: @{button.primary.hover}; }
 QPushButton#OkButton:pressed, QPushButton:default:pressed { background: @{button.primary.pressed}; }
-QPushButton#OkButton:focus, QPushButton:default:focus { border-color: @{accent.focus}; }
+/* a filled (primary) button: accent.focus is the fill colour in light (P5R-KBD-4), so the ring is onSolid */
+QPushButton#OkButton:focus, QPushButton:default:focus { border-color: @{accent.onSolid}; }
 QPushButton#OkButton:disabled { background: @{surface.pressed}; border-color: @{surface.pressed}; color: @{text.disabled}; }
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit { background: @{input.bg}; color: @{text.primary}; border: 1px solid @{input.border}; border-radius: 1px; padding: 2px 4px; selection-background-color: @{accent.solid}; selection-color: @{accent.onSolid}; }
 QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled { background: @{panel.bg}; color: @{text.disabled}; border-color: @{divider}; }
@@ -254,6 +255,12 @@ QLabel#ParametersError { color: @{message.error}; }
 QLabel#DrawingUnavailable { background: @{panel.bg}; color: @{text.secondary}; }
 /* drawing workspace chrome (the sheet itself is painted: paper and ink fixed, surround drawing.canvas) */
 QLabel#DrawingSheetsTitle { color: @{text.secondary}; padding: 2px; }
+QListWidget#DrawingSheetList { background: @{panel.bg}; border: none; outline: 0; }
+QListWidget#DrawingSheetList::item { padding: 4px 6px; color: @{text.primary}; border-left: 2px solid transparent; }
+QListWidget#DrawingSheetList::item:hover { background: @{row.hover.bg}; }
+QListWidget#DrawingSheetList::item:selected { background: @{row.selected.bg}; color: @{row.selected.text}; border-left-color: @{accent.indicator}; }
+QToolButton#DrawingAddSheet, QToolButton#DrawingRemoveSheet { color: @{text.secondary}; padding: 3px 8px; }
+QToolButton#DrawingAddSheet:hover, QToolButton#DrawingRemoveSheet:hover { color: @{text.primary}; }
 QLabel#DrawingEmptyText, QLabel#DrawingStatus, QLabel#DrawingCoords { color: @{text.secondary}; }
 #DrawingEmptyState { background: @{drawing.canvas}; }
 
@@ -311,9 +318,13 @@ QPlainTextEdit#CommandHistory { background: @{surface.panel}; border: none; colo
 #AppBar QToolButton:focus, #AppBar QToolButton#SearchBox:focus, #AppBar QToolButton#WorkspaceSwitcher:focus,
 QToolButton#RibbonTool:focus, QToolButton#RibbonGroupLabel:focus, QToolButton#RibbonCollapsedTool:focus,
 QToolButton#FinishSketchButton:focus, #NavBar QToolButton:focus, #QuickToolbar QToolButton:focus,
-#PanelHeader QToolButton:focus, QToolButton#CardPin:focus, QToolButton#CardClose:focus { border: 2px solid @{accent.focus}; }
+QToolButton[panelTool="true"]:focus, QToolButton#CardPin:focus, QToolButton#CardClose:focus { border: 2px solid @{accent.focus}; }
 QTabBar::tab:selected:focus { border: 2px solid @{accent.focus}; }
 QCheckBox:focus, QRadioButton:focus { color: @{accent.text}; }
+/* dialogs (Preferences, recovery...): a ring round the whole check box / radio, not a tinted label
+   only (P5R-KBD-8); the transparent border keeps the size the same with and without focus */
+QDialog QCheckBox, QDialog QRadioButton { border: 2px solid transparent; padding: 1px 3px; }
+QDialog QCheckBox:focus, QDialog QRadioButton:focus { border-color: @{accent.focus}; }
 QPushButton[selectionInput="true"]:focus { border: 2px solid @{accent.focus}; padding: 4px 7px; }
 /* value box unit suffix and the ▴▾ stepper (5.3, P5-MOCKUP-4) */
 #fcValueBox[stepper="true"] #fcValueField QLineEdit { min-width: 52px; }
