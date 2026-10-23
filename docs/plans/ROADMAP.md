@@ -13,6 +13,7 @@ more workflows (worktrees, `-j2` builds, Sonnet GUI testers through `tools/uites
 | **3** | Drawing test round on the new UI | The redesign changes the drawing canvas surround, selection and dialogs; the drawing workspace has had only one tester pass. |
 | **4** | Interactive tutorial | It anchors to the final UI and needs the step 2 fixes (its §6 list). Open questions answered (tutorial.md §8). |
 | **5** | Agentic design (`agentic-design.md`: chat agent panel, provider abstraction, typed command API over the script layer, MCP server) | Additive, no feature losses. Its non-UI phases A0–A1 (command API, catalogue, providers) may run beside step 4; A2–A6 (session, lock, panel, MCP) follow it. Open questions: agentic-design.md §11. |
+| **6** | Production features (`production-features.md`, 2026-10-23): P1 typed sketch constraints + point-curve/arc-length dims, mass properties, material library, BOM columns, model-fed title block; P2 ISO/ANSI hole standards with fastener-sized recesses and callouts, pocket holes, generated standard parts library inserted into holes with a joint; P3 STEP AP242 check + import report, IGES, OBJ/glTF/3MF, 1:1 face/sketch DXF (R2000) | Chosen by prototyping/production needs from `feature-gaps.md` step 6 and §5/§7; three worktrees with disjoint file ownership (plan §5), merge order P1, P3, P2. Needs nothing from step 5 and may start as soon as a worktree is free. |
 
 ### Step 1: redesign (≈ 11 000 lines + feature list 1 500–2 500; 14–18 sessions)
 
