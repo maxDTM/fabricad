@@ -48,6 +48,9 @@ struct PropertyFlags {
   /// Not serialised: set by the feature constructor.
   int intMin = -1000000;
   int intMax = 1000000;
+  /// UI only (not serialised): the command card shows the row under its collapsed "More options"
+  /// row at the bottom (Extrude's start offset; it opens by itself while the value is not zero).
+  bool advanced = false;
   bool operator==(const PropertyFlags&) const = default;
 };
 
@@ -63,6 +66,9 @@ class Property {
   Property& setLabel(std::string l) { label_ = std::move(l); return *this; }
   const std::string& tooltip() const { return tooltip_; }
   Property& setTooltip(std::string t) { tooltip_ = std::move(t); return *this; }
+  /// UI text of an empty, optional selection input ("Auto"); empty = "Select" (a required pick).
+  const std::string& placeholder() const { return placeholder_; }
+  Property& setPlaceholder(std::string t) { placeholder_ = std::move(t); return *this; }
   PropertyFlags& flags() { return flags_; }
   const PropertyFlags& flags() const { return flags_; }
   /// Allowed kinds for Ref/RefList (selection filter for the dialog's picker).
@@ -138,6 +144,7 @@ class Property {
   std::string name_;
   std::string label_;
   std::string tooltip_;
+  std::string placeholder_;
   PropertyType type_ = PropertyType::Double;
   PropertyFlags flags_;
   ShapeKindMask refFilter_ = kAllKinds;

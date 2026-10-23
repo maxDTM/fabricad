@@ -84,6 +84,23 @@ FeatureTool::FeatureTool(core::ToolInfo info, std::string featureType, Creator c
 
 FeatureTool::~FeatureTool() = default;
 
+namespace {
+bool gPreviewShown = true;  ///< the card's PREVIEW switch (session-wide)
+}  // namespace
+
+bool FeatureTool::isPreviewShown() { return gPreviewShown; }
+
+void FeatureTool::setPreviewShown(core::ToolContext& ctx, bool shown) {
+  if (gPreviewShown == shown) return;
+  gPreviewShown = shown;
+  if (!shown) {
+    clearPreviews(ctx);
+    if (ctx.viewer) ctx.viewer->requestRedraw();
+  } else {
+    updatePreview(ctx);
+  }
+}
+
 PartFeature* FeatureTool::feature() const { return editing_ ? editing_ : working_.get(); }
 
 std::unique_ptr<PartFeature> FeatureTool::createFeature(core::ToolContext& ctx) {
@@ -633,7 +650,7 @@ void FeatureTool::computePreview(core::ToolContext& ctx) {
     doc.recompute();
     valid_ = editing_->status() != core::FeatureStatus::Error;
     message_ = editing_->statusMessage();
-    if (ctx.viewer && valid_) {
+    if (ctx.viewer && valid_ && gPreviewShown) {
       // UX-34: live preview of the bodies the edited feature produces with the current values
       // (the recompute changed them in place; draw them as a preview so the result follows the
       // dialog / arrow even before the viewer resyncs its body presentations)
@@ -680,7 +697,7 @@ void FeatureTool::computePreview(core::ToolContext& ctx) {
     previewWarnings_ = rctx.warnings();
     previewInput_ = rctx.state();  // compute() never writes the state: this is its input
     message_ = rctx.hasError() ? rctx.errorMessage() : (rctx.hasWarning() ? rctx.warnings().front() : std::string());
-    if (valid_ && ctx.viewer) {
+    if (valid_ && ctx.viewer && gPreviewShown) {
       for (const auto& pv : outcome_.previews) previews_.push_back(ctx.viewer->showPreviewShape(pv.shape, styleFor(pv.operation)));
     }
     if (ctx.viewer) syncManipulators(ctx, rctx);
@@ -870,6 +887,8 @@ QWidget* FeatureTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
     highlightRefs(*pctx);
     updatePrompt(*pctx);
   });
+  panel->enablePreviewSwitch(gPreviewShown);
+  QObject::connect(panel, &PropertyPanel::previewToggled, panel, [this, pctx](bool on) { setPreviewShown(*pctx, on); });
   QObject::connect(panel, &PropertyPanel::validityChanged, panel, [this, pctx] {
     if (!inPreview_) updatePreview(*pctx);
   });

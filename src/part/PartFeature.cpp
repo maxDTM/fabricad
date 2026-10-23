@@ -23,8 +23,9 @@ Operation operationFromIndex(int i) {
 void addOperationProperties(core::Feature& f, Operation def) {
   f.addEnum("operation", operationNames(), static_cast<int>(def)).setLabel("Operation");
   f.addRefs("targets", core::mask(core::ShapeKind::Body))
-      .setLabel("Objects to Cut/Join")
-      .setTooltip("Bodies that take part in the operation (empty = every body the tool touches)");
+      .setLabel("Merge with")
+      .setPlaceholder("Auto")
+      .setTooltip("Bodies to join, cut or intersect (Auto = every body the tool touches)");
 }
 
 void PartFeature::adoptPrecomputed(Outcome out, std::vector<std::string> warnings,

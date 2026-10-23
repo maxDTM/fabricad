@@ -21,6 +21,7 @@
 #include "viewer/OverlayHost.h"
 #include "viewer/ViewerWidget.h"
 
+#include <QAbstractButton>
 #include <QComboBox>
 #include <QDir>
 #include <QDockWidget>
@@ -592,6 +593,50 @@ class TestCommandCard : public QObject {
     QTest::mouseClick(card()->okButton(), Qt::LeftButton);
     settle();
     QCOMPARE(run({"CHECK bodies == 2"}), 0);
+  }
+
+  // approved Extrude card body (2026-10-23): DIRECTION shown One side, Symmetric, Two sides with
+  // icons (the combo keeps the model order), OPERATION icons, MERGE WITH chip, PREVIEW switch, and
+  // START OFFSET under the collapsed "More options" row at the bottom
+  void extrudeCardBody() {
+    for (int i = w_->tabCount() - 1; i >= 0; --i) QVERIFY(w_->closeTab(i));
+    QCOMPARE(run({"SKETCH XY", "RECT", "0,0", "40,30", "FINISH", "SELECT profile:@20,15,0"}), 0);
+    QVERIFY(w_->runCommand("part.extrude"));
+    settle();
+    QWidget* body = card()->body();
+    QVERIFY(body);
+    auto* dir = body->findChild<app::SegmentedControl*>("prop_direction");
+    QVERIFY(dir && dir->hasIcons());
+    QCOMPARE(dir->height(), app::SegmentedControl::kIconHeight);
+    QCOMPARE(dir->options().at(1), QString("Two Sides"));  // model index 1
+    QVERIFY(dir->cellRect(0).left() < dir->cellRect(2).left());  // One Side | Symmetric | Two Sides
+    QVERIFY(dir->cellRect(2).left() < dir->cellRect(1).left());
+    auto* op = body->findChild<app::SegmentedControl*>("prop_operation");
+    QVERIFY(op && op->hasIcons());
+    // clicking the middle cell picks Symmetric (model index 2)
+    QTest::mouseClick(dir, Qt::LeftButton, {}, QPoint(dir->width() / 2, dir->height() / 2));
+    settle();  // the choice rebuilds the rows: look the widgets up again
+    QCOMPARE(card()->body()->findChild<QComboBox*>("prop_direction")->currentIndex(), 2);
+    dir = card()->body()->findChild<app::SegmentedControl*>("prop_direction");
+    dir->setCurrentIndex(0);
+    settle();
+    body = card()->body();
+    QCOMPARE(body->findChild<QPushButton*>("prop_targets")->text(), QString("Auto"));
+    QVERIFY(body->findChild<QAbstractButton*>("prop_preview")->isVisible());
+    auto* more = body->findChild<QAbstractButton*>("MoreOptions");
+    QVERIFY(more && more->isVisible());
+    auto* offset = body->findChild<QLineEdit*>("prop_startOffset");
+    QVERIFY(offset && !offset->isVisible());
+    // the collapsed row stays below everything else in the card body
+    QVERIFY(more->mapTo(body, QPoint()).y() > body->findChild<QAbstractButton*>("prop_preview")->mapTo(body, QPoint()).y());
+    const int h = card()->height();
+    more->click();
+    settle();
+    QVERIFY(offset->isVisible());
+    QVERIFY(card()->height() >= h);
+    shot("card-body-more-options");
+    w_->toolManager().cancel();
+    settle();
   }
 };
 

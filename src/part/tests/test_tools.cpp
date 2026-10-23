@@ -27,6 +27,7 @@
 #include <BRepAdaptor_Surface.hxx>
 #include <TopoDS.hxx>
 
+#include <QAbstractButton>
 #include <QCheckBox>
 #include <QJsonObject>
 #include <QComboBox>
@@ -269,6 +270,77 @@ class ToolsTest : public QObject {
     QVERIFY(near(core::volume(rig.doc.bodyShape(body)), 10 * 10 * 5));
     rig.doc.undoStack().redo();
     QVERIFY(near(core::volume(rig.doc.bodyShape(body)), 10 * 10 * 20));
+  }
+
+  // approved Extrude card body (2026-10-23): MERGE WITH chip, PREVIEW switch, DIRECTION order and
+  // icons as segment hints, START OFFSET under a collapsed "More options" row
+  void extrudeCardBody() {
+    Rig rig;
+    TestSketch* sk = addRectSketch(rig.doc, "XY", 0, 0, 10, 10);
+    rig.doc.selection().set(sk->rectProfile(0));
+    QVERIFY(rig.manager.run("part.extrude"));
+    auto* tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    core::ToolContext* ctx = rig.manager.activeContext();
+    std::unique_ptr<QWidget> w(tool->createDialog(*ctx, nullptr));
+    auto* panel = qobject_cast<PropertyPanel*>(w.get());
+    QVERIFY(panel);
+    w->show();
+    // merge with: the multi-body selection input, "Auto" while empty
+    auto* targets = panel->findChild<QPushButton*>("prop_targets");
+    QVERIFY(targets);
+    QCOMPARE(targets->text(), QString("Auto"));
+    QCOMPARE(tool->feature()->prop("targets").label(), std::string("Merge with"));
+    // direction: model indices unchanged, display order One side, Symmetric, Two sides, icons
+    auto* direction = panel->findChild<QComboBox*>("prop_direction");
+    QVERIFY(direction);
+    QCOMPARE(direction->itemText(1), QString("Two Sides"));
+    QCOMPARE(direction->property("segmentOrder").toList(), (QVariantList{0, 2, 1}));
+    QCOMPARE(direction->property("segmentIcons").toStringList().size(), 3);
+    QCOMPARE(panel->findChild<QComboBox*>("prop_operation")->property("segmentIcons").toStringList().size(), 4);
+    // start offset: collapsed under More options
+    auto* more = panel->findChild<QAbstractButton*>("MoreOptions");
+    QVERIFY(more);
+    auto* offset = panel->findChild<QLineEdit*>("prop_startOffset");
+    QVERIFY(offset);
+    QVERIFY(!offset->isVisible());
+    more->click();
+    QVERIFY(offset->isVisible());
+    QVERIFY(panel->isMoreOptionsOpen());
+    // keyboard order: merge with, preview, More options, then the advanced rows
+    auto* preview = panel->findChild<QAbstractButton*>("prop_preview");
+    QVERIFY(preview && preview->isChecked());
+    auto before = [&](QWidget* a, QWidget* b) {
+      for (QWidget* x = a->nextInFocusChain(); x && x != a; x = x->nextInFocusChain())
+        if (x == b) return true;
+      return false;
+    };
+    QVERIFY(before(targets, preview));
+    QVERIFY(before(preview, more));
+    QVERIFY(before(more, offset));
+    // preview off: no preview shapes, still valid; on again: back
+    QVERIFY(!rig.viewer.previews().empty());
+    preview->click();
+    QVERIFY(!FeatureTool::isPreviewShown());
+    QVERIFY(rig.viewer.previews().empty());
+    QVERIFY(rig.manager.runCommandLine("15"));
+    QVERIFY(rig.viewer.previews().empty());
+    QVERIFY(tool->isValid());
+    preview->click();
+    QVERIFY(FeatureTool::isPreviewShown());
+    QVERIFY(!rig.viewer.previews().empty());
+    // a set advanced value opens the section by itself (an edited feature)
+    tool->feature()->prop("startOffset").setDouble(2.0);
+    panel->rebuild();
+    rig.manager.accept();
+    QCOMPARE(rig.doc.featureCount(), 2);
+    rig.doc.selection().set(core::ShapeRef::feature(rig.doc.featureAt(1)->id()));
+    QVERIFY(rig.manager.run("part.extrude"));
+    tool = dynamic_cast<FeatureTool*>(rig.manager.activeTool());
+    QVERIFY(tool->isEditing());
+    std::unique_ptr<QWidget> w2(tool->createDialog(*rig.manager.activeContext(), nullptr));
+    auto* panel2 = qobject_cast<PropertyPanel*>(w2.get());
+    QVERIFY(panel2 && panel2->isMoreOptionsOpen());
+    rig.manager.cancel();
   }
 
   void propertyPanelWidgets() {

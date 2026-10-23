@@ -12,6 +12,11 @@
 // the model and keeps its objectName, so tools, scripts and tests that drive the combo keep
 // working; the control takes the same objectName (prop_<name>, section 8.2) and replaces the combo
 // on screen. Enums with more than kMaxSegments values stay combos.
+//
+// Hints from the bound combo's dynamic properties (part PropertyPanel): "segmentIcons" (logical
+// icon paths per option, themed through app/Icons) puts an 18 px icon above each label (52 px tall);
+// "segmentOrder" (option indices in display order) reorders the cells without changing the model
+// indices. Indices in this API are always option (combo) indices; cellRect() finds the cell.
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 
@@ -20,6 +25,8 @@
 #include <QWidget>
 
 #include <QComboBox>
+#include <QIcon>
+#include <QList>
 
 namespace fabricad::app {
 
@@ -28,10 +35,18 @@ class SegmentedControl : public QWidget {
  public:
   static constexpr int kMaxSegments = 4;
   static constexpr int kHeight = 28;
+  static constexpr int kIconHeight = 52;  ///< with segment icons (icon 18 + label, plan 5.4)
 
   explicit SegmentedControl(QWidget* parent = nullptr);
 
   void setOptions(const QStringList& labels);
+  /// Display order (option indices); empty = model order. Invalid lists are ignored.
+  void setOrder(const QList<int>& order);
+  /// One icon per option (or empty for labels only).
+  void setIcons(const QList<QIcon>& icons);
+  bool hasIcons() const { return !icons_.isEmpty(); }
+  /// Option index shown at display position `pos`.
+  int optionAt(int pos) const;
   QStringList options() const { return labels_; }
   int count() const { return static_cast<int>(labels_.size()); }
   int currentIndex() const;
@@ -63,7 +78,10 @@ class SegmentedControl : public QWidget {
 
  private:
   int cellAt(const QPoint& p) const;
+  int positionOf(int option) const;
   QStringList labels_;
+  QList<int> order_;
+  QList<QIcon> icons_;
   int index_ = -1;  ///< own index when no combo is bound
   int hover_ = -1;
   int painted_ = -1;
