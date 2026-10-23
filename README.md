@@ -262,7 +262,9 @@ STEP / STL / PDF / SVG / DXF / CSV export into `build/e2e-out/`).
 
 Sanitizer run (CI): `scripts/asan-loop.sh [iterations]` configures `build-asan` with
 `-DFABRICAD_SANITIZE=ON` (ASan + UBSan) and runs the GUI tool tests in a loop; it guards the
-PropertyPanel rebuild path that used to delete a combo box from inside its own signal.
+PropertyPanel rebuild path that used to delete a combo box from inside its own signal. Full
+sanitizer ctest runs and the fuzz drivers for the `.fcad` loader, `.fcs` scripts and STEP/STL
+import (`-DFABRICAD_FUZZ=ON`): [docs/TESTING.md](docs/TESTING.md).
 
 ### Is this computer powerful enough?
 

@@ -5,7 +5,7 @@
 #   fuzz_stl_import   STL import (ImportFeature::readFile)
 # With clang the drivers link libFuzzer; otherwise DriverMain.cpp (corpus replay + random
 # mutations). Each driver also gets a short ctest entry (label `fuzz`) that replays the seed
-# corpus in corpus/<kind>/ plus a bounded number of mutations.
+# corpus in corpus/<kind>/ plus a bounded number of mutations (500 runs or 60 s).
 set(_fz_common "${CMAKE_CURRENT_SOURCE_DIR}/FuzzCommon.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/FuzzCommon.h")
 if(NOT FABRICAD_LIBFUZZER)
   list(APPEND _fz_common "${CMAKE_CURRENT_SOURCE_DIR}/DriverMain.cpp")
@@ -62,8 +62,12 @@ function(fabricad_add_fuzzer name source corpus)
   endif()
   set_target_properties(${name} PROPERTIES AUTOMOC ON RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fuzz")
   if(FABRICAD_BUILD_TESTS)
+    # new inputs go to a work dir in the build tree, never into the checked-in seeds
+    set(_work "${CMAKE_CURRENT_BINARY_DIR}/work-${name}")
+    file(MAKE_DIRECTORY "${_work}")
     add_test(NAME ${name}_smoke
-      COMMAND ${name} -runs=200 -seed=1 -timeout=60 "${CMAKE_CURRENT_SOURCE_DIR}/corpus/${corpus}")
+      COMMAND ${name} -runs=500 -max_total_time=60 -seed=1 -timeout=60 "${_work}" "${CMAKE_CURRENT_SOURCE_DIR}/corpus/${corpus}"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
     set_tests_properties(${name}_smoke PROPERTIES LABELS fuzz TIMEOUT 600
       ENVIRONMENT "QT_QPA_PLATFORM=offscreen;ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1")
   endif()
