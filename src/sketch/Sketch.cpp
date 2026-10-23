@@ -1963,18 +1963,19 @@ void Sketch::fromJson(const QJsonObject& o) {
   clear();
   for (const auto& v : o["geometry"].toArray()) {
     Geometry g = Geometry::fromJson(v.toObject());
-    if (g.id < 0) g.id = nextGeoId_;
+    // ids beyond 2^30 (damaged file) are renumbered: id + 1 must not overflow
+    if (g.id < 0 || g.id > (1 << 30)) g.id = nextGeoId_;
     nextGeoId_ = std::max(nextGeoId_, g.id + 1);
     geometries_.push_back(std::move(g));
   }
   for (const auto& v : o["constraints"].toArray()) {
     Constraint c = Constraint::fromJson(v.toObject());
-    if (c.id < 0) c.id = nextConstraintId_;
+    if (c.id < 0 || c.id > (1 << 30)) c.id = nextConstraintId_;
     nextConstraintId_ = std::max(nextConstraintId_, c.id + 1);
     constraints_.push_back(std::move(c));
   }
-  nextGeoId_ = std::max(nextGeoId_, o["nextGeoId"].toInt(nextGeoId_));
-  nextConstraintId_ = std::max(nextConstraintId_, o["nextConstraintId"].toInt(nextConstraintId_));
+  nextGeoId_ = std::max(nextGeoId_, std::min(o["nextGeoId"].toInt(nextGeoId_), (1 << 30) + 1));
+  nextConstraintId_ = std::max(nextConstraintId_, std::min(o["nextConstraintId"].toInt(nextConstraintId_), (1 << 30) + 1));
 }
 
 void Sketch::clear() {
