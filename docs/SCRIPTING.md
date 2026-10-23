@@ -181,6 +181,10 @@ Metrics on a selector: `volume`, `area`, `length`, `mass` (g, needs a material),
 `count` (matched entities).
 Bounding boxes are tight (no tolerance padding), so `0.01` works.
 
+Mass properties of the whole design (all visible bodies, occurrences in their placement):
+`CHECK mass 47.1 ±0.01` (grams; `+-0.01`, `0.1%` and the usual operators work too) and
+`CHECK cog 5,10,15 0.01` (centre of gravity in world mm; the tolerance is the distance).
+
 ## Commands by task
 
 Every tool registered in the ribbon has aliases (`LIST tools` prints them, `HELP` / F1 shows
@@ -209,7 +213,15 @@ POLYGON / POL, SLOT, POINT / PO
 SFILLET 20       sketch fillet: then PICK a point on each line, on the part to keep (not inside the corner zone)
 TRIM / TR, EXTEND / EX, BREAK / BR, OFFSET / O, MIRROR / MI, PROJECT / PROJ, CONSTRUCTION / X
 DIMENSION / D    PICK the entity (or two), PICK where the text goes, then type the value or
-                 an expression (width/2); OK keeps the measured value
+                 an expression (width/2); OK keeps the measured value. A point and a circle/arc picked
+                 on its curve give the shortest distance to the curve; two circles/arcs picked on
+                 their curves give the gap between them (point/centre picks measure centre distances)
+ARCLENGTH / SKARCLEN   arc length dimension (shown with the ⌒ prefix): PICK the arc, PICK the text
+                 position, type the length (Alt + DIMENSION on an arc does the same in the GUI)
+TYPEDDIMS on|off typed values create dimensions (session switch over the preference
+                 sketch/typedDimensions, default on): a typed x,y point gets DistanceX/DistanceY to the
+                 origin (a Coincident with it at 0,0), typed lengths/angles/sizes their dimension;
+                 a dimension that would over-constrain the sketch is added as driven
 DIMEDIT <id> <value>
 ```
 
@@ -278,6 +290,20 @@ SELECT component:LegLeft / MOVECOMPONENT / -15,0,0 / OK     typed x,y,z translat
                  angles turn about (rx=-5 then rotates -5 deg about +X through it; the dialog has Pivot fields)
 DRIVEJOINT Joint1 45, RIGIDGROUP, INTERFERENCE, INSERTDESIGN file.fcad, COPYCOMPONENT / PASTE
 SELECT feature:Joint1 / DELETE
+COMPPROPS partNumber=BRK-12 description="Mounting bracket" material=Steel revision=B vendor=Acme cost=4.20
+                 BOM / title block data of the selected component (else the active one; component=<name>
+                 names it); without arguments it opens the Component Properties card
+MATERIAL "Aluminum 6061"   physical material (density + appearance) of the selected bodies/components,
+                 else of the active component's bodies; MATERIAL PETG density=1.27 for a custom one;
+                 MATERIAL none clears it. The library includes ~/.config/FabriCAD/materials.json
+MASSPROPS [report=a.csv|a.md]   mass properties (volume, area, mass, CoG, inertia about CoG and origin,
+                 principal axes and moments, radii of gyration) of the selection (else the active
+                 component / whole design); prints the summary and writes the report (CSV or Markdown)
+EXPORTBOM a.csv [flat|structured] [columns=item,name,partNumber,qty,mass,massTotal]
+                 flat (default, grouped over the whole tree) or structured (tree order, item 2.1,
+                 names indented, quantities per parent). Columns: item level name partNumber description
+                 material qty mass massTotal volume revision vendor cost costTotal; the default seven
+                 (Item,Name,Part Number,Description,Material,Qty,Mass [g]) are unchanged
 SELECT component:LegFrame / DELETECOMPONENT    bodies and child components move to its parent (children keep
                  their world placement), joints on it are removed; LIST components shows the tree
 ```
@@ -289,6 +315,9 @@ DRAWING / OK           create a drawing of the design: it opens in its own tab (
 BASEVIEW front 1:1 100,150 / OK      orientation, scale, sheet position (mm); hidden, tangent
 PROJECTEDVIEW / OK, SECTIONVIEW, DETAILVIEW, DIMENSION, TEXT, LEADER, PARTSLIST, BALLOON
 EXPORTPDF a.pdf, EXPORTSVG a.svg, EXPORTDXF a.dxf, EXPORTCSV a.csv
+TITLEBLOCK mass='${mass:kg,2}' material='${material}'   title block fields may hold model tokens:
+                 ${material} ${mass} ${mass:g,1} ${partNumber} ${revision} ${description} ${vendor}
+                 ${title}; they refresh with every drawing update (empty fields fill from the model too)
 EXPORTSTEP a.step [pcurves=off]      selected bodies (or all) in their component placement; pcurves=off
                  (or nopcurves) omits the edge pcurves for a smaller file (default: Preferences, on)
 assembly.export-step a.step [pcurves=off]   XCAF assembly: components, occurrences, names, colours

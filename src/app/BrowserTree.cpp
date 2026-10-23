@@ -8,6 +8,7 @@
 #include "theme/Tokens.h"
 
 #include "app/AppearancePicker.h"
+#include "app/MaterialPicker.h"
 
 #include "core/Materials.h"
 
@@ -637,6 +638,16 @@ void BrowserTree::addMaterialMenu(QMenu& menu, ObjectId bodyId) {
   const core::Body* b = doc_.body(bodyId);
   if (!b) return;
   QMenu* mat = menu.addMenu(b->material.empty() ? "Physical Material" : QString("Physical Material (%1)").arg(core::qs(b->material)));
+  // searchable picker with custom materials and the user library (production-features P1)
+  mat->addAction("Choose...", this, [this, bodyId] {
+    const core::Body* body = doc_.body(bodyId);
+    if (!body) return;
+    if (auto m = pickMaterial(this, body->material)) {
+      const bool lib = core::findMaterial(m->name) != nullptr;
+      if (auto cmd = makeSetBodyMaterial(doc_, bodyId, m->name, m->density, lib)) doc_.undoStack().push(std::move(cmd));
+    }
+  });
+  mat->addSeparator();
   for (const std::string& cat : core::materialCategories()) {
     QMenu* sub = mat->addMenu(core::qs(cat));
     for (const core::Material& m : core::materialLibrary()) {

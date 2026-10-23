@@ -12,6 +12,24 @@ All notable changes to FabriCAD are listed here. The format follows
   from a first sketch to an STL in 65 steps (sketch on faces, dimensions, extrude, fillet, slot, counterbored
   holes, mirror, chamfer, rib, a history edit, measure, save and reopen, export), with chapter checkpoints for
   Restore chapter.
+- **Typed sketch values create dimensions**: typed `x,y` points get DistanceX/DistanceY to the origin (or a
+  coincidence with it at `0,0`) next to the typed lengths, angles and sizes, so a typed sketch ends fully
+  defined; redundant ones become driven. Sketch palette toggle, Preferences > General, `TYPEDDIMS on|off`.
+- **Sketch dimensions**: point-to-curve distance (point + circle/arc), circle-to-circle gap and **Arc Length**
+  (`⌒`, dimension dropdown, Alt + `D` on an arc, `ARCLENGTH`).
+- **Mass Properties** (INSPECT, `MASSPROPS`): volume, area, mass, centre of gravity, inertia about the CoG and
+  the origin, principal axes and moments, radii of gyration, a CoG marker in the view, CSV/Markdown report.
+  `CHECK mass` and `CHECK cog` in scripts.
+- **Material library**: standard, yield and cost fields, a searchable picker (Physical Material > Choose...),
+  custom materials saved to `~/.config/FabriCAD/materials.json`, `MATERIAL "Aluminum 6061"`.
+- **Component Properties** (`COMPPROPS`): part number, description, material, revision, vendor and cost;
+  revision, vendor and cost are new `.fcad` component keys (absent = empty).
+- **BOM**: flat or structured (indented, item 2.1, quantities per parent) and selectable columns (mass total,
+  volume, revision, vendor, cost, cost total) with `EXPORTBOM a.csv structured columns=...`; the default output
+  is unchanged.
+- **Title block tokens**: `${material}`, `${mass}`, `${mass:kg,2}`, `${partNumber}`, `${revision}`,
+  `${description}`, `${vendor}` refresh with every drawing update; empty Rev fields fall back to the root
+  component's revision.
 
 ### Fixed
 

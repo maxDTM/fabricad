@@ -363,9 +363,19 @@ plus a short list underneath:
 3. **Type values while drawing.** Value boxes follow the cursor (line length and angle,
    rectangle width and height, circle diameter, ...). Type a value or an expression. Tab
    locks it and moves to the next box. Enter commits. Locked values become driving
-   dimensions.
+   dimensions. Typed coordinates do too: a point typed as `x,y` (or snapped on the origin as
+   `0,0`) gets horizontal and vertical dimensions to the sketch origin, so a part drawn from
+   typed values ends fully defined (0 DOF) and stays put when you edit it later. A typed
+   value that the sketch already determines is added as a *driven* dimension, shown in
+   parentheses. Switch this off with **Typed values create dimensions** in the sketch palette
+   (this session) or in Preferences > General (`sketch/typedDimensions`).
 4. **Dimension** with `D`: pick the geometry, place the label, type the value. Where you put
    the label decides aligned, horizontal or vertical. Expressions can use document parameters.
+   A point and a circle or arc picked on its curve dimension the shortest distance from the
+   point to the curve (slot to edge); two circles or arcs picked on their curves dimension the
+   gap between them. **Arc Length** (dimension dropdown, or Alt + `D` on an arc) dimensions the
+   length along an arc for belts, straps and developed lengths; it reads `⌒15.708` for an R10
+   quarter arc.
 5. **Constrain** with the CONSTRAINTS buttons or the floating **sketch palette**:
    horizontal/vertical, coincident, tangent, equal, parallel, perpendicular, fix, midpoint,
    concentric, collinear, symmetric. The solver rejects conflicting constraints and reports
@@ -417,9 +427,24 @@ The history rolls back to just after that feature while you edit it, and the res
 once when you apply. **Change Parameters** (DOCUMENT section) holds named parameters for
 expressions. **Compute All** (Ctrl+B) recomputes the whole history.
 
-**Materials and appearance.** In MODEL, right-click a body or component for **Physical
-Material** (26 built-in materials, or a custom density) and **Appearance** (`A`). Measure,
-the parts list and the BOM use these for mass.
+**Mass Properties** (INSPECT > Mass Properties, `MASSPROPS`): select bodies or components
+(nothing selected: the active component, or the whole design at the root). The card lists
+volume, surface area, mass, centre of gravity, bounding box, the inertia tensor about the
+centre of gravity and about the origin, the principal moments and axes and the radii of
+gyration. The centre of gravity is marked in the view with the principal axes as a small triad
+while the card is open. **Copy** puts the values on the clipboard as tab-separated text,
+**Write report...** saves CSV or Markdown. Units are g and mm (lb and in for inch documents);
+inertia is in g·mm². Bodies without a material count for volume and area only and the card
+says how many there are.
+
+**Materials and appearance.** In MODEL, right-click a body for **Physical Material** >
+**Choose...**: a searchable picker with category tabs and a filter that matches the name, the
+category and the standard ("6061", "ASTM", "PLA"); each entry shows density, standard and,
+where known, yield strength. **Custom...** defines a name, density, category and optional
+yield and cost and saves it to your library `~/.config/FabriCAD/materials.json` (merged over
+the built-ins by name, so an entry there can also correct a built-in density); **Library...**
+opens its folder. The quick submenus with the 26 built-in materials remain. Measure, Mass
+Properties, the parts list, the BOM and the title block use these for mass.
 
 ---
 
@@ -443,6 +468,15 @@ Switch to `ASSEMBLY` (Alt+2) to put the assemble tools first.
   BOM counts it. **Paste New** (Ctrl+Shift+V) makes an independent copy with its own history.
 * **Interference** (INSPECT) finds overlapping components. **Export BOM (CSV)** writes the
   bill of materials.
+* **Component Properties** (right-click a component in MODEL > **Properties...**, or
+  `COMPPROPS`): part number, description, material, revision, vendor and unit cost. The BOM,
+  the parts list and the title block read them; the card also shows the computed mass.
+* **BOM options** (`EXPORTBOM a.csv structured columns=item,name,qty,massTotal`): *flat* (the
+  default: one row per distinct part over the whole tree, with the total quantity) or
+  *structured* (tree order, item numbers like `2.1`, names indented, quantities per parent,
+  sub-assemblies as their own rows). Columns can be chosen from Item, Level, Name, Part Number,
+  Description, Material, Qty, Mass, Mass total, Volume, Revision, Vendor, Cost and Cost total;
+  without a column list the file has today's seven columns.
 
 ---
 
@@ -467,6 +501,11 @@ Switch to `ASSEMBLY` (Alt+2) to put the assemble tools first.
    * Parts List and Balloons. Revision table.
 6. **Edit** with double-click or the MODIFY tools (Edit View, Edit Sheet, Edit Title Block,
    hidden lines, tangent edges). Move views and annotations with `M`, delete them with Delete.
+   Title block fields left empty fill from the model (title, part number, revision,
+   material, mass). A field can also hold model tokens such as `${mass:kg,2}`,
+   `${material}`, `${partNumber}`, `${revision}`, `${description}` or `${vendor}`
+   (`${mass:g,1}` and `${mass:lb,2}` choose the unit and decimals); Edit Title Block lists them.
+   They refresh with every drawing update, so the Mass box follows a material change.
 7. **Output** PDF (all sheets), SVG, DXF (R12) or CSV (parts list).
 
 Dimensions are associative. After a model change they show the new value, or a red `?` when
