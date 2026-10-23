@@ -587,8 +587,7 @@ void ImportFeature::compute(core::RecomputeContext& ctx, Outcome& out) {
     }
     return;
   }
-  QFileInfo fi(QString::fromStdString(path));
-  long long stamp = fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : -2;
+  const long long stamp = fileStamp(path);
   if (path != cachedPath_ || stamp != cachedStamp_ || cache_.shapes.empty()) {
     std::string err;
     Imported imported;

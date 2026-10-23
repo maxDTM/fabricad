@@ -60,13 +60,17 @@ and ASan reported a bogus alloc-dealloc-mismatch. `tests/fuzz/CMakeLists.txt` li
 runtime with those symbols made local (nm + objcopy at configure time); keep that in mind before
 trusting a libFuzzer crash inside OCCT.
 
-### Findings of the first campaigns (2026-10-23, ~40 min in total)
+### Findings of the first campaigns (2026-10-23, about 10-20 min per driver)
 
 * **STEP import crashed the app** (SIGSEGV, reproduced with the release build): an entity cut
   short or a dangling `DIRECTION` reference makes OCCT's `StepToGeom::MakeDirection` /
-  `MakeVectorWithMagnitude` dereference a null handle. While a STEP/STL reader runs, OCCT's signal
-  handlers are now installed (and the previous ones restored afterwards), so `OCC_CATCH_SIGNALS`
-  turns the crash into a `Standard_Failure` and OCCT's own guarded blocks skip the broken entity.
+  `MakeVectorWithMagnitude` dereference a null handle. While a STEP/STL reader runs
+  (`ScopedOcctSignals` in `src/part/features/Import.cpp`), a fault on a thread that is inside an
+  OCCT try block goes to OCCT's handler, so `OCC_CATCH_SIGNALS` turns it into a
+  `Standard_Failure` and OCCT's own guarded blocks skip the broken entity; any other fault goes to
+  the previous handler (default, Qt, ASan) as before. Handlers use `SA_NODEFER` (OCCT leaves by
+  longjmp, which would leave SIGSEGV blocked), non-fault signals keep their handlers, and
+  everything is restored afterwards. `FABRICAD_OCCT_SIGNALS=0` turns the guard off for debugging.
 * **STL import hung** on NaN / infinite / huge vertex coordinates (OCCT loops in
   `Geom_TrimmedCurve::SetTrim`). The mesh is now read with `RWStl` and checked before faces are
   built; a bad file is "could not read STL file: invalid vertex coordinates".
@@ -78,3 +82,9 @@ trusting a libFuzzer crash inside OCCT.
   of ids, ints and enum indices (`1e300`, `-1`, `2.5`), enum indices outside the option list,
   body colours outside 0..1, sketch ids near `INT_MAX` (`id + 1` overflow).
 * The `.fcs` runner survived ~4 000 generated scripts without a finding.
+* **Open:** replaying the accumulated STEP work corpus as a directory (`-runs=0 work seeds`) can
+  hang in OCCT's `StepData_StepReaderData::SetEntityNumbers` on an input that parses in 0.3 s on
+  its own, in a file-by-file replay of the same sequence and in the release app (also after the
+  preceding damaged files). No signal was converted in that run, so it looks like OCCT parser
+  state left behind by earlier damaged inputs; `FABRICAD_FUZZ_TRACE=1` prints the input order and
+  the import results for chasing it. Campaigns use `-ignore_timeouts=1` meanwhile.
