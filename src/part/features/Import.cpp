@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
+// OCC_CATCH_SIGNALS below turns a crash inside OCCT's STEP/STL readers into a Standard_Failure
+// (see ScopedOcctSignals); it must be defined before any OCCT header is included.
+#ifndef OCC_CONVERT_SIGNALS
+#define OCC_CONVERT_SIGNALS
+#endif
 #include "part/features/Import.h"
 
 #include "core/Document.h"
@@ -25,6 +30,9 @@
 #include <STEPCAFControl_Reader.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
+#include <OSD.hxx>
+#include <OSD_Signal.hxx>
+#include <Standard_ErrorHandler.hxx>
 #include <Standard_Failure.hxx>
 #include <BRepBuilderAPI_MakeShapeOnMesh.hxx>
 #include <Poly_Triangulation.hxx>
@@ -50,11 +58,48 @@
 #include <format>
 #include <functional>
 #include <mutex>
+
+#include <csignal>
 #include <set>
 
 namespace fabricad::part {
 
 namespace {
+
+/// Damaged STEP files make OCCT's translators dereference null handles (an entity reference of the
+/// wrong type: StepToGeom::MakeDirection, StepGeom_Vector::Orientation ... found by fuzzing). While
+/// a reader runs, OCCT's signal handlers are installed so that OCC_CATCH_SIGNALS in the try block
+/// turns SIGSEGV/SIGBUS/SIGFPE into a Standard_Failure (a clean "import failed" error); the
+/// previous handlers (the default, Qt's or a sanitizer's) are restored afterwards. Imports are
+/// serialised, the handlers being process-wide.
+class ScopedOcctSignals {
+ public:
+  ScopedOcctSignals() : lock_(mutex()) {
+    for (int s = 1; s < kSignals; ++s) saved_[s] = sigaction(s, nullptr, &old_[s]) == 0;
+    OSD::SetSignal(OSD_SignalMode_Set, false);
+  }
+  ~ScopedOcctSignals() {
+    for (int s = 1; s < kSignals; ++s)
+      if (saved_[s]) sigaction(s, &old_[s], nullptr);
+  }
+  ScopedOcctSignals(const ScopedOcctSignals&) = delete;
+  ScopedOcctSignals& operator=(const ScopedOcctSignals&) = delete;
+
+ private:
+  static std::recursive_mutex& mutex() {
+    static std::recursive_mutex m;
+    return m;
+  }
+  static constexpr int kSignals = 32;
+  std::lock_guard<std::recursive_mutex> lock_;
+  struct sigaction old_[kSignals] = {};
+  bool saved_[kSignals] = {};
+};
+
+std::string failureText(const Standard_Failure& e) {
+  if (e.IsKind(STANDARD_TYPE(OSD_Signal))) return "the file is damaged (the reader crashed)";
+  return e.GetMessageString() && *e.GetMessageString() ? e.GetMessageString() : "OCCT error";
+}
 
 std::string lowerExt(const std::string& path) {
   std::string ext = QFileInfo(QString::fromStdString(path)).suffix().toStdString();
@@ -192,7 +237,9 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
   auto result = std::make_shared<StepAssembly>();
   Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
   Handle(TDocStd_Document) xdoc;
+  ScopedOcctSignals signalGuard;
   try {
+    OCC_CATCH_SIGNALS
     app->NewDocument("BinXCAF", xdoc);
     STEPCAFControl_Reader reader;
     reader.SetNameMode(true);
@@ -232,8 +279,9 @@ std::shared_ptr<const ImportFeature::StepAssembly> ImportFeature::readStepAssemb
     }
     app->Close(xdoc);
   } catch (const Standard_Failure& e) {
-    if (error) *error = std::format("import failed: {}", e.GetMessageString() ? e.GetMessageString() : "OCCT error");
-    if (!xdoc.IsNull()) app->Close(xdoc);
+    if (error) *error = std::format("import failed: {}", failureText(e));
+    // after a crash inside the reader the document may be inconsistent: leak it rather than close
+    if (!e.IsKind(STANDARD_TYPE(OSD_Signal)) && !xdoc.IsNull()) app->Close(xdoc);
     return nullptr;
   }
   std::lock_guard lock(mutex);
@@ -368,7 +416,9 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
     return false;
   }
   std::string baseName = fi.completeBaseName().toStdString();
+  ScopedOcctSignals signalGuard;
   try {
+    OCC_CATCH_SIGNALS
     if (ext == "stl") {
       // StlAPI_Reader::Read without its blind trust in the numbers: OCCT loops forever (or
       // crashes) building faces from NaN / infinite / absurdly large vertex coordinates, which a
@@ -427,7 +477,8 @@ bool ImportFeature::readFile(const std::string& path, Imported& out, std::string
       return !out.shapes.empty();
     }
   } catch (const Standard_Failure& e) {
-    if (error) *error = std::format("import failed: {}", e.GetMessageString() ? e.GetMessageString() : "OCCT error");
+    out = {};
+    if (error) *error = std::format("import failed: {}", failureText(e));
     return false;
   }
   if (error) *error = "unsupported file type: " + ext;

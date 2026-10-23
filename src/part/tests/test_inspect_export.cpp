@@ -24,6 +24,8 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
@@ -288,6 +290,52 @@ class InspectExportTest : public QObject {
     doc2.recompute();
     QCOMPARE(f->status(), core::FeatureStatus::Ok);
     QVERIFY(near(core::volume(doc2.bodyShape(f->createdBodies().front())), 1000, 1e-6));
+  }
+
+  // a damaged STEP file whose LINE vectors refer to missing DIRECTION entities: OCCT's
+  // StepToGeom::MakeVectorWithMagnitude dereferenced a null handle and the app died with SIGSEGV
+  // (found by fuzzing). Now it is a clean error and the reader keeps working.
+  void damagedStepIsACleanError() {
+    Rig rig;
+    rig.box(0, 0, 10, 20, 5);
+    QTemporaryDir dir;
+    const std::string good = (dir.path() + "/good.step").toStdString();
+    QVERIFY(rig.manager.run("part.export-step", {good, "pcurves=off"}));
+    QFile f(QString::fromStdString(good));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QString text = QString::fromUtf8(f.readAll());
+    f.close();
+    QSet<QString> directions;  // VECTOR('',#dir,len): drop every #dir entity
+    static const QRegularExpression rx("VECTOR\\('[^']*',(#\\d+),");
+    for (auto it = rx.globalMatch(text); it.hasNext();) directions.insert(it.next().captured(1));
+    QVERIFY(!directions.isEmpty());
+    QStringList kept;
+    for (const QString& line : text.split('\n')) {
+      const QString id = line.section(' ', 0, 0);
+      if (!directions.contains(id)) kept << line;
+    }
+    const std::string bad = (dir.path() + "/bad.step").toStdString();
+    QFile g(QString::fromStdString(bad));
+    QVERIFY(g.open(QIODevice::WriteOnly));
+    g.write(kept.join('\n').toUtf8());
+    g.close();
+    ImportFeature::Imported out;
+    std::string err;
+    QVERIFY(!ImportFeature::readFile(bad, out, &err));
+    QVERIFY(!err.empty());
+    (void)ImportFeature::readStepAssembly(bad, &err);
+    // the fuzzer's file (a DIRECTION entity cut in half): SIGSEGV in StepToGeom under the XCAF
+    // reader (STEP import with structure) before the fix
+    const QString data = qEnvironmentVariable("FABRICAD_TEST_DATA");
+    if (!data.isEmpty()) {
+      const std::string crashed = (data + "/damaged-missing-direction.step").toStdString();
+      // with OCCT's signal handlers installed its own OCC_CATCH_SIGNALS blocks skip the broken
+      // face, so the result is a partial import or a clean error; what matters is that it returns
+      (void)ImportFeature::readFile(crashed, out, &err);
+      (void)ImportFeature::readStepAssembly(crashed, &err);
+    }
+    QVERIFY(ImportFeature::readFile(good, out, &err));  // the reader still works afterwards
+    QCOMPARE(out.shapes.size(), size_t(1));
   }
 
   // ---- cross-component notes (recommendation 6) --------------------------------------------------
