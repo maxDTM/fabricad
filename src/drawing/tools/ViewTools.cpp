@@ -1275,6 +1275,8 @@ void EditViewTool::applyDialog() {
   if (changed) {
     m->viewDefinitionChanged(viewId_);
     m->updateGeometry();
+    // a scale change re-flows the cached geometry at once: tell while the card is still open
+    if (const Sheet* s = m->sheetOf(viewId_)) warnIfOutsideFrame(*ctx_, *s, true);
   }
 }
 
@@ -1285,17 +1287,11 @@ void EditViewTool::accept(core::ToolContext& ctx) {
     // after a scale change the automatic layout keeps the views apart; when they no longer fit
     // the sheet, say so rather than leaving it to be noticed (DRW-VIEWS-ANNOT-8)
     m->waitForIdle(30000);
-    if (Sheet* s = m->sheetOf(viewId_)) {
-      const BBox2 f = s->frameRect();
-      for (const auto& v : s->views)
-        if (v.geometryValid) {
-          const BBox2 b = v.sheetBBox();
-          if (b.min.x < f.min.x - 0.5 || b.max.x > f.max.x + 0.5 || b.min.y < f.min.y - 0.5 || b.max.y > f.max.y + 0.5) {
-            ctx.showMessage("The views no longer fit inside the frame: use a smaller scale or a larger sheet", true);
-            break;
-          }
-        }
-    }
+    const Sheet* s = m->sheetOf(viewId_);
+    committed_ = true;
+    ctx.finish();
+    if (s) warnIfOutsideFrame(ctx, *s);  // after finish, so the card's end does not hide it
+    return;
   }
   committed_ = true;
   ctx.finish();
@@ -1457,9 +1453,12 @@ void EditSheetTool::applyDialog() {
 
 void EditSheetTool::accept(core::ToolContext& ctx) {
   applyDialog();
-  if (DrawingModel* m = model(ctx)) m->commitSnapshot("Edit sheet", ctx.undo, before_);
+  DrawingModel* m = model(ctx);
+  if (m) m->commitSnapshot("Edit sheet", ctx.undo, before_);
   if (DrawingCanvas* c = canvas(ctx)) c->zoomToFit();
+  const Sheet* s = m ? m->sheet(sheetId_) : nullptr;
   ctx.finish();
+  if (s) warnIfOutsideFrame(ctx, *s);
 }
 
 void EditSheetTool::cancel(core::ToolContext& ctx) {

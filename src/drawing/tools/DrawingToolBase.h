@@ -70,6 +70,12 @@ class DrawingToolBase : public QObject, public core::ToolBase, public ICanvasInt
   /// Parse "key=value"; false if no '='.
   static bool parseKeyValue(const std::string& text, std::string& key, std::string& value);
   static std::string lower(std::string s);
+  /// Display label of an identifier: "IsoTopRight" -> "Iso Top Right", "PartNumber" -> "Part Number".
+  static QString spacedName(const std::string& id);
+  /// A view of the sheet reaches outside its frame (after a scale, size or standard change).
+  static bool viewsOutsideFrame(const Sheet& sheet);
+  static QComboBox* addScaleCombo(QFormLayout* form, double current);
+  static double comboScale(const QComboBox* combo, double fallback);
 
  protected:
   // --- access ----------------------------------------------------------------------------
@@ -103,11 +109,9 @@ class DrawingToolBase : public QObject, public core::ToolBase, public ICanvasInt
   /// Card form: a row whose field does not fit beside its label wraps below it, so nothing is
   /// clipped on the right of the narrow card (DRW2-VIEWS-ANNOT-9).
   static QFormLayout* newForm(QWidget* parent);
+  /// Says so in the status bar and the card prompt when the views do not fit (DRW2-VIEWS-ANNOT-2/3).
+  static bool warnIfOutsideFrame(core::ToolContext& ctx, const Sheet& sheet, bool cardOpen = false);
   static QComboBox* addOrientationCombo(QFormLayout* form, ViewOrientation current);
-  static QComboBox* addScaleCombo(QFormLayout* form, double current);
-  static double comboScale(const QComboBox* combo, double fallback);
-  /// Display label of an identifier: "IsoTopRight" -> "Iso Top Right", "PartNumber" -> "Part Number".
-  static QString spacedName(const std::string& id);
 
   core::ToolContext* ctx_ = nullptr;
   DrawingCanvas* canvas_ = nullptr;

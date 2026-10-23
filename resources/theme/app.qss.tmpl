@@ -255,6 +255,12 @@ QLabel#ParametersError { color: @{message.error}; }
 QLabel#DrawingUnavailable { background: @{panel.bg}; color: @{text.secondary}; }
 /* drawing workspace chrome (the sheet itself is painted: paper and ink fixed, surround drawing.canvas) */
 QLabel#DrawingSheetsTitle { color: @{text.secondary}; padding: 2px; }
+QListWidget#DrawingSheetList { background: @{panel.bg}; border: none; outline: 0; }
+QListWidget#DrawingSheetList::item { padding: 4px 6px; color: @{text.primary}; border-left: 2px solid transparent; }
+QListWidget#DrawingSheetList::item:hover { background: @{row.hover.bg}; }
+QListWidget#DrawingSheetList::item:selected { background: @{row.selected.bg}; color: @{row.selected.text}; border-left-color: @{accent.indicator}; }
+QToolButton#DrawingAddSheet, QToolButton#DrawingRemoveSheet { color: @{text.secondary}; padding: 3px 8px; }
+QToolButton#DrawingAddSheet:hover, QToolButton#DrawingRemoveSheet:hover { color: @{text.primary}; }
 QLabel#DrawingEmptyText, QLabel#DrawingStatus, QLabel#DrawingCoords { color: @{text.secondary}; }
 #DrawingEmptyState { background: @{drawing.canvas}; }
 

@@ -152,13 +152,14 @@ class CalloutsTest : public QObject {
     c.threadOverride = "M8x1";
     c.threadClass = "6G";
     QCOMPARE(plain(holeCalloutLines(tapped, c, mm)), std::string("M8x1 - 6G THRU|"));
-    // a plain hole callout of a hole with feature thread data adds the thread line
+    // a plain hole callout of a hole with feature thread data reads thread first, then the tap
+    // drill, like a thread callout (DRW2-VIEWS-ANNOT-13)
     tapped.thread = "M8x1.25";
     tapped.threadClass = "6H";
     tapped.threadDepth = 12;
     tapped.through = false;
     QCOMPARE(plain(holeCalloutLines(tapped, HoleCallout{}, mm)),
-             std::string("\xC3\x98" "6.8 DEEP 15|M8x1.25 - 6H DEEP 12|"));
+             std::string("M8x1.25 - 6H DEEP 12|\xC3\x98" "6.8 DEEP 15|"));
   }
 
   void calloutInSheet() {

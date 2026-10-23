@@ -1066,10 +1066,11 @@ void DrawingModel::fitFamilyInFrame(Sheet& s, ObjectId rootId) {
   // sections) are fitted on their own afterwards
   BBox2 fam;
   std::vector<ObjectId> loose;
+  bool alignedInBlock = true;
   std::function<void(ObjectId)> add = [&](ObjectId id) {
     for (ObjectId c : s.childrenOf(id))
       if (const DrawingView* v = s.view(c)) {
-        if (v->type == ViewType::Projected || v->alignment != ViewAlignment::None) {
+        if (v->type == ViewType::Projected || (alignedInBlock && v->alignment != ViewAlignment::None)) {
           if (v->geometryValid) fam.add(v->layoutBBox());
         } else {
           loose.push_back(c);
@@ -1079,6 +1080,16 @@ void DrawingModel::fitFamilyInFrame(Sheet& s, ObjectId rootId) {
   };
   if (root->geometryValid) fam.add(root->layoutBBox());
   add(rootId);
+  // DRW2-VIEWS-ANNOT-3: a block too big for the frame is not moved at all, so the mirrored
+  // projected view stayed off the paper. Then the projected views alone form the block, and
+  // aligned sections are fitted like the free views.
+  if (const BBox2 fi = s.frameRect().expanded(-kFrameInset); fam.isValid() && (fam.width() > fi.width() || fam.height() > fi.height())) {
+    fam = BBox2{};
+    loose.clear();
+    alignedInBlock = false;
+    if (root->geometryValid) fam.add(root->layoutBBox());
+    add(rootId);
+  }
   if (fam.isValid()) {
     DrawingView probe;  // alignment None: free to move both ways
     Point2 sh = frameShift(s, probe, fam);
@@ -1200,6 +1211,33 @@ bool DrawingModel::changeSheetFormat(Sheet& s, const SheetFormat& format) {
     reanchor(rt.position, w, h, {of.max.x - w, of.min.y}, {nf.max.x - w, nf.min.y});
     rt.position.x = std::clamp(rt.position.x, nf.min.x, std::max(nf.min.x, nf.max.x - w));
     rt.position.y = std::clamp(rt.position.y, nf.min.y, std::max(nf.min.y, nf.max.y - h));
+  }
+  // DRW2-ASM-OUTPUT-2: balloons stay inside the new frame (their tips follow the views)
+  const double br = style_.balloonRadius + 1.0;
+  for (auto& b : s.balloons) {
+    if (nf.width() > 2 * br) b.position.x = std::clamp(b.position.x, nf.min.x + br, nf.max.x - br);
+    if (nf.height() > 2 * br) b.position.y = std::clamp(b.position.y, nf.min.y + br, nf.max.y - br);
+  }
+  // ...and a revision table that now lies over a view or a balloon moves to the other top
+  // corner when that one is clear (it overprinted balloon 2 and the pin on A4 portrait)
+  auto tableClear = [&](const Point2& pos, double w, double h) {
+    BBox2 t;
+    t.add(pos);
+    t.add(pos + Point2{w, h});
+    for (const auto& v : s.views)
+      if (v.geometryValid && boxesOverlap(t, v.layoutBBox(), 1.0)) return false;
+    for (const auto& b : s.balloons)
+      if (boxesOverlap(t, BBox2{b.position - Point2{br, br}, b.position + Point2{br, br}}, 0.0)) return false;
+    return true;
+  };
+  for (auto& rt : s.callouts.revisionTables) {
+    const double w = rt.width(), h = rt.height();
+    if (tableClear(rt.position, w, h)) continue;
+    for (const Point2 cand : {Point2{nf.max.x - w, nf.min.y}, Point2{nf.min.x, nf.min.y}})
+      if (tableClear(cand, w, h)) {
+        rt.position = cand;
+        break;
+      }
   }
   refreshAnnotations(s);
   notifyChanged(s.id);

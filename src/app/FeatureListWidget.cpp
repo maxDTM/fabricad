@@ -678,6 +678,14 @@ void FeatureListWidget::paintRow(QPainter& p, int i, const QRect& r) {
       if (sel) p.fillRect(pr, theme::color(Tok::AccentSelFill));
       p.setPen(theme::color(hot || sel ? Tok::AccentText : Tok::TextSecondary));
       p.drawText(pr, Qt::AlignCenter, kPlanes[k]);
+      if (hasFocus() && current_ == i && k == originChip_ && !editor_) {
+        // the chip Left / Right moved to; Space picks it (P5R-KBD-7)
+        p.save();
+        p.setPen(QPen(theme::color(Tok::AccentFocus), 1.5));
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(QRectF(pr).adjusted(0.75, 2.75, -0.75, -2.75));
+        p.restore();
+      }
       valueLeft = std::min(valueLeft, pr.left());
     }
   } else if (!row.value.isEmpty()) {
@@ -1032,10 +1040,20 @@ void FeatureListWidget::keyPressEvent(QKeyEvent* e) {
       return;
     }
     case Qt::Key_Left:
+      if (r && r->kind == Kind::Origin) {
+        originChip_ = (originChip_ + 2) % 3;
+        viewport()->update();
+        return;
+      }
       if (r && r->kind == Kind::Group && !r->collapsed) actions_->setCollapsed(r->id, true);
       else if (r && r->parent != core::kInvalidId) setCurrentRow(model_.rowOfGroup(r->parent));
       return;
     case Qt::Key_Right:
+      if (r && r->kind == Kind::Origin) {
+        originChip_ = (originChip_ + 1) % 3;
+        viewport()->update();
+        return;
+      }
       if (r && r->kind == Kind::Group && r->collapsed) actions_->setCollapsed(r->id, false);
       else if (r && r->kind == Kind::Group) setCurrentRow(nextFocusable(current_, 1));
       return;
@@ -1043,6 +1061,13 @@ void FeatureListWidget::keyPressEvent(QKeyEvent* e) {
       if (r && r->isItem()) startRename(r->id);
       return;
     case Qt::Key_Space:
+      if (r && r->kind == Kind::Origin) {
+        // the keyboard's click on a plane chip: SKETCH's plane prompt takes it like a click
+        selectedGroups_.clear();
+        doc_.selection().set(ShapeRef::originPlane(kPlanes[originChip_]));
+        viewport()->update();
+        return;
+      }
       if (pickMode_) {
         // the running command takes the row (a sketch's profiles, a feature...) like a click
         if (r && r->isItem()) selectRow(current_, {});

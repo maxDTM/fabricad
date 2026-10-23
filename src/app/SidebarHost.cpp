@@ -379,7 +379,9 @@ void SidebarHost::applyLayout() {
                                               : QWIDGETSIZE_MAX);
 
   // sizes: the panels' remembered sizes; a docked card takes what FEATURES gives up
-  const int total = std::max(splitter_->height(), 400);
+  // the real height once laid out (P5-TOGGLES-R1: a 400 px floor on a short window sized the
+  // panels past the bottom and the docked card overlapped the MODEL header)
+  const int total = splitter_->height() > 2 * PanelHeader::kHeight ? splitter_->height() : 400;
   std::array<int, 3> s{};
   for (size_t i = 0; i < 3; ++i) s[i] = panels_[i]->isCollapsed() ? PanelHeader::kHeight : sizes_[i];
   if (!showFeatures) s[0] = 0;

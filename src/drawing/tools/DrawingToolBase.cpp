@@ -257,6 +257,24 @@ QString DrawingToolBase::spacedName(const std::string& id) {
   return out;
 }
 
+bool DrawingToolBase::viewsOutsideFrame(const Sheet& s) {
+  const BBox2 f = s.frameRect();
+  for (const auto& v : s.views)
+    if (v.geometryValid) {
+      const BBox2 b = v.sheetBBox();
+      if (b.min.x < f.min.x - 0.5 || b.max.x > f.max.x + 0.5 || b.min.y < f.min.y - 0.5 || b.max.y > f.max.y + 0.5) return true;
+    }
+  return false;
+}
+
+bool DrawingToolBase::warnIfOutsideFrame(core::ToolContext& ctx, const Sheet& s, bool cardOpen) {
+  if (!viewsOutsideFrame(s)) return false;
+  const std::string text = "The views no longer fit inside the frame: use a smaller scale or a larger sheet";
+  ctx.showMessage(text, true);
+  if (cardOpen) ctx.setPrompt(text);
+  return true;
+}
+
 QFormLayout* DrawingToolBase::newForm(QWidget* parent) {
   auto* form = new QFormLayout(parent);
   form->setRowWrapPolicy(QFormLayout::WrapLongRows);
