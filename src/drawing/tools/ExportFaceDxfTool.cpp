@@ -214,7 +214,8 @@ QWidget* ExportFaceDxfTool::createDialog(core::ToolContext& ctx, QWidget* parent
   h->setContentsMargins(0, 0, 0, 0);
   pathEdit_ = new QLineEdit(QString::fromStdString(path_), fileRow);
   pathEdit_->setObjectName("facedxf_path");
-  pathEdit_->setPlaceholderText("out.dxf (empty: ask on OK)");
+  pathEdit_->setPlaceholderText("out.dxf");
+  pathEdit_->setToolTip("Empty: a file dialog opens on OK");
   auto* browse = new QPushButton("...", fileRow);
   browse->setFixedWidth(28);
   h->addWidget(pathEdit_);
@@ -228,25 +229,29 @@ QWidget* ExportFaceDxfTool::createDialog(core::ToolContext& ctx, QWidget* parent
   form->addRow("File", fileRow);
   versionCombo_ = new QComboBox(w);
   versionCombo_->setObjectName("facedxf_version");
-  versionCombo_->addItems({"R2000 (AC1015)", "R12 (AC1009)"});
+  versionCombo_->addItems({"R2000", "R12"});
   versionCombo_->setCurrentIndex(options_.version == DxfWriter::Version::R12 ? 1 : 0);
   versionCombo_->setToolTip("R2000: LWPOLYLINE, SPLINE and $INSUNITS; R12 for old controllers (polylines and arcs only)");
-  form->addRow("DXF version", versionCombo_);
+  form->addRow("Version", versionCombo_);
   unitsCombo_ = new QComboBox(w);
   unitsCombo_->setObjectName("facedxf_units");
-  unitsCombo_->addItems({"Millimetres", "Inches"});
+  unitsCombo_->addItems({"mm", "in"});
   unitsCombo_->setCurrentIndex(options_.inches ? 1 : 0);
   form->addRow("Units", unitsCombo_);
   arcsEdit_ = new QLineEdit(options_.arcTolerance > 0 ? QString::number(options_.arcTolerance) : QString(), w);
   arcsEdit_->setObjectName("facedxf_arcs");
-  arcsEdit_->setPlaceholderText("off (splines kept)");
+  arcsEdit_->setPlaceholderText("off: splines");
   arcsEdit_->setToolTip("Approximate splines as arcs within this tolerance (mm or in), for laser controllers without SPLINE");
-  form->addRow("Splines as arcs, tolerance", arcsEdit_);
-  etchCheck_ = new QCheckBox("Sketch construction lines on ETCH", w);
+  form->addRow("Arc tolerance", arcsEdit_);
+  etchCheck_ = new QCheckBox("Etch layer", w);
+  etchCheck_->setToolTip("Sketch construction lines on the ETCH layer");
   etchCheck_->setObjectName("facedxf_etch");
   etchCheck_->setChecked(options_.etch);
   form->addRow("", etchCheck_);
-  form->addRow("", new QLabel("1:1, origin at the lower-left corner (faces) or the sketch origin; layers OUTER / INNER / ETCH", w));
+  auto* note = new QLabel("1:1 from outside the face, origin at its lower-left corner (sketch: the sketch origin). Layers OUTER, INNER, ETCH.", w);
+  note->setWordWrap(true);
+  note->setObjectName("StatusDim");
+  form->addRow(note);
   return w;
 }
 

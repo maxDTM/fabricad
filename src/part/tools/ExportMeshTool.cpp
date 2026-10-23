@@ -349,7 +349,8 @@ QWidget* ExportMeshTool::createDialog(core::ToolContext& ctx, QWidget* parent) {
   h->setContentsMargins(0, 0, 0, 0);
   pathEdit_ = new QLineEdit(QString::fromStdString(path_), fileRow);
   pathEdit_->setObjectName("stl_path");  // stable names: tours and GUI tests (docs/plans/tutorial.md 6)
-  pathEdit_->setPlaceholderText(QString::fromStdString("out" + defaultSuffix() + " (empty: ask on OK)"));
+  pathEdit_->setPlaceholderText(fixedFormat_ ? QString::fromStdString("out" + defaultSuffix() + " (empty: ask on OK)")
+                                             : QString("out.stl | .obj | .glb | .3mf"));
   auto* browse = new QPushButton("...", fileRow);
   browse->setFixedWidth(28);
   h->addWidget(pathEdit_);
