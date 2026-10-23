@@ -1,0 +1,29 @@
+Property,Value,Unit
+Bodies,1,
+Volume,10498.407105,mm^3
+Surface area,4730.265482,mm^2
+Mass,13.332977,g
+Centre of gravity,"30.143637, 15.000000, 3.000000",mm
+Bounding box min,"0.000000, 0.000000, 0.000000",mm
+Bounding box max,"60.000000, 30.000000, 6.000000",mm
+Ixx (CoG),1067.16684,g*mm^2
+Iyy (CoG),4143.41618,g*mm^2
+Izz (CoG),5130.58516,g*mm^2
+Ixy (CoG),0,g*mm^2
+Ixz (CoG),-2.27373675e-13,g*mm^2
+Iyz (CoG),2.27373675e-13,g*mm^2
+Ixx (origin),4187.08346,g*mm^2
+Iyy (origin),16378.2743,g*mm^2
+Izz (origin),20245.3663,g*mm^2
+Ixy (origin),-6028.56638,g*mm^2
+Ixz (origin),-1205.71328,g*mm^2
+Iyz (origin),-599.983966,g*mm^2
+Principal moment I1,1067.16684,g*mm^2
+Principal axis 1,"1.000000, 0.000000, 0.000000",
+Radius of gyration k1,8.946488,mm
+Principal moment I2,4143.41618,g*mm^2
+Principal axis 2,"0.000000, 1.000000, 0.000000",
+Radius of gyration k2,17.628514,mm
+Principal moment I3,5130.58516,g*mm^2
+Principal axis 3,"0.000000, 0.000000, 1.000000",
+Radius of gyration k3,19.616426,mm

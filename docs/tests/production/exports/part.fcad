@@ -1,0 +1,1807 @@
+{
+    "activeComponent": 1,
+    "bodies": [
+        {
+            "color": [
+                0.800000011920929,
+                0.8100000023841858,
+                0.8299999833106995,
+                1
+            ],
+            "component": 28,
+            "creator": 17,
+            "density": 2.7,
+            "id": 18,
+            "material": "Aluminum 6061",
+            "name": "Body1",
+            "visible": true
+        },
+        {
+            "color": [
+                0.6200000047683716,
+                0.6299999952316284,
+                0.6600000262260437,
+                1
+            ],
+            "component": 21,
+            "creator": 22,
+            "density": 7.85,
+            "id": 24,
+            "material": "Steel",
+            "name": "ISO 4762 M6x10 8.8",
+            "visible": true
+        },
+        {
+            "color": [
+                0.6200000047683716,
+                0.6299999952316284,
+                0.6600000262260437,
+                1
+            ],
+            "component": 33,
+            "creator": 34,
+            "density": 7.85,
+            "id": 36,
+            "material": "Steel",
+            "name": "ASME B18.3 1/4-20 x 1/2 ASTM A574",
+            "visible": true
+        }
+    ],
+    "components": [
+        {
+            "children": [
+                21,
+                26,
+                28,
+                33
+            ],
+            "grounded": true,
+            "id": 1,
+            "name": "part",
+            "parent": 0,
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0,
+                    1
+                ],
+                "t": [
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "visible": true
+        },
+        {
+            "children": [
+            ],
+            "description": "Socket head cap screw",
+            "grounded": false,
+            "id": 21,
+            "material": "Steel",
+            "name": "ISO 4762 M6x10 8.8",
+            "parent": 1,
+            "partNumber": "ISO 4762 M6x10 8.8",
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0.7071067811865475,
+                    0.7071067811865475
+                ],
+                "t": [
+                    5.759127374451844,
+                    17.22303382426435,
+                    6
+                ]
+            },
+            "visible": true
+        },
+        {
+            "children": [
+            ],
+            "definition": 21,
+            "description": "Socket head cap screw",
+            "grounded": false,
+            "id": 26,
+            "material": "Steel",
+            "name": "ISO 4762 M6x10 8.8",
+            "parent": 1,
+            "partNumber": "ISO 4762 M6x10 8.8",
+            "placement": {
+                "q": [
+                    0,
+                    -0.7071067811865475,
+                    0.7071067811865475,
+                    0
+                ],
+                "t": [
+                    23.028477983305955,
+                    0,
+                    8.545728302504108
+                ]
+            },
+            "visible": true
+        },
+        {
+            "children": [
+            ],
+            "cost": 12.5,
+            "description": "Base plate",
+            "grounded": false,
+            "id": 28,
+            "material": "Aluminum 6061",
+            "name": "Base plate",
+            "parent": 1,
+            "partNumber": "BRK-0001",
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0,
+                    1
+                ],
+                "t": [
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "revision": "A",
+            "vendor": "In-house",
+            "visible": true
+        },
+        {
+            "children": [
+            ],
+            "description": "Socket head cap screw",
+            "grounded": false,
+            "id": 33,
+            "material": "Steel",
+            "name": "ASME B18.3 1/4-20 x 1/2 ASTM A574",
+            "parent": 1,
+            "partNumber": "ASME B18.3 1/4-20 x 1/2 ASTM A574",
+            "placement": {
+                "q": [
+                    0,
+                    0,
+                    0.7071067811865475,
+                    0.7071067811865475
+                ],
+                "t": [
+                    28.66620283892499,
+                    26.265128214105903,
+                    12
+                ]
+            },
+            "visible": true
+        }
+    ],
+    "extensions": {
+        "drawing": {
+            "activeSheet": 30,
+            "sheets": [
+                {
+                    "balloons": [
+                    ],
+                    "bindingMargin": 20,
+                    "centerLines": [
+                    ],
+                    "centerMarks": [
+                    ],
+                    "dimensions": [
+                    ],
+                    "format": {
+                        "height": 297,
+                        "landscape": true,
+                        "name": "A3",
+                        "width": 420
+                    },
+                    "holeTables": [
+                        {
+                            "id": 32,
+                            "position": [
+                                209.4104129269395,
+                                44.29835658069874
+                            ],
+                            "view": 31
+                        }
+                    ],
+                    "id": 30,
+                    "margin": 10,
+                    "name": "Sheet1",
+                    "notes": [
+                    ],
+                    "partsLists": [
+                    ],
+                    "scale": 1,
+                    "showZones": true,
+                    "standard": "FirstAngle",
+                    "titleBlock": {
+                        "fields": {
+                            "Date": "2026-10-23",
+                            "Mass": "${mass:g,1} g",
+                            "Material": "${material}",
+                            "PartNumber": "BRK-0001",
+                            "Title": "Bracket plate ${vendor}"
+                        },
+                        "height": 56,
+                        "visible": true,
+                        "width": 180
+                    },
+                    "views": [
+                        {
+                            "alignment": "None",
+                            "direction": "Right",
+                            "exact": true,
+                            "frame": {
+                                "n": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "o": [
+                                    0,
+                                    0,
+                                    0
+                                ],
+                                "x": [
+                                    1,
+                                    0,
+                                    0
+                                ]
+                            },
+                            "hatch": true,
+                            "hidden": false,
+                            "id": 31,
+                            "label": "VIEW1",
+                            "orientation": "Top",
+                            "parent": 0,
+                            "position": [
+                                126.6261127596439,
+                                98.38575667655786
+                            ],
+                            "scale": 1,
+                            "showLabel": false,
+                            "sources": [
+                            ],
+                            "tangent": "Off",
+                            "type": "Base"
+                        }
+                    ]
+                }
+            ],
+            "version": 1
+        },
+        "ui": {
+            "displayMode": "shaded-edges",
+            "folders": {
+                "Construction": true,
+                "Joints": true,
+                "Sketches": true
+            },
+            "hiddenFeatures": [
+                16
+            ],
+            "projection": "orthographic",
+            "showOrigin": false
+        }
+    },
+    "features": [
+        {
+            "component": 1,
+            "constraints": [
+                {
+                    "a": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 1,
+                    "name": "origin",
+                    "type": "Fix"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 2,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 1
+                    },
+                    "id": 3,
+                    "label": [
+                        40,
+                        5
+                    ],
+                    "name": "d1",
+                    "type": "Distance",
+                    "value": 80
+                },
+                {
+                    "a": {
+                        "g": 2,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "end"
+                    },
+                    "id": 4,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 5,
+                    "type": "Vertical"
+                },
+                {
+                    "a": {
+                        "g": 2
+                    },
+                    "id": 6,
+                    "label": [
+                        75,
+                        25
+                    ],
+                    "name": "d2",
+                    "type": "Distance",
+                    "value": 50
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 2,
+                        "pos": "end"
+                    },
+                    "id": 7,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 3
+                    },
+                    "id": 8,
+                    "type": "Horizontal"
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "id": 9,
+                    "label": [
+                        40,
+                        45
+                    ],
+                    "name": "d3",
+                    "type": "DistanceX",
+                    "value": 0
+                },
+                {
+                    "a": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "driven": true,
+                    "id": 10,
+                    "label": [
+                        40,
+                        45
+                    ],
+                    "name": "d4",
+                    "type": "DistanceY",
+                    "value": 50
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "start"
+                    },
+                    "b": {
+                        "g": 3,
+                        "pos": "end"
+                    },
+                    "id": 11,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4,
+                        "pos": "end"
+                    },
+                    "b": {
+                        "g": 1,
+                        "pos": "start"
+                    },
+                    "id": 12,
+                    "type": "Coincident"
+                },
+                {
+                    "a": {
+                        "g": 4
+                    },
+                    "id": 13,
+                    "type": "Vertical"
+                }
+            ],
+            "geometry": [
+                {
+                    "id": 1,
+                    "p": [
+                        0,
+                        0,
+                        80,
+                        0
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 2,
+                    "p": [
+                        80,
+                        0,
+                        80,
+                        50
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 3,
+                    "p": [
+                        80,
+                        50,
+                        0,
+                        50
+                    ],
+                    "type": "Line"
+                },
+                {
+                    "id": 4,
+                    "p": [
+                        0,
+                        50,
+                        0,
+                        0
+                    ],
+                    "type": "Line"
+                }
+            ],
+            "id": 16,
+            "name": "Sketch1",
+            "nextConstraintId": 14,
+            "nextGeoId": 5,
+            "properties": {
+                "plane": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "OriginPlane",
+                        "name": "XY",
+                        "owner": 2
+                    }
+                },
+                "visible": {
+                    "type": "Bool",
+                    "value": true
+                }
+            },
+            "type": "Sketch"
+        },
+        {
+            "component": 1,
+            "createdBodies": [
+                18
+            ],
+            "id": 17,
+            "name": "Extrude1",
+            "properties": {
+                "direction": {
+                    "name": "One Side",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 12
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType2": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "operation": {
+                    "name": "New Body",
+                    "type": "Enum",
+                    "value": 3
+                },
+                "profiles": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "kind": "Profile",
+                            "name": "1,2,3,4",
+                            "owner": 16,
+                            "pt": [
+                                40,
+                                25,
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "startOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "symmetricMeasure": {
+                    "name": "Half Length",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "taperAngle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "taperAngle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "toObject": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                },
+                "toObject2": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "None",
+                        "owner": 0
+                    }
+                }
+            },
+            "type": "Extrude"
+        },
+        {
+            "component": 1,
+            "id": 19,
+            "name": "Hole1",
+            "properties": {
+                "ansiSize": {
+                    "name": "1/4-20",
+                    "type": "Enum",
+                    "value": 19
+                },
+                "cboreDepth": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "cboreDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "clearanceFit": {
+                    "name": "Normal",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "csinkAngle": {
+                    "type": "Angle",
+                    "value": 90
+                },
+                "csinkDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "diameter": {
+                    "type": "Length",
+                    "value": 6.6
+                },
+                "drillAngle": {
+                    "type": "Angle",
+                    "value": 118
+                },
+                "drillPoint": {
+                    "name": "Flat",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType": {
+                    "name": "All",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "face": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 6,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            5.759127374451844,
+                            17.22303382426435,
+                            11.999999999999996
+                        ],
+                        "sig": {
+                            "bmax": [
+                                80.0000001,
+                                50.0000001,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                11.9999999
+                            ],
+                            "c": [
+                                40,
+                                25,
+                                12
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 4,
+                            "r": 0,
+                            "size": 3999.999999999999,
+                            "type": 0
+                        }
+                    }
+                },
+                "fastener": {
+                    "name": "SHCS (ISO 4762 / ASME B18.3)",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "headClearance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "headOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "holeType": {
+                    "name": "Counterbore",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "points": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 6,
+                            "kind": "Face",
+                            "name": "Extrude1/End",
+                            "owner": 18,
+                            "pt": [
+                                5.759127374451844,
+                                17.22303382426435,
+                                11.999999999999996
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    80.0000001,
+                                    50.0000001,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    11.9999999
+                                ],
+                                "c": [
+                                    40,
+                                    25,
+                                    12
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 3999.999999999999,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "standard": {
+                    "name": "ISO metric",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "tapType": {
+                    "name": "Clearance",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "threadClass": {
+                    "type": "String",
+                    "value": ""
+                },
+                "threadDepth": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "threadFullDepth": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "threadInfo": {
+                    "type": "String",
+                    "value": ""
+                },
+                "threadModeled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "threadSize": {
+                    "name": "M6x1",
+                    "type": "Enum",
+                    "value": 20
+                }
+            },
+            "type": "Hole"
+        },
+        {
+            "component": 1,
+            "id": 20,
+            "name": "Hole2",
+            "properties": {
+                "ansiSize": {
+                    "name": "1/4-20",
+                    "type": "Enum",
+                    "value": 19
+                },
+                "cboreDepth": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "cboreDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "clearanceFit": {
+                    "name": "Normal",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "csinkAngle": {
+                    "type": "Angle",
+                    "value": 90
+                },
+                "csinkDiameter": {
+                    "type": "Length",
+                    "value": 12
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "diameter": {
+                    "type": "Length",
+                    "value": 6.6
+                },
+                "drillAngle": {
+                    "type": "Angle",
+                    "value": 118
+                },
+                "drillPoint": {
+                    "name": "Flat",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "face": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 5,
+                        "kind": "Face",
+                        "name": "Extrude1/End",
+                        "owner": 18,
+                        "pt": [
+                            28.66620283892499,
+                            26.265128214105903,
+                            12
+                        ],
+                        "sig": {
+                            "bmax": [
+                                80.0000001,
+                                50.0000001,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                11.9999999
+                            ],
+                            "c": [
+                                40.83330258191634,
+                                25.189264043138937,
+                                12
+                            ],
+                            "d": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "nv": 5,
+                            "r": 0,
+                            "size": 3904.966822228908,
+                            "type": 0
+                        }
+                    }
+                },
+                "fastener": {
+                    "name": "SHCS (ISO 4762 / ASME B18.3)",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "headClearance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "headOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "holeType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "points": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 5,
+                            "kind": "Face",
+                            "name": "Extrude1/End",
+                            "owner": 18,
+                            "pt": [
+                                28.66620283892499,
+                                26.265128214105903,
+                                12
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    80.0000001,
+                                    50.0000001,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    11.9999999
+                                ],
+                                "c": [
+                                    40.83330258191634,
+                                    25.189264043138937,
+                                    12
+                                ],
+                                "d": [
+                                    0,
+                                    0,
+                                    1
+                                ],
+                                "nv": 5,
+                                "r": 0,
+                                "size": 3904.966822228908,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "standard": {
+                    "name": "ANSI inch",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "tapType": {
+                    "name": "Tapped",
+                    "type": "Enum",
+                    "value": 2
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "threadClass": {
+                    "type": "String",
+                    "value": ""
+                },
+                "threadDepth": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "threadFullDepth": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "threadInfo": {
+                    "type": "String",
+                    "value": "thread 0.394\", drill 0.394\""
+                },
+                "threadModeled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "threadSize": {
+                    "name": "M6x1",
+                    "type": "Enum",
+                    "value": 20
+                }
+            },
+            "type": "Hole"
+        },
+        {
+            "component": 21,
+            "createdBodies": [
+                24
+            ],
+            "id": 22,
+            "name": "Fastener21",
+            "properties": {
+                "bodyName": {
+                    "type": "String",
+                    "value": ""
+                },
+                "family": {
+                    "name": "Socket head cap screw (ISO 4762 / B18.3)",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "grade": {
+                    "type": "String",
+                    "value": "8.8"
+                },
+                "length": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "shortInsert": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "size": {
+                    "type": "String",
+                    "value": "M6"
+                }
+            },
+            "type": "StandardPart"
+        },
+        {
+            "component": 1,
+            "id": 23,
+            "name": "Joint1",
+            "properties": {
+                "angle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "angle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "angle3": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "asBuilt": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "componentA": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 21
+                    }
+                },
+                "componentB": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 1
+                    }
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "limitMax": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitMin": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitRest": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitsEnabled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "lockMotion": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "offsetX": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "offsetY": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "offsetZ": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "originA": {
+                    "type": "Json",
+                    "value": {
+                        "component": 21,
+                        "frame": {
+                            "n": [
+                                -1.2246467991473532e-16,
+                                0,
+                                -1
+                            ],
+                            "o": [
+                                0,
+                                0,
+                                0
+                            ],
+                            "x": [
+                                0,
+                                -1,
+                                0
+                            ]
+                        },
+                        "mode": "Auto",
+                        "pick": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "ref": {
+                            "kind": "None",
+                            "owner": 0
+                        },
+                        "valid": true
+                    }
+                },
+                "originB": {
+                    "type": "Json",
+                    "value": {
+                        "component": 1,
+                        "frame": {
+                            "n": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "o": [
+                                5.759127374451844,
+                                17.22303382426435,
+                                6
+                            ],
+                            "x": [
+                                1,
+                                0,
+                                0
+                            ]
+                        },
+                        "mode": "Auto",
+                        "pick": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "ref": {
+                            "kind": "None",
+                            "owner": 0
+                        },
+                        "valid": true
+                    }
+                },
+                "rotation": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "type": {
+                    "name": "Rigid",
+                    "type": "Enum",
+                    "value": 0
+                }
+            },
+            "type": "Joint"
+        },
+        {
+            "component": 1,
+            "id": 25,
+            "name": "Hole3",
+            "properties": {
+                "ansiSize": {
+                    "name": "1/4-20",
+                    "type": "Enum",
+                    "value": 19
+                },
+                "cboreDepth": {
+                    "type": "Length",
+                    "value": 6
+                },
+                "cboreDiameter": {
+                    "type": "Length",
+                    "value": 11
+                },
+                "clearanceFit": {
+                    "name": "Normal",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "csinkAngle": {
+                    "type": "Angle",
+                    "value": 90
+                },
+                "csinkDiameter": {
+                    "type": "Length",
+                    "value": 12
+                },
+                "depth": {
+                    "type": "Length",
+                    "value": 10
+                },
+                "diameter": {
+                    "type": "Length",
+                    "value": 6.6
+                },
+                "drillAngle": {
+                    "type": "Angle",
+                    "value": 118
+                },
+                "drillPoint": {
+                    "name": "Flat",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "extentType": {
+                    "name": "Distance",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "face": {
+                    "type": "Ref",
+                    "value": {
+                        "index": 3,
+                        "kind": "Face",
+                        "name": "Extrude1/Side/c1",
+                        "owner": 18,
+                        "pt": [
+                            48.583845814379266,
+                            0,
+                            4.71242312784311
+                        ],
+                        "sig": {
+                            "bmax": [
+                                80.0000001,
+                                1e-07,
+                                12.0000001
+                            ],
+                            "bmin": [
+                                -1e-07,
+                                -1e-07,
+                                -1e-07
+                            ],
+                            "c": [
+                                40,
+                                0,
+                                5.999999999999999
+                            ],
+                            "d": [
+                                0,
+                                1,
+                                0
+                            ],
+                            "nv": 4,
+                            "r": 0,
+                            "size": 959.9999999999998,
+                            "type": 0
+                        }
+                    }
+                },
+                "fastener": {
+                    "name": "SHCS (ISO 4762 / ASME B18.3)",
+                    "type": "Enum",
+                    "value": 1
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "headClearance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "headOffset": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "holeType": {
+                    "name": "Simple",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "points": {
+                    "type": "RefList",
+                    "value": [
+                        {
+                            "index": 3,
+                            "kind": "Face",
+                            "name": "Extrude1/Side/c1",
+                            "owner": 18,
+                            "pt": [
+                                48.583845814379266,
+                                0,
+                                4.71242312784311
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    80.0000001,
+                                    1e-07,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    -1e-07
+                                ],
+                                "c": [
+                                    40,
+                                    0,
+                                    5.999999999999999
+                                ],
+                                "d": [
+                                    0,
+                                    1,
+                                    0
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 959.9999999999998,
+                                "type": 0
+                            }
+                        },
+                        {
+                            "index": 3,
+                            "kind": "Face",
+                            "name": "Extrude1/Side/c1",
+                            "owner": 18,
+                            "pt": [
+                                23.028477983305955,
+                                0,
+                                8.545728302504108
+                            ],
+                            "sig": {
+                                "bmax": [
+                                    80.0000001,
+                                    1e-07,
+                                    12.0000001
+                                ],
+                                "bmin": [
+                                    -1e-07,
+                                    -1e-07,
+                                    -1e-07
+                                ],
+                                "c": [
+                                    40,
+                                    0,
+                                    5.999999999999999
+                                ],
+                                "d": [
+                                    0,
+                                    1,
+                                    0
+                                ],
+                                "nv": 4,
+                                "r": 0,
+                                "size": 959.9999999999998,
+                                "type": 0
+                            }
+                        }
+                    ]
+                },
+                "standard": {
+                    "name": "ISO metric",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "tapType": {
+                    "name": "Tapped",
+                    "type": "Enum",
+                    "value": 2
+                },
+                "targets": {
+                    "type": "RefList",
+                    "value": [
+                    ]
+                },
+                "threadClass": {
+                    "type": "String",
+                    "value": ""
+                },
+                "threadDepth": {
+                    "type": "Length",
+                    "value": 8
+                },
+                "threadFullDepth": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "threadInfo": {
+                    "type": "String",
+                    "value": "thread 10 mm, drill 10 mm"
+                },
+                "threadModeled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "threadSize": {
+                    "name": "M6x1",
+                    "type": "Enum",
+                    "value": 20
+                }
+            },
+            "type": "Hole"
+        },
+        {
+            "component": 1,
+            "id": 27,
+            "name": "Joint2",
+            "properties": {
+                "angle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "angle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "angle3": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "asBuilt": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "componentA": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 26
+                    }
+                },
+                "componentB": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 1
+                    }
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "limitMax": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitMin": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitRest": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitsEnabled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "lockMotion": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "offsetX": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "offsetY": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "offsetZ": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "originA": {
+                    "type": "Json",
+                    "value": {
+                        "component": 26,
+                        "frame": {
+                            "n": [
+                                1.2246467991473532e-16,
+                                0,
+                                -1
+                            ],
+                            "o": [
+                                0,
+                                0,
+                                0
+                            ],
+                            "x": [
+                                0,
+                                1,
+                                0
+                            ]
+                        },
+                        "mode": "Auto",
+                        "pick": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "ref": {
+                            "kind": "None",
+                            "owner": 0
+                        },
+                        "valid": true
+                    }
+                },
+                "originB": {
+                    "type": "Json",
+                    "value": {
+                        "component": 1,
+                        "frame": {
+                            "n": [
+                                0,
+                                -1,
+                                0
+                            ],
+                            "o": [
+                                23.028477983305955,
+                                0,
+                                8.545728302504108
+                            ],
+                            "x": [
+                                0,
+                                0,
+                                -1
+                            ]
+                        },
+                        "mode": "Auto",
+                        "pick": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "ref": {
+                            "kind": "None",
+                            "owner": 0
+                        },
+                        "valid": true
+                    }
+                },
+                "rotation": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "type": {
+                    "name": "Rigid",
+                    "type": "Enum",
+                    "value": 0
+                }
+            },
+            "type": "Joint"
+        },
+        {
+            "component": 1,
+            "id": 29,
+            "name": "Body1",
+            "properties": {
+                "component": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 28
+                    }
+                }
+            },
+            "type": "NewComponent"
+        },
+        {
+            "component": 33,
+            "createdBodies": [
+                36
+            ],
+            "id": 34,
+            "name": "Fastener33",
+            "properties": {
+                "bodyName": {
+                    "type": "String",
+                    "value": ""
+                },
+                "family": {
+                    "name": "Socket head cap screw (ISO 4762 / B18.3)",
+                    "type": "Enum",
+                    "value": 0
+                },
+                "grade": {
+                    "type": "String",
+                    "value": "8.8"
+                },
+                "length": {
+                    "type": "Length",
+                    "value": 12.7
+                },
+                "shortInsert": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "size": {
+                    "type": "String",
+                    "value": "1/4"
+                }
+            },
+            "type": "StandardPart"
+        },
+        {
+            "component": 1,
+            "id": 35,
+            "name": "Joint3",
+            "properties": {
+                "angle": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "angle2": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "angle3": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "asBuilt": {
+                    "type": "Bool",
+                    "value": true
+                },
+                "componentA": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 33
+                    }
+                },
+                "componentB": {
+                    "type": "Ref",
+                    "value": {
+                        "kind": "Component",
+                        "owner": 28
+                    }
+                },
+                "distance": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "distance2": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "flip": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "limitMax": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitMin": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitRest": {
+                    "type": "Double",
+                    "value": 0
+                },
+                "limitsEnabled": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "lockMotion": {
+                    "type": "Bool",
+                    "value": false
+                },
+                "offsetX": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "offsetY": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "offsetZ": {
+                    "type": "Length",
+                    "value": 0
+                },
+                "originA": {
+                    "type": "Json",
+                    "value": {
+                        "component": 33,
+                        "frame": {
+                            "n": [
+                                -1.2246467991473532e-16,
+                                0,
+                                -1
+                            ],
+                            "o": [
+                                0,
+                                0,
+                                0
+                            ],
+                            "x": [
+                                0,
+                                -1,
+                                0
+                            ]
+                        },
+                        "mode": "Auto",
+                        "pick": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "ref": {
+                            "kind": "None",
+                            "owner": 0
+                        },
+                        "valid": true
+                    }
+                },
+                "originB": {
+                    "type": "Json",
+                    "value": {
+                        "component": 28,
+                        "frame": {
+                            "n": [
+                                0,
+                                0,
+                                1
+                            ],
+                            "o": [
+                                28.66620283892499,
+                                26.265128214105903,
+                                12
+                            ],
+                            "x": [
+                                1,
+                                0,
+                                0
+                            ]
+                        },
+                        "mode": "Auto",
+                        "pick": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "ref": {
+                            "kind": "None",
+                            "owner": 0
+                        },
+                        "valid": true
+                    }
+                },
+                "rotation": {
+                    "type": "Angle",
+                    "value": 0
+                },
+                "type": {
+                    "name": "Rigid",
+                    "type": "Enum",
+                    "value": 0
+                }
+            },
+            "type": "Joint"
+        }
+    ],
+    "format": "fabricad",
+    "name": "part",
+    "nextId": 37,
+    "parameters": [
+    ],
+    "rollbackIndex": 11,
+    "units": {
+        "angle": "deg",
+        "length": "mm",
+        "precision": 3
+    },
+    "version": 1
+}
