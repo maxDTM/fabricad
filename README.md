@@ -14,6 +14,9 @@ projected/section/detail views, dimensions, parts lists; PDF/SVG/DXF export).
 
 ![The same chair as a drawing tab: white paper and black lines in both themes](docs/screenshots/fabricad-drawing.png)
 
+**New here? Read the [user guide](docs/USER_GUIDE.md)**: the window, navigation, sketching, parts,
+assemblies, drawings, import/export, Preferences and the full shortcut table.
+
 More screenshots: [chair, dark](docs/screenshots/fabricad-assembly.png),
 [extrude, light](docs/screenshots/fabricad-extrude-light.png),
 [drawing, light](docs/screenshots/fabricad-drawing-light.png),
@@ -315,6 +318,10 @@ colour-vision simulation (`cvd.py`); see `tools/uitest/README.md`.
    `PROJ right above iso`, `DIM 150,105 150,90`, `PDF /tmp/out.pdf`, `app.save part.fcad`.
 
 ## Keyboard shortcuts
+
+The complete, generated list is in [the user guide](docs/USER_GUIDE.md#12-keyboard-shortcuts)
+(`tools/docs/shortcuts.py`).
+
 
 | Key | Command | Key | Command |
 |---|---|---|---|
