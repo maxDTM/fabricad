@@ -13,7 +13,6 @@ pkgbase = fabricad
 	depends = gcc-libs
 	depends = glibc
 	depends = hicolor-icon-theme
-	depends = onetbb
 	depends = opencascade
 	depends = qt6-base
 	depends = qt6-svg

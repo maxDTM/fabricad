@@ -17,9 +17,11 @@
 # packaging/linux/render-icons.sh (rsvg-convert or ImageMagick); without a renderer only the
 # scalable SVG is installed (FABRICAD_INSTALL_PNG_ICONS=OFF forces that).
 
-# lower-case doc dir (GNUInstallDirs would use the project name, share/doc/FabriCAD)
-set(CMAKE_INSTALL_DOCDIR "share/doc/fabricad" CACHE PATH "Documentation root (DOCDIR)")
 include(GNUInstallDirs)
+# lower-case doc dir (GNUInstallDirs' DOCDIR is share/doc/<PROJECT_NAME> = share/doc/FabriCAD,
+# and Qt's config packages may already have cached it before this point)
+set(FABRICAD_DOC_DIR "${CMAKE_INSTALL_DATADIR}/doc/fabricad"
+  CACHE STRING "Where README / CHANGELOG / SCRIPTING are installed (relative to the prefix)")
 
 set(FABRICAD_APP_ID "io.github.maxdtm.FabriCAD")
 set(FABRICAD_APP_ICON "${CMAKE_SOURCE_DIR}/resources/icons/app/fabricad-app.svg"
@@ -83,4 +85,4 @@ install(FILES
   "${CMAKE_SOURCE_DIR}/README.md"
   "${CMAKE_SOURCE_DIR}/CHANGELOG.md"
   "${CMAKE_SOURCE_DIR}/docs/SCRIPTING.md"
-  DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+  DESTINATION "${FABRICAD_DOC_DIR}")

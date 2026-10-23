@@ -12,7 +12,6 @@ depends=(
   'gcc-libs'
   'glibc'
   'hicolor-icon-theme'
-  'onetbb'
   'opencascade'
   'qt6-base'
   'qt6-svg'
@@ -40,7 +39,7 @@ build() {
 
 check() {
   # the test executables are only built here, so `makepkg --nocheck` stays a plain app build
-  cmake -B build -DFABRICAD_BUILD_TESTS=ON
+  cmake -S "${pkgname}-${pkgver}" -B build -DFABRICAD_BUILD_TESTS=ON
   cmake --build build
   # headless; QSettings / recovery files go to a throw-away HOME. `timing` checks are skipped
   # (a loaded build machine makes them flaky) and `gui` needs a real X display.
