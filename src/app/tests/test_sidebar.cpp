@@ -8,6 +8,7 @@
 #include "app/FeatureListModel.h"
 #include "app/FeatureListWidget.h"
 #include "app/InlineTip.h"
+#include "app/CommandSearch.h"
 #include "app/MainWindow.h"
 #include "app/SelectionPanel.h"
 #include "app/SidebarHost.h"
@@ -377,6 +378,18 @@ class TestSidebar : public QObject {
     QVERIFY(host()->selectionPanel()->selectionCount() >= 1);
     w_->toolManager().cancel();
     settle();
+  }
+
+  void searchKeyFromAPanelHeader() {
+    // P5-KEYBOARD-7: S opens the command search with a panel header focused; Return stays the
+    // header's own key (collapse)
+    app::PanelHeader* header = host()->panel(SidebarHost::Panel::Features)->header();
+    QVERIFY(header);
+    QVERIFY(w_->handleKeyPress(Qt::Key_S, 0, "s", false, header));
+    settle();
+    QVERIFY(w_->commandSearch()->isVisible());
+    w_->commandSearch()->hide();
+    QVERIFY(!w_->handleKeyPress(Qt::Key_Return, 0, "\r", false, header));
   }
 
   // --- rollback bar -------------------------------------------------------------------------

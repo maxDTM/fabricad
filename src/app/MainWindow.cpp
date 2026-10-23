@@ -504,6 +504,13 @@ void MainWindow::buildUi() {
           [this] { handleKeyPress(Qt::Key_Return, 0, "\r", false, viewer_); });
   search_ = new CommandSearch(m, this);
   marking_ = new MarkingMenu(this);
+  // P5-KEYBOARD-1: the focus ring of the control that lost the focus must go at once. Under
+  // Xwayland with the GL-composed window (the 3D view) a partial flush can leave the old ring on
+  // screen (verified on a private Xwayland: region repaints kept stale rings, a full repaint did
+  // not). Focus changes are rare, so the window's widgets repaint in full.
+  connect(qApp, &QApplication::focusChanged, this, [this](QWidget* old, QWidget* now) {
+    if ((old && old->window() == this) || (now && now->window() == this)) update();
+  });
 }
 
 QWidget* MainWindow::buildAppBar() {
@@ -2685,8 +2692,7 @@ bool MainWindow::isChromeControl(QWidget* focus) const {
   // view column...) outside the card and outside modal dialogs: P5-KEYBOARD-5/7
   if (!focus || focus->window() != this || isTextInput(focus)) return false;
   if (dialog_ && (focus == dialog_ || dialog_->isAncestorOf(focus))) return false;
-  return qobject_cast<QAbstractButton*>(focus) || qobject_cast<QTabBar*>(focus) ||
-         focus->objectName() == QLatin1StringView("PanelHeader");
+  return qobject_cast<QAbstractButton*>(focus) || qobject_cast<QTabBar*>(focus) || qobject_cast<PanelHeader*>(focus);
 }
 
 bool MainWindow::handleKeyPress(int key, int modifiers, const QString& text, bool autoRepeat, QWidget* focus) {

@@ -33,7 +33,8 @@ QSize ElideLabel::sizeHint() const {
 
 void ElideLabel::paintEvent(QPaintEvent*) {
   QPainter p(this);
-  const QRect r = contentsRect().adjusted(margin() + indent() * 0, 0, -margin(), 0);
+  // a status glyph (theme::setStatusGlyph) sits in the indent before the text
+  const QRect r = contentsRect().adjusted(margin() + std::max(0, indent()), 0, -margin(), 0);
   p.setPen(palette().color(foregroundRole()));
   p.setFont(font());
   p.drawText(r, Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, r.width()));

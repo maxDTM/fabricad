@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "app/ParametersDialog.h"
 
+#include "theme/StatusGlyph.h"
 #include "theme/Tokens.h"
 
 #include "app/AppActions.h"
@@ -130,6 +131,7 @@ void ParametersDialog::removeRow(int r) {
 
 void ParametersDialog::showError(const QString& text) {
   error_->setText(text);
+  theme::setStatusGlyph(error_, text.isEmpty() ? theme::StatusLevel::None : theme::StatusLevel::Error);  // P5-CVD-1
   error_->setVisible(!text.isEmpty());
 }
 
