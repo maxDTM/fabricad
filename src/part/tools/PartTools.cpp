@@ -176,6 +176,11 @@ void registerPartTools(core::ModuleContext& ctx) {
   // production features P2: pocket holes and generated standard parts
   ctx.features.registerType(PocketHoleFeature::kType, [] { return std::make_unique<PocketHoleFeature>(); });
   ctx.features.registerType(StandardPartFeature::kType, [] { return std::make_unique<StandardPartFeature>(); });
+  {
+    core::ToolInfo sp = info("part.standard-part", "Standard Part", "Edit a generated fastener: family, size, length, material", SOLID, CREATE, 99, false);
+    sp.hidden = true;  // opened by double-clicking a fastener (Insert Fastener creates them)
+    t.registerTool(featureTool<StandardPartFeature>(sp));
+  }
   t.registerTool(featureTool<PocketHoleFeature>(info("part.pocket-hole", "Pocket Hole", "Angled stepped screw hole from the back face of a board out through its edge (Kreg 15°, Castle 6°)", SOLID, CREATE, 61, false, "", {"POCKETHOLE"})));
   t.registerTool(featureTool<RectangularPatternFeature>(info("part.rectangular-pattern", "Rectangular Pattern", "Repeat features, bodies or components along one or two directions", SOLID, MODIFY, 42, true, "", {"RECTPATTERN", "ARRAY", "AR"})));
   t.registerTool(featureTool<CircularPatternFeature>(info("part.circular-pattern", "Circular Pattern", "Repeat features, bodies or components about an axis", SOLID, MODIFY, 43, false, "", {"CIRCPATTERN", "POLAR"})));

@@ -157,6 +157,7 @@
   <file>icons/dark/feature-offsetplane.svg</file>
   <file>icons/dark/feature-planeatangle.svg</file>
   <file>icons/dark/feature-planethreepoints.svg</file>
+  <file>icons/dark/feature-pockethole.svg</file>
   <file>icons/dark/feature-rectangularpattern.svg</file>
   <file>icons/dark/feature-revolve.svg</file>
   <file>icons/dark/feature-rib.svg</file>
@@ -166,6 +167,7 @@
   <file>icons/dark/feature-sphere.svg</file>
   <file>icons/dark/feature-splitbody.svg</file>
   <file>icons/dark/feature-splitface.svg</file>
+  <file>icons/dark/feature-standardpart.svg</file>
   <file>icons/dark/feature-sweep.svg</file>
   <file>icons/dark/feature-tangentplane.svg</file>
   <file>icons/dark/feature-thicken.svg</file>
@@ -234,6 +236,7 @@
   <file>icons/dark/part-sphere.svg</file>
   <file>icons/dark/part-split-body.svg</file>
   <file>icons/dark/part-split-face.svg</file>
+  <file>icons/dark/part-standard-part.svg</file>
   <file>icons/dark/part-sweep.svg</file>
   <file>icons/dark/part-thicken.svg</file>
   <file>icons/dark/part-thread.svg</file>
@@ -490,6 +493,7 @@
   <file>icons/light/feature-offsetplane.svg</file>
   <file>icons/light/feature-planeatangle.svg</file>
   <file>icons/light/feature-planethreepoints.svg</file>
+  <file>icons/light/feature-pockethole.svg</file>
   <file>icons/light/feature-rectangularpattern.svg</file>
   <file>icons/light/feature-revolve.svg</file>
   <file>icons/light/feature-rib.svg</file>
@@ -499,6 +503,7 @@
   <file>icons/light/feature-sphere.svg</file>
   <file>icons/light/feature-splitbody.svg</file>
   <file>icons/light/feature-splitface.svg</file>
+  <file>icons/light/feature-standardpart.svg</file>
   <file>icons/light/feature-sweep.svg</file>
   <file>icons/light/feature-tangentplane.svg</file>
   <file>icons/light/feature-thicken.svg</file>
@@ -567,6 +572,7 @@
   <file>icons/light/part-sphere.svg</file>
   <file>icons/light/part-split-body.svg</file>
   <file>icons/light/part-split-face.svg</file>
+  <file>icons/light/part-standard-part.svg</file>
   <file>icons/light/part-sweep.svg</file>
   <file>icons/light/part-thicken.svg</file>
   <file>icons/light/part-thread.svg</file>

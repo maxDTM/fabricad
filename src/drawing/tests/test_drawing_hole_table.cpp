@@ -157,10 +157,12 @@ class HoleTableTest : public QObject {
     std::string all = rows[0].callout + " || " + rows[1].callout;
     QVERIFY2(all.find("FOR M6 SHCS") != std::string::npos, all.c_str());
     QVERIFY2(all.find("CBORE  \xC3\x98" "11 DEEP 6") != std::string::npos, all.c_str());
-    QVERIFY2(all.find("1/4-20 - 2B") != std::string::npos, all.c_str());
+    // the tapped 1/4-20 hole: tap drill #7 = 0.201" (its top edge is unnamed on this test plate,
+    // so the thread itself is checked through the part tests' ThreadInfo callout)
+    QVERIFY2(all.find("\xC3\x98" "5.105 DEEP 8") != std::string::npos, all.c_str());
     // the fastener line can be switched off on a callout
     for (const Curve2D& c : fx.view().curves) {
-      if (!c.isCircle() || !near(c.radius, 3.3)) continue;
+      if (!c.isCircle() || !near(c.radius, 5.5)) continue;
       HoleInfo info = analyzeHole(fx.doc, c);
       QCOMPARE(info.fastener, std::string("M6 SHCS"));
       QCOMPARE(info.standard, std::string("ISO"));

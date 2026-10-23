@@ -61,7 +61,8 @@ SELECT profile:@75,140,0
 EXTRUDE 19
 operation=New Body
 OK
-RENAME body:Body2 Board
+CHECK bodies == 3
+RENAME body:Body1 Board
 POCKETHOLE
 INPUT face body:Board/face:top
 INPUT edges body:Board/edge:@0,140,19

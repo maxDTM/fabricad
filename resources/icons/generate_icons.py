@@ -752,6 +752,9 @@ I["assembly-insert-fastener"] = (R(7, 2.5, 10, 6, 1, f=WH) + P("M10.5 4.2 H13.5 
                                  P("M9.5 8.5 V18 M14.5 8.5 V18", s=INK) +
                                  P("M9.5 11 L14.5 10 M9.5 13.5 L14.5 12.5 M9.5 16 L14.5 15", s=GREY) +
                                  P("M3 21.5 H8 M16 21.5 H21", s=OR) + P("M12 18 V22.5", s=GREY, da=DASHDOT))
+# standard part (edit a generated fastener): a socket head cap screw with its length arrow
+I["part-standard-part"] = (R(7, 2.5, 10, 6, 1, f=WH) + P("M10.5 4.2 H13.5 L14.3 5.5 L13.5 6.8 H10.5 L9.7 5.5 Z", s=INK) +
+                           P("M9.5 8.5 V21 H14.5 V8.5", f=BODY, s=INK) + P("M19 8.5 V21 M17.5 10 L19 8.5 L20.5 10 M17.5 19.5 L19 21 L20.5 19.5", s=OR))
 # hole table: a table with a hole symbol
 I["drawing-hole-table"] = table(2.5, 6, 19, 13, 3, 3, DR) + C(6, 4, 2.2, s=INK) + dot(6, 4, INK, 0.8)
 I["drawing-edit-callout"] = (C(6, 7.5, 3.5, s=INK) + P("M8.5 9.9 L11.5 13 H17.5", s=DR) + dot(8.5, 9.9, DR, 1.2) + pencil(13, 21))
@@ -848,6 +851,7 @@ FEATURES = {
     "constructionpoint": CPOINT, "rigidgroup": RIGID, "insertdesign": INSERT_DESIGN, "newcomponent": I["component"],
     "box": BOX, "cylinder": CYLINDER, "sphere": SPHERE, "torus": TORUS, "coil": COIL, "thread": THREAD, "rib": RIB,
     "thicken": THICKEN, "scalebody": SCALE_BODY, "splitface": SPLIT_FACE,
+    "pockethole": I["part-pocket-hole"], "standardpart": I["part-standard-part"],
 }
 for k, v in FEATURES.items():
     I["feature-" + k] = v

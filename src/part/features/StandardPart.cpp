@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #include "part/features/StandardPart.h"
 
+#include "core/Commands.h"
+#include "core/Document.h"
 #include "core/Feature.h"
 
 #include <TopExp_Explorer.hxx>
@@ -35,6 +37,24 @@ void StandardPartFeature::setSpec(const standards::FastenerSpec& s) {
   prop("length").setDouble(s.length);
   prop("grade").setString(s.grade);
   prop("shortInsert").setBool(s.shortInsert);
+}
+
+void StandardPartFeature::prepareCommit(core::Document& doc, core::UndoStack* undo) {
+  const core::Component* c = doc.component(component());
+  if (!c || c->isRoot()) return;
+  const standards::FastenerSpec s = spec();
+  const std::string pn = standards::partNumber(s), desc = standards::familyDescription(s.family);
+  const standards::Grade* g = standards::findGrade(s.grade);
+  const std::string mat = g ? g->materialName : s.grade;
+  if (c->partNumber == pn && c->description == desc && c->material == mat) return;
+  auto edit = [pn, desc, mat](core::Component& comp) {
+    comp.partNumber = pn;
+    comp.description = desc;
+    comp.material = mat;
+    comp.name = pn;
+  };
+  if (undo) undo->push(core::makeComponentEditCommand(doc, component(), edit, "Standard part"));
+  else if (core::Component* m = doc.component(component())) edit(*m);
 }
 
 void StandardPartFeature::compute(core::RecomputeContext& ctx, Outcome& out) {

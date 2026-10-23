@@ -124,6 +124,11 @@ bool PocketHoleFeature::applyScriptOption(const std::string& nameIn, const std::
     prop("screwLength").setDouble(v);
     return true;
   }
+  if (name == "count") {
+    if (!num(v) || v < 1 || v > 100) return false;
+    prop("count").setInt(static_cast<std::int64_t>(v));
+    return true;
+  }
   if (name == "mating") {
     prop("drillMating").setBool(value == "yes" || value == "true" || value == "1");
     return true;

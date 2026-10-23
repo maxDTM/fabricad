@@ -53,17 +53,22 @@ std::vector<HoleTableRow> holeTableRows(const core::Document& doc, const Drawing
   for (const Curve2D& cv : view.curves) {
     if (cv.type != CurveType::Arc || std::abs(std::abs(cv.sweep) - 360.0) > 1e-6) continue;
     if (cv.cls != LineClass::Visible && cv.cls != LineClass::Hidden) continue;
-    if (std::any_of(found.begin(), found.end(), [&](const Found& f) { return std::hypot(f.c.x - cv.center.x, f.c.y - cv.center.y) < 1e-6; }))
-      continue;  // counterbore / countersink circle of a hole already listed
+    auto same = std::find_if(found.begin(), found.end(),
+                             [&](const Found& f) { return std::hypot(f.c.x - cv.center.x, f.c.y - cv.center.y) < 1e-6; });
+    // counterbore / countersink / bottom circle of a hole already listed: only a circle that
+    // knows the hole feature (named edge) improves the entry
+    if (same != found.end() && same->info.source.rfind("feature:", 0) == 0) continue;
     HoleInfo info = analyzeHole(doc, cv);
     if (!info.ok) continue;
+    if (same != found.end() && info.source.rfind("feature:", 0) != 0) continue;
     // the drill circle and its counterbore are concentric: keep the one listed first, but a
     // hole is only one table row
     HoleCallout c;
     info.count = 1;
     std::string text;
     for (const RichLine& l : holeCalloutLines(info, c, units)) text += (text.empty() ? "" : " / ") + richLinePlainText(l);
-    found.push_back({cv.center, info, text});
+    if (same != found.end()) *same = {cv.center, info, text};
+    else found.push_back({cv.center, info, text});
   }
   // tags: one letter per distinct callout (in order of first appearance), numbers by position
   std::map<std::string, char> letter;
