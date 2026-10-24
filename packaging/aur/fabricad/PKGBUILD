@@ -2,7 +2,7 @@
 # AUR release package. After tagging v${pkgver} on GitHub run `updpkgsums` and
 # `makepkg --printsrcinfo > .SRCINFO` (the checksum below is for the GitHub tarball).
 pkgname=fabricad
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='Fast, lightweight parametric 3D CAD (parts, assemblies, drawings) on Qt 6 and OpenCASCADE'
 arch=('x86_64' 'aarch64')

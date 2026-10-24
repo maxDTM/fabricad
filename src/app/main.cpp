@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
       if (!it.Value().IsNull() && it.Value()->GetTraceLevel() < Message_Warning) it.Value()->SetTraceLevel(Message_Warning);
   QApplication::setApplicationName("FabriCAD");
   QApplication::setOrganizationName("FabriCAD");
-  QApplication::setApplicationVersion("0.1.0");
+  QApplication::setApplicationVersion("0.2.0");
   // Qt's own file/colour dialogs follow the application palette; the GTK portal dialog would
   // follow the (possibly dark) desktop theme instead.
   QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);

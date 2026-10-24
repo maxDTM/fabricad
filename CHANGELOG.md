@@ -6,6 +6,8 @@ All notable changes to FabriCAD are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-24
+
 ### Added
 
 - **Guided tour**: "Your first part: a mounting bracket", offered on first launch and in Help > Tutorials:
