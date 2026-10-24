@@ -160,9 +160,14 @@ class HoleTableTest : public QObject {
     std::string all = rows[0].callout + " || " + rows[1].callout;
     QVERIFY2(all.find("FOR M6 SHCS") != std::string::npos, all.c_str());
     QVERIFY2(all.find("CBORE  \xC3\x98" "11 DEEP 6") != std::string::npos, all.c_str());
-    // the tapped 1/4-20 hole: tap drill #7 = 0.201" (its top edge is unnamed on this test plate,
-    // so the thread itself is checked through the part tests' ThreadInfo callout)
+    // the tapped 1/4-20 hole: tap drill #7 = 0.201"
     QVERIFY2(all.find("\xC3\x98" "5.105 DEEP 8") != std::string::npos, all.c_str());
+    // the circles at the hole mouths are unnamed edges (the plate's top face has no history
+    // name): the feature is found through the hole's own faces, whichever coincident edge the
+    // projection picked for the circle (that pick differs with the compiler flags)
+    QVERIFY2(all.find("1/4-20") != std::string::npos, all.c_str());
+    for (const Curve2D& c : fx.view().curves)
+      if (c.isCircle() && near(c.radius, 0.201 * 25.4 / 2, 1e-6)) QCOMPARE(analyzeHole(fx.doc, c).source, std::string("feature:Hole2"));
     // the fastener line can be switched off on a callout
     for (const Curve2D& c : fx.view().curves) {
       if (!c.isCircle() || !near(c.radius, 5.5)) continue;

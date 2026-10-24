@@ -173,6 +173,7 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
     double t, r;
   };
   std::vector<Disc> discs;
+  std::vector<TopoDS_Shape> holeFaces;  // the hole's own faces (internal, coaxial walls and cones)
   for (TopExp_Explorer ex(shape, TopAbs_FACE); ex.More(); ex.Next()) {
     const TopoDS_Face& f = TopoDS::Face(ex.Current());
     BRepAdaptor_Surface s(f, false);
@@ -182,6 +183,7 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
       if (!fa.Direction().IsParallel(axis.Direction(), 1e-6) || axisLine.Distance(fa.Location()) > tol) continue;
       if (!faceExtent(f, axis, rf)) continue;
       rf.internal = isInternal(f, axis);
+      if (rf.internal) holeFaces.push_back(f);
       if (s.GetType() == GeomAbs_Cone) {
         rf.cone = true;
         rf.semiAngle = std::abs(s.Cone().SemiAngle()) * 180.0 / kPi;
@@ -271,8 +273,21 @@ HoleInfo analyzeHole(const core::Document& doc, const Curve2D& circle) {
   info.ok = true;
   info.source = "geometry";
 
-  // hole feature data: instance count, thread
-  if (const core::Feature* f = holeFeatureFor(doc, circle.sourceName)) {
+  // hole feature data: instance count, thread. The circle's own edge name finds the feature when
+  // that edge is named; the circle at the mouth of a hole lies on an unnamed face (the face the
+  // hole was cut into) and its edge is unnamed, so the feature is also looked up through the
+  // history names of the hole's own faces. (The projected circle can carry either of two
+  // coincident edges, e.g. a counterbore's mouth or its floor ring; which one wins is
+  // floating-point noise, so the edge name alone is not reliable.)
+  const core::Feature* holeFeature = holeFeatureFor(doc, circle.sourceName);
+  if (!holeFeature && !holeFaces.empty()) {
+    const part::NameMap names = part::currentNames(doc, circle.sourceBody);
+    for (const TopoDS_Shape& hf : holeFaces) {
+      holeFeature = holeFeatureFor(doc, part::nameOf(names, hf));
+      if (holeFeature) break;
+    }
+  }
+  if (const core::Feature* f = holeFeature) {
     info.source = "feature:" + f->name();
     std::set<std::string> instances;
     const std::string key = f->name() + "/H";
