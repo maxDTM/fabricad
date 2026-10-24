@@ -6,6 +6,12 @@ All notable changes to FabriCAD are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-24
+
+### Fixed
+
+- Drawing hole callouts and the hole table now find the Hole feature through the hole's own faces when the projected edge has no history name, so "FOR M6 SHCS", fits and thread specs no longer depend on which of two coincident circles the projection picks (it differed between compilers and flags).
+
 ## [0.2.0] - 2026-10-24
 
 ### Added
